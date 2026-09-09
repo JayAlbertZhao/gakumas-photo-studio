@@ -160,6 +160,39 @@ class ActorRenderingWiringTests(unittest.TestCase):
         self.assertNotIn('sharedMaterials =', state)
         self.assertNotIn('0.0031', state)
 
+    def test_captured_camera_requires_explicit_fixed_capture(self):
+        app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
+        self.assertLess(app.index('CapturedCameraState.TryReadOption'), app.index('Initialize(BundleCatalog.DefaultStagingRoot)'))
+        capture = app[app.index('private IEnumerator CaptureGpaCameraAndQuit()'):]
+        capture = capture[:capture.index('private IEnumerator CaptureGpaCameraSweepAndQuit()')]
+        self.assertLess(capture.index('capturedRenderers = ApplyCapturedPosedGeometry()'), capture.index('CapturedCameraState.TryLoad'))
+        self.assertLess(capture.index('capturedCamera.Apply(PreviewCamera)'), capture.index('_orbit.enabled = false'))
+        self.assertLess(capture.index('yield return new WaitForEndOfFrame()'), capture.index('WriteCapturedCameraReport(capturedCamera)'))
+        self.assertLess(capture.index('WriteCapturedCameraReport(capturedCamera)'), capture.index('path = SavePresentedFrameScreenshot()'))
+        state = (ROOT / 'unity/Assets/Scripts/CapturedCameraState.cs').read_text(encoding='utf-8')
+        for flag in ('--capture-gpa-camera-and-quit', '--use-captured-posed-geometry', '--capture-presented-window'):
+            self.assertIn('Array.IndexOf(args, "' + flag + '") < 0', state)
+        self.assertIn('if (found < 0) return true', state)
+        self.assertIn('if (_capturedCameraPath != null)', capture)
+
+    def test_captured_camera_validates_and_reports_exact_state(self):
+        state = (ROOT / 'unity/Assets/Scripts/CapturedCameraState.cs').read_text(encoding='utf-8')
+        self.assertIn('Matrix4x4 inverse = view.inverse', state)
+        self.assertIn('matrix[i/4, i%4] = values[i]', state)
+        self.assertIn('float.IsNaN(values[i]) || float.IsInfinity(values[i])', state)
+        self.assertIn('values.Length != 16', state)
+        self.assertIn('bytes.Length > 8192', state)
+        self.assertIn('GL.GetGPUProjectionMatrix(camera.projectionMatrix, true)', state)
+        self.assertIn('camera.worldToCameraMatrix = view', state)
+        self.assertIn('camera.projectionMatrix = projection', state)
+        self.assertIn('Exact(camera.projectionMatrix, projection)', state)
+        self.assertIn('aspect = camera.aspect', state)
+        self.assertLess(state.index('value.targetTexture.width != document.width'), state.index('camera.transform.SetPositionAndRotation'))
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        for name in ('captured-camera-exact-view-projection-and-origin', 'captured-camera-reject-later-projection-write',
+                     'captured-camera-reject-target-before-mutation', 'captured-camera-reject-later-transform-write'):
+            self.assertIn(name, probe)
+
 
 if __name__ == '__main__':
     unittest.main()

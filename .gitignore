@@ -140,6 +140,8 @@
 !/unity/Assets/Scripts/BundleCatalog.cs.meta
 !/unity/Assets/Scripts/CapturedActorShadowMap.cs
 !/unity/Assets/Scripts/CapturedActorShadowMap.cs.meta
+!/unity/Assets/Scripts/CapturedCameraState.cs
+!/unity/Assets/Scripts/CapturedCameraState.cs.meta
 !/unity/Assets/Scripts/CapturedLookAtProfile.cs
 !/unity/Assets/Scripts/CapturedLookAtProfile.cs.meta
 !/unity/Assets/Scripts/CapturedLookAtRuntime.cs

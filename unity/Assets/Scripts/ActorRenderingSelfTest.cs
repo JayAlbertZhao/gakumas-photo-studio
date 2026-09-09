@@ -90,6 +90,7 @@ namespace GakumasPhotoMode
                     actual = dark, maximumDifference = response, accepted = response > 0.05f });
                 VerifyPresentationOwnership(report);
                 VerifyCapturedMaterialUv(report);
+                VerifyCapturedCamera(report);
                 report.accepted = report.checks.TrueForAll(check => check.accepted);
             }
             catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); }
@@ -216,6 +217,114 @@ namespace GakumasPhotoMode
                 CapturedMaterialUvState.Option, "state.json" }, out path, out error);
             report.checks.Add(new Check { name = "captured-uv-command-line-scope",
                 accepted = !ordinary && !missingPath && acceptedOption && path == "state.json" });
+        }
+
+        private void VerifyCapturedCamera(Report report)
+        {
+            var host = Own(new GameObject("Synthetic captured camera"));
+            var camera = host.AddComponent<Camera>();
+            camera.enabled = false;
+            camera.targetTexture = _target;
+            Vector3 origin = new Vector3(0.1f, 0.3f, -3f);
+            Matrix4x4 view = Matrix4x4.Scale(new Vector3(1, 1, -1)) *
+                Matrix4x4.TRS(origin, Quaternion.Euler(12, 7, 0), Vector3.one).inverse;
+            // Deliberately not the target's square pixel aspect: matrices are
+            // authoritative, including the camera getter derived from them.
+            Matrix4x4 projection = Matrix4x4.Perspective(40, 16f/9f, 0.2f, 100);
+            projection.m02 = 0.15f; projection.m12 = -0.05f;
+            var document = new CapturedCameraState.Document { schema = CapturedCameraState.Schema,
+                width = 64, height = 64, nearClip = 0.2f, farClip = 100,
+                worldToCamera = CapturedCameraState.Rows(view), projection = CapturedCameraState.Rows(projection) };
+            string validJson = JsonUtility.ToJson(document), error;
+            CapturedCameraState.Session session;
+            var invalid = new Dictionary<string, Action<CapturedCameraState.Document>> {
+                { "schema", d => d.schema = "wrong" },
+                { "dimensions", d => d.width = 0 },
+                { "clip-planes", d => d.farClip = d.nearClip },
+                { "arity", d => d.worldToCamera = new float[15] },
+                { "singular", d => d.projection = new float[16] },
+                { "non-affine", d => d.worldToCamera[12] = 0.1f },
+                { "non-rigid", d => d.worldToCamera[0] *= 2 },
+                { "handedness", d => d.worldToCamera = CapturedCameraState.Rows(Matrix4x4.identity) },
+                { "gpu-y-flip", d => d.projection[5] = -d.projection[5] },
+                { "orthographic", d => d.projection = CapturedCameraState.Rows(Matrix4x4.identity) }
+            };
+            foreach (var pair in invalid)
+            {
+                var bad = JsonUtility.FromJson<CapturedCameraState.Document>(validJson);
+                pair.Value(bad);
+                bool parsed = CapturedCameraState.TryParse(JsonUtility.ToJson(bad), out session, out error);
+                report.checks.Add(new Check { name = "captured-camera-reject-" + pair.Key,
+                    accepted = !parsed && session == null && !string.IsNullOrEmpty(error) });
+            }
+            foreach (string literal in new[] { "NaN", "Infinity" })
+            {
+                bool parsed = CapturedCameraState.TryParse(validJson.Replace("\"nearClip\":0.2", "\"nearClip\":" + literal),
+                    out session, out error);
+                report.checks.Add(new Check { name = "captured-camera-reject-" + literal, accepted = !parsed });
+            }
+            bool oversized = CapturedCameraState.TryParse(new string(' ', 8193), out session, out error);
+            report.checks.Add(new Check { name = "captured-camera-reject-oversized", accepted = !oversized });
+            string inputPath = Path.Combine(_directory, "synthetic-camera-input.json");
+            File.WriteAllText(inputPath, validJson);
+            if (!CapturedCameraState.TryLoad(inputPath, out session, out error)) throw new InvalidOperationException(error);
+            camera.targetTexture = null;
+            Vector3 before = camera.transform.position;
+            bool wrongTarget = false;
+            try { session.Apply(camera); } catch (InvalidOperationException) { wrongTarget = true; }
+            report.checks.Add(new Check { name = "captured-camera-reject-target-before-mutation",
+                accepted = wrongTarget && camera.transform.position.Equals(before) });
+            camera.targetTexture = _target;
+            camera.orthographic = true;
+            session.Apply(camera);
+            bool exact = true;
+            for (int i = 0; i < 16; i++) exact &= camera.worldToCameraMatrix[i] == view[i] && camera.projectionMatrix[i] == projection[i];
+            string appliedJson = session.VerifiedJson();
+            File.WriteAllText(Path.Combine(_directory, "synthetic-camera-applied.json"), appliedJson);
+            report.checks.Add(new Check { name = "captured-camera-exact-view-projection-and-origin",
+                accepted = exact && Vector3.Distance(camera.transform.position, origin) < 0.000001f &&
+                    !camera.orthographic && session.Verify(out error) });
+            report.checks.Add(new Check { name = "captured-camera-input-hash-and-gpu-report",
+                accepted = session.sourceSha256.Length == 64 && appliedJson.Contains(session.sourceSha256) &&
+                    appliedJson.Contains("\"viewProjection\"") });
+            bool duplicateApply = false;
+            try { session.Apply(camera); } catch (InvalidOperationException) { duplicateApply = true; }
+            report.checks.Add(new Check { name = "captured-camera-reject-reapply", accepted = duplicateApply });
+            var changed = projection; changed.m02 += 0.000001f; camera.projectionMatrix = changed;
+            report.checks.Add(new Check { name = "captured-camera-reject-later-projection-write", accepted = !session.Verify(out error) });
+            camera.projectionMatrix = projection;
+            camera.transform.position += new Vector3(0.000001f, 0, 0);
+            report.checks.Add(new Check { name = "captured-camera-reject-later-transform-write", accepted = !session.Verify(out error) });
+            camera.transform.position = session.position;
+            camera.targetTexture = null;
+            report.checks.Add(new Check { name = "captured-camera-reject-later-target-write", accepted = !session.Verify(out error) });
+            camera.targetTexture = _target;
+            camera.orthographic = true;
+            report.checks.Add(new Check { name = "captured-camera-reject-later-projection-mode", accepted = !session.Verify(out error) });
+            camera.targetTexture = null;
+            var required = new[] { "--capture-gpa-camera-and-quit", "--use-captured-posed-geometry", "--capture-presented-window" };
+            var args = new List<string>(required) { CapturedCameraState.Option, "state.json" };
+            string path;
+            bool goodOption = CapturedCameraState.TryReadOption(args.ToArray(), out path, out error);
+            report.checks.Add(new Check { name = "captured-camera-command-line-valid", accepted = goodOption && path == "state.json" });
+            foreach (string flag in required)
+            {
+                var missing = new List<string>(args); missing.Remove(flag);
+                report.checks.Add(new Check { name = "captured-camera-command-line-requires-" + flag,
+                    accepted = !CapturedCameraState.TryReadOption(missing.ToArray(), out path, out error) });
+            }
+            foreach (string flag in new[] { CapturedCameraState.Option, "--self-test-actor-rendering", "--capture-and-quit", "--validate-actor-rendering" })
+            {
+                var conflict = new List<string>(args) { flag, "extra" };
+                report.checks.Add(new Check { name = "captured-camera-command-line-conflict-" + flag,
+                    accepted = !CapturedCameraState.TryReadOption(conflict.ToArray(), out path, out error) });
+            }
+            args.RemoveAt(args.Count-1);
+            bool missingPath = CapturedCameraState.TryReadOption(args.ToArray(), out path, out error);
+            bool equalsPath = CapturedCameraState.TryReadOption(new[] { CapturedCameraState.Option + "=state.json" }, out path, out error);
+            bool absent = CapturedCameraState.TryReadOption(new[] { "--photo-mode" }, out path, out error);
+            report.checks.Add(new Check { name = "captured-camera-command-line-missing-equals-and-absent",
+                accepted = !missingPath && !equalsPath && absent && path == null });
         }
 
         private void SetUp()

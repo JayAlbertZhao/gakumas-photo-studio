@@ -122,6 +122,7 @@ namespace GakumasPhotoMode
         private bool _initialized;
         private string _stagingRoot;
         private string _capturedMaterialUvPath;
+        private string _capturedCameraPath;
         private string _status = "Starting";
         private bool _showUi = true;
         private Color _storyActorColor = Color.white;
@@ -193,6 +194,13 @@ namespace GakumasPhotoMode
                 if (!CapturedMaterialUvState.TryReadOption(commandLine, out _capturedMaterialUvPath, out capturedUvError))
                 {
                     Debug.LogError("[PhotoMode] " + capturedUvError);
+                    Application.Quit(3);
+                    return;
+                }
+                string capturedCameraError;
+                if (!CapturedCameraState.TryReadOption(commandLine, out _capturedCameraPath, out capturedCameraError))
+                {
+                    Debug.LogError("[PhotoMode] " + capturedCameraError);
                     Application.Quit(3);
                     return;
                 }
@@ -3414,6 +3422,31 @@ namespace GakumasPhotoMode
             HashSet<Renderer> capturedRenderers = null;
             if (Environment.GetCommandLineArgs().Contains("--use-captured-posed-geometry"))
                 capturedRenderers = ApplyCapturedPosedGeometry();
+            CapturedCameraState.Session capturedCamera = null;
+            if (_capturedCameraPath != null)
+            {
+                string error = null;
+                if (capturedRenderers == null || capturedRenderers.Count == 0 ||
+                    !CapturedCameraState.TryLoad(_capturedCameraPath, out capturedCamera, out error))
+                {
+                    Debug.LogError("[PhotoMode] Captured camera rejected: " + (error ?? "No captured geometry was loaded."));
+                    Application.Quit(3);
+                    yield break;
+                }
+                try
+                {
+                    capturedCamera.Apply(PreviewCamera);
+                    // This process is a fixed capture, not interactive photography.
+                    // Prevent the legacy orbit pose from rewriting camera-position globals.
+                    _orbit.enabled = false;
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogError("[PhotoMode] Captured camera rejected: " + exception.Message);
+                    Application.Quit(3);
+                    yield break;
+                }
+            }
             CapturedMaterialUvState.Session capturedUv = null;
             if (_capturedMaterialUvPath != null)
             {
@@ -3469,6 +3502,8 @@ namespace GakumasPhotoMode
                     OriginalStyleRenderPipeline.RequestPostInputDump(prefix);
                 }
                 yield return new WaitForEndOfFrame();
+                if (capturedCamera != null && !WriteCapturedCameraReport(capturedCamera))
+                { Application.Quit(3); yield break; }
                 path = SavePresentedFrameScreenshot();
             }
             else
@@ -3619,8 +3654,10 @@ namespace GakumasPhotoMode
         private void ApplyCapturedGpaCamera()
         {
             // VS 54E7B147BC883DC9 writes SV_POSITION from CB0[77..80].
-            // Factoring those rows and then removing Actor CB1[0..3] yields this
-            // camera exactly in Actor-local coordinates; see camera-contract-pass91.
+            // Legacy pass91 approximation: its basis-transpose inverse loses the
+            // captured projection offset. Use --captured-camera-state for an explicit
+            // independently recovered input contract; retain the old fallback for
+            // compatibility rather than silently changing older capture baselines.
             Vector3 actorLocalPosition = new Vector3(-0.003873869f, 1.50305927f, 1.44595370f);
             Vector3 actorLocalForward = new Vector3(0.000462058f, -0.12805113f, -0.99176746f);
             Vector3 actorLocalUp = new Vector3(0.000059637f, 0.99177005f, -0.12803192f);
@@ -4069,6 +4106,24 @@ namespace GakumasPhotoMode
                 File.WriteAllText(Path.Combine(directory, "face-runtime-diagnostic.json"),
                     _faceExpression.DiagnosticJson() + "\n");
             Debug.Log("[PhotoMode] Face diagnostic dumped: " + directory);
+        }
+
+        private bool WriteCapturedCameraReport(CapturedCameraState.Session session)
+        {
+            try
+            {
+                string directory = Path.Combine(_stagingRoot ?? BundleCatalog.DefaultStagingRoot, "captures");
+                Directory.CreateDirectory(directory);
+                string path = Path.Combine(directory, "camera-state-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + ".json");
+                File.WriteAllText(path, session.VerifiedJson());
+                Debug.Log("[PhotoMode] Verified captured camera: " + path);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError("[PhotoMode] Captured camera rejected before capture: " + exception.Message);
+                return false;
+            }
         }
 
         private bool WriteCapturedMaterialUvReport(CapturedMaterialUvState.Session session)
