@@ -714,7 +714,7 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         dot(v, headWorldNormal));
     float headSurfaceRamp = saturate(
         dot(lerp(headReceiverNormal, headWorldNormal, saturate(_CapturedLightDirection.w)), l) *
-        0.5 + definition.r - 0.15);
+        0.5 + definition.r - 0.5 * _ActorMatcapParameters.x);
     float type9Ramp = lerp(
         exactSurfaceRamp,
         max(exactSurfaceRamp, headSurfaceRamp),

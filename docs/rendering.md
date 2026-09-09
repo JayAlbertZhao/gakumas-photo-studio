@@ -17,7 +17,19 @@ Inspector 中 `ActorRenderControls` 还提供有色主光、阴影乘色/加色�
 
 剧情背景的 `actorProfile` 中的 `matCapOffset`、`matCapSmoothScale`、`shadeApplyRatio`、`giScale`、`additiveLightScale`、`additiveLightSpecularScale`、`eyeHighlightColor` 已连接至复现 shader；阴影加色和边缘光 RGB 不再被丢弃。
 
-## 可重复检查
+## 无资产 GPU 自检
+
+完成普通 Player 构建后，不需要配置模型、贴图或数据目录，即可运行：
+
+```powershell
+& .\unity\output\KotonePhotoStudio.exe --self-test-actor-rendering .\LocalAssets\synthetic-check
+```
+
+该入口在读取资产之前进入隔离测试，只生成一个四边形和灰度 ramp，使用实际角色 shader 渲染到浮点缓冲。它检查同向头部/表面法线在三个明暗偏移下是否一致，并用明暗响应正控制拒绝空画面或恒定输出。结果写入 `actor-synthetic.json`，附六张预览 PNG；通过退出 0，失败退出 2。数值检查读取浮点像素，PNG 只用于查看。需可用 GPU 和普通 Built-in Player，不支持 `-nographics` 或原版 shader 研究构建。
+
+这一自检覆盖过一个实际回归：面部三角区曾固定使用默认偏移，即使 F8 或剧情已改变明暗边界。现在头部与公共表面使用同一偏移参数，默认值保持不变。自检不证明真实模型、动态遮挡、完整后处理或动画已正确复现。
+
+## 带资产的可重复检查
 
 先完成常规配置和构建。在已设置 `GAKUMAS_PHOTO_STAGING` 的终端运行：
 

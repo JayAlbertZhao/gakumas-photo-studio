@@ -460,6 +460,7 @@ namespace GakumasPhotoMode
                 // CB0[154].x gates the complete SH term and is exactly zero in all seven
                 // captured actor draws. Keep the coefficients archived, but honor the gate.
                 Shader.SetGlobalFloat("_CapturedAmbientScale", 0f);
+                if (ActorRenderingSelfTest.TryStart(gameObject)) { enabled = false; return; }
                 Initialize(BundleCatalog.DefaultStagingRoot);
                 if (commandLine.Contains("--hide-ui")) _showUi = false;
                 if (commandLine.Contains("--renderdoc-capture-and-quit"))

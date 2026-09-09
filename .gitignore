@@ -122,6 +122,8 @@
 !/unity/Assets/Scripts/ActorHeadLightingDriver.cs.meta
 !/unity/Assets/Scripts/ActorRenderControls.cs
 !/unity/Assets/Scripts/ActorRenderControls.cs.meta
+!/unity/Assets/Scripts/ActorRenderingSelfTest.cs
+!/unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta
 !/unity/Assets/Scripts/ActorRenderingValidation.cs
 !/unity/Assets/Scripts/ActorRenderingValidation.cs.meta
 !/unity/Assets/Scripts/ActorShaderReferenceFeature.cs

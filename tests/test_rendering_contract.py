@@ -110,6 +110,26 @@ class ActorRenderingWiringTests(unittest.TestCase):
         self.assertIn('if (!RenderDocCaptureBridge.TriggerCapture()) { Application.Quit(2); yield break; }', capture)
         self.assertIn('GPA-camera submitted passes: outline=', capture)
 
+    def test_head_triangle_and_common_ramp_share_offset(self):
+        shader = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        head = shader[shader.index('float headSurfaceRamp ='):shader.index('float type9Ramp =')]
+        self.assertIn('0.5 * _ActorMatcapParameters.x', head)
+        self.assertNotIn('- 0.15', head)
+
+    def test_asset_free_gpu_probe_precedes_asset_loading(self):
+        app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
+        self.assertLess(app.index('ActorRenderingSelfTest.TryStart(gameObject)'),
+                        app.index('Initialize(BundleCatalog.DefaultStagingRoot)'))
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('new Mesh', probe)
+        self.assertIn('new Texture2D(256, 1', probe)
+        self.assertIn('RenderTextureFormat.ARGBFloat', probe)
+        self.assertIn('_camera.Render()', probe)
+        self.assertIn('nonconstant-ramp-positive-control', probe)
+        self.assertIn('Application.Quit(report.accepted ? 0 : 2)', probe)
+        self.assertNotIn('AssetBundle', probe)
+        self.assertNotIn('BundleCatalog', probe)
+
 
 if __name__ == '__main__':
     unittest.main()
