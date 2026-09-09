@@ -41,7 +41,8 @@ class TimelineFormatTests(unittest.TestCase):
     def test_original_examples_use_existing_timeline_event_fields(self):
         paths = sorted((ROOT / 'examples').glob('*.timeline.json'))
         self.assertEqual([path.name for path in paths], [
-            '01-single-motion.timeline.json', '02-motion-transition.timeline.json'])
+            '01-single-motion.timeline.json', '02-motion-transition.timeline.json',
+            '03-motion-sequence.timeline.json'])
         for path in paths:
             with self.subTest(file=path.name):
                 scene = json.loads(path.read_text(encoding='utf-8'))
@@ -57,7 +58,12 @@ class TimelineFormatTests(unittest.TestCase):
                     self.assertGreater(event['duration'], 0)
                     self.assertLessEqual(event['time'] + event['duration'], scene['duration'])
                     self.assertTrue(event['motion'].startswith('YOUR_'))
-                self.assertEqual(scene['messages'], [])
+                for message in scene['messages']:
+                    self.assertEqual(set(message), {'time', 'duration', 'order', 'name', 'text'})
+                    self.assertGreaterEqual(message['time'], 0)
+                    self.assertGreater(message['duration'], 0)
+                    self.assertLessEqual(message['time'] + message['duration'], scene['duration'])
+                    self.assertTrue(message['text'])
 
 
 if __name__ == '__main__':

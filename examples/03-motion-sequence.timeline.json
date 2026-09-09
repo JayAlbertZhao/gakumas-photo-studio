@@ -1,0 +1,15 @@
+{
+  "schema_version": "photo-studio-example",
+  "story_id": "original-three-part-study",
+  "duration": 30.0,
+  "body_motions": [
+    {"time": 0.0, "duration": 10.0, "order": 0, "motion": "YOUR_FIRST_MOTION_ID", "clipIn": 0.0, "transition": 0.0, "facialTransition": 0.0, "ease": "InOutSine"},
+    {"time": 10.0, "duration": 10.0, "order": 1, "motion": "YOUR_SECOND_MOTION_ID", "clipIn": 0.0, "transition": 0.5, "facialTransition": 0.5, "ease": "InOutSine"},
+    {"time": 20.0, "duration": 10.0, "order": 2, "motion": "YOUR_FIRST_MOTION_ID", "clipIn": 0.0, "transition": 0.5, "facialTransition": 0.5, "ease": "InOutSine"}
+  ],
+  "messages": [
+    {"time": 0.0, "duration": 10.0, "order": 0, "name": "Studio note", "text": "First motion: establish the pose."},
+    {"time": 10.0, "duration": 10.0, "order": 1, "name": "Studio note", "text": "Second motion: observe the transition."},
+    {"time": 20.0, "duration": 10.0, "order": 2, "name": "Studio note", "text": "Return to the first motion."}
+  ]
+}

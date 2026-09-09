@@ -2,6 +2,8 @@
 
 集中入口为根目录 `LocalAssets/`；只提交其中 README。既有私人原件继续保存在仓库外。
 
+如果已经收到自己的私人资产 ZIP，先按[换电脑迁移指南](user-guide.md)解压到**仓库根目录**，不要解压到 LocalAssets 内。该包已放置相对路径配置和 Unity 私人 Resources。公开仓库不提供原版素材包下载。
+
 ```text
 LocalAssets/
   runtime/
@@ -22,7 +24,7 @@ LocalAssets/
 
 可选编辑器环境变量为 `TUANJIE_EDITOR`。临时检查其他数据集可用 `python -I studio.py doctor --data "<另一目录>"`，不会覆盖本地配置。`config/studio.example.json` 是本地配置结构示例，不存储密码、密钥或账户。
 
-为保持 C# 原文，本版保留两处不含用户名或凭据的旧项目默认路径；用户通过上述已有环境变量覆盖。不读取 `asset-paths.local.json`、`render-profile.json`，也不支持 `--data`。
+为保持 C# 原文，本版保留两处不含用户名或凭据的旧项目默认路径；用户通过上述已有环境变量覆盖。Unity Player 本身不读取 `asset-paths.local.json`、`render-profile.json`，也不支持 `--data`；`studio.py <子命令> --data` 是外围启动器对子进程环境变量的配置入口。
 
 清单结构见 `config/staging-manifest.example.json`；它是空格式示例，不是可运行数据。BundleRecord 的现有字段为 `name`、`role`、`label`、`requested`、`output_relative_path`、`dependencies`。角色部件主要由资源命名约定识别，没有新工具层的通用角色/变体元数据解析。
 
@@ -30,7 +32,7 @@ LocalAssets/
 
 需要当前引擎能够加载的 AssetBundle，角色部件 prefab 具有匹配的骨架/蒙皮、材质与依赖，身体和面部动作具有对应动画类型。目录中每个清单路径都要指向实际文件。重命名一个 FBX 或原始游戏缓存文件并不能转换它。
 
-脸部资源 ID 的现有约定是 `mdl_chr_<角色ID>-<变体>_face`；身体与头发使用同角色 ID 的相应部件。至少需要 face、costume、hair、motion 四类记录。`python -I studio.py catalog` 列出数据集识别到的角色和资源 ID；非默认角色通过 `photo --character <ID>` 指定。
+脸部资源 ID 的现有约定是 `mdl_chr_<角色ID>-<变体>_face`；身体与头发使用同角色 ID 的相应部件。至少需要 face、costume、hair、motion 四类记录。头发还必须匹配服装变体，或提供该角色的 `base-0000` 头发供旧逻辑回退；仅有任意 hair 记录不保证启动。`python -I studio.py catalog` 列出数据集识别到的角色和资源 ID；非默认角色通过 `photo --character <ID>` 指定。
 
 仓库不提供从官方游戏缓存到该清单的通用提取流程，也不验证输入的使用权。没有已准备兼容数据的使用者，目前无法仅靠此仓库完成端到端动画制作。doctor 的结构检查不能代替 Unity 内的资产内容和画面验证。
 
