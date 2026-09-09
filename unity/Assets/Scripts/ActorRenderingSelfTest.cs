@@ -91,6 +91,7 @@ namespace GakumasPhotoMode
                     actual = dark, maximumDifference = response, accepted = response > 0.05f });
                 VerifyHeadReflection(report);
                 VerifySkinSaturation(report);
+                VerifyHairSpecularRegions(report);
                 VerifyPresentationOwnership(report);
                 VerifyCapturedMaterialUv(report);
                 VerifyCapturedCamera(report);
@@ -201,7 +202,7 @@ namespace GakumasPhotoMode
                     Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
                     Color baseline = Render("skin-type-" + type + "-identity");
                     Color expectedBase = baseColor * 0.96f; expectedBase.a = 1f;
-                    AddSkinCheck(report, "skin-type-" + type + "-base-positive-control", expectedBase, baseline);
+                    AddColorCheck(report, "skin-type-" + type + "-base-positive-control", expectedBase, baseline);
                     float luma = baseline.r * 0.2126729f + baseline.g * 0.7151522f + baseline.b * 0.0721750f;
                     Color gray = new Color(luma, luma, luma, 1f);
                     foreach (float mask in new[] { 0f, 0.25f, 1f })
@@ -213,11 +214,11 @@ namespace GakumasPhotoMode
                             string name = string.Format(System.Globalization.CultureInfo.InvariantCulture,
                                 "skin-type-{0}-mask-{1}-delta-{2}", type, mask, delta);
                             Color expected = Color.LerpUnclamped(gray, baseline, 1f + delta * mask);
-                            AddSkinCheck(report, name, expected, Render(name));
+                            AddColorCheck(report, name, expected, Render(name));
                         }
                     }
                     Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
-                    AddSkinCheck(report, "skin-type-" + type + "-restored", baseline,
+                    AddColorCheck(report, "skin-type-" + type + "-restored", baseline,
                         Render("skin-type-" + type + "-restored"));
                 }
             }
@@ -228,7 +229,117 @@ namespace GakumasPhotoMode
             }
         }
 
-        private static void AddSkinCheck(Report report, string name, Color expected, Color actual)
+        private void VerifyHairSpecularRegions(Report report)
+        {
+            var savedMaterial = Own(new Material(_material));
+            Vector2[] savedUv = _quad.uv;
+            string[] floats = { "_FaceDebugMode", "_CapturedDirectScale", "_CapturedDiffuseBlend",
+                "_UseCapturedDirectSpecular", "_ActorEnvironmentIntensity", "_CapturedSkinSaturation",
+                "_ActorAdditionalLightCount" };
+            float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
+            string[] vectors = { "_CapturedLightDirection", "_ActorMatcapParameters", "_ActorLightingScales",
+                "_ActorKeyColor", "_ActorRimColor", "_CapturedShadeAdditive" };
+            Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            string[] arrays = { "_ActorAdditionalPositions", "_ActorAdditionalColors",
+                "_ActorAdditionalDirections", "_ActorAdditionalSpots" };
+            Vector4[][] savedArrays = Array.ConvertAll(arrays, Shader.GetGlobalVectorArray);
+            var baseMap = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var highlight = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var ramp = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var rampAdd = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            Color baseColor = new Color(0.12f, 0.20f, 0.30f, 1f);
+            Color highlightColor = new Color(0.75f, 0.60f, 0.45f, 1f);
+            baseMap.SetPixel(0, 0, baseColor); baseMap.Apply();
+            highlight.SetPixel(0, 0, highlightColor); highlight.Apply();
+            ramp.SetPixel(0, 0, new Color(1, 1, 1, 0)); ramp.Apply();
+            rampAdd.SetPixel(0, 0, Color.clear); rampAdd.Apply();
+            try
+            {
+                _material.SetColor("_Color", Color.white);
+                _material.SetTexture("_MainTex", baseMap);
+                _material.SetTexture("_HighlightTex", highlight);
+                _material.SetTexture("_RampTex", ramp);
+                _material.SetTexture("_ShadeTex", Texture2D.blackTexture);
+                _material.SetTexture("_RampAddTex", rampAdd);
+                _material.SetFloat("_EnableLayer", 0f);
+                _material.SetFloat("_UseEmission", 0f);
+                _material.SetFloat("_DisableDefMap", 1f);
+                _material.SetVector("_DefValue", new Vector4(0.5f, 0.5f, 0, 1));
+                _material.SetVector("_SpecularThreshold", new Vector4(0.15f, 0, 0, 0));
+                Shader.SetGlobalFloat("_CapturedDirectScale", 1f);
+                Shader.SetGlobalFloat("_CapturedDiffuseBlend", 1f);
+                Shader.SetGlobalFloat("_UseCapturedDirectSpecular", 1f);
+                Shader.SetGlobalFloat("_ActorEnvironmentIntensity", 0f);
+                Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
+                Shader.SetGlobalFloat("_ActorAdditionalLightCount", 0f);
+                Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(0, 0, -1, 1));
+                Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0, 1, 1, 0));
+                _material.SetFloat("_ShaderType", 0f);
+                Shader.SetGlobalFloat("_FaceDebugMode", 20f);
+                Color bodySpecular = Render("hair-spec-body-positive-control");
+                report.checks.Add(new Check { name = "hair-spec-body-positive-control", actual = bodySpecular,
+                    accepted = bodySpecular.r > 0.01f && !float.IsNaN(bodySpecular.r) && !float.IsInfinity(bodySpecular.r) });
+                var coordinates = new[] { new Vector2(0.2f, 0.2f), new Vector2(0.8f, 0.2f),
+                    new Vector2(0.2f, 0.8f), new Vector2(0.75f, 0.9f), new Vector2(0.9f, 0.75f),
+                    new Vector2(0.8f, 0.8f) };
+                for (int i = 0; i < coordinates.Length; i++)
+                {
+                    Vector2 uv = coordinates[i];
+                    _quad.uv = new[] { uv, uv, uv, uv };
+                    bool accessory = i == coordinates.Length - 1;
+                    _material.SetFloat("_ShaderType", 8f);
+                    Shader.SetGlobalFloat("_FaceDebugMode", 20f);
+                    string name = "hair-spec-region-" + i;
+                    AddColorCheck(report, name, accessory ? bodySpecular : Color.black, Render(name));
+                    // The authored highlight must remain on strands, including
+                    // the exact 0.75 boundary, and stay off the accessory UVs.
+                    Shader.SetGlobalFloat("_FaceDebugMode", 19f);
+                    Color diffuse = (accessory ? baseColor : highlightColor) * 0.96f; diffuse.a = 1f;
+                    name = "hair-highlight-region-" + i;
+                    AddColorCheck(report, name, diffuse, Render(name));
+                }
+                foreach (int type in new[] { 1, 9 })
+                {
+                    _material.SetFloat("_ShaderType", type);
+                    Shader.SetGlobalFloat("_FaceDebugMode", 20f);
+                    string name = "hair-spec-retains-nonhair-" + type;
+                    AddColorCheck(report, name, bodySpecular, Render(name));
+                }
+                Shader.SetGlobalFloat("_FaceDebugMode", 23f);
+                Shader.SetGlobalFloat("_CapturedDirectScale", 0f);
+                Shader.SetGlobalVector("_ActorKeyColor", Vector4.zero);
+                Shader.SetGlobalVector("_ActorRimColor", Vector4.zero);
+                Shader.SetGlobalVector("_CapturedShadeAdditive", Vector4.zero);
+                Shader.SetGlobalVector("_ActorLightingScales", new Vector4(0, 1, 1, 0));
+                Shader.SetGlobalFloat("_ActorAdditionalLightCount", 1f);
+                var positions = new Vector4[8]; positions[0] = new Vector4(0, 0, -2, 0.1f);
+                var colors = new Vector4[8]; colors[0] = Vector4.one;
+                var directions = new Vector4[8]; directions[0] = new Vector4(0, 0, 0, -1);
+                Shader.SetGlobalVectorArray(arrays[0], positions);
+                Shader.SetGlobalVectorArray(arrays[1], colors);
+                Shader.SetGlobalVectorArray(arrays[2], directions);
+                Shader.SetGlobalVectorArray(arrays[3], new Vector4[8]);
+                _material.SetFloat("_ShaderType", 0f);
+                Color additional = Render("hair-spec-additional-positive-control");
+                report.checks.Add(new Check { name = "hair-spec-additional-positive-control", actual = additional,
+                    accepted = additional.r > 0.001f && !float.IsNaN(additional.r) && !float.IsInfinity(additional.r) });
+                _material.SetFloat("_ShaderType", 8f);
+                AddColorCheck(report, "hair-spec-accessory-additional", additional, Render("hair-spec-accessory-additional"));
+                _quad.uv = new[] { Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero };
+                AddColorCheck(report, "hair-spec-strands-additional", Color.black, Render("hair-spec-strands-additional"));
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(savedMaterial);
+                _quad.uv = savedUv;
+                for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
+                for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
+                for (int i = 0; i < arrays.Length; i++) Shader.SetGlobalVectorArray(arrays[i],
+                    savedArrays[i] != null && savedArrays[i].Length > 0 ? savedArrays[i] : new Vector4[8]);
+            }
+        }
+
+        private static void AddColorCheck(Report report, string name, Color expected, Color actual)
         {
             float difference = Mathf.Max(Mathf.Abs(expected.r - actual.r),
                 Mathf.Abs(expected.g - actual.g), Mathf.Abs(expected.b - actual.b), Mathf.Abs(expected.a - actual.a));

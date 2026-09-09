@@ -7,6 +7,22 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_hair_strands_and_accessories_have_separate_specular_regions(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('(input.uv.x > 0.75 && input.uv.y > 0.75)', surface)
+        self.assertNotIn('step(0.75, input.uv.x)', surface)
+        self.assertIn('(1.0 - hairAccessoryMask)', surface)
+        gate = 'if (isHair) definitionVisibility *= hairAccessoryMask;'
+        self.assertIn(gate, surface)
+        self.assertLess(surface.index('hairHighlightWeight);'), surface.index(gate))
+        self.assertLess(surface.index(gate), surface.index('float specularVisibility ='))
+        self.assertIn('distribution * specularF0 * definitionVisibility', surface)
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifyHairSpecularRegions(report);', probe)
+        self.assertIn('new Vector2(0.75f, 0.9f)', probe)
+        self.assertIn('new Vector2(0.9f, 0.75f)', probe)
+        self.assertIn('hair-spec-strands-additional', probe)
+
     def test_skin_saturation_uses_authored_mask_not_material_id(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('_CapturedSkinSaturation * saturate(shadeSample.a)', surface)

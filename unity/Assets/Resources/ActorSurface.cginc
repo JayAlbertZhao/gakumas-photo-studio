@@ -565,6 +565,10 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     // UV corner is explicitly excluded by the original shader.
     float earlySmoothedShadow = materialShadow *
         (4.0 * materialShadow * materialShadow - 6.0 * materialShadow + 3.0);
+    // Hair strands use their authored highlight, while accessories in the
+    // upper UV corner retain the conventional specular response. Boundaries
+    // belong to strands: both UV components must be strictly above 0.75.
+    float hairAccessoryMask = (input.uv.x > 0.75 && input.uv.y > 0.75) ? 1.0 : 0.0;
     if (isHair)
     {
         float hairResponse = pow(saturate(dot(receiverNormal, h)), 4.0);
@@ -572,10 +576,9 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
             ? step(_SpecularThreshold.x, hairResponse)
             : smoothstep(_SpecularThreshold.x - _SpecularThreshold.y,
                 _SpecularThreshold.x + _SpecularThreshold.y, hairResponse);
-        float upperUvCorner = step(0.75, input.uv.x) * step(0.75, input.uv.y);
         float hairHighlightWeight = hairHighlightResponse *
             min(saturate(earlySmoothedShadow), saturate(definition.a)) *
-            (1.0 - upperUvCorner);
+            (1.0 - hairAccessoryMask);
         baseSample.rgb = lerp(
             baseSample.rgb,
             tex2Dbias(_HighlightTex, actorTextureCoordinate).rgb,
@@ -964,6 +967,9 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         _CapturedType4DebugStage < 14.5)
         return float4(max(directSpecular.xxx, 0.0), 1.0);
     float definitionVisibility = saturate(definition.a);
+    // Apply after the authored highlight so suppressing the extra BRDF lobe
+    // does not erase that highlight. Share the mask with additional lights.
+    if (isHair) definitionVisibility *= hairAccessoryMask;
     float specularVisibility = min(saturate(smoothedShadow), definitionVisibility);
     if (isEye)
         specularVisibility = lerp(
