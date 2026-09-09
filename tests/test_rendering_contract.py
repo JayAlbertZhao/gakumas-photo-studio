@@ -7,6 +7,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_quality_respects_per_texture_sampling(self):
+        app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
+        self.assertIn('QualitySettings.anisotropicFiltering = AnisotropicFiltering.Enable;', app)
+        self.assertNotRegex(app, r'QualitySettings\.anisotropicFiltering\s*=\s*AnisotropicFiltering\.ForceEnable')
+        repair = (ROOT / 'unity/Assets/Scripts/MaterialRepairer.cs').read_text(encoding='utf-8')
+        self.assertIn('texture.filterMode, texture.wrapModeU, texture.wrapModeV', repair)
+        self.assertIn('texture.mipMapBias, texture.anisoLevel', repair)
+
     def test_shared_surface_and_explicit_supplementary_passes(self):
         surface = (ROOT / 'unity/Assets/Resources/PhotoModeFallback.shader').read_text(encoding='utf-8')
         extra = (ROOT / 'unity/Assets/Resources/ActorSupplemental.shader').read_text(encoding='utf-8')

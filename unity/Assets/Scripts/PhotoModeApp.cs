@@ -529,7 +529,10 @@ namespace GakumasPhotoMode
             Application.targetFrameRate = _ambientWallpaperDemo ? 30 : 60;
             Application.runInBackground = true;
             QualitySettings.antiAliasing = 8;
-            QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
+            // Respect each texture's sampling contract. ForceEnable upgrades
+            // bilinear base maps to anisotropic samplers, changing thin details
+            // even when their pixels, UVs and authored filter settings match.
+            QualitySettings.anisotropicFiltering = AnisotropicFiltering.Enable;
             string[] qualityCommandLine = Environment.GetCommandLineArgs();
             QualitySettings.shadowDistance = qualityCommandLine.Contains("--shadow-distance-6") ? 6f :
                                              qualityCommandLine.Contains("--shadow-distance-8") ? 8f :
