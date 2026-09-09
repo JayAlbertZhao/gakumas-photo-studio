@@ -92,6 +92,7 @@ namespace GakumasPhotoMode
                 VerifyHeadReflection(report);
                 VerifySkinSaturation(report);
                 VerifyHairSpecularRegions(report);
+                VerifyRampAddSpecular(report);
                 VerifyPresentationOwnership(report);
                 VerifyCapturedMaterialUv(report);
                 VerifyCapturedCamera(report);
@@ -336,6 +337,91 @@ namespace GakumasPhotoMode
                 for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
                 for (int i = 0; i < arrays.Length; i++) Shader.SetGlobalVectorArray(arrays[i],
                     savedArrays[i] != null && savedArrays[i].Length > 0 ? savedArrays[i] : new Vector4[8]);
+            }
+        }
+
+        private void VerifyRampAddSpecular(Report report)
+        {
+            var savedMaterial = Own(new Material(_material));
+            Vector2[] savedUv = _quad.uv;
+            string[] floats = { "_FaceDebugMode", "_CapturedDirectScale", "_CapturedDiffuseBlend",
+                "_UseCapturedDirectSpecular", "_ActorEnvironmentIntensity", "_CapturedSkinSaturation",
+                "_ActorAdditionalLightCount" };
+            float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
+            string[] vectors = { "_CapturedLightDirection", "_ActorMatcapParameters" };
+            Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            var baseMap = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var ramp = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var rampAdd = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            Color baseColor = new Color(0.12f, 0.20f, 0.30f, 1f);
+            Color texel = new Color(0.3f, 0.5f, 0.7f, 0f);
+            Color tint = new Color(2f, 0.5f, 1.5f, 1f);
+            // _RampAddColor is a ShaderLab Color property. Account for the
+            // project's color-space conversion independently of texture alpha.
+            Color linearTint = QualitySettings.activeColorSpace == ColorSpace.Linear ? tint.linear : tint;
+            Color rampColor = texel * linearTint;
+            baseMap.SetPixel(0, 0, baseColor); baseMap.Apply();
+            ramp.SetPixel(0, 0, new Color(1, 1, 1, 0)); ramp.Apply();
+            try
+            {
+                _material.SetColor("_Color", Color.white);
+                _material.SetColor("_RampAddColor", tint);
+                _material.SetTexture("_MainTex", baseMap);
+                _material.SetTexture("_ShadeTex", Texture2D.blackTexture);
+                _material.SetTexture("_RampTex", ramp);
+                _material.SetTexture("_RampAddTex", rampAdd);
+                _material.SetFloat("_EnableLayer", 0f);
+                _material.SetFloat("_UseEmission", 0f);
+                _material.SetFloat("_DisableDefMap", 1f);
+                _material.SetVector("_DefValue", new Vector4(0.5f, 0.5f, 0, 1));
+                Shader.SetGlobalFloat("_CapturedDirectScale", 1f);
+                Shader.SetGlobalFloat("_CapturedDiffuseBlend", 1f);
+                Shader.SetGlobalFloat("_UseCapturedDirectSpecular", 1f);
+                Shader.SetGlobalFloat("_ActorEnvironmentIntensity", 0f);
+                Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
+                Shader.SetGlobalFloat("_ActorAdditionalLightCount", 0f);
+                Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(0, 0, -1, 1));
+                Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0, 1, 1, 0));
+                Vector2 uv = new Vector2(0.8f, 0.8f);
+                _quad.uv = new[] { uv, uv, uv, uv }; // Includes a hair accessory, not a strand.
+                int[] types = { 0, 1, 1, 8, 9 };
+                int[] variants = { 0, 1, 2, 0, 0 };
+                for (int i = 0; i < types.Length; i++)
+                {
+                    _material.SetFloat("_ShaderType", types[i]);
+                    _material.SetFloat("_CapturedType1Variant", variants[i]);
+                    bool enabled = types[i] != 1 || variants[i] != 2;
+                    string prefix = "ramp-add-type-" + types[i] + "-variant-" + variants[i];
+                    rampAdd.SetPixel(0, 0, Color.clear); rampAdd.Apply();
+                    Shader.SetGlobalFloat("_FaceDebugMode", 20f);
+                    Color baseline = Render(prefix + "-positive-control");
+                    report.checks.Add(new Check { name = prefix + "-positive-control", actual = baseline,
+                        accepted = baseline.r > 0.01f && !float.IsNaN(baseline.r) && !float.IsInfinity(baseline.r) });
+                    foreach (float alpha in new[] { 0f, 0.5f, 1f })
+                    {
+                        texel.a = alpha; rampAdd.SetPixel(0, 0, texel); rampAdd.Apply();
+                        string suffix = alpha.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+                        Shader.SetGlobalFloat("_FaceDebugMode", 20f);
+                        Color multiplier = enabled ? Color.LerpUnclamped(Color.white, rampColor, alpha) : Color.white;
+                        Color expected = baseline * multiplier; expected.a = 1f;
+                        AddColorCheck(report, prefix + "-spec-alpha-" + suffix, expected, Render(prefix + "-spec-alpha-" + suffix));
+                        // Diffuse still uses RGB * (1-alpha), independently of specular.
+                        Shader.SetGlobalFloat("_FaceDebugMode", 19f);
+                        expected = (baseColor + (enabled ? rampColor * (1f - alpha) : Color.clear)) * 0.96f;
+                        expected.a = 1f;
+                        AddColorCheck(report, prefix + "-diffuse-alpha-" + suffix, expected, Render(prefix + "-diffuse-alpha-" + suffix));
+                    }
+                    rampAdd.SetPixel(0, 0, Color.clear); rampAdd.Apply();
+                    Shader.SetGlobalFloat("_FaceDebugMode", 20f);
+                    AddColorCheck(report, prefix + "-restored", baseline, Render(prefix + "-restored"));
+                }
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(savedMaterial);
+                _quad.uv = savedUv;
+                for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
+                for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
             }
         }
 

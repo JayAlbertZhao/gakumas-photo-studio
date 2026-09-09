@@ -7,6 +7,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_ramp_add_keeps_diffuse_and_specular_alpha_roles_separate(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('float3 authoredRampAddRgb = rampAddColor * (1.0 - authoredRampAdd.a);', surface)
+        self.assertIn('baseSample.rgb += authoredRampAddRgb;', surface)
+        self.assertIn('shadeSample.rgb += authoredRampAddRgb;', surface)
+        self.assertIn('1.0.xxx, rampAddColor, saturate(authoredRampAdd.a)', surface)
+        self.assertNotIn('1.0.xxx, authoredRampAddRgb, saturate(authoredRampAdd.a)', surface)
+        self.assertIn('_CapturedType1Variant < 1.5', surface)
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifyRampAddSpecular(report);', probe)
+        self.assertIn('QualitySettings.activeColorSpace == ColorSpace.Linear ? tint.linear : tint', probe)
+        self.assertIn('new[] { 0f, 0.5f, 1f }', probe)
+        self.assertIn('types[i] != 1 || variants[i] != 2', probe)
+
     def test_hair_strands_and_accessories_have_separate_specular_regions(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('(input.uv.x > 0.75 && input.uv.y > 0.75)', surface)

@@ -605,19 +605,13 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
             return float4(authoredRampAddRgb, 1.0);
         baseSample.rgb += authoredRampAddRgb;
         shadeSample.rgb += authoredRampAddRgb;
-        // Bound 5C07/7372/717B DXBC reuses the same lookup a second
-        // time after environment+direct specular are combined:
-        // spec *= lerp(1, RampAdd.rgb * CB2[7].rgb, RampAdd.a).
-        // The previous reconstruction implemented only the additive
-        // Base/Shade half and therefore dropped authored metallic/cloth
-        // highlight energy while leaving diffuse and the environment
-        // intensity diagnostics apparently plausible.
-        // The original register is overwritten with RGB*(1-A)
-        // before it is reused for the late specular modulation.
-        // The no-RampAdd 9392-byte type-1 variant does not execute
-        // either operation and therefore retains a multiplier of 1.
+        // Diffuse and specular use different alpha roles: only the
+        // additive diffuse term is premultiplied by (1-A). Specular
+        // interpolates toward the unpremultiplied tinted lookup.
+        // Using the diffuse term here incorrectly zeros reflections
+        // at A=1. The no-RampAdd variant retains a multiplier of 1.
         capturedSpecularModulation = lerp(
-            1.0.xxx, authoredRampAddRgb, saturate(authoredRampAdd.a));
+            1.0.xxx, rampAddColor, saturate(authoredRampAdd.a));
     }
 
     if (_FaceDebugMode > 8.5 && _FaceDebugMode < 9.5)
