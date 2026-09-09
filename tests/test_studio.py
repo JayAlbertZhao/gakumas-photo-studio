@@ -46,9 +46,9 @@ class StudioOnboardingTests(unittest.TestCase):
             with redirect_stdout(io.StringIO()):
                 self.assertEqual(studio.main(['configure', '--data', str(data)], root), 0)
             config = studio.read_object(root / 'studio.local.json')
-            self.assertEqual(config['dataRoot'], str(data))
+            self.assertEqual(Path(config['dataRoot']), data.resolve())
             args = argparse.Namespace(data=str(root), editor=None, riverbed=None)
-            self.assertEqual(studio.settings(args, root)['dataRoot'], root)
+            self.assertEqual(studio.settings(args, root)['dataRoot'], root.resolve())
 
     def test_doctor_validates_structure_but_does_not_claim_asset_compatibility(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -105,7 +105,7 @@ class StudioOnboardingTests(unittest.TestCase):
             self.assertEqual(argv[4], '-logFile')
             self.assertTrue(argv[5].endswith('.local.log'))
             self.assertNotIn('shell', launch.call_args.kwargs)
-            self.assertEqual(launch.call_args.kwargs['env']['GAKUMAS_PHOTO_STAGING'], str(data))
+            self.assertEqual(Path(launch.call_args.kwargs['env']['GAKUMAS_PHOTO_STAGING']), data.resolve())
 
     def test_missing_default_character_requires_explicit_selection(self):
         with tempfile.TemporaryDirectory() as temporary:
