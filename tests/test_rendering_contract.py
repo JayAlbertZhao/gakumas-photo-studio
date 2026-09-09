@@ -130,6 +130,19 @@ class ActorRenderingWiringTests(unittest.TestCase):
         self.assertNotIn('AssetBundle', probe)
         self.assertNotIn('BundleCatalog', probe)
 
+    def test_presenter_does_not_redirect_explicit_capture_target(self):
+        source = (ROOT / 'unity/Assets/Scripts/SupersamplePresenter.cs').read_text(encoding='utf-8')
+        lookup = source[source.index('public static bool TryGetPresentationTarget'):]
+        lookup = lookup[:lookup.index('private void ReleaseTarget')]
+        guard = 'if (sourceCamera.targetTexture != presenter._sourceTarget) return false;'
+        self.assertIn(guard, lookup)
+        self.assertLess(lookup.index(guard), lookup.index('target = presenter._presentationTarget'))
+        self.assertLess(lookup.index(guard), lookup.index('BySourceCamera.Remove'))
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        for name in ('presenter-owns-normal-source', 'presenter-does-not-steal-offscreen-target',
+                     'presenter-registration-survives-offscreen-render'):
+            self.assertIn(name, probe)
+
 
 if __name__ == '__main__':
     unittest.main()

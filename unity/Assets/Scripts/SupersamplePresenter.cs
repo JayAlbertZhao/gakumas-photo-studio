@@ -137,6 +137,10 @@ namespace GakumasPhotoMode
                 if (presenter != null && presenter._sourceCamera == sourceCamera &&
                     presenter._presentationTarget != null)
                 {
+                    // Explicit screenshots temporarily render this camera into
+                    // another target. Do not redirect their final color into
+                    // the window, or discard the normal camera registration.
+                    if (sourceCamera.targetTexture != presenter._sourceTarget) return false;
                     target = presenter._presentationTarget;
                     return true;
                 }

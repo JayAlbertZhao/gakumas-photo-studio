@@ -88,6 +88,7 @@ namespace GakumasPhotoMode
                 float response = Mathf.Abs(dark.r-bright.r);
                 report.checks.Add(new Check { name = "nonconstant-ramp-positive-control", expected = bright,
                     actual = dark, maximumDifference = response, accepted = response > 0.05f });
+                VerifyPresentationOwnership(report);
                 report.accepted = report.checks.TrueForAll(check => check.accepted);
             }
             catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); }
@@ -104,6 +105,38 @@ namespace GakumasPhotoMode
         }
 
         private T Own<T>(T value) where T : UnityEngine.Object { _owned.Add(value); return value; }
+
+        private void VerifyPresentationOwnership(Report report)
+        {
+            RenderTexture previous = _camera.targetTexture;
+            var host = Own(new GameObject("Self-test presenter"));
+            host.AddComponent<Camera>().enabled = false;
+            var presenter = host.AddComponent<SupersamplePresenter>();
+            try
+            {
+                presenter.Initialize(_camera, 2);
+                RenderTexture sourceTarget = _camera.targetTexture;
+                RenderTexture normalPresentation;
+                bool normal = SupersamplePresenter.TryGetPresentationTarget(_camera, out normalPresentation);
+                report.checks.Add(new Check { name = "presenter-owns-normal-source",
+                    accepted = normal && normalPresentation != null && sourceTarget != previous });
+                _camera.targetTexture = previous;
+                RenderTexture foreignPresentation;
+                bool redirected = SupersamplePresenter.TryGetPresentationTarget(_camera, out foreignPresentation);
+                report.checks.Add(new Check { name = "presenter-does-not-steal-offscreen-target",
+                    accepted = !redirected && foreignPresentation == null });
+                _camera.targetTexture = sourceTarget;
+                RenderTexture restoredPresentation;
+                bool restored = SupersamplePresenter.TryGetPresentationTarget(_camera, out restoredPresentation);
+                report.checks.Add(new Check { name = "presenter-registration-survives-offscreen-render",
+                    accepted = restored && restoredPresentation == normalPresentation });
+            }
+            finally
+            {
+                _camera.targetTexture = previous;
+                DestroyImmediate(host);
+            }
+        }
 
         private void SetUp()
         {
