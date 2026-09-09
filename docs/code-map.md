@@ -1,6 +1,6 @@
 # 代码地图
 
-保持源文件、命名空间、序列化类型、GUID 和调用顺序，不用移动或拆类整理运行时代码。下列 Assets 路径相对于 unity；未列目录的 C# 均在 Assets/Scripts。
+动作、物理和剧情调度沿用恢复的运行时；后续渲染增量单独列出。下列 Assets 路径相对于 unity；未列目录的 C# 均在 Assets/Scripts。
 
 | 位置 | 职责 |
 | --- | --- |
@@ -15,10 +15,13 @@
 | `OriginalStyleRenderPipeline.cs`、`CapturedActorShadowMap.cs`、`SupersamplePresenter.cs` | 后处理、阴影和呈现 |
 | `AdvStory*Runtime.cs`、`OriginalRiverbedEnvironment.cs` | 背景与剧情视觉事件 |
 | `Assets/Resources/*.shader` | 重建 shader，非原始 shader 字节码 |
+| `ActorRenderControls.cs`、`ActorRenderingValidation.cs` | F8 光照控制、补充 pass 调度与显式运行的渲染探针 |
+| `Assets/Resources/ActorSurface.cginc`、`ActorOutline.cginc`、`ActorSupplemental.shader` | 共用角色着色、平滑法线描边和眼部前发覆盖 |
+| `ActorShaderReferenceFeature.cs` | 私人原版 shader 的研究调度桥；不提供原版 shader，不保证兼容 |
 | `ActorAnimationStub/`、`CampusCommonStub/`、`VLStub/` | 数据兼容类型和复现组件，非官方程序集 |
 | `tools/`、`tests/` | 不参与 Player 的源码基线、发布及格式检查 |
 | `studio.py` | 外围本地配置、数据预检、构建/启动；只调用已有运行时，不参与 Player |
 | `examples/prepare_demo.py` | 将原创时间线模板绑定到自己的动作 ID；只写新 JSON，不改运行时 |
 | `tools/verify_local_assets.py` | 可选的本地数据清单完整性校验；不参与正常构建/启动，也不验证视觉效果 |
 
-ClothDynamicsSystem、PhotoColorGrade 和旧演示/诊断分支按基线保留；不以“未使用”为由删运行时代码。提取/反编译/采集探针仅在私人归档，不进入公开工程。
+ClothDynamicsSystem、PhotoColorGrade 和旧演示/诊断分支按基线保留；不以“未使用”为由删运行时代码。提取/反编译工具与原版截帧仅在私人目录；公开渲染探针只运行本项目并保存使用者自己的图像。

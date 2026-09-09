@@ -162,9 +162,20 @@ namespace GakumasPhotoMode.Editor
         // iterations; release passes still use BuildAndValidate.
         public static void BuildPlayerOnly()
         {
+            BuildPlayer(false);
+        }
+
+        public static void BuildOriginalShaderReferencePlayer()
+        {
+            BuildPlayer(true);
+        }
+
+        private static void BuildPlayer(bool originalShaderReference)
+        {
             OriginalShaderResearchAssets.EnsurePipelineAsset();
             string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
             string outputRoot = Path.Combine(projectRoot, "output");
+            if (originalShaderReference) outputRoot = Path.Combine(outputRoot, "OriginalShaderReference");
             Directory.CreateDirectory(outputRoot);
 
             PlayerSettings.companyName = "Digital Kotone";
@@ -177,8 +188,16 @@ namespace GakumasPhotoMode.Editor
             PlayerSettings.displayResolutionDialog = ResolutionDialogSetting.Disabled;
             PlayerSettings.colorSpace = ColorSpace.Linear;
             QualitySettings.antiAliasing = 8;
-            GraphicsSettings.renderPipelineAsset = null;
-            QualitySettings.renderPipeline = null;
+            // URP strips its ScriptableRenderPipeline variants when no URP asset
+            // is active at build time. Merely including one in Resources does
+            // not preserve even its blit shaders. Build the reference Player
+            // separately, without replacing the normal built-in Player.
+            RenderPipelineAsset previousGraphicsPipeline = GraphicsSettings.renderPipelineAsset;
+            RenderPipelineAsset previousQualityPipeline = QualitySettings.renderPipeline;
+            RenderPipelineAsset pipeline = originalShaderReference
+                ? Resources.Load<RenderPipelineAsset>("ResearchOriginalShaderPipeline") : null;
+            GraphicsSettings.renderPipelineAsset = pipeline;
+            QualitySettings.renderPipeline = pipeline;
             PlayerSettings.SetGraphicsAPIs(BuildTarget.StandaloneWindows64, new[]
             {
                 GraphicsDeviceType.Direct3D11,
@@ -186,13 +205,25 @@ namespace GakumasPhotoMode.Editor
             });
 
             string buildPath = Path.Combine(outputRoot, "KotonePhotoStudio.exe");
-            BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            BuildReport report;
+            try
             {
-                scenes = new[] { ScenePath },
-                locationPathName = buildPath,
-                target = BuildTarget.StandaloneWindows64,
-                options = BuildOptions.None,
-            });
+                report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                {
+                    scenes = new[] { ScenePath },
+                    locationPathName = buildPath,
+                    target = BuildTarget.StandaloneWindows64,
+                    options = BuildOptions.None,
+                });
+            }
+            finally
+            {
+                if (originalShaderReference)
+                {
+                    GraphicsSettings.renderPipelineAsset = previousGraphicsPipeline;
+                    QualitySettings.renderPipeline = previousQualityPipeline;
+                }
+            }
             if (report.summary.result != BuildResult.Succeeded)
                 throw new Exception("Build failed: " + report.summary.result);
             Debug.Log(string.Format("[PhotoMode] Build succeeded: {0} bytes -> {1}", report.summary.totalSize, buildPath));

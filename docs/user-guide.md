@@ -147,7 +147,7 @@ $project = (Resolve-Path -LiteralPath './unity').Path
 & $editor -projectPath $project
 ~~~
 
-如需可选河岸环境，启动编辑器前另将 `GAKUMAS_RIVERBED_STAGING` 指向自己准备的数据目录。打开场景 `Assets/Scenes/PhotoMode.unity`。源码校验会拒绝相对于冻结基线的修改；维护者流程见[源码基线](baseline.md)和[代码地图](code-map.md)。
+如需可选河岸环境，启动编辑器前另将 `GAKUMAS_RIVERBED_STAGING` 指向自己准备的数据目录。打开场景 `Assets/Scenes/PhotoMode.unity`。F8 渲染控制与图像检查见[角色渲染](rendering.md)。源码校验会拒绝未登记在历史基线及运行时修订清单中的修改；维护者流程见[源码基线](baseline.md)和[代码地图](code-map.md)。
 
 ## 排错与验证边界
 

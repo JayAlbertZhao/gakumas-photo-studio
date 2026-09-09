@@ -1,0 +1,173 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using UnityEngine;
+
+namespace GakumasPhotoMode
+{
+    /// <summary>Opt-in standalone visual probes; uses only the user's loaded model.</summary>
+    public sealed class ActorRenderingValidation : MonoBehaviour
+    {
+        [Serializable] private sealed class Frame
+        {
+            public string name;
+            public int width, height, outlineDraws, hairCoverDraws, additionalLights;
+            public Vector3 cameraPosition;
+            public Vector4 matcapParameters, lightingScales, lightDirection;
+        }
+        [Serializable] private sealed class Report
+        {
+            public string schema = "photo-studio.actor-rendering-probes.v1";
+            public string graphicsDevice;
+            public List<Frame> frames = new List<Frame>();
+        }
+
+        private string _directory;
+        private ActorRenderControls _controls;
+        private readonly Report _report = new Report();
+
+        public static void AttachIfRequested(GameObject camera)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            int index = Array.IndexOf(args, "--validate-actor-rendering");
+            if (index < 0 || index + 1 >= args.Length) return;
+            var validation = camera.AddComponent<ActorRenderingValidation>();
+            validation._directory = Path.GetFullPath(args[index + 1]);
+        }
+
+        private IEnumerator Start()
+        {
+            _controls = GetComponent<ActorRenderControls>();
+            PhotoModeApp app = FindObjectOfType<PhotoModeApp>();
+            OrbitPhotoCamera orbit = GetComponent<OrbitPhotoCamera>();
+            Directory.CreateDirectory(_directory);
+            _report.graphicsDevice = SystemInfo.graphicsDeviceVersion;
+            if (app == null || _controls == null || orbit == null || app.StoryActive)
+                throw new InvalidOperationException("Actor probes require --photo-mode and the reconstructed renderer.");
+            yield return new WaitForSecondsRealtime(2f);
+            app.TogglePause();
+            Time.timeScale = 0f;
+            orbit.target = new Vector3(0f, 1.38f, 0f);
+            orbit.distance = 1.25f;
+            orbit.pitch = 0f;
+            orbit.yaw = 180f;
+            orbit.ApplyPose();
+            yield return Capture("01-front");
+            _controls.hairCover = false;
+            yield return Capture("02-no-hair-cover");
+            _controls.hairCover = true;
+            _controls.outlines = false;
+            yield return Capture("03-no-outline");
+            _controls.outlines = true;
+            orbit.yaw = 225f;
+            yield return Capture("04-quarter");
+            _controls.hairCover = false;
+            yield return Capture("04b-quarter-no-cover");
+            _controls.hairCover = true;
+            orbit.yaw = 270f;
+            yield return Capture("05-side");
+            orbit.yaw = 180f;
+            _controls.overrideLighting = true;
+            _controls.diffuseOffset = -0.5f;
+            yield return Capture("06-offset-minus");
+            _controls.diffuseOffset = 0.8f;
+            yield return Capture("07-offset-plus");
+            _controls.diffuseOffset = 0.3f;
+            _controls.shadeStrength = 0f;
+            yield return Capture("08-no-shade");
+            _controls.shadeStrength = 1f;
+            _controls.worldSpaceLight = true;
+            _controls.lightAngle = new Vector2(25f, 150f);
+            yield return Capture("09-world-light");
+            orbit.yaw = 225f;
+            yield return Capture("10-world-light-orbit");
+            orbit.yaw = 180f;
+            _controls.overrideLighting = false;
+            yield return Capture("11-profile-restored");
+            _controls.ToggleTestLights();
+            yield return Capture("12-point-lights");
+            foreach (Light light in FindObjectsOfType<Light>())
+                if (light.name == "Warm point" || light.name == "Cool point")
+                {
+                    light.type = LightType.Spot;
+                    light.spotAngle = 55f;
+                    light.innerSpotAngle = 30f;
+                    light.transform.LookAt(new Vector3(0f, 1.3f, 0f));
+                }
+            yield return Capture("12b-spot-lights");
+            _controls.ToggleTestLights();
+            yield return Capture("13-point-lights-removed");
+            var layerMaterials = new List<Material>();
+            var weights = new List<float>();
+            foreach (Renderer renderer in FindObjectsOfType<Renderer>())
+                foreach (Material material in renderer.sharedMaterials)
+                    if (material != null && material.HasProperty("_EnableLayer") &&
+                        material.GetFloat("_EnableLayer") > 0.5f && !layerMaterials.Contains(material))
+                    {
+                        layerMaterials.Add(material);
+                        weights.Add(material.GetFloat("_LayerWeight"));
+                        material.SetFloat("_LayerWeight", 1f);
+                    }
+            yield return Capture("14-layer-full");
+            for (int i = 0; i < layerMaterials.Count; i++) layerMaterials[i].SetFloat("_LayerWeight", weights[i]);
+            _controls.overrideLighting = true;
+            _controls.giScale = 0.5f;
+            _controls.worldSpaceLight = false;
+            _controls.lightAngle = new Vector2(-5f, 10f);
+            yield return Capture("15-ambient");
+            _controls.giScale = 0f;
+            _controls.rimColor = new Color(0.1f, 0.8f, 0.2f);
+            yield return Capture("16-colored-rim");
+            _controls.overrideLighting = false;
+            _controls.showPanel = true;
+            yield return Capture("17-render-panel");
+            _controls.showPanel = false;
+            Time.timeScale = 1f;
+            app.TogglePause();
+            // This sequence deliberately resumes the existing animation and
+            // dynamics. No hand-written pose or substitute rig is used.
+            for (int i = 0; i < 12; i++)
+            {
+                orbit.yaw = 165f + i * 3f;
+                yield return Capture("motion-" + i.ToString("00"));
+            }
+            File.WriteAllText(Path.Combine(_directory, "rendering-probes.json"), JsonUtility.ToJson(_report, true));
+            Debug.Log("[ActorRenderingValidation] Captured " + _report.frames.Count + " probes to " + _directory);
+            Application.Quit();
+        }
+
+        private IEnumerator Capture(string name)
+        {
+            // Let temporal accumulation settle at the same pose and state.
+            for (int frame = 0; frame < 24; frame++) yield return null;
+            if (name == "04-quarter" && Array.IndexOf(Environment.GetCommandLineArgs(), "--capture-actor-rendering-pass") >= 0)
+            {
+                if (!RenderDocCaptureBridge.TriggerCapture()) { Application.Quit(2); yield break; }
+                yield return null;
+                yield return null;
+            }
+            yield return new WaitForEndOfFrame();
+            Texture2D image = ScreenCapture.CaptureScreenshotAsTexture();
+            if (image == null) throw new InvalidOperationException("Presented-frame readback failed: " + name);
+            if (name == "01-front" && (_controls.OutlineDrawCount == 0 || _controls.HairCoverDrawCount == 0))
+            {
+                Destroy(image);
+                Debug.LogError("[ActorRenderingValidation] Required actor passes are missing; check shader stripping and material bindings.");
+                Application.Quit(2);
+                yield break;
+            }
+            File.WriteAllBytes(Path.Combine(_directory, name + ".png"), image.EncodeToPNG());
+            _report.frames.Add(new Frame {
+                name = name, width = image.width, height = image.height,
+                outlineDraws = _controls.OutlineDrawCount, hairCoverDraws = _controls.HairCoverDrawCount,
+                additionalLights = _controls.AdditionalLightCount, cameraPosition = transform.position,
+                matcapParameters = Shader.GetGlobalVector("_ActorMatcapParameters"),
+                lightingScales = Shader.GetGlobalVector("_ActorLightingScales"),
+                lightDirection = Shader.GetGlobalVector("_CapturedLightDirection")
+            });
+            Destroy(image);
+            Debug.Log("[ActorRenderingValidation] " + name);
+        }
+    }
+}

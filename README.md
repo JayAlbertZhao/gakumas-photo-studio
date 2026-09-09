@@ -53,6 +53,8 @@ photo/story 也会打印各自独立的本地运行日志路径，便于排查�
 
 ## UI 与剧情
 
+**F8** 打开角色渲染面板：描边、眼部前发覆盖、相机/世界空间主光、明暗边界、环境光及附加灯光。用法、可重复图像检查及限制见 [角色渲染](docs/rendering.md)。
+
 右键旋转、中键平移、滚轮缩放；A/D 换动作，W/S 换服装，Q/E 换角色，Space 暂停，P 截图，F1/Tab 显隐 UI，R 复位镜头。截图写入自己数据目录的 `captures/`。
 
 ```powershell
@@ -79,7 +81,7 @@ python -I studio.py story
 
 ## 开发与发布边界
 
-Unity 代码冻结于经核对的整理前基线，外围启动器不改动画、物理、骨骼、渲染或 UI。详见 [源码基线](docs/baseline.md) 和 [代码地图](docs/code-map.md)。
+整理前基线保留为历史证据，角色渲染增量单独登记；动作、物理和剧情调度沿用恢复版本。外围启动器不编译进 Player。详见 [源码基线](docs/baseline.md) 和 [代码地图](docs/code-map.md)。
 
 ```powershell
 python -I -m unittest discover -s tests -v

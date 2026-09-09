@@ -120,6 +120,18 @@ namespace GakumasPhotoMode
                     : Vector4.one);
             float shaderType = source.HasProperty("_ShaderType") ? source.GetFloat("_ShaderType") : 0f;
             target.SetFloat("_ShaderType", shaderType);
+            target.SetFloat("_DisableDefMap", source.IsKeywordEnabled("_DEFMAP_OFF") ||
+                (source.HasProperty("_DisableDefMap") && source.GetFloat("_DisableDefMap") > 0.5f) ? 1f : 0f);
+            bool outline = source.GetShaderPassEnabled("UniversalForwardOutline") &&
+                source.GetShaderPassEnabled("UniversalGBufferOutline") &&
+                Mathf.Abs(shaderType - 3f) > 0.25f && Mathf.Abs(shaderType - 4f) > 0.25f &&
+                Mathf.Abs(shaderType - 5f) > 0.25f;
+            target.SetFloat("_OutlineEnabled", outline ? 1f : 0f);
+            CopyVector(source, target, "_OutlineColor", Vector4.zero);
+            target.SetVector("_HairFadeParameters", source.HasProperty("_FadeParam")
+                ? source.GetVector("_FadeParam") : new Vector4(0.75f, 2f, 0.4f, 4f));
+            target.SetShaderPassEnabled("ActorOutline", outline);
+            target.SetShaderPassEnabled("ActorHairCover", Mathf.Abs(shaderType - 8f) < 0.25f);
             float type1Variant = source.name.StartsWith("m_bdyco", StringComparison.OrdinalIgnoreCase) ? 1f :
                 source.name.StartsWith("m_hirco", StringComparison.OrdinalIgnoreCase) ? 2f : 0f;
             target.SetFloat("_CapturedType1Variant", type1Variant);
@@ -244,10 +256,9 @@ namespace GakumasPhotoMode
                     target.GetFloat("_ZWrite"), target.renderQueue));
             }
 
-            // The captured edge-resolve draw is identity for this frame and the Actor
-            // sentinel union already explains 99.09% of Actor coverage. The visible
-            // strokes therefore come from Base/Shade/Definition maps plus explicit
-            // eye/eyelash geometry; do not add a geometry shell or post-process outline.
+            // A fixed photo capture did not establish the outline contract for
+            // every camera. Preserve the authored per-material pass exclusions;
+            // the studio renderer schedules outline and hair cover explicitly.
         }
 
         private static void CopyFirstTexture(Material source, Material target, string[] sourceNames, string targetName)

@@ -70,6 +70,33 @@ class ReleaseBoundaryTests(unittest.TestCase):
             rules = {f['rule'] for f in release.collect(root, tracked=True)[0]['findings']}
             self.assertIn('allowlisted_not_tracked', rules)
 
+    def test_runtime_revision_requires_parent_hash_and_still_scans_content(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'config').mkdir()
+            source = root / 'unity/Assets'
+            source.mkdir(parents=True)
+            name = 'unity/Assets/Actor.cginc'
+            old = hashlib.sha256(b'old').hexdigest()
+            (root / 'public-files.json').write_text(json.dumps({'files': [name]}), encoding='utf-8')
+            (root / 'config/source-baseline.json').write_text(json.dumps({
+                'archive_sha256': 'archive', 'files': {name: old}}), encoding='utf-8')
+            revision = {'base_archive_sha256': 'archive', 'replacements': {name: {
+                'baseline_sha256': old, 'sha256': hashlib.sha256(b'new').hexdigest()}}}
+            revision_path = root / 'config/runtime-revisions.json'
+            revision_path.write_text(json.dumps(revision), encoding='utf-8')
+            (root / name).write_bytes(b'new')
+            self.assertTrue(release.collect(root)[0]['accepted'])
+            revision['replacements'][name]['baseline_sha256'] = 'wrong-parent'
+            revision_path.write_text(json.dumps(revision), encoding='utf-8')
+            self.assertIn('invalid_revision_parent', {f['rule'] for f in release.collect(root)[0]['findings']})
+            data = ('gh' + 'p_' + 'z' * 36).encode()
+            (root / name).write_bytes(data)
+            revision['replacements'][name] = {'baseline_sha256': old, 'sha256': hashlib.sha256(data).hexdigest()}
+            revision_path.write_text(json.dumps(revision), encoding='utf-8')
+            self.assertIn('service_token', {f['rule'] for f in release.collect(root)[0]['findings']})
+
     def test_generated_ignore_is_default_deny(self):
         content = release.render_gitignore(['README.md', 'unity/Assets/Scripts/Example.cs'])
         self.assertIn('\n*\n', content)

@@ -1,0 +1,45 @@
+{
+  "schema": "photo-studio.runtime-revisions.v1",
+  "reason": "2026-09-09 authorized character-rendering development after source-only cleanup; see docs/rendering.md. Original-shader replay remains diagnostic, not accepted.",
+  "base_archive_sha256": "597c4a95781d4a2394a81be85826a2de2a58f547d9449e04c648426f061d5cfb",
+  "replacements": {
+    "unity/Assets/Editor/OriginalShaderResearchAssets.cs": {
+      "sha256": "0043488eaaf7b4fb1951cfdad12fc084506f231aafb1d65bccb612fd92928367",
+      "baseline_sha256": "62514cca726886e97dcd12bf35c291102648e8bceac768f82bdb46be4ce36aff"
+    },
+    "unity/Assets/Editor/Phase1Builder.cs": {
+      "sha256": "a056eaa5b33bdbb4e842f10da63bd1e8ac075381a5a00f389c5a83a795b26ec2",
+      "baseline_sha256": "011a42753c0817e2e3d9a8a8a7cc9def4e9505a6c81f549062e7201b543c61cb"
+    },
+    "unity/Assets/Resources/PhotoModeFallback.shader": {
+      "sha256": "fe2aae401c62581afac9b9d92f8cbfb47a4a8864a2beeee313b1d273e53297f4",
+      "baseline_sha256": "cb883788445a6d0af6291d45efc8a7c8d2e3c9e0194dfdab6ea19acb72f39269"
+    },
+    "unity/Assets/Resources/ResearchOriginalShaderPipeline.asset": {
+      "sha256": "5e7bb8a252490f9ae35c19cb57edcf47efaf47bd7d633dd35be434a2e1c45660",
+      "baseline_sha256": "9f8a8d93a9d2a32638bca85ebbfe66570069509d09799f81e9419f4139b8228f"
+    },
+    "unity/Assets/Scripts/MaterialRepairer.cs": {
+      "sha256": "2c83597f8e51dc295f681ae3e2a973e31bc1b20f60da9881e4b74a768a7b95f6",
+      "baseline_sha256": "8d96a3cfdc758ef1ee6ac5c8c6b4f6900c2bfe45676e786ee3c169a59881db72"
+    },
+    "unity/Assets/Scripts/PhotoModeApp.cs": {
+      "sha256": "7e9f16afc32a0c4cbd356403e1e67967cf349bc1bd76e963b106fccfbc62f3ed",
+      "baseline_sha256": "0d8741b4550b6cef4185c7cb087b20747b2dbc3c52a03760b6c07ddc81d27e23"
+    }
+  },
+  "additions": {
+    "unity/Assets/Resources/ActorOutline.cginc": "3704b8a9ab1bf5adcdb10a8126b87b411503702fd4f255ddb7e661c336650bb5",
+    "unity/Assets/Resources/ActorOutline.cginc.meta": "342f8d7e34d7b5d69a2b75b31fb811b72d0b1b0562a7b0d2280333282b01421d",
+    "unity/Assets/Resources/ActorSupplemental.shader": "bf61d080c80197dd73ead93375abbe21b3e28f74073373ec64c6975f78d5cebd",
+    "unity/Assets/Resources/ActorSupplemental.shader.meta": "926b3c8cef54713a6494cf225ab90fb8c878c37cf9bdb2c3a74fe2e91bed01de",
+    "unity/Assets/Resources/ActorSurface.cginc": "d419f3588ca8bc6508a947c78efebe697c16cb72944d1361cefb756802f1e297",
+    "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
+    "unity/Assets/Scripts/ActorRenderControls.cs": "a7cedf81380bd532fc33b86a89d8efc348b5ebaa13e724e0810349708c509787",
+    "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
+    "unity/Assets/Scripts/ActorRenderingValidation.cs": "37b89110b82419925d21cdb31daa957f548aff4f71065f5335ffcd89b577e17b",
+    "unity/Assets/Scripts/ActorRenderingValidation.cs.meta": "88d99448da0c7d56796a4178bc74591bf289f41b6908d82cf0dcbedba8ed303a",
+    "unity/Assets/Scripts/ActorShaderReferenceFeature.cs": "c2b5a2ceb5a78e47babd8a161d430f412fc68d7e2adaf9641a39a29e8cbfba89",
+    "unity/Assets/Scripts/ActorShaderReferenceFeature.cs.meta": "8fa75718c41cb1e52400c7e1ddb50d9b9b4b005d05c6b920597a7933270106f2"
+  }
+}

@@ -49,6 +49,14 @@ namespace GakumasPhotoMode.Editor
 
         private static void ReloadResources(UniversalRenderPipelineAsset pipeline, UniversalRendererData rendererData)
         {
+            if (!rendererData.rendererFeatures.OfType<ActorShaderReferenceFeature>().Any())
+            {
+                ActorShaderReferenceFeature feature = ScriptableObject.CreateInstance<ActorShaderReferenceFeature>();
+                feature.name = "Actor shader reference (user supplied)";
+                AssetDatabase.AddObjectToAsset(feature, pipeline);
+                rendererData.rendererFeatures.Add(feature);
+                rendererData.SetDirty();
+            }
             ResourceReloader.ReloadAllNullIn(rendererData, UniversalRenderPipelineAsset.packagePath);
             ResourceReloader.ReloadAllNullIn(pipeline, UniversalRenderPipelineAsset.packagePath);
             EditorUtility.SetDirty(rendererData);

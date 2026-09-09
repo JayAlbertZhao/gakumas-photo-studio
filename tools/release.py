@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -13,7 +14,10 @@ import sys
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-ALLOWED_SUFFIXES = {'.cs', '.shader', '.asmdef', '.meta', '.json', '.md', '.txt',
+_baseline_spec = importlib.util.spec_from_file_location('release_baseline', Path(__file__).with_name('verify_baseline.py'))
+_baseline_module = importlib.util.module_from_spec(_baseline_spec)
+_baseline_spec.loader.exec_module(_baseline_module)
+ALLOWED_SUFFIXES = {'.cs', '.shader', '.cginc', '.hlsl', '.asmdef', '.meta', '.json', '.md', '.txt',
                     '.py', '.yml', '.asset', '.unity'}
 ALLOWED_DOTFILES = {'.gitignore', '.gitattributes', '.editorconfig', '.githooks/pre-commit'}
 PRIVATE_PARTS = {'private-reference', 'localassets', 'privateresources', 'research',
@@ -58,7 +62,7 @@ def validate_name(name: str) -> None:
         raise ValueError('Unreviewed scene')
     if path.suffix.lower() == '.meta':
         underlying = PurePosixPath(name[:-5]).suffix.lower()
-        if (underlying not in {'.cs', '.shader', '.asmdef'} and
+        if (underlying not in {'.cs', '.shader', '.cginc', '.hlsl', '.asmdef'} and
                 name[:-5] not in SOURCE_PROJECT_ASSETS | SOURCE_FOLDERS):
             raise ValueError('Only source metadata may be published')
 
@@ -120,6 +124,10 @@ def collect(root: Path, tracked: bool = False) -> tuple[dict, dict[str, bytes]]:
     baseline_path = root / 'config/source-baseline.json'
     baseline = json.loads(baseline_path.read_text(encoding='utf-8')) if baseline_path.exists() else {}
     frozen = baseline.get('files', {})
+    revision_path = root / 'config/runtime-revisions.json'
+    revisions = json.loads(revision_path.read_text(encoding='utf-8')) if revision_path.exists() else None
+    reviewed, revision_findings = _baseline_module.resolve_expected(baseline, revisions)
+    findings.extend(revision_findings)
 
     def inspect(name: str, data: bytes) -> list[dict]:
         issues = audit_content(name, data)
@@ -128,11 +136,11 @@ def collect(root: Path, tracked: bool = False) -> tuple[dict, dict[str, bytes]]:
         # Exempt only the path rule AND only an exactly frozen source file.
         if name in baseline.get('nonpersonal_legacy_path_files', []) and actual == frozen.get(name):
             issues = [issue for issue in issues if issue['rule'] != 'windows_absolute_path']
-        if name in frozen and actual != frozen[name]:
+        if name in reviewed and actual != reviewed[name]:
             issues.append({'file': name, 'rule': 'baseline_mismatch'})
         return issues
 
-    for name in frozen:
+    for name in reviewed:
         if name not in names:
             findings.append({'file': name, 'rule': 'baseline_not_allowlisted'})
     for name in names:
@@ -142,10 +150,10 @@ def collect(root: Path, tracked: bool = False) -> tuple[dict, dict[str, bytes]]:
             if (name.lower().endswith('.meta') and name[:-5] not in names
                     and name[:-5] not in SOURCE_FOLDERS):
                 raise ValueError('Orphaned metadata')
-            if name in SOURCE_PROJECT_ASSETS and name not in frozen:
+            if name in SOURCE_PROJECT_ASSETS and name not in reviewed:
                 raise ValueError('Authored scene/settings require a frozen content hash')
             if (baseline and name.startswith('unity/') and
-                    PurePosixPath(name).suffix in {'.cs', '.shader', '.asmdef'} and name not in frozen):
+                    PurePosixPath(name).suffix in {'.cs', '.shader', '.cginc', '.hlsl', '.asmdef'} and name not in reviewed):
                 raise ValueError('New Unity source requires an explicit baseline review')
             findings.extend(inspect(name, data))
             payloads[name] = data

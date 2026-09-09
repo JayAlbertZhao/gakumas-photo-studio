@@ -1,5 +1,7 @@
 # 冻结基线与整理范围
 
+以下恢复记录是发布整理时的历史事实。后续获准进行的角色渲染开发由 `config/runtime-revisions.json` 记录：每个修改文件同时保存历史哈希和当前哈希，新增源文件单独列出；`config/source-baseline.json` 不覆盖。验证器检查历史基线加显式增量，未登记的 shader include 也会报错。当前版本因此不再宣称与整理前所有 Unity 文件完全相同。
+
 目标为 2026-09-08 21:16（Asia/Shanghai），即第一次发布整理请求开始前。该时刻没有 Photo Studio Git commit；父工作区仅有更早且无关的历史。
 
 依据为整理时生成的旧 Unity 源码归档，SHA-256：

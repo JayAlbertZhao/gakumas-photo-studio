@@ -11,7 +11,7 @@ spec.loader.exec_module(baseline)
 
 
 class FrozenSourceTests(unittest.TestCase):
-    def test_unity_project_matches_pre_cleanup_baseline(self):
+    def test_unity_project_matches_historical_baseline_and_explicit_revisions(self):
         report = baseline.verify(ROOT)
         self.assertTrue(report['accepted'], report['findings'])
 
@@ -35,6 +35,42 @@ class FrozenSourceTests(unittest.TestCase):
             report = baseline.verify(root)
             self.assertEqual({f['rule'] for f in report['findings']}, {
                 'missing_baseline_file', 'baseline_mismatch', 'unexpected_unity_source'})
+
+    def test_revision_keeps_parent_and_rejects_unlocked_shader_include(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'config').mkdir()
+            source = root / 'unity/Assets'
+            source.mkdir(parents=True)
+            name = 'unity/Assets/Actor.shader'
+            old = baseline.digest(b'old')
+            (source / 'Actor.shader').write_bytes(b'new')
+            (source / 'Actor.cginc').write_bytes(b'include')
+            (root / 'config/source-baseline.json').write_text(json.dumps({
+                'archive_sha256': 'archive', 'files': {name: old}}), encoding='utf-8')
+            revision = {'base_archive_sha256': 'archive', 'replacements': {
+                name: {'baseline_sha256': old, 'sha256': baseline.digest(b'new')}},
+                'additions': {}}
+            revision_path = root / 'config/runtime-revisions.json'
+            revision_path.write_text(json.dumps(revision), encoding='utf-8')
+            self.assertEqual(baseline.verify(root)['findings'], [{
+                'file': 'unity/Assets/Actor.cginc', 'rule': 'unexpected_unity_source'}])
+            revision['additions']['unity/Assets/Actor.cginc'] = baseline.digest(b'include')
+            revision_path.write_text(json.dumps(revision), encoding='utf-8')
+            self.assertTrue(baseline.verify(root)['accepted'])
+            revision['replacements'][name]['baseline_sha256'] = 'wrong-parent'
+            revision_path.write_text(json.dumps(revision), encoding='utf-8')
+            self.assertIn('invalid_revision_parent', {f['rule'] for f in baseline.verify(root)['findings']})
+
+    def test_revision_cannot_read_outside_repository(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'config').mkdir()
+            (root / 'config/source-baseline.json').write_text(json.dumps({
+                'archive_sha256': 'archive', 'files': {}}), encoding='utf-8')
+            (root / 'config/runtime-revisions.json').write_text(json.dumps({
+                'base_archive_sha256': 'archive', 'additions': {'unity/../../outside': 'hash'}}), encoding='utf-8')
+            self.assertEqual(baseline.verify(root)['findings'][0]['rule'], 'unsafe_revision_path')
 
 
 class TimelineFormatTests(unittest.TestCase):

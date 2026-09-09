@@ -85,6 +85,7 @@ namespace GakumasPhotoMode
         private static readonly Color CapturedActorShadeTint =
             new Color(0.85849059f, 0.76552117f, 0.74105555f, 1f);
         private CapturedActorShadowMap _capturedActorShadowMap;
+        private ActorRenderControls _actorRenderControls;
         private Cubemap _actorEnvironmentCube;
         private Cubemap _actorEyeEnvironmentCube;
         private Texture2DArray _actorEnvironmentArray;
@@ -183,6 +184,7 @@ namespace GakumasPhotoMode
 
         private void Awake()
         {
+            ResetCapturedActorRenderGlobals();
             if (Application.isPlaying)
             {
                 string[] commandLine = Environment.GetCommandLineArgs();
@@ -691,6 +693,8 @@ namespace GakumasPhotoMode
             if (!OriginalShaderUrpBootstrap.IsRequested)
             {
                 camera.gameObject.AddComponent<OriginalStyleRenderPipeline>();
+                _actorRenderControls = camera.gameObject.AddComponent<ActorRenderControls>();
+                ActorRenderingValidation.AttachIfRequested(camera.gameObject);
             }
             else
             {
@@ -836,7 +840,8 @@ namespace GakumasPhotoMode
             // downsample without stealing orbit-camera ownership.  Fidelity is
             // the production default; the opt-out is retained for performance
             // diagnosis on weaker hardware.
-            if (!Environment.GetCommandLineArgs().Contains("--native-render-resolution"))
+            if (!OriginalShaderUrpBootstrap.IsRequested &&
+                !Environment.GetCommandLineArgs().Contains("--native-render-resolution"))
             {
                 Camera presenterCamera = new GameObject("SupersamplePresenterCamera").AddComponent<Camera>();
                 _supersamplePresenter = presenterCamera.gameObject.AddComponent<SupersamplePresenter>();
@@ -1389,6 +1394,7 @@ namespace GakumasPhotoMode
             // rebuild so ADV clips continue to resolve Root_Smartphone/... .
             RebuildStoryActorParts();
             ErrorMaterialCount = MaterialRepairer.RepairErrorMaterials(_characterRoot);
+            if (_actorRenderControls != null) _actorRenderControls.Initialize(_characterRoot, _keyLight);
             SetLayerRecursively(_characterRoot, OriginalStyleRenderPipeline.ActorLayer);
             if (_capturedActorShadowMap != null) _capturedActorShadowMap.Initialize(_characterRoot);
             RendererCount = _characterRoot.GetComponentsInChildren<Renderer>(true).Length;
@@ -2060,6 +2066,11 @@ namespace GakumasPhotoMode
 
         private void ResetCapturedActorRenderGlobals()
         {
+            Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0.3f, 1f, 1f, 0f));
+            Shader.SetGlobalVector("_ActorLightingScales", new Vector4(0f, 1f, 1f, 0f));
+            Shader.SetGlobalVector("_ActorKeyColor", Vector4.one);
+            Shader.SetGlobalVector("_ActorRimColor", new Vector4(0.7f, 0.7f, 0.7f, 1f));
+            Shader.SetGlobalVector("_ActorEyeHighlightColor", Vector4.one);
             Vector3 lightDirection = _useRootOnlyRimDirection
                 ? new Vector3(0.78512269f, 0.42261863f, -0.45274259f).normalized
                 : CapturedActorLightDirection;
@@ -2129,6 +2140,15 @@ namespace GakumasPhotoMode
             Shader.SetGlobalVector("_CapturedLightColor", lightColor);
             Shader.SetGlobalVector("_CapturedShadeTint", shadeMultiply);
             Shader.SetGlobalVector("_CapturedShadeAdditive", shadeAdditive);
+            Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(
+                ProfileFloat(profile.matCapOffset, 0.3f),
+                ProfileFloat(profile.matCapSmoothScale, 1f),
+                ProfileFloat(profile.shadeApplyRatio, 1f), 0f));
+            Shader.SetGlobalVector("_ActorLightingScales", new Vector4(
+                ProfileFloat(profile.giScale, 0f), ProfileFloat(profile.additiveLightScale, 1f),
+                ProfileFloat(profile.additiveLightSpecularScale, 1f), 0f));
+            Shader.SetGlobalVector("_ActorRimColor", rimColor);
+            Shader.SetGlobalVector("_ActorEyeHighlightColor", ProfileColor(profile.eyeHighlightColor, Color.white));
             Shader.SetGlobalFloat("_CapturedSkinSaturation",
                 ProfileFloat(profile.skinSaturation, 0f));
             Shader.SetGlobalVector("_CapturedReflectionColor", reflectionColor);
@@ -2478,6 +2498,7 @@ namespace GakumasPhotoMode
                 }
             }
             ApplyStoryActorRenderer(_storyActorRendererState);
+            if (_actorRenderControls != null) _actorRenderControls.RefreshRenderers();
             if (_capturedActorShadowMap != null)
                 _capturedActorShadowMap.Initialize(_characterRoot);
         }
