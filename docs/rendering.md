@@ -39,6 +39,8 @@ Inspector 中 `ActorRenderControls` 还提供有色主光、阴影乘色/加色�
 
 当前仍观察到少量单通道 `1/255` 级静态差异，严格重复性尚未全部通过；探针保留这些失败，不用容差把它们改记为零。暂停动画时间也不代表所有程序化骨骼求解停止，因此暂不承诺确定性导出。
 
+需要定位差异时追加 `--trace-rendering-stability`。它在正面、正面重复和恢复光照三张图旁保存 ActorData、当前 HDR、时域结果、模糊及 bloom 的原始缓冲和尺寸元数据，用于区分差异发生在哪个阶段；文件体积较大，只应保存在被忽略的本地目录。每张图的 `actorPoseDigest` 是当前进程内角色层 Transform 世界矩阵与蒙皮 blendshape 权重的 SHA-256 指纹。它包含实例 ID，不能跨进程比较，也不包含静态网格顶点或材质状态；指纹变化本身不能证明可见姿势或画面发生变化。新增追踪不冻结或改写骨骼求解。
+
 检查实际图像和 pass 数，不能仅以进程退出码或“画面不黑”验收。眼部遮挡还应选一个睁眼表情，检查侧视时眼睛、高光与前发的关系。不同机器上的动画时刻、动态解算和时域累积不保证逐像素确定性。
 
 新增 pass 使用独立的 `ActorSupplemental.shader`，由相机在透明物体之前按“描边 → 眼部前发覆盖”执行。不对每个身体/眼睛材质重复执行头发 pass。这个拆分也避免已安装 URP 的构建裁剪器删除 Built-in shader 中的自定义 LightMode。
@@ -52,6 +54,10 @@ Inspector 中 `ActorRenderControls` 还提供有色主光、阴影乘色/加色�
 研究入口会检查当前 Actor 材质是否具有预期的具名 `Forward` pass。原始 shader 的名称仍在、`isSupported` 为真，甚至 `SetPass` 成功，都不能排除已回退到错误 subshader。缺少预期 pass 或未找到原版 Actor 材质时会记录实际 pass 列表并以退出码 3 拒绝对照；这项检查通过后仍需要 GPU 截帧验证。研究构建结束后恢复原来的管线和抗锯齿设置，避免影响普通工程。
 
 当前本地 Windows bundle 的 Actor pass 仍出现错误 shader；RenderDoc 已确认，不能把这个入口描述为成功的原版画面重放。需要进一步解决 bundle/引擎/变体的兼容性。普通复现 shader 不依赖该入口。原版截帧、字节码及研究产物不得加入公开仓库。
+
+已有原版 GPU 截帧的开发者仍可独立进行离线对照，不必把失败的原版 shader Player 当作参考。旧有 `--capture-gpa-camera-and-quit --use-captured-posed-geometry --capture-presented-window --dump-post-inputs` 诊断入口使用恢复的相机和私有顶点流；替换蒙皮网格后会重新绑定描边与前发覆盖命令。经 RenderDoc 启动本地 Player 时，可追加 `--capture-actor-rendering-pass` 捕获该固定姿势下的一帧；日志中的提交数仍需用实际 GPU draw 和缓冲差分核实。所需原版截帧及顶点流不随仓库提供，该入口不影响普通摄影与剧情的姿势。
+
+离线比较须记录分辨率、相机、几何来源、缓冲格式和对齐方式。像素平移应由轮廓遮罩确定，不能用颜色误差选择最有利的偏移；材质内部与边界、无法确定类别的覆盖层应分开统计。角色平均亮度接近，并不代表逐像素渲染已追平。
 
 ## 参考与范围
 

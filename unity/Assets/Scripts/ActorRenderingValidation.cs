@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
 using UnityEngine;
 
 namespace GakumasPhotoMode
@@ -12,6 +13,7 @@ namespace GakumasPhotoMode
         [Serializable] private sealed class Frame
         {
             public string name;
+            public string actorPoseDigest;
             public int width, height, outlineDraws, hairCoverDraws, additionalLights;
             public Vector3 cameraPosition;
             public Vector4 matcapParameters, lightingScales, lightDirection;
@@ -154,6 +156,9 @@ namespace GakumasPhotoMode
             // Different lighting/camera states must not inherit the previous
             // state's accumulated image. Normal playback still keeps history.
             _pipeline.ResetTemporalHistory();
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "--trace-rendering-stability") >= 0 &&
+                (name == "01-front" || name == "01b-front-repeat" || name == "11-profile-restored"))
+                OriginalStyleRenderPipeline.RequestPostInputDump(Path.Combine(_directory, name));
             if (name == "04-quarter" && Array.IndexOf(Environment.GetCommandLineArgs(), "--capture-actor-rendering-pass") >= 0)
             {
                 if (!RenderDocCaptureBridge.TriggerCapture()) { Application.Quit(2); yield break; }
@@ -197,6 +202,7 @@ namespace GakumasPhotoMode
             File.WriteAllBytes(Path.Combine(_directory, name + ".png"), image.EncodeToPNG());
             _report.frames.Add(new Frame {
                 name = name, width = image.width, height = image.height,
+                actorPoseDigest = ActorPoseDigest(),
                 outlineDraws = _controls.OutlineDrawCount, hairCoverDraws = _controls.HairCoverDrawCount,
                 additionalLights = _controls.AdditionalLightCount, cameraPosition = transform.position,
                 matcapParameters = Shader.GetGlobalVector("_ActorMatcapParameters"),
@@ -205,6 +211,31 @@ namespace GakumasPhotoMode
             });
             Destroy(image);
             Debug.Log("[ActorRenderingValidation] " + name);
+        }
+
+        private static string ActorPoseDigest()
+        {
+            // Same-process diagnostic only: instance IDs define a stable order,
+            // not a cross-process rig identifier. No pose writes are performed.
+            Transform[] transforms = FindObjectsOfType<Transform>();
+            Array.Sort(transforms, (left, right) => left.GetInstanceID().CompareTo(right.GetInstanceID()));
+            using (var stream = new MemoryStream())
+            using (var writer = new BinaryWriter(stream))
+            using (var hash = SHA256.Create())
+            {
+                foreach (Transform value in transforms)
+                {
+                    if (value.gameObject.layer != OriginalStyleRenderPipeline.ActorLayer) continue;
+                    writer.Write(value.GetInstanceID());
+                    Matrix4x4 matrix = value.localToWorldMatrix;
+                    for (int i = 0; i < 16; i++) writer.Write(matrix[i]);
+                    var skin = value.GetComponent<SkinnedMeshRenderer>();
+                    if (skin != null && skin.sharedMesh != null)
+                        for (int i = 0; i < skin.sharedMesh.blendShapeCount; i++) writer.Write(skin.GetBlendShapeWeight(i));
+                }
+                writer.Flush();
+                return BitConverter.ToString(hash.ComputeHash(stream.ToArray())).Replace("-", "").ToLowerInvariant();
+            }
         }
     }
 }

@@ -3431,6 +3431,12 @@ namespace GakumasPhotoMode
             if (Environment.GetCommandLineArgs().Contains("--capture-presented-window"))
             {
                 for (int frame = 0; frame < 32; frame++) yield return null;
+                if (captureArgs.Contains("--capture-actor-rendering-pass"))
+                {
+                    if (!RenderDocCaptureBridge.TriggerCapture()) { Application.Quit(2); yield break; }
+                    yield return null;
+                    yield return null;
+                }
                 if (Environment.GetCommandLineArgs().Contains("--dump-post-inputs"))
                 {
                     string directory = Path.Combine(
@@ -3451,6 +3457,9 @@ namespace GakumasPhotoMode
                 path, PreviewCamera.transform.position, PreviewCamera.transform.forward,
                 PreviewCamera.transform.up, PreviewCamera.fieldOfView,
                 _faceExpression == null ? 0f : _faceExpression.BlinkWeight));
+            if (_actorRenderControls != null)
+                Debug.Log("[ActorRendering] GPA-camera submitted passes: outline=" +
+                    _actorRenderControls.OutlineDrawCount + "; hairCover=" + _actorRenderControls.HairCoverDrawCount);
             yield return new WaitForSecondsRealtime(0.25f);
             Application.Quit(0);
         }
@@ -4140,6 +4149,9 @@ namespace GakumasPhotoMode
                 }
                 replaced++;
             }
+            // The diagnostic swaps skinned renderers for static ones. Explicit
+            // outline/hair commands must bind those replacements as well.
+            if (_actorRenderControls != null) _actorRenderControls.RefreshRenderers();
             Debug.Log(string.Format(
                 "[PhotoMode] Exact captured posed geometry + tangent/color attributes applied (Unity-import UVs retained): renderers={0}; source={1}",
                 replaced, streamDirectory));

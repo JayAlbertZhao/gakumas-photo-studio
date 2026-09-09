@@ -85,6 +85,31 @@ class ActorRenderingWiringTests(unittest.TestCase):
                            'QualitySettings.antiAliasing = previousAntiAliasing'):
             self.assertIn(assignment, cleanup)
 
+    def test_stability_trace_is_opt_in_and_pose_fingerprint_is_read_only(self):
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')
+        trace = probe[probe.index('"--trace-rendering-stability"'):]
+        self.assertLess(trace.index('RequestPostInputDump'), trace.index('WaitForEndOfFrame'))
+        for frame in ('01-front', '01b-front-repeat', '11-profile-restored'):
+            self.assertIn('name == "' + frame + '"', trace[:trace.index('RequestPostInputDump')])
+        digest = probe[probe.index('private static string ActorPoseDigest()'):]
+        self.assertIn('SHA256.Create()', digest)
+        self.assertIn('value.localToWorldMatrix', digest)
+        self.assertIn('skin.GetBlendShapeWeight(i)', digest)
+        self.assertIn('OriginalStyleRenderPipeline.ActorLayer', digest)
+        self.assertNotRegex(digest, r'\.(?:position|rotation|localScale)\s*=|SetBlendShapeWeight|SetPositionAndRotation')
+
+    def test_captured_geometry_refreshes_supplementary_renderers(self):
+        app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
+        pose = app[app.index('private void ApplyCapturedPosedGeometry()'):]
+        pose = pose[:pose.index('Exact captured posed geometry + tangent/color attributes applied')]
+        self.assertIn('_actorRenderControls.RefreshRenderers()', pose)
+        self.assertLess(pose.index('renderer.enabled = false'), pose.index('_actorRenderControls.RefreshRenderers()'))
+        capture = app[app.index('private IEnumerator CaptureGpaCameraAndQuit()'):]
+        capture = capture[:capture.index('private IEnumerator CaptureGpaCameraSweepAndQuit()')]
+        self.assertIn('captureArgs.Contains("--capture-actor-rendering-pass")', capture)
+        self.assertIn('if (!RenderDocCaptureBridge.TriggerCapture()) { Application.Quit(2); yield break; }', capture)
+        self.assertIn('GPA-camera submitted passes: outline=', capture)
+
 
 if __name__ == '__main__':
     unittest.main()
