@@ -7,6 +7,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_skin_saturation_uses_authored_mask_not_material_id(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('_CapturedSkinSaturation * saturate(shadeSample.a)', surface)
+        self.assertNotIn('isSkin && abs(_CapturedSkinSaturation)', surface)
+        self.assertIn('float3(0.2126729, 0.7151522, 0.0721750)', surface)
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifySkinSaturation(report);', probe)
+        self.assertIn('foreach (int type in new[] { 0, 1, 9 })', probe)
+        self.assertIn('foreach (float mask in new[] { 0f, 0.25f, 1f })', probe)
+        self.assertIn('Color.LerpUnclamped(gray, baseline, 1f + delta * mask)', probe)
+
     def test_head_triangle_uses_reflected_basis_once(self):
         driver = (ROOT / 'unity/Assets/Scripts/ActorHeadLightingDriver.cs').read_text(encoding='utf-8')
         reference = (ROOT / 'unity/Assets/Scripts/ActorShaderReferenceFeature.cs').read_text(encoding='utf-8')
@@ -78,7 +89,8 @@ class ActorRenderingWiringTests(unittest.TestCase):
         self.assertIn('Capture("01b-front-repeat")', probe)
         self.assertLess(probe.index('_pipeline.ResetTemporalHistory()'),
                         probe.index('ScreenCapture.CaptureScreenshotAsTexture()'))
-        for field in ('repeatChangedPixels', 'profileRestoreChangedPixels', 'lightRemovalChangedPixels'):
+        for field in ('repeatChangedPixels', 'profileRestoreChangedPixels', 'lightRemovalChangedPixels',
+                      'skinRestoreChangedPixels'):
             self.assertIn('public int ' + field + ' = -1', probe)
             self.assertIn('_report.' + field + ' == 0', probe)
         self.assertRegex(pipeline, r'public void ResetTemporalHistory\(\)\s*\{\s*'
@@ -86,6 +98,18 @@ class ActorRenderingWiringTests(unittest.TestCase):
         callers = [path.name for path in (ROOT / 'unity/Assets/Scripts').glob('*.cs')
                    if '.ResetTemporalHistory(' in path.read_text(encoding='utf-8')]
         self.assertEqual(callers, ['ActorRenderingValidation.cs'])
+
+    def test_skin_probe_checks_real_full_body_inputs_and_restores_camera(self):
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')
+        for capture in ('Capture("18-skin-neutral", 0f)', 'Capture("18a-skin-desaturated", -1f)',
+                        'Capture("18b-skin-saturated", 0.5f)', 'Capture("18c-skin-restored", 0f)'):
+            self.assertIn(capture, probe)
+        self.assertIn('orbit.distance = 3.2f;', probe)
+        self.assertIn('orbit.distance = previousDistance;', probe)
+        self.assertIn('orbit.target = previousTarget;', probe)
+        self.assertIn('expectedSkin.HasValue && Shader.GetGlobalFloat("_CapturedSkinSaturation") != expectedSkin.Value', probe)
+        self.assertIn('Shader.SetGlobalFloat("_CapturedSkinSaturation", previousSkin)', probe)
+        self.assertIn('name == "18c-skin-restored" ? "18-skin-neutral" : "01-front"', probe)
 
     def test_reference_rejects_missing_original_forward_pass(self):
         reference = (ROOT / 'unity/Assets/Scripts/ActorShaderReferenceFeature.cs').read_text(encoding='utf-8')
@@ -107,6 +131,23 @@ class ActorRenderingWiringTests(unittest.TestCase):
                            'QualitySettings.renderPipeline = previousQualityPipeline',
                            'QualitySettings.antiAliasing = previousAntiAliasing'):
             self.assertIn(assignment, cleanup)
+
+    def test_builtin_build_retains_urp_variants_and_restores_setting(self):
+        builder = (ROOT / 'unity/Assets/Editor/Phase1Builder.cs').read_text(encoding='utf-8')
+        helper = builder[builder.index('private static BuildReport BuildWithPipelineSettings('):]
+        helper = helper[:helper.index('private static void RenderCamera(')]
+        self.assertIn('BuildWithPipelineSettings(options, false)', builder)
+        self.assertIn('}, originalShaderReference);', builder)
+        self.assertLess(helper.index('if (originalShaderReference) return BuildPipeline.BuildPlayer(options)'),
+                        helper.index('new SerializedObject(settings)'))
+        self.assertIn('FindProperty("m_StripUnusedVariants")', helper)
+        self.assertIn('stripUnused.boolValue = false;', helper)
+        cleanup = helper[helper.index('finally'):]
+        self.assertIn('stripUnused.boolValue = previousStripUnused;', cleanup)
+        self.assertIn('serialized.ApplyModifiedPropertiesWithoutUndo();', cleanup)
+        self.assertIn('AssetDatabase.SaveAssetIfDirty(settings);', cleanup)
+        self.assertNotIn('renderPipelineAsset =', helper)
+        self.assertNotIn('renderPipeline =', helper)
 
     def test_stability_trace_is_opt_in_and_pose_fingerprint_is_read_only(self):
         probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')

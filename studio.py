@@ -257,7 +257,7 @@ def main(argv=None, root: Path = ROOT) -> int:
         if args.command == 'doctor':
             report['editor_configured'] = bool(config['editor'] and config['editor'].is_file())
             report['player_built'] = (root / 'unity/output/KotonePhotoStudio.exe').is_file()
-            report['required_editor'] = 'Tuanjie 2022.3.62t12 / URP 14.2.0-t1'
+            report['required_editor'] = 'Tuanjie 2022.3.62t15 / URP 14.2.0-t1'
             if not report['editor_configured']:
                 report['warnings'].append('Editor not configured; configure --editor before building.')
             if not report['player_built']:

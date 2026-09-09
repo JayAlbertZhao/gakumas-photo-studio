@@ -113,6 +113,7 @@ PlayerSettings:
   forceSingleInstance: 0
   useFlipModelSwapchain: 1
   resizableWindow: 1
+  renderOverUI: 0
   useMacAppStoreValidation: 0
   wglDisableFBODepthStencil: 0
   macAppStoreCategory: public.app-category.games
@@ -361,6 +362,7 @@ PlayerSettings:
   mobileMTRendering:
     Android: 1
     HMIAndroid: 1
+    OpenHarmony: 1
     VisionOS: 1
     iPhone: 1
     tvOS: 1
@@ -871,7 +873,6 @@ PlayerSettings:
     m_VersionCode: 1
     m_VersionName: 
   hmiPlayerDataPath: 
-  hmiForceSRGBBlit: 0
   embeddedLinuxEnableGamepadInput: 0
   logStartupTiming: 0
   hmiCpuConfiguration: 

@@ -4,7 +4,7 @@
 
 ## 1. 准备环境
 
-已验证的 Player 构建环境为 Windows、Tuanjie 2022.3.62t12 和 URP 14.2.0-t1。需要已激活的编辑器及 Windows Player 构建支持、Git、Python 3.10+。构建时还需要解析工程包依赖；其他 Unity/Tuanjie 版本和操作系统的 Player 构建尚未验证。
+当前修订的 Player 构建环境为 Windows、Tuanjie 2022.3.62t15 和 URP 14.2.0-t1。需要已激活的编辑器及 Windows Player 构建支持、Git、Python 3.10+。构建时还需要解析工程包依赖；旧版本曾使用 t12，本轮渲染修正使用 t15 完整构建验证，其他环境不在本轮验证范围内。工程目录宜使用较短路径，避免 Windows 包导入触及路径长度限制。
 
 ~~~powershell
 git --version

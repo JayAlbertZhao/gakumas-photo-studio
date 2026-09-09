@@ -15,6 +15,7 @@ namespace GakumasPhotoMode
             public string name;
             public string actorPoseDigest;
             public int width, height, outlineDraws, hairCoverDraws, additionalLights;
+            public float skinSaturationDelta;
             public Vector3 cameraPosition;
             public Vector4 matcapParameters, lightingScales, lightDirection;
         }
@@ -27,6 +28,7 @@ namespace GakumasPhotoMode
             public int repeatMaxChannelDifference = -1;
             public int profileRestoreChangedPixels = -1;
             public int lightRemovalChangedPixels = -1;
+            public int skinRestoreChangedPixels = -1;
             public List<Frame> frames = new List<Frame>();
         }
 
@@ -138,6 +140,24 @@ namespace GakumasPhotoMode
             _controls.rimColor = new Color(0.1f, 0.8f, 0.2f);
             yield return Capture("16-colored-rim");
             _controls.overrideLighting = false;
+            // A face-only close-up cannot detect ignored skin inside body
+            // materials. Keep the real rig and outfit, and include the legs.
+            Vector3 previousTarget = orbit.target;
+            float previousDistance = orbit.distance;
+            float previousSkin = Shader.GetGlobalFloat("_CapturedSkinSaturation");
+            orbit.target = new Vector3(0f, 0.8f, 0f);
+            orbit.distance = 3.2f;
+            Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
+            yield return Capture("18-skin-neutral", 0f);
+            Shader.SetGlobalFloat("_CapturedSkinSaturation", -1f);
+            yield return Capture("18a-skin-desaturated", -1f);
+            Shader.SetGlobalFloat("_CapturedSkinSaturation", 0.5f);
+            yield return Capture("18b-skin-saturated", 0.5f);
+            Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
+            yield return Capture("18c-skin-restored", 0f);
+            Shader.SetGlobalFloat("_CapturedSkinSaturation", previousSkin);
+            orbit.target = previousTarget;
+            orbit.distance = previousDistance;
             _controls.showPanel = true;
             yield return Capture("17-render-panel");
             _controls.showPanel = false;
@@ -153,10 +173,11 @@ namespace GakumasPhotoMode
             File.WriteAllText(Path.Combine(_directory, "rendering-probes.json"), JsonUtility.ToJson(_report, true));
             Debug.Log("[ActorRenderingValidation] Captured " + _report.frames.Count + " probes to " + _directory);
             Application.Quit(_report.repeatChangedPixels == 0 &&
-                _report.profileRestoreChangedPixels == 0 && _report.lightRemovalChangedPixels == 0 ? 0 : 2);
+                _report.profileRestoreChangedPixels == 0 && _report.lightRemovalChangedPixels == 0 &&
+                _report.skinRestoreChangedPixels == 0 ? 0 : 2);
         }
 
-        private IEnumerator Capture(string name)
+        private IEnumerator Capture(string name, float? expectedSkin = null)
         {
             // Let the camera, controls and material bindings settle first.
             for (int frame = 0; frame < 24; frame++) yield return null;
@@ -173,10 +194,13 @@ namespace GakumasPhotoMode
                 yield return null;
             }
             yield return new WaitForEndOfFrame();
+            if (expectedSkin.HasValue && Shader.GetGlobalFloat("_CapturedSkinSaturation") != expectedSkin.Value)
+                throw new InvalidOperationException("Skin saturation probe input was overwritten: " + name);
             Texture2D image = ScreenCapture.CaptureScreenshotAsTexture();
             if (image == null) throw new InvalidOperationException("Presented-frame readback failed: " + name);
-            if (name == "01-front") _repeatReference = image.GetPixels32();
-            if (name == "01b-front-repeat" || name == "11-profile-restored" || name == "13-point-lights-removed")
+            if (name == "01-front" || name == "18-skin-neutral") _repeatReference = image.GetPixels32();
+            if (name == "01b-front-repeat" || name == "11-profile-restored" ||
+                name == "13-point-lights-removed" || name == "18c-skin-restored")
             {
                 Color32[] pixels = image.GetPixels32();
                 int changed = 0, maximum = 0;
@@ -195,8 +219,10 @@ namespace GakumasPhotoMode
                     _report.repeatMaxChannelDifference = maximum;
                 }
                 else if (name == "11-profile-restored") _report.profileRestoreChangedPixels = changed;
+                else if (name == "18c-skin-restored") { _report.skinRestoreChangedPixels = changed; _repeatReference = null; }
                 else { _report.lightRemovalChangedPixels = changed; _repeatReference = null; }
-                Debug.Log("[ActorRenderingValidation] " + name + " vs 01-front: changed pixels=" + changed +
+                string reference = name == "18c-skin-restored" ? "18-skin-neutral" : "01-front";
+                Debug.Log("[ActorRenderingValidation] " + name + " vs " + reference + ": changed pixels=" + changed +
                     " max channel difference=" + maximum);
             }
             if (name == "01-front" && (_controls.OutlineDrawCount == 0 || _controls.HairCoverDrawCount == 0))
@@ -214,7 +240,8 @@ namespace GakumasPhotoMode
                 additionalLights = _controls.AdditionalLightCount, cameraPosition = transform.position,
                 matcapParameters = Shader.GetGlobalVector("_ActorMatcapParameters"),
                 lightingScales = Shader.GetGlobalVector("_ActorLightingScales"),
-                lightDirection = Shader.GetGlobalVector("_CapturedLightDirection")
+                lightDirection = Shader.GetGlobalVector("_CapturedLightDirection"),
+                skinSaturationDelta = Shader.GetGlobalFloat("_CapturedSkinSaturation")
             });
             Destroy(image);
             Debug.Log("[ActorRenderingValidation] " + name);

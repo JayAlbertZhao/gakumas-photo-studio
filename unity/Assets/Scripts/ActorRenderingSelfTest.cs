@@ -90,6 +90,7 @@ namespace GakumasPhotoMode
                 report.checks.Add(new Check { name = "nonconstant-ramp-positive-control", expected = bright,
                     actual = dark, maximumDifference = response, accepted = response > 0.05f });
                 VerifyHeadReflection(report);
+                VerifySkinSaturation(report);
                 VerifyPresentationOwnership(report);
                 VerifyCapturedMaterialUv(report);
                 VerifyCapturedCamera(report);
@@ -163,6 +164,76 @@ namespace GakumasPhotoMode
             _material.SetVector("_DefValue", new Vector4(0.5f, 0, 1, 0));
             Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(0, 0, -1, 1));
             DestroyImmediate(head);
+        }
+
+        private void VerifySkinSaturation(Report report)
+        {
+            // Test the real diffuse path, before specular, rim and post effects.
+            // Skin is a texture mask, including skin inside body materials;
+            // neither the face material ID nor albedo brightness is the mask.
+            var savedMaterial = Own(new Material(_material));
+            string[] globals = { "_FaceDebugMode", "_CapturedDirectScale",
+                "_CapturedDiffuseBlend", "_CapturedSkinSaturation" };
+            float[] saved = Array.ConvertAll(globals, Shader.GetGlobalFloat);
+            var baseMap = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var shadeMap = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var ramp = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            Color baseColor = new Color(0.8f, 0.35f, 0.15f, 1f);
+            baseMap.SetPixel(0, 0, baseColor); baseMap.Apply();
+            ramp.SetPixel(0, 0, new Color(1, 1, 1, 0)); ramp.Apply();
+            try
+            {
+                _material.SetColor("_Color", Color.white);
+                _material.SetTexture("_MainTex", baseMap);
+                _material.SetTexture("_ShadeTex", shadeMap);
+                _material.SetTexture("_RampTex", ramp);
+                _material.SetTexture("_RampAddTex", Texture2D.blackTexture);
+                _material.SetFloat("_EnableLayer", 0f);
+                _material.SetFloat("_DisableDefMap", 1f);
+                _material.SetVector("_DefValue", new Vector4(0.5f, 0, 0, 0));
+                Shader.SetGlobalFloat("_FaceDebugMode", 19f);
+                Shader.SetGlobalFloat("_CapturedDirectScale", 1f);
+                Shader.SetGlobalFloat("_CapturedDiffuseBlend", 1f);
+                foreach (int type in new[] { 0, 1, 9 })
+                {
+                    _material.SetFloat("_ShaderType", type);
+                    shadeMap.SetPixel(0, 0, Color.clear); shadeMap.Apply();
+                    Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
+                    Color baseline = Render("skin-type-" + type + "-identity");
+                    Color expectedBase = baseColor * 0.96f; expectedBase.a = 1f;
+                    AddSkinCheck(report, "skin-type-" + type + "-base-positive-control", expectedBase, baseline);
+                    float luma = baseline.r * 0.2126729f + baseline.g * 0.7151522f + baseline.b * 0.0721750f;
+                    Color gray = new Color(luma, luma, luma, 1f);
+                    foreach (float mask in new[] { 0f, 0.25f, 1f })
+                    {
+                        shadeMap.SetPixel(0, 0, new Color(0, 0, 0, mask)); shadeMap.Apply();
+                        foreach (float delta in new[] { -1f, 0.5f })
+                        {
+                            Shader.SetGlobalFloat("_CapturedSkinSaturation", delta);
+                            string name = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                                "skin-type-{0}-mask-{1}-delta-{2}", type, mask, delta);
+                            Color expected = Color.LerpUnclamped(gray, baseline, 1f + delta * mask);
+                            AddSkinCheck(report, name, expected, Render(name));
+                        }
+                    }
+                    Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
+                    AddSkinCheck(report, "skin-type-" + type + "-restored", baseline,
+                        Render("skin-type-" + type + "-restored"));
+                }
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(savedMaterial);
+                for (int i = 0; i < globals.Length; i++) Shader.SetGlobalFloat(globals[i], saved[i]);
+            }
+        }
+
+        private static void AddSkinCheck(Report report, string name, Color expected, Color actual)
+        {
+            float difference = Mathf.Max(Mathf.Abs(expected.r - actual.r),
+                Mathf.Abs(expected.g - actual.g), Mathf.Abs(expected.b - actual.b), Mathf.Abs(expected.a - actual.a));
+            report.checks.Add(new Check { name = name, expected = expected, actual = actual,
+                maximumDifference = difference, accepted = !float.IsNaN(difference) && difference < 0.00001f });
         }
 
         private void VerifyPresentationOwnership(Report report)

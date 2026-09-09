@@ -7,6 +7,7 @@ using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 
 namespace GakumasPhotoMode.Editor
@@ -147,7 +148,7 @@ namespace GakumasPhotoMode.Editor
                 GraphicsDeviceType.Direct3D11,
                 GraphicsDeviceType.Vulkan,
             });
-            BuildReport report = BuildPipeline.BuildPlayer(options);
+            BuildReport report = BuildWithPipelineSettings(options, false);
             if (report.summary.result != BuildResult.Succeeded)
             {
                 throw new Exception("Build failed: " + report.summary.result);
@@ -209,13 +210,13 @@ namespace GakumasPhotoMode.Editor
             BuildReport report;
             try
             {
-                report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                report = BuildWithPipelineSettings(new BuildPlayerOptions
                 {
                     scenes = new[] { ScenePath },
                     locationPathName = buildPath,
                     target = BuildTarget.StandaloneWindows64,
                     options = BuildOptions.None,
-                });
+                }, originalShaderReference);
             }
             finally
             {
@@ -230,6 +231,34 @@ namespace GakumasPhotoMode.Editor
             if (report.summary.result != BuildResult.Succeeded)
                 throw new Exception("Build failed: " + report.summary.result);
             Debug.Log(string.Format("[PhotoMode] Build succeeded: {0} bytes -> {1}", report.summary.totalSize, buildPath));
+        }
+
+        private static BuildReport BuildWithPipelineSettings(BuildPlayerOptions options, bool originalShaderReference)
+        {
+            if (originalShaderReference) return BuildPipeline.BuildPlayer(options);
+            var settings = GraphicsSettings.GetSettingsForRenderPipeline<UniversalRenderPipeline>();
+            if (settings == null) return BuildPipeline.BuildPlayer(options);
+            var serialized = new SerializedObject(settings);
+            var stripUnused = serialized.FindProperty("m_StripUnusedVariants");
+            if (stripUnused == null)
+                throw new InvalidOperationException("URP global settings lack the unused-variant option.");
+            bool previousStripUnused = stripUnused.boolValue;
+            try
+            {
+                // Tuanjie 2022.3.62t15's URP preprocessor rejects an empty URP
+                // asset list even for Built-in builds. Retain variants instead
+                // of activating URP or changing the ordinary render pipeline.
+                stripUnused.boolValue = false;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                return BuildPipeline.BuildPlayer(options);
+            }
+            finally
+            {
+                serialized.Update();
+                stripUnused.boolValue = previousStripUnused;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                AssetDatabase.SaveAssetIfDirty(settings);
+            }
         }
 
         private static void RenderCamera(Camera camera, string output, int width, int height)

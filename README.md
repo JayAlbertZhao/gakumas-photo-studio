@@ -18,7 +18,7 @@
 
 ## 首次使用（Windows）
 
-需要 Git、Python 3.10+、已安装且完成许可激活的 **Tuanjie 2022.3.62t12**（含 Windows Player 构建支持），以及自己的兼容数据集。URP 依赖为 14.2.0-t1；其他编辑器版本和操作系统的 Player 构建尚未验证。Python 工具仅用标准库，无需 pip install。Linux CI 只验证 Python 工具与源码边界。
+需要 Git、Python 3.10+、已安装且完成许可激活的 **Tuanjie 2022.3.62t15**（含 Windows Player 构建支持），以及自己的兼容数据集。URP 依赖为 14.2.0-t1；当前修订已在该环境完成 Player 构建与渲染检查，其他环境不在本轮验证范围内。Python 工具仅用标准库，无需 pip install。Linux CI 只验证 Python 工具与源码边界。
 
 ```powershell
 git clone https://github.com/JayAlbertZhao/gakumas-photo-studio.git

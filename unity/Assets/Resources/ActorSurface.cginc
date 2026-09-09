@@ -802,11 +802,16 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     diffuse = lerp(diffuse, capturedDiffuse, saturate(_CapturedDiffuseBlend));
     if (isSkin && _FaceDecalCount > 0.5)
         diffuse = ApplyOriginalFaceDecals(diffuse, input.worldPosition);
-    if (isSkin && abs(_CapturedSkinSaturation) > 0.00001)
+    // Shade alpha marks skin even inside mixed body/clothing materials.
+    // The runtime profile stores a delta: zero preserves authored saturation.
+    float skinSaturationDelta = _CapturedSkinSaturation * saturate(shadeSample.a);
+    if (abs(skinSaturationDelta) > 0.00001)
     {
-        float skinLuma = dot(diffuse, float3(0.299, 0.587, 0.114));
+        // This stage is linear RGB; use linear-light luminance, not the
+        // gamma-encoded luma weights used by the earlier face-only path.
+        float skinLuma = dot(diffuse, float3(0.2126729, 0.7151522, 0.0721750));
         diffuse = lerp(skinLuma.xxx, diffuse,
-            max(1.0 + _CapturedSkinSaturation, 0.0));
+            max(1.0 + skinSaturationDelta, 0.0));
     }
 
     // Literal BRDF from bound 5C07/7372/717B DXBC.  The t1 resource

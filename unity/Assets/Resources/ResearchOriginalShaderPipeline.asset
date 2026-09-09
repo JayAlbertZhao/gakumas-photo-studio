@@ -213,6 +213,9 @@ MonoBehaviour:
     coreBlitColorAndDepthPS: {fileID: 4800000, guid: d104b2fc1ca6445babb8e90b0758136b, type: 3}
     blitHDROverlay: {fileID: 4800000, guid: a89bee29cffa951418fc1e2da94d1959, type: 3}
     shadingRate: {fileID: 4800000, guid: f34b9751d8317eb4b8bc8c90fe059a92, type: 3}
+    generateSRI: {fileID: 7200000, guid: 24faf2e9839e57247bbed63189909265, type: 3}
+    reprojectSRI: {fileID: 7200000, guid: 1622436d3ef3aec488966042573f9b06, type: 3}
+    convertSRIPS: {fileID: 4800000, guid: 6fc554f4ed5e1cd419f17a576eec7a51, type: 3}
     cameraMotionVector: {fileID: 4800000, guid: c56b7e0d4c7cb484e959caeeedae9bbf, type: 3}
     objectMotionVector: {fileID: 4800000, guid: 7b3ede40266cd49a395def176e1bc486, type: 3}
     TuanjieGIBuildDepthPyramid: {fileID: 7200000, guid: 573ab9bd91e4414e82f0f6861fd61ebe, type: 3}
