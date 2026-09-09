@@ -1,0 +1,3 @@
+#!/bin/sh
+# Activate Python 3.10+ before committing. No third-party Python packages needed.
+exec python -I tools/release.py audit --tracked

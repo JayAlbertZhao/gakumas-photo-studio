@@ -1,0 +1,238 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf2edee5c58d82540a51f03df9d42094, type: 3}
+  m_Name: ResearchOriginalShaderPipeline
+  m_EditorClassIdentifier: 
+  k_AssetVersion: 11
+  k_AssetPreviousVersion: 11
+  m_RendererType: 1
+  m_RendererData: {fileID: 0}
+  m_RendererDataList:
+  - {fileID: 2014081105435410510}
+  m_DefaultRendererIndex: 0
+  m_RequireDepthTexture: 1
+  m_RequireOpaqueTexture: 1
+  m_OpaqueDownsampling: 1
+  m_SupportsTerrainHoles: 1
+  m_SupportsHDR: 1
+  m_HDRColorBufferPrecision: 0
+  m_MSAA: 1
+  m_MSAAHighQuality: 0
+  m_RenderScale: 1
+  DLSSPerfQualitySetting: 0
+  DLSSUseOptimalSettings: 1
+  m_UpscalingFilter: 0
+  m_AdvancedUpscalingFilterList: 
+  m_TJSRSettings:
+    tjsrQuality: 1
+    tjsrBaseBlendFactor: 0
+    m_tjsrContrastAdaptiveSharpening: 0
+  m_MetalFXMode: 0
+  m_FsrOverrideSharpness: 0
+  m_FsrSharpness: 0.92
+  m_EnableLODCrossFade: 1
+  m_LODCrossFadeDitheringType: 1
+  m_ShEvalMode: 0
+  m_MainLightRenderingMode: 1
+  m_MainLightShadowsSupported: 1
+  m_MainLightShadowmapResolution: 2048
+  m_AdditionalLightsRenderingMode: 1
+  m_AdditionalLightsPerObjectLimit: 4
+  m_AdditionalLightShadowsSupported: 0
+  m_AdditionalLightsShadowmapResolution: 2048
+  m_AdditionalLightsShadowResolutionTierLow: 256
+  m_AdditionalLightsShadowResolutionTierMedium: 512
+  m_AdditionalLightsShadowResolutionTierHigh: 1024
+  m_lightProbeSystem: 1
+  m_VGComputeShaders:
+    gpuCulling: {fileID: 0}
+    gpuCullingDegenerate: {fileID: 0}
+    gpuCullingInit: {fileID: 0}
+    gpuVisibleBucket: {fileID: 0}
+    gpuVisibleBucketIndexed: {fileID: 0}
+    generateMaterialRange: {fileID: 0}
+    scatterCopy: {fileID: 0}
+    downsampleDepth: {fileID: 0}
+    gpuVertexCacheManage: {fileID: 0}
+    gpuDrivenFlattenProbeData: {fileID: 0}
+    transcode: {fileID: 0}
+  m_ReflectionProbeBlending: 0
+  m_ReflectionProbeBoxProjection: 0
+  m_ReflectionProbeAtlasResolution: 134219776
+  m_ShadowDistance: 50
+  m_ShadowCascadeCount: 1
+  m_Cascade2Split: 0.25
+  m_Cascade3Split: {x: 0.1, y: 0.3}
+  m_Cascade4Split: {x: 0.067, y: 0.2, z: 0.467}
+  m_CascadeBorder: 0.2
+  m_ShadowDepthBias: 1
+  m_ShadowNormalBias: 1
+  m_AnyShadowsSupported: 1
+  m_SoftShadowsSupported: 0
+  m_ConservativeEnclosingSphere: 1
+  m_NumIterationsEnclosingSphere: 64
+  m_SoftShadowQuality: 2
+  m_AdditionalLightsCookieResolution: 2048
+  m_AdditionalLightsCookieFormat: 3
+  m_UseSRPBatcher: 1
+  m_UseSRPDynamicBatching: 0
+  m_SupportsDynamicBatching: 0
+  m_MixedLightingSupported: 1
+  m_SupportsLightCookies: 1
+  m_SupportsLightLayers: 0
+  m_DebugLevel: 0
+  m_StoreActionsOptimization: 0
+  m_EnableRenderGraph: 0
+  m_EnableTuanjieGI: 0
+  m_UseAdaptivePerformance: 1
+  m_ColorGradingMode: 0
+  m_ColorGradingLutSize: 32
+  m_UseFastSRGBLinearConversion: 0
+  m_SupportDataDrivenLensFlare: 1
+  m_PostProcessPreserveAlpha: 0
+  m_GPUResidentDrawerStat: 0
+  m_GRDEnableCollectTransform: 1
+  m_GRDEnableCollectLightMap: 0
+  m_GRDEnableCollectLightProbe: 0
+  m_GRDEnableCollectMotionVector: 0
+  m_GRDUseTextureStoreData: 0
+  m_GRDEnableGPUOcclusionCulling: 1
+  m_BRGShaderVariantStorageStripType: 0
+  m_SmallMeshScreenPercentage: 0
+  m_ShadowType: 1
+  m_LocalShadowsSupported: 0
+  m_LocalShadowsAtlasResolution: 256
+  m_MaxPixelLights: 0
+  m_ShadowAtlasResolution: 256
+  m_VolumeFrameworkUpdateMode: 0
+  m_DefaultVolumeProfile: {fileID: 0}
+  m_Textures:
+    blueNoise64LTex: {fileID: 2800000, guid: e3d24661c1e055f45a7560c033dbb837, type: 3}
+    bayerMatrixTex: {fileID: 2800000, guid: f9ee4ed84c1d10c49aabb9b210b0fc44, type: 3}
+  testURPForceGRD: 0
+  m_PrefilteringModeMainLightShadows: 1
+  m_PrefilteringModeAdditionalLight: 4
+  m_PrefilteringModeAdditionalLightShadows: 1
+  m_PrefilterXRKeywords: 0
+  m_PrefilteringModeClusteredLighting: 1
+  m_PrefilteringModeDeferredRendering: 1
+  m_PrefilteringModeScreenSpaceOcclusion: 1
+  m_PrefilterDebugKeywords: 0
+  m_PrefilterWriteRenderingLayers: 0
+  m_PrefilterHDROutput: 0
+  m_PrefilterSSAODepthNormals: 0
+  m_PrefilterSSAOSourceDepthLow: 0
+  m_PrefilterSSAOSourceDepthMedium: 0
+  m_PrefilterSSAOSourceDepthHigh: 0
+  m_PrefilterSSAOInterleaved: 0
+  m_PrefilterSSAOBlueNoise: 0
+  m_PrefilterSSAOSampleCountLow: 0
+  m_PrefilterSSAOSampleCountMedium: 0
+  m_PrefilterSSAOSampleCountHigh: 0
+  m_PrefilterDBufferMRT1: 0
+  m_PrefilterDBufferMRT2: 0
+  m_PrefilterDBufferMRT3: 0
+  m_PrefilterSoftShadowsQualityLow: 0
+  m_PrefilterSoftShadowsQualityMedium: 0
+  m_PrefilterSoftShadowsQualityHigh: 0
+  m_PrefilterSoftShadows: 0
+  m_PrefilterScreenCoord: 0
+  m_PrefilterNativeRenderPass: 0
+  m_PrefilterPreserveAlpha: 0
+  m_PrefilterUseLightmapSingle: 0
+  m_PrefilterBRGVariantStorageStrip: 0
+  m_PrefilterUseTuanjieGI: 0
+  m_PrefilterStripAPSKeywords: 1
+  m_PrefilterAPSKeepL1: 0
+  m_PrefilterAPSKeepL2: 0
+  m_PrefilterAPSKeepProbeBuffer: 0
+  m_PrefilterAPSKeepMinRayDistance: 0
+  m_PrefilterAPSKeepSkyOcclusion: 0
+  m_PrefilterAPSKeepSkyDirection: 0
+  m_PrefilterAPSKeepRenderLayers: 0
+  m_PrefilterAPSKeepProbeOcclusion: 0
+  m_PrefilterAPSKeepVoxelOcclusion: 0
+  m_ShaderVariantLogLevel: 0
+  m_ShadowCascades: 0
+--- !u!114 &2014081105435410510
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: de640fe3d0db1804a85f9fc8f5cadab6, type: 3}
+  m_Name: ResearchOriginalShaderRenderer
+  m_EditorClassIdentifier: 
+  debugShaders:
+    debugReplacementPS: {fileID: 4800000, guid: cf852408f2e174538bcd9b7fda1c5ae7, type: 3}
+    hdrDebugViewPS: {fileID: 4800000, guid: 573620ae32aec764abd4d728906d2587, type: 3}
+    debugVisibilityShader: {fileID: 4800000, guid: 3619753c663387743934d88a20720796, type: 3}
+    debugMaterialIDShader: {fileID: 4800000, guid: 4cad10f498f948a4db366954d3d91f01, type: 3}
+    blitPS: {fileID: 4800000, guid: c17132b1f77d20942aa75f8429c0f8bc, type: 3}
+  m_RendererFeatures: []
+  m_RendererFeatureMap: 
+  m_UseNativeRenderPass: 0
+  postProcessData: {fileID: 0}
+  shaders:
+    blitPS: {fileID: 4800000, guid: c17132b1f77d20942aa75f8429c0f8bc, type: 3}
+    copyDepthPS: {fileID: 4800000, guid: d6dae50ee9e1bfa4db75f19f99355220, type: 3}
+    screenSpaceShadowPS: {fileID: 0}
+    samplingPS: {fileID: 4800000, guid: 04c410c9937594faa893a11dceb85f7e, type: 3}
+    stencilDeferredPS: {fileID: 4800000, guid: e9155b26e1bc55942a41e518703fe304, type: 3}
+    deferredPlusPS: {fileID: 4800000, guid: bbe27b0fca5a0402ba52a7b8fc629e3e, type: 3}
+    fallbackErrorPS: {fileID: 4800000, guid: e6e9a19c3678ded42a3bc431ebef7dbd, type: 3}
+    fallbackLoadingPS: {fileID: 4800000, guid: 7f888aff2ac86494babad1c2c5daeee2, type: 3}
+    materialErrorPS: {fileID: 4800000, guid: 5fd9a8feb75a4b5894c241777f519d4e, type: 3}
+    coreBlitPS: {fileID: 4800000, guid: 93446b5c5339d4f00b85c159e1159b7c, type: 3}
+    coreBlitColorAndDepthPS: {fileID: 4800000, guid: d104b2fc1ca6445babb8e90b0758136b, type: 3}
+    blitHDROverlay: {fileID: 4800000, guid: a89bee29cffa951418fc1e2da94d1959, type: 3}
+    shadingRate: {fileID: 4800000, guid: f34b9751d8317eb4b8bc8c90fe059a92, type: 3}
+    cameraMotionVector: {fileID: 4800000, guid: c56b7e0d4c7cb484e959caeeedae9bbf, type: 3}
+    objectMotionVector: {fileID: 4800000, guid: 7b3ede40266cd49a395def176e1bc486, type: 3}
+    TuanjieGIBuildDepthPyramid: {fileID: 7200000, guid: 573ab9bd91e4414e82f0f6861fd61ebe, type: 3}
+    TuanjieGIGPUCopy: {fileID: 7200000, guid: 33c7a4fa12ef36943bcbb68a2b92097b, type: 3}
+    TuanjieGICopyTexture: {fileID: 7200000, guid: 5fdc3e708a26487c85a8d75ac461b28d, type: 3}
+    GIMotionVector: {fileID: 4800000, guid: 8dd6fbbf59aebb74f9801a17d14b652c, type: 3}
+    gpuMotionVector: {fileID: 4800000, guid: 4d40ad15f09d31f498b06194570be767, type: 3}
+    stencilSplat: {fileID: 4800000, guid: 4361274285192ec4e8d9fd73c2aed78a, type: 3}
+    visibilityBuffer: {fileID: 4800000, guid: 4ab855ed39b8e3e44a79874f2b9df72a, type: 3}
+    materialDepth: {fileID: 4800000, guid: df470c58dc5d9fe42935813a52e80faa, type: 3}
+    decalBufferEmit: {fileID: 4800000, guid: cd3fda72164244d4994d641176af7ff8, type: 3}
+    depthPyramid: {fileID: 7200000, guid: be538ed67d13b1e4a8d26a28702fdf51, type: 3}
+    reflectionProbeCulling: {fileID: 7200000, guid: c834315fbc7836a40bf0fabcbc241bc1, type: 3}
+    dataDrivenLensFlare: {fileID: 4800000, guid: 6cda457ac28612740adb23da5d39ea92, type: 3}
+    terrainDetailLitPS: {fileID: 4800000, guid: f6783ab646d374f94b199774402a5144, type: 3}
+    terrainDetailGrassPS: {fileID: 4800000, guid: e507fdfead5ca47e8b9a768b51c291a1, type: 3}
+    terrainDetailGrassBillboardPS: {fileID: 4800000, guid: 29868e73b638e48ca99a19ea58c48d90, type: 3}
+  m_AssetVersion: 2
+  m_OpaqueLayerMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_TransparentLayerMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_DefaultStencilState:
+    overrideStencilState: 0
+    stencilReference: 0
+    stencilCompareFunction: 8
+    passOperation: 2
+    failOperation: 0
+    zFailOperation: 0
+  m_ShadowTransparentReceive: 1
+  m_RenderingMode: 0
+  m_DepthPrimingMode: 0
+  m_CopyDepthMode: 1
+  m_AccurateGbufferNormals: 0
+  m_IntermediateTextureMode: 1

@@ -1,0 +1,16 @@
+{
+  "name": "vl-unity.Runtime",
+  "rootNamespace": "",
+  "references": [
+    "ActorAnimation.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

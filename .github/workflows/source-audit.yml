@@ -1,0 +1,23 @@
+name: Source-only release audit
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  source-audit:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: '3.11'
+          - os: windows-latest
+            python: '3.10'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -I studio.py --help
+      - run: python -I -m unittest discover -s tests -v
+      - run: python -I tools/verify_baseline.py
+      - run: python -I tools/release.py audit --tracked

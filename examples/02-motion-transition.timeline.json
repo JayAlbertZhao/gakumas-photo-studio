@@ -1,0 +1,10 @@
+{
+  "schema_version": "photo-studio-example",
+  "story_id": "original-transition-example",
+  "duration": 20.0,
+  "body_motions": [
+    {"time": 0.0, "duration": 10.0, "order": 0, "motion": "YOUR_FIRST_MOTION_ID", "clipIn": 0.0, "transition": 0.0},
+    {"time": 10.0, "duration": 10.0, "order": 1, "motion": "YOUR_SECOND_MOTION_ID", "clipIn": 0.0, "transition": 0.5}
+  ],
+  "messages": []
+}

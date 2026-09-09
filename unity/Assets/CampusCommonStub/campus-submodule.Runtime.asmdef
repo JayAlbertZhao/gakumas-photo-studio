@@ -1,0 +1,16 @@
+{
+  "name": "campus-submodule.Runtime",
+  "rootNamespace": "Campus.Common",
+  "references": [
+    "vl-unity.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
