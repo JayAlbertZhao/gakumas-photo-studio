@@ -10,10 +10,6 @@
 
 第三个示例的预期观察点是 0 秒的 A、10～10.5 秒的 A/B 混合、20～20.5 秒的 B/A 混合和 30 秒后的整体循环。素材本身的动作内容、长度和循环模式不由模板生成；请选与自己角色兼容的动作。
 
-## 已有私人最小工作包
-
-包内已把 sequence 模板绑定到自带的两个动作，并放入 `LocalAssets/runtime/story-timeline.json`。按[使用指南](../docs/user-guide.md)完成解压、配置和构建后，直接 `python -I studio.py story`，不用再运行下面的生成器。
-
 ## 生成并播放
 
 以下命令在仓库根目录执行，使用已经配置的数据集。先按[首次使用指南](../docs/user-guide.md)完成 doctor 和 build，再查找动作：

@@ -8,6 +8,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DocumentationLinksTests(unittest.TestCase):
+    def test_public_onboarding_does_not_depend_on_personal_delivery(self):
+        for name in ('README.md', 'docs/user-guide.md', 'docs/assets.md',
+                     'examples/README.md', 'LocalAssets/README.md'):
+            content = (ROOT / name).read_text(encoding='utf-8')
+            for private_instruction in ('换电脑', '私人资产 ZIP', '私人最小工作包',
+                                        '最小包', 'PACKAGE.json', 'START-HERE.md', 'no-riverbed'):
+                with self.subTest(document=name, private_instruction=private_instruction):
+                    self.assertNotIn(private_instruction, content)
+
     def test_published_markdown_links_resolve_to_published_files(self):
         public = set(json.loads((ROOT / 'public-files.json').read_text(encoding='utf-8'))['files'])
         checked = 0

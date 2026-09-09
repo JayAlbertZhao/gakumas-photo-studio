@@ -1,8 +1,6 @@
 # 本地资产接口
 
-集中入口为根目录 `LocalAssets/`；只提交其中 README。既有私人原件继续保存在仓库外。
-
-如果已经收到自己的私人资产 ZIP，先按[换电脑迁移指南](user-guide.md)解压到**仓库根目录**，不要解压到 LocalAssets 内。该包已放置相对路径配置和 Unity 私人 Resources。公开仓库不提供原版素材包下载。
+本地数据可集中存放在根目录 `LocalAssets/`，或保存在仓库外。这里只提交 README，使用者自行准备兼容素材；配置步骤见[使用指南](user-guide.md)。
 
 ```text
 LocalAssets/

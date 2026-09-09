@@ -2,7 +2,7 @@
 
 使用 Unity / Tuanjie 渲染类似《学园偶像大师》的角色动画。目前是 **研究预览版**：面向能够自行准备兼容资产的开发者，不是下载后直接使用的完整动画制作软件。
 
-[使用指南与换电脑迁移](docs/user-guide.md) · [示范脚本](examples/README.md) · [时间线格式](docs/scene-format.md) · [资产接口](docs/assets.md)
+[使用指南](docs/user-guide.md) · [示范脚本](examples/README.md) · [时间线格式](docs/scene-format.md) · [资产接口](docs/assets.md)
 
 仓库只提供本项目的复现代码、工程配置和原创格式示例，不附带原版模型、贴图、动画、语音、剧情文本、游戏 DLL、原始源码或解包/采集工具。复现存在差异，与官方无隶属关系。
 
@@ -16,38 +16,7 @@
 
 不会下载或生成缺少的游戏资产。不保证任意 AssetBundle、FBX、全部角色/服装/剧情或完整 Live 兼容。详见 [实现边界](docs/status.md)。
 
-## 换电脑继续工作：Git + 私人资产 ZIP
-
-代码和资产分开迁移。代码从本仓库克隆，自己保存的资产 ZIP **解压到克隆根目录，与 `studio.py` 同级**。不要把整个 ZIP 再解压到 `LocalAssets/` 下，也不要覆盖已有工作目录。
-
-```text
-gakumas-photo-studio/
-  studio.py                         # Git 中的入口
-  studio.local.json                 # ZIP：可迁移的相对路径配置
-  LocalAssets/
-    PACKAGE.json                    # ZIP：文件大小、哈希与基线
-    START-HERE.md
-    runtime/                        # ZIP：模型、动作、清单、示范剧情
-    no-riverbed/                    # 最小包不包含河岸场景
-  unity/Assets/PrivateResources/     # ZIP：Unity 构建期补充资源
-```
-
-收到可信的私人工作包后，先验证，再设置新电脑的编辑器路径：
-
-```powershell
-python -I tools/verify_local_assets.py
-$editor = Read-Host '新电脑的 Tuanjie 编辑器可执行文件完整路径'
-python -I studio.py configure --editor "$editor"
-python -I studio.py doctor
-python -I studio.py build
-python -I studio.py photo
-# 或播放包中自行编排的示范时间线
-python -I studio.py story
-```
-
-请逐条执行，前一步失败时先排错。ZIP 不包含编辑器、Python 或 Player；首次仍需安装环境并构建。最小包只覆盖一个角色、一个服装及两个动作，不迁移完整素材库。**私人原版资产包不在公开仓库或 GitHub Release 中分发**；完整步骤和文件边界见[使用指南](docs/user-guide.md)。
-
-## 首次使用自己的数据（Windows）
+## 首次使用（Windows）
 
 需要 Git、Python 3.10+、已安装且完成许可激活的 **Tuanjie 2022.3.62t12**（含 Windows Player 构建支持），以及自己的兼容数据集。URP 依赖为 14.2.0-t1；其他编辑器版本和操作系统的 Player 构建尚未验证。Python 工具仅用标准库，无需 pip install。Linux CI 只验证 Python 工具与源码边界。
 
@@ -71,7 +40,9 @@ python -I studio.py doctor
 
 ```powershell
 python -I studio.py build
-python -I studio.py photo
+python -I studio.py catalog
+$character = Read-Host 'catalog 列出的角色 ID'
+python -I studio.py photo --character "$character"
 ```
 
 build 调用已有 Unity 构建入口，打印独立进度日志位置；不会改写运行时代码。产物为 `unity/output/KotonePhotoStudio.exe`。需要检查启动命令而不打开程序时，用 `python -I studio.py photo --dry-run`。

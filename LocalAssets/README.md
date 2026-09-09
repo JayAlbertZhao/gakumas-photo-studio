@@ -15,8 +15,4 @@ LocalAssets/
 
 `.gitignore` 默认拒绝所有未知文件；`public-files.json` 只允许本 README。不要强制添加资产。不要把本地构建、打包整个工作目录或父仓库历史作为发行物。
 
-## 私人工作包迁移
-
-若已收到自己的私人资产 ZIP，请解压到仓库根目录，与 `studio.py` 同级，**不要解压到本目录内部**。只使用新的克隆，避免覆盖已有剧情和本机配置。随后执行 `python -I tools/verify_local_assets.py`，按 [换电脑使用指南](../docs/user-guide.md) 配置新电脑的编辑器并构建。
-
-模型和动作放在本目录的 runtime，构建期补充数据另在忽略的 Unity PrivateResources。这里只公开本 README；PACKAGE.json、START-HERE.md、runtime、截图和自己的脚本均不提交。
+首次配置、构建和运行步骤见[使用指南](../docs/user-guide.md)。可选构建期补充数据通过导入工具放入忽略的 Unity PrivateResources；详细格式见[资产接口](../docs/assets.md)。

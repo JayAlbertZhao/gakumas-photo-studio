@@ -19,6 +19,6 @@
 | `tools/`、`tests/` | 不参与 Player 的源码基线、发布及格式检查 |
 | `studio.py` | 外围本地配置、数据预检、构建/启动；只调用已有运行时，不参与 Player |
 | `examples/prepare_demo.py` | 将原创时间线模板绑定到自己的动作 ID；只写新 JSON，不改运行时 |
-| `tools/verify_local_assets.py` | 只读验证私人迁移包的文件哈希、路径和冻结基线，不验证视觉效果 |
+| `tools/verify_local_assets.py` | 可选的本地数据清单完整性校验；不参与正常构建/启动，也不验证视觉效果 |
 
 ClothDynamicsSystem、PhotoColorGrade 和旧演示/诊断分支按基线保留；不以“未使用”为由删运行时代码。提取/反编译/采集探针仅在私人归档，不进入公开工程。
