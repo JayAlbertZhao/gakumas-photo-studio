@@ -223,6 +223,13 @@ namespace GakumasPhotoMode
             return (1f + mantissa / (float)(1 << mantissaBits)) * Mathf.Pow(2f, (int)exponent - 15);
         }
 
+        /// <summary>Invalidate accumulation after an explicit diagnostic state change.</summary>
+        public void ResetTemporalHistory()
+        {
+            _historyValid = false;
+            _historyFrame = -1;
+        }
+
         private void OnPreCull()
         {
             EnsureResources();

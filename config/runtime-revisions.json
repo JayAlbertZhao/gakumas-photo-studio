@@ -8,7 +8,7 @@
       "baseline_sha256": "62514cca726886e97dcd12bf35c291102648e8bceac768f82bdb46be4ce36aff"
     },
     "unity/Assets/Editor/Phase1Builder.cs": {
-      "sha256": "a056eaa5b33bdbb4e842f10da63bd1e8ac075381a5a00f389c5a83a795b26ec2",
+      "sha256": "e81db61ec2c76f4460b87959bf1eac9ff3f450e7b1a6aca5809941a04b0f27ad",
       "baseline_sha256": "011a42753c0817e2e3d9a8a8a7cc9def4e9505a6c81f549062e7201b543c61cb"
     },
     "unity/Assets/Resources/PhotoModeFallback.shader": {
@@ -22,6 +22,10 @@
     "unity/Assets/Scripts/MaterialRepairer.cs": {
       "sha256": "2c83597f8e51dc295f681ae3e2a973e31bc1b20f60da9881e4b74a768a7b95f6",
       "baseline_sha256": "8d96a3cfdc758ef1ee6ac5c8c6b4f6900c2bfe45676e786ee3c169a59881db72"
+    },
+    "unity/Assets/Scripts/OriginalStyleRenderPipeline.cs": {
+      "sha256": "e1640d1beb754cbbdb6998df9ff6892cb4dae7bdf0311244e300266b0a628fd3",
+      "baseline_sha256": "08bc0a1eb0da8430850929da1a2ac27e3ae63426d06257c58fbfe6501ffa062d"
     },
     "unity/Assets/Scripts/PhotoModeApp.cs": {
       "sha256": "7e9f16afc32a0c4cbd356403e1e67967cf349bc1bd76e963b106fccfbc62f3ed",
@@ -37,9 +41,9 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "a7cedf81380bd532fc33b86a89d8efc348b5ebaa13e724e0810349708c509787",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingValidation.cs": "37b89110b82419925d21cdb31daa957f548aff4f71065f5335ffcd89b577e17b",
+    "unity/Assets/Scripts/ActorRenderingValidation.cs": "d8151dd831b5234bbc5daf192f71c7160b2cdebaaabc53cff25b10849ad61c66",
     "unity/Assets/Scripts/ActorRenderingValidation.cs.meta": "88d99448da0c7d56796a4178bc74591bf289f41b6908d82cf0dcbedba8ed303a",
-    "unity/Assets/Scripts/ActorShaderReferenceFeature.cs": "c2b5a2ceb5a78e47babd8a161d430f412fc68d7e2adaf9641a39a29e8cbfba89",
+    "unity/Assets/Scripts/ActorShaderReferenceFeature.cs": "bbcb627c61ca498da8e7de11201bfa350896ef41f93d55130080f186a85dc722",
     "unity/Assets/Scripts/ActorShaderReferenceFeature.cs.meta": "8fa75718c41cb1e52400c7e1ddb50d9b9b4b005d05c6b920597a7933270106f2"
   }
 }

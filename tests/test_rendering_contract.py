@@ -48,6 +48,43 @@ class ActorRenderingWiringTests(unittest.TestCase):
         self.assertIn('1.0 - saturate(rawBaseSample.a)', shader)
         self.assertIn('max(obliqueCoverage.x, obliqueCoverage.y)', shader)
 
+    def test_probe_comparisons_reset_history_and_check_restoration(self):
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')
+        pipeline = (ROOT / 'unity/Assets/Scripts/OriginalStyleRenderPipeline.cs').read_text(encoding='utf-8')
+        self.assertIn('photo-studio.actor-rendering-probes.v2', probe)
+        self.assertIn('Capture("01b-front-repeat")', probe)
+        self.assertLess(probe.index('_pipeline.ResetTemporalHistory()'),
+                        probe.index('ScreenCapture.CaptureScreenshotAsTexture()'))
+        for field in ('repeatChangedPixels', 'profileRestoreChangedPixels', 'lightRemovalChangedPixels'):
+            self.assertIn('public int ' + field + ' = -1', probe)
+            self.assertIn('_report.' + field + ' == 0', probe)
+        self.assertRegex(pipeline, r'public void ResetTemporalHistory\(\)\s*\{\s*'
+                                   r'_historyValid = false;\s*_historyFrame = -1;\s*\}')
+        callers = [path.name for path in (ROOT / 'unity/Assets/Scripts').glob('*.cs')
+                   if '.ResetTemporalHistory(' in path.read_text(encoding='utf-8')]
+        self.assertEqual(callers, ['ActorRenderingValidation.cs'])
+
+    def test_reference_rejects_missing_original_forward_pass(self):
+        reference = (ROOT / 'unity/Assets/Scripts/ActorShaderReferenceFeature.cs').read_text(encoding='utf-8')
+        self.assertIn('material.FindPass("Forward")', reference)
+        self.assertIn('material.GetPassName(index)', reference)
+        self.assertIn('if (!ValidateOriginalPasses())', reference)
+        self.assertIn('if (!Application.isEditor) Application.Quit(3)', reference)
+        self.assertIn('No original actor materials found; comparison rejected.', reference)
+        self.assertLess(reference.index('if (!ValidateOriginalPasses())'),
+                        reference.index('context.DrawRenderers('))
+
+    def test_reference_build_restores_pipeline_and_antialiasing(self):
+        builder = (ROOT / 'unity/Assets/Editor/Phase1Builder.cs').read_text(encoding='utf-8')
+        build = builder[builder.index('private static void BuildPlayer(bool originalShaderReference)'):]
+        self.assertLess(build.index('int previousAntiAliasing = QualitySettings.antiAliasing'),
+                        build.index('QualitySettings.antiAliasing = 8'))
+        cleanup = build[build.index('finally'):]
+        for assignment in ('GraphicsSettings.renderPipelineAsset = previousGraphicsPipeline',
+                           'QualitySettings.renderPipeline = previousQualityPipeline',
+                           'QualitySettings.antiAliasing = previousAntiAliasing'):
+            self.assertIn(assignment, cleanup)
+
 
 if __name__ == '__main__':
     unittest.main()

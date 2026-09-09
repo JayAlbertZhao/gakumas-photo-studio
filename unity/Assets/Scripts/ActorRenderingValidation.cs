@@ -18,13 +18,20 @@ namespace GakumasPhotoMode
         }
         [Serializable] private sealed class Report
         {
-            public string schema = "photo-studio.actor-rendering-probes.v1";
+            public string schema = "photo-studio.actor-rendering-probes.v2";
             public string graphicsDevice;
+            public bool temporalHistoryReset = true;
+            public int repeatChangedPixels = -1;
+            public int repeatMaxChannelDifference = -1;
+            public int profileRestoreChangedPixels = -1;
+            public int lightRemovalChangedPixels = -1;
             public List<Frame> frames = new List<Frame>();
         }
 
         private string _directory;
         private ActorRenderControls _controls;
+        private OriginalStyleRenderPipeline _pipeline;
+        private Color32[] _repeatReference;
         private readonly Report _report = new Report();
 
         public static void AttachIfRequested(GameObject camera)
@@ -39,11 +46,12 @@ namespace GakumasPhotoMode
         private IEnumerator Start()
         {
             _controls = GetComponent<ActorRenderControls>();
+            _pipeline = GetComponent<OriginalStyleRenderPipeline>();
             PhotoModeApp app = FindObjectOfType<PhotoModeApp>();
             OrbitPhotoCamera orbit = GetComponent<OrbitPhotoCamera>();
             Directory.CreateDirectory(_directory);
             _report.graphicsDevice = SystemInfo.graphicsDeviceVersion;
-            if (app == null || _controls == null || orbit == null || app.StoryActive)
+            if (app == null || _controls == null || _pipeline == null || orbit == null || app.StoryActive)
                 throw new InvalidOperationException("Actor probes require --photo-mode and the reconstructed renderer.");
             yield return new WaitForSecondsRealtime(2f);
             app.TogglePause();
@@ -54,6 +62,7 @@ namespace GakumasPhotoMode
             orbit.yaw = 180f;
             orbit.ApplyPose();
             yield return Capture("01-front");
+            yield return Capture("01b-front-repeat");
             _controls.hairCover = false;
             yield return Capture("02-no-hair-cover");
             _controls.hairCover = true;
@@ -134,13 +143,17 @@ namespace GakumasPhotoMode
             }
             File.WriteAllText(Path.Combine(_directory, "rendering-probes.json"), JsonUtility.ToJson(_report, true));
             Debug.Log("[ActorRenderingValidation] Captured " + _report.frames.Count + " probes to " + _directory);
-            Application.Quit();
+            Application.Quit(_report.repeatChangedPixels == 0 &&
+                _report.profileRestoreChangedPixels == 0 && _report.lightRemovalChangedPixels == 0 ? 0 : 2);
         }
 
         private IEnumerator Capture(string name)
         {
-            // Let temporal accumulation settle at the same pose and state.
+            // Let the camera, controls and material bindings settle first.
             for (int frame = 0; frame < 24; frame++) yield return null;
+            // Different lighting/camera states must not inherit the previous
+            // state's accumulated image. Normal playback still keeps history.
+            _pipeline.ResetTemporalHistory();
             if (name == "04-quarter" && Array.IndexOf(Environment.GetCommandLineArgs(), "--capture-actor-rendering-pass") >= 0)
             {
                 if (!RenderDocCaptureBridge.TriggerCapture()) { Application.Quit(2); yield break; }
@@ -150,6 +163,30 @@ namespace GakumasPhotoMode
             yield return new WaitForEndOfFrame();
             Texture2D image = ScreenCapture.CaptureScreenshotAsTexture();
             if (image == null) throw new InvalidOperationException("Presented-frame readback failed: " + name);
+            if (name == "01-front") _repeatReference = image.GetPixels32();
+            if (name == "01b-front-repeat" || name == "11-profile-restored" || name == "13-point-lights-removed")
+            {
+                Color32[] pixels = image.GetPixels32();
+                int changed = 0, maximum = 0;
+                if (pixels.Length != _repeatReference.Length)
+                    throw new InvalidOperationException("Repeat capture dimensions changed.");
+                for (int i = 0; i < pixels.Length; i++)
+                {
+                    Color32 a = _repeatReference[i], b = pixels[i];
+                    int delta = Mathf.Max(Mathf.Abs(a.r-b.r), Mathf.Abs(a.g-b.g), Mathf.Abs(a.b-b.b), Mathf.Abs(a.a-b.a));
+                    if (delta != 0) changed++;
+                    maximum = Mathf.Max(maximum, delta);
+                }
+                if (name == "01b-front-repeat")
+                {
+                    _report.repeatChangedPixels = changed;
+                    _report.repeatMaxChannelDifference = maximum;
+                }
+                else if (name == "11-profile-restored") _report.profileRestoreChangedPixels = changed;
+                else { _report.lightRemovalChangedPixels = changed; _repeatReference = null; }
+                Debug.Log("[ActorRenderingValidation] " + name + " vs 01-front: changed pixels=" + changed +
+                    " max channel difference=" + maximum);
+            }
             if (name == "01-front" && (_controls.OutlineDrawCount == 0 || _controls.HairCoverDrawCount == 0))
             {
                 Destroy(image);

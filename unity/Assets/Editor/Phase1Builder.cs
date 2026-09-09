@@ -187,6 +187,7 @@ namespace GakumasPhotoMode.Editor
             PlayerSettings.runInBackground = true;
             PlayerSettings.displayResolutionDialog = ResolutionDialogSetting.Disabled;
             PlayerSettings.colorSpace = ColorSpace.Linear;
+            int previousAntiAliasing = QualitySettings.antiAliasing;
             QualitySettings.antiAliasing = 8;
             // URP strips its ScriptableRenderPipeline variants when no URP asset
             // is active at build time. Merely including one in Resources does
@@ -222,6 +223,8 @@ namespace GakumasPhotoMode.Editor
                 {
                     GraphicsSettings.renderPipelineAsset = previousGraphicsPipeline;
                     QualitySettings.renderPipeline = previousQualityPipeline;
+                    // Activating URP can overwrite this shared quality setting.
+                    QualitySettings.antiAliasing = previousAntiAliasing;
                 }
             }
             if (report.summary.result != BuildResult.Succeeded)

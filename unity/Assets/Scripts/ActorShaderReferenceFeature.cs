@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -21,13 +23,24 @@ namespace GakumasPhotoMode
         private sealed class ReferencePass : ScriptableRenderPass
         {
             private bool _logged;
+            private bool _rejected;
             private readonly ShaderTagId _actorTag = new ShaderTagId("VLActor");
             public ReferencePass() { renderPassEvent = RenderPassEvent.AfterRenderingOpaques; }
 
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
             {
+                if (_rejected) return;
                 if (!_logged)
                 {
+                    // Unity may retain the original shader's name/isSupported
+                    // while selecting Hidden/InternalErrorShader's subshader.
+                    // SetPass returning true also does not prove a valid original pass.
+                    if (!ValidateOriginalPasses())
+                    {
+                        _rejected = true;
+                        if (!Application.isEditor) Application.Quit(3);
+                        return;
+                    }
                     Debug.Log("[OriginalShader] Executing VLActor reference pass for " + renderingData.cameraData.camera.name);
                     _logged = true;
                 }
@@ -67,6 +80,37 @@ namespace GakumasPhotoMode
                 FilteringSettings filtering = new FilteringSettings(RenderQueueRange.all,
                     1 << OriginalStyleRenderPipeline.ActorLayer);
                 context.DrawRenderers(renderingData.cullResults, ref drawing, ref filtering);
+            }
+
+            private static bool ValidateOriginalPasses()
+            {
+                var checkedMaterials = new HashSet<Material>();
+                bool accepted = true;
+                foreach (Renderer renderer in UnityEngine.Object.FindObjectsOfType<Renderer>())
+                {
+                    if (renderer.gameObject.layer != OriginalStyleRenderPipeline.ActorLayer) continue;
+                    foreach (Material material in renderer.sharedMaterials)
+                    {
+                        if (material == null || material.shader == null ||
+                            !material.shader.name.StartsWith("Campus/Actor/", StringComparison.Ordinal) ||
+                            !checkedMaterials.Add(material)) continue;
+                        int forward = material.FindPass("Forward");
+                        if (forward >= 0) continue;
+                        accepted = false;
+                        var passes = new List<string>();
+                        for (int index = 0; index < material.passCount; index++) passes.Add(material.GetPassName(index));
+                        Debug.LogError("[OriginalShader] Rejected fallback subshader: material=" + material.name +
+                            " shader=" + material.shader.name + " isSupported=" + material.shader.isSupported +
+                            " activePasses=[" + string.Join(", ", passes) + "]. Expected named Forward pass. " +
+                            "No valid original-shader comparison was produced.");
+                    }
+                }
+                if (checkedMaterials.Count == 0)
+                {
+                    Debug.LogError("[OriginalShader] No original actor materials found; comparison rejected.");
+                    accepted = false;
+                }
+                return accepted;
             }
         }
     }

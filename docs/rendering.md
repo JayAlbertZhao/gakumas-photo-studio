@@ -25,7 +25,19 @@ Inspector 中 `ActorRenderControls` 还提供有色主光、阴影乘色/加色�
 & .\unity\output\KotonePhotoStudio.exe --photo-mode --hide-ui --validate-actor-rendering .\LocalAssets\render-check
 ```
 
-探针保存近景正面/侧面、描边与前发覆盖开关、明暗边界、世界空间光照、点光/聚光、Layer、环境光、有色边缘光以及恢复动画后的序列帧，并输出 `rendering-probes.json`。需要自己的兼容数据；不是无资产测试，也不是逐骨骼关键帧编辑器或正式导出器。
+探针保存 32 张 PNG：近景正面/侧面、描边与前发覆盖开关、明暗边界、世界空间光照、点光/聚光、Layer、环境光、有色边缘光以及恢复动画后的序列帧，并输出 `rendering-probes.json`（schema `photo-studio.actor-rendering-probes.v2`）。需要自己的兼容数据；不是无资产测试，也不是逐骨骼关键帧编辑器或正式导出器。
+
+静态检查阶段暂停动作，每次截图前清空后处理的时域历史，避免前一组光照或镜头污染下一张图；正常播放的累积逻辑保持不变。以 `01-front` 为基准，逐像素比较三次应当相同的画面：
+
+| 检查 | 图像 | JSON 字段 |
+| --- | --- | --- |
+| 不改变状态的重复截图（A/A） | `01b-front-repeat` | `repeatChangedPixels`、`repeatMaxChannelDifference` |
+| 关闭临时光照覆盖，恢复原参数 | `11-profile-restored` | `profileRestoreChangedPixels` |
+| 移除测试灯，恢复原场景 | `13-point-lights-removed` | `lightRemovalChangedPixels` |
+
+三组变动像素均为 0 才通过重复性检查；不一致或必需 pass 缺失时 Player 以退出码 2 结束。缺失、被截断的 JSON 不能算通过。该检查只证明本次进程中这些静态状态的恢复，不证明跨机器一致性或功能的视觉正确性。
+
+当前仍观察到少量单通道 `1/255` 级静态差异，严格重复性尚未全部通过；探针保留这些失败，不用容差把它们改记为零。暂停动画时间也不代表所有程序化骨骼求解停止，因此暂不承诺确定性导出。
 
 检查实际图像和 pass 数，不能仅以进程退出码或“画面不黑”验收。眼部遮挡还应选一个睁眼表情，检查侧视时眼睛、高光与前发的关系。不同机器上的动画时刻、动态解算和时域累积不保证逐像素确定性。
 
@@ -36,6 +48,8 @@ Inspector 中 `ActorRenderControls` 还提供有色主光、阴影乘色/加色�
 `--original-shader --original-urp` 仅用于本地诊断，不是面向用户的替代渲染器。专用构建入口为 `GakumasPhotoMode.Editor.PhotoStudioBuilder.BuildOriginalShaderReferencePlayer`，输出到 `unity/output/OriginalShaderReference/`，不覆盖普通 Player。
 
 研究构建会启用 URP 以保留其 shader，调度自定义 `VLActor` pass，并跳过 Built-in 的 `OnRenderImage` 超采样显示链。仅把 URP 配置放在 Resources 中、然后在 Built-in 构建运行时切换管线，并不足以得到有效对照。
+
+研究入口会检查当前 Actor 材质是否具有预期的具名 `Forward` pass。原始 shader 的名称仍在、`isSupported` 为真，甚至 `SetPass` 成功，都不能排除已回退到错误 subshader。缺少预期 pass 或未找到原版 Actor 材质时会记录实际 pass 列表并以退出码 3 拒绝对照；这项检查通过后仍需要 GPU 截帧验证。研究构建结束后恢复原来的管线和抗锯齿设置，避免影响普通工程。
 
 当前本地 Windows bundle 的 Actor pass 仍出现错误 shader；RenderDoc 已确认，不能把这个入口描述为成功的原版画面重放。需要进一步解决 bundle/引擎/变体的兼容性。普通复现 shader 不依赖该入口。原版截帧、字节码及研究产物不得加入公开仓库。
 
