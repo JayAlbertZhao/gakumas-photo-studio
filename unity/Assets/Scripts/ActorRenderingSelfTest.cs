@@ -89,6 +89,7 @@ namespace GakumasPhotoMode
                 report.checks.Add(new Check { name = "nonconstant-ramp-positive-control", expected = bright,
                     actual = dark, maximumDifference = response, accepted = response > 0.05f });
                 VerifyPresentationOwnership(report);
+                VerifyCapturedMaterialUv(report);
                 report.accepted = report.checks.TrueForAll(check => check.accepted);
             }
             catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); }
@@ -136,6 +137,85 @@ namespace GakumasPhotoMode
                 _camera.targetTexture = previous;
                 DestroyImmediate(host);
             }
+        }
+
+        private void VerifyCapturedMaterialUv(Report report)
+        {
+            var actor = Own(new GameObject("Synthetic UV actor"));
+            var renderer = actor.AddComponent<MeshRenderer>();
+            var first = Own(new Material(_material) { name = "Synthetic UV first" });
+            var second = Own(new Material(_material) { name = "Synthetic UV second" });
+            Vector4 original = new Vector4(1, 1, 0, 0.1f);
+            first.SetVector("_BaseMap_ST", original);
+            renderer.sharedMaterials = new[] { first, second };
+            var block = new MaterialPropertyBlock();
+            block.SetFloat("_UvGlobalSentinel", 19f);
+            renderer.SetPropertyBlock(block);
+            block.Clear();
+            block.SetFloat("_UvSlotSentinel", 37f);
+            block.SetVector("_BaseMap_ST", original);
+            renderer.SetPropertyBlock(block, 0);
+            var entry = new CapturedMaterialUvState.Entry {
+                renderer = actor.name, material = first.name, baseMapST = new[] { 1f, 1f, 0f, 0.2f } };
+            var other = new CapturedMaterialUvState.Entry {
+                renderer = actor.name, material = second.name, baseMapST = new[] { 1f, 1f, 0f, 0.6f } };
+            var document = new CapturedMaterialUvState.Document {
+                schema = CapturedMaterialUvState.Schema, materials = new[] { entry } };
+            CapturedMaterialUvState.Session session;
+            string error;
+            string validJson = JsonUtility.ToJson(document);
+            var invalidDocuments = new Dictionary<string, string> {
+                { "schema", "{\"schema\":\"wrong\",\"materials\":[]}" },
+                { "empty", JsonUtility.ToJson(new CapturedMaterialUvState.Document {
+                    schema = CapturedMaterialUvState.Schema, materials = new CapturedMaterialUvState.Entry[0] }) },
+                { "duplicate", JsonUtility.ToJson(new CapturedMaterialUvState.Document {
+                    schema = CapturedMaterialUvState.Schema, materials = new[] { entry, entry } }) },
+                { "partial-invalid", JsonUtility.ToJson(new CapturedMaterialUvState.Document {
+                    schema = CapturedMaterialUvState.Schema, materials = new[] { entry, new CapturedMaterialUvState.Entry {
+                        renderer = actor.name, material = "missing", baseMapST = new[] { 1f, 1f, 0f, 0f } } } }) },
+                { "nonfinite", validJson.Replace("0.2", "NaN") },
+                { "arity", JsonUtility.ToJson(new CapturedMaterialUvState.Document {
+                    schema = CapturedMaterialUvState.Schema, materials = new[] { new CapturedMaterialUvState.Entry {
+                        renderer = actor.name, material = first.name, baseMapST = new[] { 1f, 1f } } } }) }
+            };
+            foreach (var pair in invalidDocuments)
+            {
+                bool applied = CapturedMaterialUvState.TryApply(actor, pair.Value, out session, out error);
+                block.Clear(); renderer.GetPropertyBlock(block, 0);
+                report.checks.Add(new Check { name = "captured-uv-reject-" + pair.Key,
+                    accepted = !applied && session == null && !string.IsNullOrEmpty(error) &&
+                        block.GetVector("_BaseMap_ST").Equals(original) });
+            }
+            bool missingGeometry = CapturedMaterialUvState.TryApply(actor, validJson, out session, out error, new HashSet<Renderer>());
+            report.checks.Add(new Check { name = "captured-uv-reject-missing-geometry", accepted = !missingGeometry });
+            renderer.sharedMaterials = new[] { first, first };
+            bool ambiguous = CapturedMaterialUvState.TryApply(actor, validJson, out session, out error);
+            report.checks.Add(new Check { name = "captured-uv-reject-ambiguous-material", accepted = !ambiguous });
+            renderer.sharedMaterials = new[] { first, second };
+            document.materials = new[] { entry, other };
+            bool valid = CapturedMaterialUvState.TryApply(actor, JsonUtility.ToJson(document), out session, out error,
+                new HashSet<Renderer> { renderer });
+            block.Clear(); renderer.GetPropertyBlock(block, 0);
+            bool preservedSlot = block.GetFloat("_UvSlotSentinel") == 37f;
+            bool firstMatched = block.GetVector("_BaseMap_ST").Equals(new Vector4(1, 1, 0, 0.2f));
+            block.Clear(); renderer.GetPropertyBlock(block, 1);
+            bool preservedGlobal = block.GetFloat("_UvGlobalSentinel") == 19f;
+            report.checks.Add(new Check { name = "captured-uv-exact-property-blocks",
+                accepted = valid && session.Verify(out error) && firstMatched &&
+                    block.GetVector("_BaseMap_ST").Equals(new Vector4(1, 1, 0, 0.6f)) });
+            report.checks.Add(new Check { name = "captured-uv-preserves-unrelated-state",
+                accepted = preservedSlot && preservedGlobal && first.GetVector("_BaseMap_ST").Equals(original) });
+            block.SetVector("_BaseMap_ST", new Vector4(1, 1, 0, 0.600001f));
+            renderer.SetPropertyBlock(block, 1);
+            report.checks.Add(new Check { name = "captured-uv-rejects-later-property-write",
+                accepted = valid && !session.Verify(out error) });
+            string path;
+            bool ordinary = CapturedMaterialUvState.TryReadOption(new[] { "--photo-mode", CapturedMaterialUvState.Option, "state.json" }, out path, out error);
+            bool missingPath = CapturedMaterialUvState.TryReadOption(new[] { CapturedMaterialUvState.Option }, out path, out error);
+            bool acceptedOption = CapturedMaterialUvState.TryReadOption(new[] { "--capture-gpa-camera-and-quit", "--use-captured-posed-geometry",
+                CapturedMaterialUvState.Option, "state.json" }, out path, out error);
+            report.checks.Add(new Check { name = "captured-uv-command-line-scope",
+                accepted = !ordinary && !missingPath && acceptedOption && path == "state.json" });
         }
 
         private void SetUp()

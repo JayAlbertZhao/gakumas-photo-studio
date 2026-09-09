@@ -121,6 +121,7 @@ namespace GakumasPhotoMode
         private float _ambientReturnToIdleAt;
         private bool _initialized;
         private string _stagingRoot;
+        private string _capturedMaterialUvPath;
         private string _status = "Starting";
         private bool _showUi = true;
         private Color _storyActorColor = Color.white;
@@ -188,6 +189,13 @@ namespace GakumasPhotoMode
             if (Application.isPlaying)
             {
                 string[] commandLine = Environment.GetCommandLineArgs();
+                string capturedUvError;
+                if (!CapturedMaterialUvState.TryReadOption(commandLine, out _capturedMaterialUvPath, out capturedUvError))
+                {
+                    Debug.LogError("[PhotoMode] " + capturedUvError);
+                    Application.Quit(3);
+                    return;
+                }
                 _ambientWallpaperDemo = commandLine.Contains("--ambient-wallpaper-demo");
                 _disableStoryActorProfile = commandLine.Contains("--disable-story-actor-profile");
                 float faceDebugMode = commandLine.Contains("--face-debug-base") ? 1f :
@@ -3403,8 +3411,20 @@ namespace GakumasPhotoMode
                 _faceExpression.SetStoryGaze(gazeYaw, gazePitch);
             }
             for (int frame = 0; frame < (diagnosticGaze ? 40 : 1); frame++) yield return null;
+            HashSet<Renderer> capturedRenderers = null;
             if (Environment.GetCommandLineArgs().Contains("--use-captured-posed-geometry"))
-                ApplyCapturedPosedGeometry();
+                capturedRenderers = ApplyCapturedPosedGeometry();
+            CapturedMaterialUvState.Session capturedUv = null;
+            if (_capturedMaterialUvPath != null)
+            {
+                string error;
+                if (!CapturedMaterialUvState.TryLoad(_characterRoot, _capturedMaterialUvPath, capturedRenderers, out capturedUv, out error))
+                {
+                    Debug.LogError("[PhotoMode] Captured material UV rejected: " + error);
+                    Application.Quit(3);
+                    yield break;
+                }
+            }
             if (Environment.GetCommandLineArgs().Contains("--dump-captured-shadow-map"))
             {
                 string dumpPass = Environment.GetCommandLineArgs().Contains("--use-captured-posed-geometry")
@@ -3432,6 +3452,8 @@ namespace GakumasPhotoMode
             if (Environment.GetCommandLineArgs().Contains("--capture-presented-window"))
             {
                 for (int frame = 0; frame < 32; frame++) yield return null;
+                if (capturedUv != null && !WriteCapturedMaterialUvReport(capturedUv))
+                { Application.Quit(3); yield break; }
                 if (captureArgs.Contains("--capture-actor-rendering-pass"))
                 {
                     if (!RenderDocCaptureBridge.TriggerCapture()) { Application.Quit(2); yield break; }
@@ -3451,6 +3473,8 @@ namespace GakumasPhotoMode
             }
             else
             {
+                if (capturedUv != null && !WriteCapturedMaterialUvReport(capturedUv))
+                { Application.Quit(3); yield break; }
                 path = SaveScreenshot();
             }
             Debug.Log(string.Format(
@@ -4047,9 +4071,29 @@ namespace GakumasPhotoMode
             Debug.Log("[PhotoMode] Face diagnostic dumped: " + directory);
         }
 
-        private void ApplyCapturedPosedGeometry()
+        private bool WriteCapturedMaterialUvReport(CapturedMaterialUvState.Session session)
         {
-            if (_characterRoot == null) return;
+            try
+            {
+                string json = session.VerifiedJson();
+                string directory = Path.Combine(_stagingRoot ?? BundleCatalog.DefaultStagingRoot, "captures");
+                Directory.CreateDirectory(directory);
+                string path = Path.Combine(directory, "material-uv-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + ".json");
+                File.WriteAllText(path, json + "\n");
+                Debug.Log("[PhotoMode] Captured material UV verified: " + path);
+                return true;
+            }
+            catch (Exception error)
+            {
+                Debug.LogError("[PhotoMode] Captured material UV verification failed: " + error.Message);
+                return false;
+            }
+        }
+
+        private HashSet<Renderer> ApplyCapturedPosedGeometry()
+        {
+            var capturedRenderers = new HashSet<Renderer>();
+            if (_characterRoot == null) return capturedRenderers;
             string streamDirectory = Path.Combine(
                 _stagingRoot ?? BundleCatalog.DefaultStagingRoot,
                 "research", "gpa", "actor-input-assembler-pass99d", "analysis",
@@ -4141,12 +4185,14 @@ namespace GakumasPhotoMode
                     staticRenderer.probeAnchor = renderer.probeAnchor;
                     staticRenderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
                     renderer.enabled = false;
+                    capturedRenderers.Add(staticRenderer);
                 }
                 else
                 {
                     MeshFilter filter = renderer.GetComponent<MeshFilter>();
                     filter.sharedMesh = source;
                     if (_faceExpression != null) _faceExpression.enabled = false;
+                    capturedRenderers.Add(renderer);
                 }
                 replaced++;
             }
@@ -4156,6 +4202,7 @@ namespace GakumasPhotoMode
             Debug.Log(string.Format(
                 "[PhotoMode] Exact captured posed geometry + tangent/color attributes applied (Unity-import UVs retained): renderers={0}; source={1}",
                 replaced, streamDirectory));
+            return capturedRenderers;
         }
 
         private void DrawLegacyGUI()

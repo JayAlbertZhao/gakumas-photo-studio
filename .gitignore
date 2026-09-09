@@ -144,6 +144,8 @@
 !/unity/Assets/Scripts/CapturedLookAtProfile.cs.meta
 !/unity/Assets/Scripts/CapturedLookAtRuntime.cs
 !/unity/Assets/Scripts/CapturedLookAtRuntime.cs.meta
+!/unity/Assets/Scripts/CapturedMaterialUvState.cs
+!/unity/Assets/Scripts/CapturedMaterialUvState.cs.meta
 !/unity/Assets/Scripts/ClothDynamicsSystem.cs
 !/unity/Assets/Scripts/ClothDynamicsSystem.cs.meta
 !/unity/Assets/Scripts/CrossCharacterCostumeAssembler.cs

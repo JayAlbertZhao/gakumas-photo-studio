@@ -100,7 +100,7 @@ class ActorRenderingWiringTests(unittest.TestCase):
 
     def test_captured_geometry_refreshes_supplementary_renderers(self):
         app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
-        pose = app[app.index('private void ApplyCapturedPosedGeometry()'):]
+        pose = app[app.index('private HashSet<Renderer> ApplyCapturedPosedGeometry()'):]
         pose = pose[:pose.index('Exact captured posed geometry + tangent/color attributes applied')]
         self.assertIn('_actorRenderControls.RefreshRenderers()', pose)
         self.assertLess(pose.index('renderer.enabled = false'), pose.index('_actorRenderControls.RefreshRenderers()'))
@@ -142,6 +142,23 @@ class ActorRenderingWiringTests(unittest.TestCase):
         for name in ('presenter-owns-normal-source', 'presenter-does-not-steal-offscreen-target',
                      'presenter-registration-survives-offscreen-render'):
             self.assertIn(name, probe)
+
+    def test_captured_uv_is_opt_in_and_validated_before_capture(self):
+        app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
+        self.assertLess(app.index('CapturedMaterialUvState.TryReadOption'), app.index('Initialize(BundleCatalog.DefaultStagingRoot)'))
+        capture = app[app.index('private IEnumerator CaptureGpaCameraAndQuit()'):]
+        capture = capture[:capture.index('private IEnumerator CaptureGpaCameraSweepAndQuit()')]
+        self.assertLess(capture.index('capturedRenderers = ApplyCapturedPosedGeometry()'), capture.index('CapturedMaterialUvState.TryLoad'))
+        self.assertIn('capturedUv != null && !WriteCapturedMaterialUvReport(capturedUv)', capture)
+        self.assertIn('Application.Quit(3)', capture)
+        state = (ROOT / 'unity/Assets/Scripts/CapturedMaterialUvState.cs').read_text(encoding='utf-8')
+        self.assertIn('capturedRenderers.Contains(selected)', state)
+        self.assertIn('if (block.isEmpty) selected.GetPropertyBlock(block)', state)
+        self.assertIn('float.IsNaN(value) || float.IsInfinity(value)', state)
+        self.assertLess(state.index('if (!keys.Add('), state.index('binding.renderer.SetPropertyBlock'))
+        self.assertIn('block.GetVector("_BaseMap_ST").Equals(binding.value)', state)
+        self.assertNotIn('sharedMaterials =', state)
+        self.assertNotIn('0.0031', state)
 
 
 if __name__ == '__main__':

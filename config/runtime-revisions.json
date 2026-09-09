@@ -28,7 +28,7 @@
       "baseline_sha256": "08bc0a1eb0da8430850929da1a2ac27e3ae63426d06257c58fbfe6501ffa062d"
     },
     "unity/Assets/Scripts/PhotoModeApp.cs": {
-      "sha256": "686a3f81c6b70aaf9b7b4e5cd740841fd25070282637099d9d4474d588d28be9",
+      "sha256": "bcf3d2dbfb8414414ec1f253fd8c0855294db1f4e4e1f8bf602c1b1f5f99acee",
       "baseline_sha256": "0d8741b4550b6cef4185c7cb087b20747b2dbc3c52a03760b6c07ddc81d27e23"
     },
     "unity/Assets/Scripts/SupersamplePresenter.cs": {
@@ -45,8 +45,10 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "a7cedf81380bd532fc33b86a89d8efc348b5ebaa13e724e0810349708c509787",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "53b0eaca9d517a2505d550cbfbcf0b675216a42442cf62d7a5155e962252300b",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "fe31f44e99776884f8608fbc97759409d8a856b12198e839161b3fe01e581a20",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
+    "unity/Assets/Scripts/CapturedMaterialUvState.cs": "1c647143b25c362feed8a3ffb0892e8a23d30e29914883ee3dcfe813c3f6bfd8",
+    "unity/Assets/Scripts/CapturedMaterialUvState.cs.meta": "3d87154fbfbe3d692aceaefd566a96a777e5033706b817cc88a5bb71b2a48d88",
     "unity/Assets/Scripts/ActorRenderingValidation.cs": "1b1c2220f0eb3d9d83973fd91a5a7a0bfbe3ccc73b7d5869a7a29ae1b9977ea5",
     "unity/Assets/Scripts/ActorRenderingValidation.cs.meta": "88d99448da0c7d56796a4178bc74591bf289f41b6908d82cf0dcbedba8ed303a",
     "unity/Assets/Scripts/ActorShaderReferenceFeature.cs": "bbcb627c61ca498da8e7de11201bfa350896ef41f93d55130080f186a85dc722",
