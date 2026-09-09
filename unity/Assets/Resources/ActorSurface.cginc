@@ -700,7 +700,8 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         return float4((exactSurfaceRamp * baseSample.a).xxx, baseSample.a);
     // VS 54E7B147 writes TEXCOORD4 as
     //   CB2[9].xyz*N.x + CB2[10].xyz*N.y + CB2[11].xyz*N.z.
-    // The captured vectors are the animated head right/up/forward axes.
+    // The vectors form the animated reflection basis: negative head right,
+    // head up and head forward. The publisher supplies the reflected X axis.
     // Type-9 PS 717B09C5 transforms that interpolant through the same
     // receiver basis, evaluates the same shifted half-Lambert surface,
     // takes max(common, head), then blends the extra response by Def.b.

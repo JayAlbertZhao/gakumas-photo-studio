@@ -7,6 +7,21 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_head_triangle_uses_reflected_basis_once(self):
+        driver = (ROOT / 'unity/Assets/Scripts/ActorHeadLightingDriver.cs').read_text(encoding='utf-8')
+        reference = (ROOT / 'unity/Assets/Scripts/ActorShaderReferenceFeature.cs').read_text(encoding='utf-8')
+        self.assertIn('Vector3 right = -_head.right.normalized;', driver)
+        self.assertIn('head.SetColumn(0, right)', reference)
+        self.assertNotIn('head.SetColumn(0, -right)', reference)
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('head.AddComponent<ActorHeadLightingDriver>()', probe)
+        for name in ('head-reflection-basis-', 'head-triangle-reflects-dark-side',
+                     'head-triangle-preserves-zero-mask'):
+            self.assertIn(name, probe)
+        validation = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')
+        for name in ('09a-world-light-left', '09b-world-light-right'):
+            self.assertIn('Capture("' + name + '")', validation)
+
     def test_quality_respects_per_texture_sampling(self):
         app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
         self.assertIn('QualitySettings.anisotropicFiltering = AnisotropicFiltering.Enable;', app)

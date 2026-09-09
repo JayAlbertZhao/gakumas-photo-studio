@@ -17,6 +17,14 @@ Inspector 中 `ActorRenderControls` 还提供有色主光、阴影乘色/加色�
 
 剧情背景的 `actorProfile` 中的 `matCapOffset`、`matCapSmoothScale`、`shadeApplyRatio`、`giScale`、`additiveLightScale`、`additiveLightSpecularScale`、`eyeHighlightColor` 已连接至复现 shader；阴影加色和边缘光 RGB 不再被丢弃。
 
+### 脸部三角区反射光照
+
+对应[角色渲染文章](https://zhuanlan.zhihu.com/p/1908718263602489063)第 3.7 节：三角区使用沿头部左右方向反射后的法线，配合 Definition.B 遮罩，在背光侧保留局部亮区。此前发布给 shader 的头部基底只包含旋转，漏掉了左右反射；现在 X 列使用负的头部右轴，上轴和前轴保持不变，逐帧跟随头骨。研究管线共享这一输入，不再重复取负；该调整不改变骨骼姿势或前发淡出所用的上/前方向。
+
+已用实际驱动器和生成网格验证三种头部姿态的反射基底、侧光下遮罩内亮区及零遮罩的暗面保留。旧实现被反射/暗侧检查拒绝，修正后通过。真实模型的左右侧光截图也已检查：右侧光条件下原先缺失的背光脸颊三角亮区恢复。普通离屏摄影、剧情 19.90 秒检查点完成运行并目视检查；34 张渲染探针均生成且尺寸正确，本次静态重复、恢复参数、移除测试灯均为零变动像素。
+
+本次仍沿用已有 Player 引擎和 shader，仅重新编译本项目 C#，未执行新的完整 Editor 构建。固定正面参考光照几乎不激活该效果，原始截帧的整脸内部亮度 MAE 未改善；该修正不能代表整脸、所有头部姿态或完整博客效果已经追平。
+
 ## 无资产 GPU 自检
 
 完成普通 Player 构建后，不需要配置模型、贴图或数据目录，即可运行：
@@ -25,7 +33,7 @@ Inspector 中 `ActorRenderControls` 还提供有色主光、阴影乘色/加色�
 & .\unity\output\KotonePhotoStudio.exe --self-test-actor-rendering .\LocalAssets\synthetic-check
 ```
 
-该入口在读取资产之前进入隔离测试，只生成一个四边形和灰度 ramp，使用实际角色 shader 渲染到浮点缓冲。它检查同向头部/表面法线在三个明暗偏移下是否一致，并用明暗响应正控制拒绝空画面或恒定输出。结果写入 `actor-synthetic.json`，附六张预览 PNG；通过退出 0，失败退出 2。数值检查读取浮点像素，PNG 只用于查看。需可用 GPU 和普通 Built-in Player，不支持 `-nographics` 或原版 shader 研究构建。
+该入口在读取资产之前进入隔离测试，只生成一个四边形和灰度 ramp，使用实际角色 shader 渲染到浮点缓冲。它检查同向头部/表面法线在三个明暗偏移下是否一致，以及上述脸部三角区反射，并用明暗响应正控制拒绝空画面或恒定输出。结果写入 `actor-synthetic.json`，附十张预览 PNG；通过退出 0，失败退出 2。数值检查读取浮点像素，PNG 只用于查看。需可用 GPU 和普通 Built-in Player，不支持 `-nographics` 或原版 shader 研究构建。
 
 这一自检覆盖过一个实际回归：面部三角区曾固定使用默认偏移，即使 F8 或剧情已改变明暗边界。现在头部与公共表面使用同一偏移参数，默认值保持不变。自检不证明真实模型、动态遮挡、完整后处理或动画已正确复现。
 
@@ -39,7 +47,7 @@ Inspector 中 `ActorRenderControls` 还提供有色主光、阴影乘色/加色�
 & .\unity\output\KotonePhotoStudio.exe --photo-mode --hide-ui --validate-actor-rendering .\LocalAssets\render-check
 ```
 
-探针保存 32 张 PNG：近景正面/侧面、描边与前发覆盖开关、明暗边界、世界空间光照、点光/聚光、Layer、环境光、有色边缘光以及恢复动画后的序列帧，并输出 `rendering-probes.json`（schema `photo-studio.actor-rendering-probes.v2`）。需要自己的兼容数据；不是无资产测试，也不是逐骨骼关键帧编辑器或正式导出器。
+探针保存 34 张 PNG：近景正面/侧面、描边与前发覆盖开关、明暗边界、世界空间光照（含 `09a-world-light-left`、`09b-world-light-right` 两张强侧光）、点光/聚光、Layer、环境光、有色边缘光以及恢复动画后的序列帧，并输出 `rendering-probes.json`（schema `photo-studio.actor-rendering-probes.v2`）。需要自己的兼容数据；不是无资产测试，也不是逐骨骼关键帧编辑器或正式导出器。
 
 静态检查阶段暂停动作，每次截图前清空后处理的时域历史，避免前一组光照或镜头污染下一张图；正常播放的累积逻辑保持不变。以 `01-front` 为基准，逐像素比较三次应当相同的画面：
 

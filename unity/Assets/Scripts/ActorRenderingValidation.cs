@@ -91,6 +91,13 @@ namespace GakumasPhotoMode
             _controls.worldSpaceLight = true;
             _controls.lightAngle = new Vector2(25f, 150f);
             yield return Capture("09-world-light");
+            // Strong lateral directions expose the reflected face-triangle
+            // response; the default studio light can leave it almost inactive.
+            _controls.lightAngle = new Vector2(0f, 90f);
+            yield return Capture("09a-world-light-left");
+            _controls.lightAngle = new Vector2(0f, -90f);
+            yield return Capture("09b-world-light-right");
+            _controls.lightAngle = new Vector2(25f, 150f);
             orbit.yaw = 225f;
             yield return Capture("10-world-light-orbit");
             orbit.yaw = 180f;

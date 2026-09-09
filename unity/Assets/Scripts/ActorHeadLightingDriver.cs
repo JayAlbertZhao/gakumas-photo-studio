@@ -3,7 +3,7 @@ using UnityEngine;
 namespace GakumasPhotoMode
 {
     /// <summary>
-    /// Reconstructs the runtime head-space vectors consumed by Campus/Actor ShaderType 9.
+    /// Publishes the head-reflection basis consumed by the face triangle lighting.
     /// They are deliberately absent from serialized materials and must follow the animated
     /// head bone every frame.
     /// </summary>
@@ -27,7 +27,10 @@ namespace GakumasPhotoMode
             if (_head == null) return;
             Vector3 forward = _head.forward.normalized;
             Vector3 up = _head.up.normalized;
-            Vector3 right = _head.right.normalized;
+            // The triangle mask uses a left/right reflected normal, not just
+            // a rotated normal. This uniform is the reflection's X column;
+            // up/forward remain the physical head axes used by hair fading.
+            Vector3 right = -_head.right.normalized;
             Vector3 center = _head.position + up * 0.10f;
             Shader.SetGlobalVector("_HeadDirection", new Vector4(forward.x, forward.y, forward.z, 1f));
             Shader.SetGlobalVector("_HeadUpDirection", new Vector4(up.x, up.y, up.z, 1f));

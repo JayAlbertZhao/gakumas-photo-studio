@@ -32,6 +32,7 @@ namespace GakumasPhotoMode
         private Texture2D _readback;
         private Texture2D _preview;
         private Material _material;
+        private Mesh _quad;
         private readonly List<UnityEngine.Object> _owned = new List<UnityEngine.Object>();
 
         public static bool TryStart(GameObject owner)
@@ -88,6 +89,7 @@ namespace GakumasPhotoMode
                 float response = Mathf.Abs(dark.r-bright.r);
                 report.checks.Add(new Check { name = "nonconstant-ramp-positive-control", expected = bright,
                     actual = dark, maximumDifference = response, accepted = response > 0.05f });
+                VerifyHeadReflection(report);
                 VerifyPresentationOwnership(report);
                 VerifyCapturedMaterialUv(report);
                 VerifyCapturedCamera(report);
@@ -107,6 +109,61 @@ namespace GakumasPhotoMode
         }
 
         private T Own<T>(T value) where T : UnityEngine.Object { _owned.Add(value); return value; }
+
+        private void VerifyHeadReflection(Report report)
+        {
+            var head = Own(new GameObject("Synthetic animated head"));
+            var driver = head.AddComponent<ActorHeadLightingDriver>();
+            driver.Initialize(head.transform);
+            // A reflection reverses the head's right axis while preserving up
+            // and forward. Test the actual publisher, including a later pose.
+            foreach (Vector3 angles in new[] { Vector3.zero, new Vector3(15, 40, -12), new Vector3(-25, -65, 20) })
+            {
+                head.transform.rotation = Quaternion.Euler(angles);
+                driver.SendMessage("LateUpdate");
+                Vector3 x = Shader.GetGlobalVector("_HeadRightDirection");
+                Vector3 y = Shader.GetGlobalVector("_HeadUpDirection");
+                Vector3 z = Shader.GetGlobalVector("_HeadDirection");
+                float determinant = Vector3.Dot(x, Vector3.Cross(y, z));
+                report.checks.Add(new Check { name = "head-reflection-basis-" + angles,
+                    maximumDifference = Mathf.Abs(determinant + 1f),
+                    accepted = Mathf.Abs(determinant + 1f) < 0.00001f &&
+                        (x + head.transform.right).sqrMagnitude < 0.00000001f &&
+                        (y - head.transform.up).sqrMagnitude < 0.00000001f &&
+                        (z - head.transform.forward).sqrMagnitude < 0.00000001f });
+            }
+            head.transform.rotation = Quaternion.identity;
+            driver.SendMessage("LateUpdate");
+            Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(1, 0, 0, 1));
+            Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0.3f, 1, 1, 0));
+            // With a +X light, a triangle-mask texel on the -X-facing side
+            // must receive the same ramp as its reflected +X-facing normal.
+            // Outside that mask the ordinary dark-side response must remain.
+            Vector3 left = new Vector3(-0.6f, 0, -0.8f);
+            Vector3 right = new Vector3(0.6f, 0, -0.8f);
+            _quad.normals = new[] { right, right, right, right };
+            _material.SetFloat("_ShaderType", 0f);
+            Color reflected = Render("head-triangle-reference-lit-side");
+            _quad.normals = new[] { left, left, left, left };
+            Color unmasked = Render("head-triangle-reference-dark-side");
+            _material.SetFloat("_ShaderType", 9f);
+            Color masked = Render("head-triangle-reflected-light");
+            float difference = Mathf.Abs(reflected.r - masked.r);
+            report.checks.Add(new Check { name = "head-triangle-reflects-dark-side",
+                expected = reflected, actual = masked, maximumDifference = difference,
+                accepted = !float.IsNaN(difference) && difference < 0.00001f &&
+                    reflected.r - unmasked.r > 0.4f });
+            _material.SetVector("_DefValue", new Vector4(0.5f, 0, 0, 0));
+            Color outside = Render("head-triangle-zero-mask");
+            difference = Mathf.Abs(outside.r - unmasked.r);
+            report.checks.Add(new Check { name = "head-triangle-preserves-zero-mask",
+                expected = unmasked, actual = outside, maximumDifference = difference,
+                accepted = !float.IsNaN(difference) && difference < 0.00001f });
+            _quad.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
+            _material.SetVector("_DefValue", new Vector4(0.5f, 0, 1, 0));
+            Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(0, 0, -1, 1));
+            DestroyImmediate(head);
+        }
 
         private void VerifyPresentationOwnership(Report report)
         {
@@ -349,6 +406,7 @@ namespace GakumasPhotoMode
             ramp.Apply();
             _material.SetTexture("_RampTex", ramp);
             var quad = Own(new Mesh { name = "Self-test generated quad" });
+            _quad = quad;
             quad.vertices = new[] { new Vector3(-1,-1,0), new Vector3(1,-1,0), new Vector3(1,1,0), new Vector3(-1,1,0) };
             quad.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
             quad.uv = new[] { Vector2.zero, Vector2.right, Vector2.one, Vector2.up };
@@ -378,7 +436,7 @@ namespace GakumasPhotoMode
             Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(0,0,-1,1));
             Shader.SetGlobalVector("_CapturedCameraUp", Vector3.up);
             Shader.SetGlobalVector("_CapturedShadeTint", Vector4.one);
-            Shader.SetGlobalVector("_HeadRightDirection", Vector3.right);
+            Shader.SetGlobalVector("_HeadRightDirection", Vector3.left);
             Shader.SetGlobalVector("_HeadUpDirection", Vector3.up);
             Shader.SetGlobalVector("_HeadDirection", Vector3.forward);
         }

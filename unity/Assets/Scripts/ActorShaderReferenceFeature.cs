@@ -68,7 +68,8 @@ namespace GakumasPhotoMode
                 Vector4 up = Shader.GetGlobalVector("_HeadUpDirection");
                 Vector4 forward = Shader.GetGlobalVector("_HeadDirection");
                 Matrix4x4 head = Matrix4x4.identity;
-                head.SetColumn(0, -right);
+                // The shared publisher already reflects the right axis.
+                head.SetColumn(0, right);
                 head.SetColumn(1, up);
                 head.SetColumn(2, forward);
                 commands.SetGlobalMatrix("_HeadXAxisReflectionMatrix", head);
