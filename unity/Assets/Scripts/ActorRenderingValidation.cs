@@ -95,16 +95,21 @@ namespace GakumasPhotoMode
             _controls.shadeStrength = 1f;
             _controls.worldSpaceLight = true;
             _controls.lightAngle = new Vector2(25f, 150f);
-            yield return Capture("09-world-light");
+            yield return Capture("09-world-light", expectedWorldSpace: true);
             // Strong lateral directions expose the reflected face-triangle
             // response; the default studio light can leave it almost inactive.
             _controls.lightAngle = new Vector2(0f, 90f);
-            yield return Capture("09a-world-light-left");
+            yield return Capture("09a-world-light-left", expectedWorldSpace: true);
             _controls.lightAngle = new Vector2(0f, -90f);
-            yield return Capture("09b-world-light-right");
+            yield return Capture("09b-world-light-right", expectedWorldSpace: true);
             _controls.lightAngle = new Vector2(25f, 150f);
             orbit.yaw = 225f;
-            yield return Capture("10-world-light-orbit");
+            yield return Capture("10-world-light-orbit", expectedWorldSpace: true);
+            orbit.yaw = 270f;
+            yield return Capture("10a-world-light-side", expectedWorldSpace: true);
+            orbit.pitch = -20f;
+            yield return Capture("10b-world-light-elevated", expectedWorldSpace: true);
+            orbit.pitch = 0f;
             orbit.yaw = 180f;
             _controls.overrideLighting = false;
             yield return Capture("11-profile-restored");
@@ -225,7 +230,7 @@ namespace GakumasPhotoMode
                 _report.additionalRestoreChangedPixels == 0 ? 0 : 2);
         }
 
-        private IEnumerator Capture(string name, float? expectedSkin = null, float? expectedGi = null, int? expectedLights = null)
+        private IEnumerator Capture(string name, float? expectedSkin = null, float? expectedGi = null, int? expectedLights = null, bool? expectedWorldSpace = null)
         {
             // Let the camera, controls and material bindings settle first.
             for (int frame = 0; frame < 24; frame++) yield return null;
@@ -248,6 +253,8 @@ namespace GakumasPhotoMode
                 throw new InvalidOperationException("Ambient probe input was overwritten: " + name);
             if (expectedLights.HasValue && _controls.AdditionalLightCount != expectedLights.Value)
                 throw new InvalidOperationException("Additional light probe input differs: " + name);
+            if (expectedWorldSpace.HasValue && Shader.GetGlobalVector("_CapturedLightDirection").w != (expectedWorldSpace.Value ? 1f : 0f))
+                throw new InvalidOperationException("Light-space probe input was overwritten: " + name);
             Texture2D image = ScreenCapture.CaptureScreenshotAsTexture();
             if (image == null) throw new InvalidOperationException("Presented-frame readback failed: " + name);
             if (name == "01-front" || name == "18-skin-neutral" || name == "15a-fullbody-noambient" ||

@@ -580,7 +580,14 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     float hairAccessoryMask = (input.uv.x > 0.75 && input.uv.y > 0.75) ? 1.0 : 0.0;
     if (isHair)
     {
-        float hairResponse = pow(saturate(dot(receiverNormal, h)), 4.0);
+        // Authored hair highlights retain the camera-facing receiver basis
+        // and fixed +Z half-vector term even when the ramp uses a world-space
+        // light. Switching to a conventional world N.H moves the painted
+        // highlight independently of the material's intended angular gate.
+        float3 hairHalfVector = l + float3(0.0, 0.0, 1.0);
+        float3 hairHalf = hairHalfVector * rsqrt(max(dot(hairHalfVector, hairHalfVector), 0.000001));
+        float3 hairReceiver = lerp(n, capturedReceiverNormal, saturate(_UseCapturedReceiverNormal));
+        float hairResponse = pow(saturate(dot(hairReceiver, hairHalf)), 4.0);
         float hairHighlightResponse = _SpecularThreshold.y <= 0.00001
             ? step(_SpecularThreshold.x, hairResponse)
             : smoothstep(_SpecularThreshold.x - _SpecularThreshold.y,

@@ -93,6 +93,7 @@ namespace GakumasPhotoMode
                 VerifyHeadReflection(report);
                 VerifySkinSaturation(report);
                 VerifyHairSpecularRegions(report);
+                VerifyHairHighlightBasis(report);
                 VerifyRampAddSpecular(report);
                 VerifyAmbientMaterialResponse(report);
                 VerifyAdditionalLighting(report);
@@ -271,7 +272,9 @@ namespace GakumasPhotoMode
                 _material.SetFloat("_UseEmission", 0f);
                 _material.SetFloat("_DisableDefMap", 1f);
                 _material.SetVector("_DefValue", new Vector4(0.5f, 0.5f, 0, 1));
-                _material.SetVector("_SpecularThreshold", new Vector4(0.15f, 0, 0, 0));
+                // This fixture isolates UV region ownership. Force the highlight
+                // gate open; angular response is checked separately below.
+                _material.SetVector("_SpecularThreshold", Vector4.zero);
                 Shader.SetGlobalFloat("_CapturedDirectScale", 1f);
                 Shader.SetGlobalFloat("_CapturedDiffuseBlend", 1f);
                 Shader.SetGlobalFloat("_UseCapturedDirectSpecular", 1f);
@@ -342,6 +345,107 @@ namespace GakumasPhotoMode
                 for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
                 for (int i = 0; i < arrays.Length; i++) Shader.SetGlobalVectorArray(arrays[i],
                     savedArrays[i] != null && savedArrays[i].Length > 0 ? savedArrays[i] : new Vector4[8]);
+            }
+        }
+
+        private void VerifyHairHighlightBasis(Report report)
+        {
+            var savedMaterial = Own(new Material(_material));
+            Vector3[] savedNormals = _quad.normals;
+            Vector2[] savedUv = _quad.uv;
+            string[] floats = { "_FaceDebugMode", "_UseCapturedReceiverNormal", "_UseCapturedActorShadow" };
+            float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
+            string[] vectors = { "_CapturedLightDirection", "_ActorMatcapParameters", "_CapturedCameraUp" };
+            Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            var baseMap = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var highlightMap = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var emptyRampAdd = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            Color baseColor = new Color(0.12f, 0.2f, 0.3f, 1f);
+            Color highlightColor = new Color(0.75f, 0.6f, 0.45f, 1f);
+            baseMap.SetPixel(0, 0, baseColor); baseMap.Apply();
+            highlightMap.SetPixel(0, 0, highlightColor); highlightMap.Apply();
+            emptyRampAdd.SetPixel(0, 0, Color.clear); emptyRampAdd.Apply();
+            try
+            {
+                _material.SetVector("_Color", Vector4.one);
+                _material.SetFloat("_ShaderType", 8f);
+                _material.SetFloat("_UseBump", 0f);
+                _material.SetFloat("_EnableLayer", 0f);
+                _material.SetFloat("_UseAlphaClip", 0f);
+                _material.SetFloat("_DisableDefMap", 1f);
+                _material.SetVector("_DefValue", new Vector4(0.5f, 0, 0, 1));
+                _material.SetTexture("_MainTex", baseMap);
+                _material.SetTexture("_HighlightTex", highlightMap);
+                _material.SetTexture("_RampAddTex", emptyRampAdd);
+                _material.SetTexture("_ShadeTex", Texture2D.blackTexture);
+                _material.SetTexture("_RampTex", Texture2D.whiteTexture);
+                _quad.uv = new[] { Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero };
+                Shader.SetGlobalFloat("_FaceDebugMode", 16f);
+                Shader.SetGlobalFloat("_UseCapturedReceiverNormal", 1f);
+                Shader.SetGlobalFloat("_UseCapturedActorShadow", 0f);
+                // Zero shade strength isolates HighlightMap from the ramp's
+                // intentional camera/world-space N.L selection.
+                Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0, 1, 0, 0));
+                Shader.SetGlobalVector("_CapturedCameraUp", Vector3.up);
+                Vector3 point = _camera.ViewportToWorldPoint(new Vector3(32.5f/64f, 32.5f/64f,
+                    -_camera.transform.position.z));
+                Vector3 view = (_camera.transform.position-point).normalized;
+                Vector3 receiverX = Vector3.Cross(view, Vector3.up);
+                Vector3 receiverY = Vector3.Cross(receiverX, view);
+                var normals = new[] { Vector3.back, new Vector3(0.8f, 0, -0.6f), new Vector3(-0.8f, 0, -0.6f) };
+                var lights = new[] { new Vector3(0.6f, 0.2f, 0.8f).normalized, new Vector3(-0.8f, 0.2f, 0.6f).normalized };
+                float minimum = float.PositiveInfinity, maximum = float.NegativeInfinity;
+                for (int n = 0; n < normals.Length; n++)
+                {
+                    Vector3 normal = normals[n];
+                    _quad.normals = new[] { normal, normal, normal, normal };
+                    Vector3 receiver = new Vector3(Vector3.Dot(receiverX, normal),
+                        Vector3.Dot(receiverY, normal), Vector3.Dot(view, normal));
+                    for (int l = 0; l < lights.Length; l++)
+                    {
+                        Vector3 light = lights[l];
+                        float response = Mathf.Pow(Mathf.Clamp01(Vector3.Dot(receiver,
+                            (light+Vector3.forward).normalized)), 4f);
+                        for (int threshold = 0; threshold < 2; threshold++)
+                        {
+                            float centre = threshold == 0 ? 0.4f : 0.15f;
+                            float width = threshold == 0 ? 0.3f : 0f;
+                            float t = width == 0f ? (response >= centre ? 1f : 0f)
+                                : Mathf.Clamp01((response-centre+width)/(2f*width));
+                            float weight = width == 0f ? t : t*t*(3f-2f*t);
+                            _material.SetVector("_SpecularThreshold", new Vector4(centre, width, 0, 0));
+                            Color expected = Color.Lerp(baseColor, highlightColor, weight);
+                            for (int world = 0; world < 2; world++)
+                            {
+                                Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(light.x, light.y, light.z, world));
+                                string name = "hair-basis-" + n + "-" + l + "-" + threshold + "-world-" + world;
+                                Color actual = Render(name);
+                                AddColorCheck(report, name, expected, actual);
+                                minimum = Mathf.Min(minimum, actual.r); maximum = Mathf.Max(maximum, actual.r);
+                            }
+                        }
+                    }
+                }
+                report.checks.Add(new Check { name = "hair-basis-nonconstant-highlight", maximumDifference = maximum-minimum,
+                    accepted = !float.IsNaN(maximum-minimum) && maximum-minimum > 0.5f });
+                foreach (int world in new[] { 0, 1 })
+                {
+                    Vector3 light = lights[0];
+                    Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(light.x, light.y, light.z, world));
+                    _material.SetFloat("_ShaderType", 0f);
+                    AddColorCheck(report, "hair-basis-nonhair-" + world, baseColor, Render("hair-basis-nonhair-" + world));
+                    _material.SetFloat("_ShaderType", 8f);
+                    _material.SetVector("_DefValue", new Vector4(0.5f, 0, 0, 0));
+                    AddColorCheck(report, "hair-basis-zero-mask-" + world, baseColor, Render("hair-basis-zero-mask-" + world));
+                    _material.SetVector("_DefValue", new Vector4(0.5f, 0, 0, 1));
+                }
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(savedMaterial);
+                _quad.normals = savedNormals; _quad.uv = savedUv;
+                for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
+                for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
             }
         }
 

@@ -7,6 +7,22 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_hair_highlight_keeps_camera_receiver_under_world_light(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('float3 hairHalfVector = l + float3(0.0, 0.0, 1.0);', surface)
+        self.assertIn('float3 hairReceiver = lerp(n, capturedReceiverNormal, saturate(_UseCapturedReceiverNormal));', surface)
+        self.assertIn('dot(hairReceiver, hairHalf)', surface)
+        self.assertNotIn('float hairResponse = pow(saturate(dot(receiverNormal, h))', surface)
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifyHairHighlightBasis(report);', probe)
+        self.assertIn('hair-basis-nonconstant-highlight', probe)
+        self.assertIn('hair-basis-zero-mask-', probe)
+        self.assertIn('hair-basis-nonhair-', probe)
+        validation = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')
+        for name in ('10-world-light-orbit', '10a-world-light-side', '10b-world-light-elevated'):
+            self.assertIn('Capture("' + name + '", expectedWorldSpace: true)', validation)
+        self.assertIn('Light-space probe input was overwritten:', validation)
+
     def test_shadow_offset_uses_layered_definition_not_depth_comparison(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('float authoredOffset = max(definitionRed * 2.0 - 1.0, 0.0);', surface)
@@ -135,7 +151,7 @@ class ActorRenderingWiringTests(unittest.TestCase):
             self.assertIn(name, probe)
         validation = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')
         for name in ('09a-world-light-left', '09b-world-light-right'):
-            self.assertIn('Capture("' + name + '")', validation)
+            self.assertIn('Capture("' + name + '", expectedWorldSpace: true)', validation)
 
     def test_quality_respects_per_texture_sampling(self):
         app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
