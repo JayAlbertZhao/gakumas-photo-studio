@@ -7,6 +7,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_ramp_add_clamps_after_signed_view_offset(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('float rampAddX = saturate(definition.r * 2.0 - 1.0 + dot(n, v));', surface)
+        self.assertNotIn('definition.r * 2.0 - 1.0 + saturate(dot(n, v))', surface)
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        for contract in ('VerifyRampAddSignedView(report);', '"ramp-coordinate-"',
+                         'Mathf.Clamp01(2*definition-1+Vector3.Dot(n,view))',
+                         '"ramp-coordinate-disabled"', '"ramp-coordinate-restored"'):
+            self.assertIn(contract, fixture)
+
     def test_ambient_input_context_and_hair_pass_binding(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('capturedSHValid = _UseCapturedAmbientSH > 0.5 ? capturedSHValid : 0.0;', surface)

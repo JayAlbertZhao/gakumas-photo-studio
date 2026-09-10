@@ -108,6 +108,7 @@ namespace GakumasPhotoMode
                 VerifyRimControl(report);
                 VerifyMaterialSequence(report);
                 VerifyRampAddSpecular(report);
+                VerifyRampAddSignedView(report);
                 VerifyAmbientMaterialResponse(report);
                 VerifyAmbientInputContext(report);
                 VerifyAdditionalLighting(report);
@@ -1046,6 +1047,71 @@ namespace GakumasPhotoMode
                 _quad.uv = savedUv;
                 for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
                 for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
+            }
+        }
+
+        private void VerifyRampAddSignedView(Report report)
+        {
+            var saved = Own(new Material(_material));
+            Vector3[] savedNormals = _quad.normals;
+            bool savedProjection = _camera.orthographic;
+            string[] floats = { "_FaceDebugMode", "_CapturedDirectScale", "_CapturedDiffuseBlend", "_CapturedSkinSaturation" };
+            float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
+            var ramp = Own(new Texture2D(1,1,TextureFormat.RGBAFloat,false,true));
+            ramp.SetPixel(0,0,new Color(1,1,1,0)); ramp.Apply();
+            var addition = Own(new Texture2D(256,1,TextureFormat.RGBAFloat,false,true));
+            addition.filterMode=FilterMode.Point; addition.wrapMode=TextureWrapMode.Clamp;
+            for(int x=0;x<256;x++) addition.SetPixel(x,0,new Color(x/255f,1f-x/255f,.2f+.5f*x/255f,.25f));
+            addition.Apply();
+            Vector3[] normals={Vector3.forward,new Vector3(.8f,0,.6f),Vector3.right,new Vector3(.8f,0,-.6f)};
+            int[] types={0,1,8,9,1,4}, variants={0,0,0,0,2,0};
+            try
+            {
+                _material.SetColor("_Color",Color.white); _material.SetColor("_RampAddColor",Color.white);
+                _material.SetTexture("_MainTex",Texture2D.blackTexture); _material.SetTexture("_ShadeTex",Texture2D.blackTexture);
+                _material.SetTexture("_RampTex",ramp); _material.SetTexture("_RampAddTex",addition);
+                _material.SetFloat("_EnableLayer",0); _material.SetFloat("_UseEmission",0); _material.SetFloat("_DisableDefMap",1);
+                Shader.SetGlobalFloat("_FaceDebugMode",19); Shader.SetGlobalFloat("_CapturedDirectScale",1);
+                Shader.SetGlobalFloat("_CapturedDiffuseBlend",1); Shader.SetGlobalFloat("_CapturedSkinSaturation",0);
+                for(int projection=0;projection<2;projection++)
+                {
+                    _camera.orthographic=projection==0;
+                    Ray ray=_camera.ViewportPointToRay(new Vector3(32.5f/64f,32.5f/64f,0));
+                    Vector3 point=ray.origin-ray.direction*(ray.origin.z/ray.direction.z);
+                    Vector3 view=_camera.orthographic?-_camera.transform.forward:(_camera.transform.position-point).normalized;
+                    for(int ni=0;ni<normals.Length;ni++)
+                    {
+                        Vector3 n=normals[ni]; _quad.normals=new[]{n,n,n,n};
+                        foreach(float definition in new[]{.25f,.5f,.75f})
+                        {
+                            // Signed authored shading normals can point away
+                            // even on a front-facing geometric triangle. Clamp
+                            // only the completed coordinate, after the offset.
+                            float coordinate=Mathf.Clamp01(2*definition-1+Vector3.Dot(n,view));
+                            int x=Mathf.Clamp(Mathf.FloorToInt(coordinate*256),0,255);
+                            Color sampled=addition.GetPixel(x,0)*(.75f*.96f); sampled.a=1;
+                            _material.SetVector("_DefValue",new Vector4(definition,0,0,0));
+                            for(int material=0;material<types.Length;material++)
+                            {
+                                _material.SetFloat("_ShaderType",types[material]); _material.SetFloat("_CapturedType1Variant",variants[material]);
+                                bool enabled=material<4;
+                                string name="ramp-coordinate-"+projection+"-normal-"+ni+"-def-"+definition+"-material-"+material;
+                                AddColorCheck(report,name,enabled?sampled:Color.black,Render(name));
+                            }
+                        }
+                    }
+                }
+                _material.SetFloat("_ShaderType",0); _material.SetFloat("_CapturedType1Variant",0);
+                Color reference=Render("ramp-coordinate-reference");
+                _material.SetTexture("_RampAddTex",Texture2D.blackTexture);
+                AddColorCheck(report,"ramp-coordinate-disabled",Color.black,Render("ramp-coordinate-disabled"));
+                _material.SetTexture("_RampAddTex",addition);
+                AddColorCheck(report,"ramp-coordinate-restored",reference,Render("ramp-coordinate-restored"));
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(saved); _quad.normals=savedNormals; _camera.orthographic=savedProjection;
+                for(int i=0;i<floats.Length;i++) Shader.SetGlobalFloat(floats[i],savedFloats[i]);
             }
         }
 

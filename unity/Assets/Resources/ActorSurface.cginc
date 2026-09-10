@@ -633,7 +633,9 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         _CapturedType1Variant < 1.5;
     if (!isEye && !isEyeHighlight && hasCapturedRampAddBranch)
     {
-        float rampAddX = saturate(definition.r * 2.0 - 1.0 + saturate(dot(n, v)));
+        // Keep N.V signed until after the material offset. Authored shading
+        // normals can face away even on a visible geometric triangle.
+        float rampAddX = saturate(definition.r * 2.0 - 1.0 + dot(n, v));
         float4 authoredRampAdd = tex2D(_RampAddTex, float2(rampAddX, saturate(vertexDefinition)));
         if (isTypeZeroDebug && _FaceDebugMode > 27.5 && _FaceDebugMode < 28.5)
             return float4(authoredRampAdd.aaa, 1.0);
