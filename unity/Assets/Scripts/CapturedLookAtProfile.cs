@@ -45,6 +45,11 @@ namespace GakumasPhotoMode
         public const float LookAgainAngle = 60f;
         public const float EaseDuration = 1f;
 
+        // Default of the actor animation's full-body IK setting, independent
+        // of the eye/body endpoint blend. Zero removes the solver's motion
+        // constraint and makes a rear target bend the head/body over backwards.
+        public const float LookAtClampWeight = 0.5f;
+
         // CampusActorController.get_LookAtEyeSideCorrectionDeFactoWeight in
         // the matching build returns this literal. pass192 also records
         // customLookAtEyeCorrectionType=0 (AlwaysSideCorrection), so the

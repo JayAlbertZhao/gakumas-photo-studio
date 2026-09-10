@@ -7,6 +7,21 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_lookat_keeps_fullbody_motion_constraint_before_solving(self):
+        profile = (ROOT / 'unity/Assets/Scripts/CapturedLookAtProfile.cs').read_text(encoding='utf-8')
+        runtime = (ROOT / 'unity/Assets/Scripts/CapturedLookAtRuntime.cs').read_text(encoding='utf-8')
+        self.assertIn('public const float LookAtClampWeight = 0.5f;', profile)
+        job = runtime.split('public void ProcessAnimation(AnimationStream stream)', 1)[1]
+        clamp = 'human.SetLookAtClampWeight(CapturedLookAtProfile.LookAtClampWeight);'
+        self.assertIn(clamp, job)
+        self.assertLess(job.index(clamp), job.index('human.SolveIK();'))
+        self.assertNotIn('SetLookAtClampWeight(0f)', job)
+        # Keep tracking and endpoint weights: disabling the job would hide
+        # the rear-target defect without fixing its solver input.
+        for weight in ('Body', 'Head', 'Eyes'):
+            self.assertIn('human.SetLookAt' + weight + 'Weight(', job)
+        self.assertIn('ClampBody(ref human, _upperChestFrontBack', job)
+
     def test_outline_preserves_authored_object_space_displacement(self):
         outline = (ROOT / 'unity/Assets/Resources/ActorOutline.cginc').read_text(encoding='utf-8')
         self.assertIn('(input.vertex.xyz + input.tangent.xyz * width) * _WardrobeScaleCorrection.xyz', outline)

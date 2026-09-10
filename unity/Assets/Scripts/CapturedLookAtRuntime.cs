@@ -506,7 +506,7 @@ namespace GakumasPhotoMode
             }
             AnimationHumanStream human = stream.AsHuman();
             human.SetLookAtPosition(targetPosition);
-            human.SetLookAtClampWeight(0f);
+            human.SetLookAtClampWeight(CapturedLookAtProfile.LookAtClampWeight);
             human.SetLookAtBodyWeight(bodyWeight * weight);
             human.SetLookAtHeadWeight(headWeight * weight);
             human.SetLookAtEyesWeight(eyesWeight * weight);

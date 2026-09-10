@@ -3,6 +3,14 @@
   "reason": "2026-09-09 authorized character-rendering development after source-only cleanup; see docs/rendering.md. Original-shader replay remains diagnostic, not accepted.",
   "base_archive_sha256": "597c4a95781d4a2394a81be85826a2de2a58f547d9449e04c648426f061d5cfb",
   "replacements": {
+    "unity/Assets/Scripts/CapturedLookAtProfile.cs": {
+      "sha256": "96d1584635109fd223fdd250c281f3c8dde8331b450ba24cbfad75fef6a364fb",
+      "baseline_sha256": "c0e618ded65f45009ab397f6fbded391de34513df09692aaabde8868387218b2"
+    },
+    "unity/Assets/Scripts/CapturedLookAtRuntime.cs": {
+      "sha256": "02390af8a0d99e2c4a2ee45ebe900380182b2d5a8011f6e6c0b1446be3e98171",
+      "baseline_sha256": "a44d21674dfad88f4c88c88ef8790e1829e643d9e9b2ae218fef534cbf84be6a"
+    },
     "unity/Assets/Editor/OriginalShaderResearchAssets.cs": {
       "sha256": "0043488eaaf7b4fb1951cfdad12fc084506f231aafb1d65bccb612fd92928367",
       "baseline_sha256": "62514cca726886e97dcd12bf35c291102648e8bceac768f82bdb46be4ce36aff"
