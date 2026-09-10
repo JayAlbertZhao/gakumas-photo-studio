@@ -7,6 +7,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_main_specular_preserves_receiver_basis_in_both_light_modes(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('float3 halfVector = l + float3(0.0, 0.0, 1.0);', surface)
+        self.assertNotIn('receiverNormal = lerp(receiverNormal, n,', surface)
+        self.assertIn('saturate(dot(receiverNormal, l))', surface)
+        # Additional lights remain world-space, unlike the authored main light.
+        self.assertIn('float3 additionalHalf = direction + v;', surface)
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        for name in ('VerifyMainSpecularBasis(report);', 'main-spec-nonconstant-response',
+                     'main-spec-material-', 'main-spec-zero-mask-', 'main-spec-no-strand-lobe-'):
+            self.assertIn(name, probe)
+        self.assertIn('Quaternion.Euler(12, 20, -15)', probe)
+        self.assertIn('origin-direction*(origin.z/direction.z)', probe)
+
     def test_hair_highlight_keeps_camera_receiver_under_world_light(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('float3 hairHalfVector = l + float3(0.0, 0.0, 1.0);', surface)

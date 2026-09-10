@@ -528,8 +528,8 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     // from the per-pixel view direction and the camera-up column,
     // then evaluates ramp/direct BRDF terms with that transformed
     // normal (r6). Environment reflection and rim keep the ordinary
-    // world normal. Keep this behind a diagnostic switch until its
-    // exact-camera A/B is accepted.
+    // world normal. The legacy diagnostic can select a world normal;
+    // the story light-space switch belongs only to ramp evaluation.
     float3 receiverBasisX = cross(v, normalize(_CapturedCameraUp.xyz));
     float3 receiverBasisY = cross(receiverBasisX, v);
     float3 capturedReceiverNormal = float3(
@@ -540,7 +540,6 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         return float4(saturate(dot(capturedReceiverNormal, l)).xxx, 1.0);
     float3 receiverNormal = lerp(
         n, capturedReceiverNormal, saturate(_UseCapturedReceiverNormal));
-    receiverNormal = lerp(receiverNormal, n, saturate(_CapturedLightDirection.w));
     if (isEye && _CapturedType4DebugStage > 15.5 &&
         _CapturedType4DebugStage < 16.5)
         return float4(max(receiverNormal, 0.0) * baseSample.a, baseSample.a);
@@ -549,7 +548,7 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     // view vector used by a conventional perspective BRDF.  CB0[148]
     // and the reconstructed receiver normal are already consumed in
     // this same captured convention, so retain the literal +Z term.
-    float3 halfVector = l + lerp(float3(0.0, 0.0, 1.0), v, saturate(_CapturedLightDirection.w));
+    float3 halfVector = l + float3(0.0, 0.0, 1.0);
     float3 h = halfVector * rsqrt(max(dot(halfVector, halfVector), 0.000001));
     #if defined(ACTOR_HAIR_COVER)
     float unityShadow = 1.0;

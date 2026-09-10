@@ -94,6 +94,7 @@ namespace GakumasPhotoMode
                 VerifySkinSaturation(report);
                 VerifyHairSpecularRegions(report);
                 VerifyHairHighlightBasis(report);
+                VerifyMainSpecularBasis(report);
                 VerifyRampAddSpecular(report);
                 VerifyAmbientMaterialResponse(report);
                 VerifyAdditionalLighting(report);
@@ -242,7 +243,7 @@ namespace GakumasPhotoMode
             Vector2[] savedUv = _quad.uv;
             string[] floats = { "_FaceDebugMode", "_CapturedDirectScale", "_CapturedDiffuseBlend",
                 "_UseCapturedDirectSpecular", "_ActorEnvironmentIntensity", "_CapturedSkinSaturation",
-                "_ActorAdditionalLightCount" };
+                "_ActorAdditionalLightCount", "_UseCapturedReceiverNormal" };
             float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
             string[] vectors = { "_CapturedLightDirection", "_ActorMatcapParameters", "_ActorLightingScales",
                 "_ActorKeyColor", "_ActorRimColor", "_CapturedShadeAdditive" };
@@ -281,7 +282,10 @@ namespace GakumasPhotoMode
                 Shader.SetGlobalFloat("_ActorEnvironmentIntensity", 0f);
                 Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
                 Shader.SetGlobalFloat("_ActorAdditionalLightCount", 0f);
-                Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(0, 0, -1, 1));
+                // Positive camera-relative specular; angular semantics are
+                // validated independently by VerifyMainSpecularBasis.
+                Shader.SetGlobalFloat("_UseCapturedReceiverNormal", 1f);
+                Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(0, 0, 1, 0));
                 Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0, 1, 1, 0));
                 _material.SetFloat("_ShaderType", 0f);
                 Shader.SetGlobalFloat("_FaceDebugMode", 20f);
@@ -449,13 +453,146 @@ namespace GakumasPhotoMode
             }
         }
 
+        private void VerifyMainSpecularBasis(Report report)
+        {
+            var savedMaterial = Own(new Material(_material));
+            Vector3[] savedNormals = _quad.normals;
+            Vector2[] savedUv = _quad.uv;
+            Vector3 savedPosition = _camera.transform.position;
+            Quaternion savedRotation = _camera.transform.rotation;
+            string[] floats = { "_FaceDebugMode", "_UseCapturedReceiverNormal", "_UseCapturedDirectSpecular",
+                "_UseCapturedActorShadow", "_ActorEnvironmentIntensity", "_CapturedSkinSaturation",
+                "_CapturedDiffuseBlend", "_CapturedType4DiffuseF0" };
+            float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
+            string[] vectors = { "_CapturedLightDirection", "_ActorMatcapParameters", "_CapturedCameraUp" };
+            Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            var baseMap = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var emptyRampAdd = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            Color albedo = new Color(0.12f, 0.2f, 0.3f, 1);
+            baseMap.SetPixel(0, 0, albedo); baseMap.Apply();
+            emptyRampAdd.SetPixel(0, 0, Color.clear); emptyRampAdd.Apply();
+            // Derive the actual sampled world point independently from the
+            // quad's z=0 plane. Camera tilt/roll also exercise receiver axes.
+            Color Expected(Vector3 normal, Vector3 light, float smoothness, float metal, int type, bool captured = true)
+            {
+                // Use the known orthographic projection analytically. Inverting
+                // a near/far camera ray loses precision at a narrow specular peak.
+                float offset = (32.5f/64f*2f-1f)*_camera.orthographicSize;
+                Vector3 origin = _camera.transform.position +
+                    _camera.transform.right*(offset*_camera.aspect) + _camera.transform.up*offset;
+                Vector3 direction = _camera.transform.forward;
+                Vector3 point = origin-direction*(origin.z/direction.z);
+                Vector3 view = (_camera.transform.position-point).normalized;
+                Vector3 x = Vector3.Cross(view, _camera.transform.up);
+                Vector3 y = Vector3.Cross(x, view);
+                Vector3 receiver = captured ? new Vector3(Vector3.Dot(x, normal),
+                    Vector3.Dot(y, normal), Vector3.Dot(view, normal)) : normal;
+                Vector3 half = (light+Vector3.forward).normalized;
+                float nh = Mathf.Clamp01(Vector3.Dot(receiver, half));
+                float lh = Mathf.Clamp01(Vector3.Dot(light, half));
+                float a = Mathf.Max((1-smoothness)*(1-smoothness), 0.0078125f);
+                float a2 = a*a;
+                float denominator = nh*nh*(a2-1f)+1.00001f;
+                float specular = a2 / Mathf.Max(denominator*denominator*Mathf.Max(lh*lh, 0.1f)*(4f*a+2f), 0.000001f);
+                specular *= Mathf.Clamp01(Vector3.Dot(receiver, light));
+                if (type == 9) metal = 0f;
+                Color f0 = type == 4 ? albedo : Color.Lerp(new Color(0.04f, 0.04f, 0.04f, 1), albedo, metal);
+                float grazing = Mathf.Clamp01(smoothness + (type == 4 ? 0.04f : 1f-0.96f*(1f-metal)));
+                float fresnel = Mathf.Pow(1f-Mathf.Clamp01(Vector3.Dot(normal, view)), 4f);
+                Color expected = Color.Lerp(f0, new Color(grazing, grazing, grazing, 1), fresnel) * (specular*0.6f/(1f+a2));
+                expected.a = 1f;
+                return expected;
+            }
+            try
+            {
+                _material.SetVector("_Color", Vector4.one);
+                _material.SetFloat("_UseBump", 0f);
+                _material.SetFloat("_EnableLayer", 0f);
+                _material.SetFloat("_UseAlphaClip", 0f);
+                _material.SetFloat("_DisableDefMap", 1f);
+                _material.SetTexture("_MainTex", baseMap);
+                _material.SetTexture("_RampAddTex", emptyRampAdd);
+                _material.SetTexture("_ShadeTex", Texture2D.blackTexture);
+                _material.SetTexture("_RampTex", Texture2D.whiteTexture);
+                _quad.uv = new[] { Vector2.one, Vector2.one, Vector2.one, Vector2.one };
+                foreach (string name in floats) Shader.SetGlobalFloat(name, 0f);
+                Shader.SetGlobalFloat("_FaceDebugMode", 20f);
+                Shader.SetGlobalFloat("_UseCapturedReceiverNormal", 1f);
+                Shader.SetGlobalFloat("_UseCapturedDirectSpecular", 1f);
+                Shader.SetGlobalFloat("_CapturedDiffuseBlend", 1f);
+                Shader.SetGlobalFloat("_CapturedType4DiffuseF0", 1f);
+                // Isolate main specular from the ramp's world-dependent N.L.
+                Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0, 1, 0, 0));
+                var normals = new[] { Vector3.back, new Vector3(0.8f, 0, -0.6f) };
+                var lights = new[] { new Vector3(0.6f, 0.2f, 0.8f).normalized, new Vector3(-0.8f, 0.2f, 0.6f).normalized };
+                float minimum = float.PositiveInfinity, maximum = float.NegativeInfinity;
+                for (int camera = 0; camera < 2; camera++)
+                {
+                    _camera.transform.rotation = camera == 0 ? Quaternion.identity : Quaternion.Euler(12, 20, -15);
+                    _camera.transform.position = -_camera.transform.forward*3f;
+                    Shader.SetGlobalVector("_CapturedCameraUp", _camera.transform.up);
+                    _material.SetFloat("_ShaderType", 0f);
+                    for (int n = 0; n < normals.Length; n++)
+                        for (int l = 0; l < lights.Length; l++)
+                            for (int material = 0; material < 2; material++)
+                            {
+                                Vector3 normal = normals[n], light = lights[l];
+                                _quad.normals = new[] { normal, normal, normal, normal };
+                                float smoothness = material == 0 ? 0.15f : 0.65f;
+                                float metal = material == 0 ? 0f : 0.6f;
+                                _material.SetVector("_DefValue", new Vector4(0.5f, smoothness, metal, 0.6f));
+                                Color expected = Expected(normal, light, smoothness, metal, 0);
+                                for (int world = 0; world < 2; world++)
+                                {
+                                    Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(light.x, light.y, light.z, world));
+                                    string name = "main-spec-basis-" + camera + "-" + n + "-" + l + "-" + material + "-world-" + world;
+                                    Color actual = Render(name);
+                                    AddColorCheck(report, name, expected, actual);
+                                    minimum = Mathf.Min(minimum, actual.r); maximum = Mathf.Max(maximum, actual.r);
+                                }
+                            }
+                }
+                report.checks.Add(new Check { name = "main-spec-nonconstant-response", maximumDifference = maximum-minimum,
+                    accepted = !float.IsNaN(maximum-minimum) && maximum-minimum > 0.005f });
+                Vector3 front = Vector3.back, key = lights[0];
+                _quad.normals = new[] { front, front, front, front };
+                foreach (int world in new[] { 0, 1 })
+                {
+                    Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(key.x, key.y, key.z, world));
+                    foreach (int type in new[] { 1, 4, 8, 9 })
+                    {
+                        _material.SetFloat("_ShaderType", type);
+                        _material.SetVector("_DefValue", new Vector4(0.5f, 0.65f, 0.6f, 0.6f));
+                        string name = "main-spec-material-" + type + "-world-" + world;
+                        AddColorCheck(report, name, Expected(front, key, 0.65f, 0.6f, type), Render(name));
+                    }
+                    _material.SetFloat("_ShaderType", 0f);
+                    _material.SetVector("_DefValue", new Vector4(0.5f, 0.65f, 0.6f, 0));
+                    AddColorCheck(report, "main-spec-zero-mask-" + world, Color.black, Render("main-spec-zero-mask-" + world));
+                    _material.SetFloat("_ShaderType", 8f);
+                    _material.SetVector("_DefValue", new Vector4(0.5f, 0.65f, 0.6f, 0.6f));
+                    _quad.uv = new[] { Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero };
+                    AddColorCheck(report, "main-spec-no-strand-lobe-" + world, Color.black, Render("main-spec-no-strand-lobe-" + world));
+                    _quad.uv = new[] { Vector2.one, Vector2.one, Vector2.one, Vector2.one };
+                }
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(savedMaterial);
+                _quad.normals = savedNormals; _quad.uv = savedUv;
+                _camera.transform.SetPositionAndRotation(savedPosition, savedRotation);
+                for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
+                for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
+            }
+        }
+
         private void VerifyRampAddSpecular(Report report)
         {
             var savedMaterial = Own(new Material(_material));
             Vector2[] savedUv = _quad.uv;
             string[] floats = { "_FaceDebugMode", "_CapturedDirectScale", "_CapturedDiffuseBlend",
                 "_UseCapturedDirectSpecular", "_ActorEnvironmentIntensity", "_CapturedSkinSaturation",
-                "_ActorAdditionalLightCount" };
+                "_ActorAdditionalLightCount", "_UseCapturedReceiverNormal" };
             float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
             string[] vectors = { "_CapturedLightDirection", "_ActorMatcapParameters" };
             Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
@@ -489,7 +626,9 @@ namespace GakumasPhotoMode
                 Shader.SetGlobalFloat("_ActorEnvironmentIntensity", 0f);
                 Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
                 Shader.SetGlobalFloat("_ActorAdditionalLightCount", 0f);
-                Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(0, 0, -1, 1));
+                // Keep this ratio fixture on a nondegenerate, lit BRDF lobe.
+                Shader.SetGlobalFloat("_UseCapturedReceiverNormal", 1f);
+                Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(0, 0, 1, 0));
                 Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0, 1, 1, 0));
                 Vector2 uv = new Vector2(0.8f, 0.8f);
                 _quad.uv = new[] { uv, uv, uv, uv }; // Includes a hair accessory, not a strand.
