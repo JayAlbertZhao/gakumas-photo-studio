@@ -7,6 +7,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_outline_preserves_authored_object_space_displacement(self):
+        outline = (ROOT / 'unity/Assets/Resources/ActorOutline.cginc').read_text(encoding='utf-8')
+        self.assertIn('(input.vertex.xyz + input.tangent.xyz * width) * _WardrobeScaleCorrection.xyz', outline)
+        self.assertNotIn('UnityObjectToWorldNormal', outline)
+        self.assertNotIn('normalize(', outline)
+        self.assertNotIn(': input.normal', outline)
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        for contract in ('outline-extrusion-transform-', 'Vector3.Scale(tangent * 0.187f, scale)',
+                         'expectedCoverage > 0 && maximum < 0.00001f'):
+            self.assertIn(contract, fixture)
+
     def test_paused_orbit_stops_graph_and_checks_actual_pose_and_resume(self):
         app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
         pause = app.split('public void TogglePause()', 1)[1].split('public void SelectExpression', 1)[0]

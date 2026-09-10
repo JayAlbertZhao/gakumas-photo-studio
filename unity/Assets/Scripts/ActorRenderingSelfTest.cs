@@ -1164,6 +1164,58 @@ namespace GakumasPhotoMode
                             hidden ? Color.white : nearColor);
                     }
                 }
+
+                _quadRenderer.enabled = false;
+                near.SetFloat("_VertexColor", 0f);
+                controls.outlineWidth = new Vector2(18.7f, 18.7f);
+                outlineMesh.vertices = new[] { new Vector3(-0.113f,-0.137f,-0.2f),
+                    new Vector3(0.113f,-0.137f,-0.2f), new Vector3(0.113f,0.137f,-0.2f),
+                    new Vector3(-0.113f,0.137f,-0.2f) };
+                // A different geometric normal makes an invented fallback
+                // visible even when the authored tangent is zero or tiny.
+                outlineMesh.normals = new[] { Vector3.right, Vector3.right, Vector3.right, Vector3.right };
+                outlineMesh.RecalculateBounds();
+                Vector3[] authored = { Vector3.zero, new Vector3(0.000001f, 0.000002f, 0),
+                    new Vector3(0.02f, 0, 0), new Vector3(0.5f, 0, 0), Vector3.right,
+                    new Vector3(1.2f, 0.4f, 0) };
+                for (int transformCase = 0; transformCase < 3; transformCase++)
+                {
+                    Vector3 objectScale = transformCase == 0 ? Vector3.one : new Vector3(1.6f, 0.7f, 1.1f);
+                    Vector3 wardrobe = transformCase == 2 ? new Vector3(0.75f, 1.2f, 1f) : Vector3.one;
+                    nearPlane.transform.localScale = objectScale;
+                    near.SetVector("_WardrobeScaleCorrection", wardrobe);
+                    Vector3 scale = Vector3.Scale(objectScale, wardrobe);
+                    for (int tangentCase = 0; tangentCase < authored.Length; tangentCase++)
+                    {
+                        Vector3 tangent = authored[tangentCase];
+                        Vector4 value = new Vector4(tangent.x, tangent.y, tangent.z, tangentCase % 2 == 0 ? 1 : -1);
+                        outlineMesh.tangents = new[] { value, value, value, value };
+                        string name = "outline-extrusion-transform-" + transformCase + "-tangent-" + tangentCase;
+                        Render(name);
+                        // Analytic orthographic rectangle, checked over the
+                        // entire image rather than only a favorable sample.
+                        Vector3 center = Vector3.Scale(tangent * 0.187f, scale);
+                        float halfX = 0.113f * scale.x, halfY = 0.137f * scale.y;
+                        float maximum = 0f;
+                        int expectedCoverage = 0;
+                        Color worstExpected = _camera.backgroundColor, worstActual = _readback.GetPixel(0, 0);
+                        for (int y = 0; y < 64; y++) for (int x = 0; x < 64; x++)
+                        {
+                            float px = ((x + 0.5f) / 64f * 2f - 1f) * 1.2f;
+                            float py = ((y + 0.5f) / 64f * 2f - 1f) * 1.2f;
+                            bool covered = Mathf.Abs(px - center.x) < halfX && Mathf.Abs(py - center.y) < halfY;
+                            if (covered) expectedCoverage++;
+                            Color expected = covered ? nearColor : _camera.backgroundColor;
+                            Color actual = _readback.GetPixel(x, y);
+                            float difference = Mathf.Max(Mathf.Abs(expected.r-actual.r), Mathf.Abs(expected.g-actual.g),
+                                Mathf.Abs(expected.b-actual.b), Mathf.Abs(expected.a-actual.a));
+                            if (float.IsNaN(difference)) difference = float.PositiveInfinity;
+                            if (difference > maximum) { maximum = difference; worstExpected = expected; worstActual = actual; }
+                        }
+                        report.checks.Add(new Check { name = name, expected = worstExpected, actual = worstActual,
+                            maximumDifference = maximum, accepted = expectedCoverage > 0 && maximum < 0.00001f });
+                    }
+                }
             }
             finally
             {
