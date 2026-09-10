@@ -7,6 +7,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_layer_panel_is_scoped_and_restores_material_weights(self):
+        source = (ROOT / 'unity/Assets/Scripts/ActorRenderControls.cs').read_text(encoding='utf-8')
+        self.assertIn('Override material Layer', source)
+        self.assertIn('Sweat / messy layer', source)
+        self.assertIn('ApplyLayerOverride();', source)
+        self.assertIn('current != state.applied', source)
+        refresh = source.split('public void RefreshRenderers()', 1)[1].split('private sealed class MaterialScope', 1)[0]
+        self.assertIn('RestoreLayerOverride();', refresh)
+        self.assertIn('_actor.GetComponentsInChildren<Renderer>(true)', refresh)
+        self.assertIn('RestoreLayerOverride();', source.split('private void OnDisable()', 1)[1])
+
     def test_eyebrow_highlight_has_strict_uv_mask_and_own_light_contribution(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('isFaceCap && input.uv.x > 0.96875 && input.uv.y > 0.96875', surface)

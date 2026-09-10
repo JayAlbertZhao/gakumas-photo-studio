@@ -15,6 +15,9 @@ namespace GakumasPhotoMode
         public Vector2 outlineWidth = new Vector2(0.04f, 0.12f);
         public float outlineRange = 3f;
         public bool overrideLighting;
+        [Tooltip("Temporarily replace weights only on this actor's enabled Layer materials.")]
+        public bool overrideLayer;
+        [Range(0f, 1f)] public float layerWeight;
         public bool worldSpaceLight;
         public Vector2 lightAngle = new Vector2(-5f, 10f);
         [Range(-1f, 1f)] public float diffuseOffset = 0.3f;
@@ -31,6 +34,7 @@ namespace GakumasPhotoMode
         public int OutlineDrawCount { get; private set; }
         public int HairCoverDrawCount { get; private set; }
         public int AdditionalLightCount { get; private set; }
+        public int LayerMaterialCount { get { return _layerMaterials.Count; } }
 
         private Camera _camera;
         private GameObject _actor;
@@ -55,6 +59,10 @@ namespace GakumasPhotoMode
         private readonly Vector4[] _savedGlobals = new Vector4[OverrideGlobals.Length];
         private readonly Vector4[] _appliedGlobals = new Vector4[OverrideGlobals.Length];
         private bool _wasOverridden;
+        private readonly List<Material> _layerMaterials = new List<Material>();
+        private struct LayerState { public float saved, applied; }
+        private readonly Dictionary<Material, LayerState> _layerOverrides = new Dictionary<Material, LayerState>();
+        private Vector2 _panelScroll;
 
         public void Initialize(GameObject actor, Light key)
         {
@@ -72,9 +80,17 @@ namespace GakumasPhotoMode
 
         public void RefreshRenderers()
         {
+            RestoreLayerOverride();
             foreach (Material material in _supplemental.Values) Destroy(material);
             _supplemental.Clear();
             _renderers = _actor == null ? Array.Empty<Renderer>() : _actor.GetComponentsInChildren<Renderer>(true);
+            _layerMaterials.Clear();
+            foreach (Renderer renderer in _renderers)
+                foreach (Material material in renderer.sharedMaterials)
+                    if (material != null && material.shader == _shader &&
+                        material.HasProperty("_EnableLayer") && material.GetFloat("_EnableLayer") > 0.5f &&
+                        material.GetTexture("_LayerTex") != null && !_layerMaterials.Contains(material))
+                        _layerMaterials.Add(material);
         }
 
         private sealed class MaterialScope : IDisposable
@@ -103,6 +119,7 @@ namespace GakumasPhotoMode
         {
             if (_commands == null) return;
             ApplyOverride();
+            ApplyLayerOverride();
             Shader.SetGlobalVector("_ActorKeyColor", _key != null && _key.isActiveAndEnabled
                 ? (Vector4)(_key.color.linear * _key.intensity) : Vector4.one);
             PublishLights();
@@ -238,6 +255,31 @@ namespace GakumasPhotoMode
             _wasOverridden = false;
         }
 
+        private void ApplyLayerOverride()
+        {
+            if (!overrideLayer) { RestoreLayerOverride(); return; }
+            float weight = float.IsNaN(layerWeight) ? 0f : Mathf.Clamp01(layerWeight);
+            foreach (Material material in _layerMaterials)
+            {
+                if (material == null) continue;
+                float current = material.GetFloat("_LayerWeight");
+                LayerState state;
+                if (!_layerOverrides.TryGetValue(material, out state) || current != state.applied)
+                    state.saved = current; // Keep newer animation/script values for release.
+                material.SetFloat("_LayerWeight", weight);
+                state.applied = weight;
+                _layerOverrides[material] = state;
+            }
+        }
+
+        private void RestoreLayerOverride()
+        {
+            foreach (var entry in _layerOverrides)
+                if (entry.Key != null && entry.Key.GetFloat("_LayerWeight") == entry.Value.applied)
+                    entry.Key.SetFloat("_LayerWeight", entry.Value.saved);
+            _layerOverrides.Clear();
+        }
+
         public void ToggleTestLights()
         {
             if (_testLights != null) { Destroy(_testLights); _testLights = null; return; }
@@ -260,10 +302,17 @@ namespace GakumasPhotoMode
         private void OnGUI()
         {
             if (!showPanel) return;
-            GUILayout.BeginArea(new Rect(Screen.width - 310, 20, 290, 495), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(Screen.width - 310, 20, 290, Mathf.Min(590, Mathf.Max(160, Screen.height - 40))), GUI.skin.box);
+            _panelScroll = GUILayout.BeginScrollView(_panelScroll);
             GUILayout.Label("ACTOR RENDERING / F8");
             outlines = GUILayout.Toggle(outlines, "Smooth-normal outline");
             hairCover = GUILayout.Toggle(hairCover, "Hair over eyes (stencil only)");
+            GUI.enabled = LayerMaterialCount > 0;
+            overrideLayer = GUILayout.Toggle(overrideLayer, "Override material Layer");
+            GUI.enabled = LayerMaterialCount > 0 && overrideLayer;
+            layerWeight = Slider("Sweat / messy layer", layerWeight, 0f, 1f);
+            GUI.enabled = true;
+            GUILayout.Label("Layer-enabled materials: " + LayerMaterialCount);
             overrideLighting = GUILayout.Toggle(overrideLighting, "Override story lighting");
             GUI.enabled = overrideLighting;
             worldSpaceLight = GUILayout.Toggle(worldSpaceLight, "World-space main light");
@@ -277,6 +326,7 @@ namespace GakumasPhotoMode
             GUI.enabled = true;
             if (GUILayout.Button("Toggle two test lights")) ToggleTestLights();
             GUILayout.Label(string.Format("Outline {0} / Hair {1} / Lights {2}", OutlineDrawCount, HairCoverDrawCount, AdditionalLightCount));
+            GUILayout.EndScrollView();
             GUILayout.EndArea();
         }
 
@@ -289,6 +339,7 @@ namespace GakumasPhotoMode
         private void OnDisable()
         {
             RestoreOverride();
+            RestoreLayerOverride();
             if (_camera != null && _commands != null)
                 _camera.RemoveCommandBuffer(CameraEvent.BeforeForwardAlpha, _commands);
             if (_commands != null) _commands.Release();

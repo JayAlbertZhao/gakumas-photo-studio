@@ -99,6 +99,7 @@ namespace GakumasPhotoMode
                 VerifyMainSpecularBasis(report);
                 VerifyReflectionSphere(report);
                 VerifyEyebrowHighlight(report);
+                VerifyLayerControl(report);
                 VerifyRampAddSpecular(report);
                 VerifyAmbientMaterialResponse(report);
                 VerifyAdditionalLighting(report);
@@ -1377,6 +1378,116 @@ namespace GakumasPhotoMode
                 for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
                 for (int i = 0; i < arrays.Length; i++) Shader.SetGlobalVectorArray(arrays[i],
                     savedArrays[i] != null && savedArrays[i].Length > 0 ? savedArrays[i] : new Vector4[8]);
+            }
+        }
+
+        private void VerifyLayerControl(Report report)
+        {
+            var first = Own(new Material(_material.shader));
+            var second = Own(new Material(_material.shader));
+            var disabled = Own(new Material(_material.shader));
+            var missingMap = Own(new Material(_material.shader));
+            first.SetFloat("_EnableLayer",1f); first.SetFloat("_LayerWeight",0.2f);
+            second.SetFloat("_EnableLayer",1f); second.SetFloat("_LayerWeight",0.6f);
+            first.SetTexture("_LayerTex",Texture2D.whiteTexture); second.SetTexture("_LayerTex",Texture2D.whiteTexture);
+            disabled.SetFloat("_EnableLayer",0f); disabled.SetFloat("_LayerWeight",0.4f);
+            missingMap.SetFloat("_EnableLayer",1f); missingMap.SetFloat("_LayerWeight",0.1f);
+            var actor = Own(new GameObject("Generated layer controls actor"));
+            actor.AddComponent<MeshRenderer>().sharedMaterials = new[]{first,second,first,disabled,missingMap};
+            var cameraOwner = Own(new GameObject("Generated layer controls camera"));
+            cameraOwner.AddComponent<Camera>().enabled=false;
+            var controls = cameraOwner.AddComponent<ActorRenderControls>();
+            controls.enabled=false;
+            controls.Initialize(actor,null);
+            MethodInfo apply = typeof(ActorRenderControls).GetMethod("ApplyLayerOverride",BindingFlags.Instance|BindingFlags.NonPublic);
+            Action<string,bool> check = (name,accepted)=>report.checks.Add(new Check{name="layer-control-"+name,accepted=accepted});
+            apply.Invoke(controls,null);
+            check("default-preserves-distinct-weights",first.GetFloat("_LayerWeight")==0.2f && second.GetFloat("_LayerWeight")==0.6f);
+            check("unique-enabled-materials",controls.LayerMaterialCount==2);
+            controls.overrideLayer=true; controls.layerWeight=0.75f; apply.Invoke(controls,null);
+            check("override-applied",first.GetFloat("_LayerWeight")==0.75f && second.GetFloat("_LayerWeight")==0.75f);
+            check("disabled-material-unchanged",disabled.GetFloat("_LayerWeight")==0.4f && disabled.GetFloat("_EnableLayer")==0f);
+            check("missing-map-unchanged",missingMap.GetFloat("_LayerWeight")==0.1f);
+            controls.overrideLayer=false; apply.Invoke(controls,null);
+            check("distinct-weights-restored",first.GetFloat("_LayerWeight")==0.2f && second.GetFloat("_LayerWeight")==0.6f);
+            controls.overrideLayer=true; apply.Invoke(controls,null);
+            first.SetFloat("_LayerWeight",0.3f); apply.Invoke(controls,null);
+            controls.overrideLayer=false; apply.Invoke(controls,null);
+            check("new-script-weight-restored",first.GetFloat("_LayerWeight")==0.3f);
+            controls.overrideLayer=true; apply.Invoke(controls,null);
+            second.SetFloat("_LayerWeight",0.9f);
+            controls.overrideLayer=false; apply.Invoke(controls,null);
+            check("late-script-write-preserved",second.GetFloat("_LayerWeight")==0.9f);
+            controls.overrideLayer=true; controls.layerWeight=2f; apply.Invoke(controls,null);
+            check("upper-clamp",first.GetFloat("_LayerWeight")==1f);
+            controls.layerWeight=-1f; apply.Invoke(controls,null);
+            check("lower-clamp",first.GetFloat("_LayerWeight")==0f);
+            controls.layerWeight=float.NaN; apply.Invoke(controls,null);
+            check("finite-weight",first.GetFloat("_LayerWeight")==0f);
+            controls.RefreshRenderers();
+            check("refresh-restores",first.GetFloat("_LayerWeight")==0.3f && second.GetFloat("_LayerWeight")==0.9f);
+            controls.layerWeight=1f; apply.Invoke(controls,null);
+            var replacement=Own(new GameObject("Replacement layer controls actor"));
+            controls.Initialize(replacement,null);
+            check("actor-change-releases-old",controls.LayerMaterialCount==0 && first.GetFloat("_LayerWeight")==0.3f);
+            controls.Initialize(actor,null); apply.Invoke(controls,null);
+            controls.enabled=true; controls.enabled=false;
+            check("disable-restores",first.GetFloat("_LayerWeight")==0.3f && second.GetFloat("_LayerWeight")==0.9f);
+            // The existing Layer shader must still use UV2 and both atlas halves.
+            // Point-sampled generated inputs make the color/Ramp expectation independent of rendering.
+            var savedMaterial=Own(new Material(_material)); Vector2[] savedUv2=_quad.uv2;
+            string[] globals={"_FaceDebugMode","_CapturedDiffuseBlend","_CapturedDirectScale","_CapturedSkinSaturation"};
+            float[] savedGlobals=Array.ConvertAll(globals,Shader.GetGlobalFloat);
+            Vector4 savedLight=Shader.GetGlobalVector("_CapturedLightDirection");
+            Vector4 savedParameters=Shader.GetGlobalVector("_ActorMatcapParameters");
+            var atlas=Own(new Texture2D(4,2,TextureFormat.RGBAFloat,false,true));
+            atlas.filterMode=FilterMode.Point;atlas.wrapMode=TextureWrapMode.Clamp;
+            Color[] colors={new Color(0.8f,0.2f,0.4f,0.5f),new Color(0.1f,0.7f,0.3f,1f)};
+            Color[] definitions={new Color(0.75f,0,0.4f,0),new Color(0.55f,0,0.8f,0)};
+            for(int y=0;y<2;y++)for(int x=0;x<2;x++) {atlas.SetPixel(x,y,colors[y]);atlas.SetPixel(x+2,y,definitions[y]);}
+            atlas.Apply();
+            var ramp=Own(new Texture2D(256,1,TextureFormat.RGBAFloat,false,true));
+            ramp.filterMode=FilterMode.Point;ramp.wrapMode=TextureWrapMode.Clamp;
+            for(int x=0;x<256;x++)ramp.SetPixel(x,0,new Color(1,1,1,1-x/255f));ramp.Apply();
+            var baseMap=Own(new Texture2D(1,1,TextureFormat.RGBAFloat,false,true));
+            Color baseColor=new Color(0.2f,0.4f,0.6f,1);baseMap.SetPixel(0,0,baseColor);baseMap.Apply();
+            var shadeMap=Own(new Texture2D(1,1,TextureFormat.RGBAFloat,false,true));
+            shadeMap.SetPixel(0,0,Color.clear);shadeMap.Apply();
+            try
+            {
+                _material.SetFloat("_ShaderType",0f);_material.SetFloat("_EnableLayer",1f);
+                _material.SetFloat("_DisableDefMap",1f);_material.SetVector("_DefValue",new Vector4(0.35f,0,0.2f,0));
+                _material.SetVector("_Color",Vector4.one);_material.SetTexture("_MainTex",baseMap);
+                _material.SetTexture("_LayerTex",atlas);_material.SetTexture("_ShadeTex",shadeMap);
+                _material.SetTexture("_RampTex",ramp);_material.SetTexture("_RampAddTex",Texture2D.blackTexture);
+                Shader.SetGlobalFloat("_FaceDebugMode",19f);Shader.SetGlobalFloat("_CapturedDiffuseBlend",1f);
+                Shader.SetGlobalFloat("_CapturedDirectScale",1f);Shader.SetGlobalFloat("_CapturedSkinSaturation",0f);
+                Shader.SetGlobalVector("_CapturedLightDirection",new Vector4(1,0,0,1));
+                Shader.SetGlobalVector("_ActorMatcapParameters",new Vector4(0.3f,1,1,0));
+                for(int location=0;location<2;location++)
+                {
+                    Vector2 uv2=location==0?new Vector2(0.25f,0.25f):new Vector2(0.75f,0.75f);
+                    _quad.uv2=new[]{uv2,uv2,uv2,uv2};
+                    foreach(float weight in new[]{0f,0.5f,1f})
+                    {
+                        _material.SetFloat("_LayerWeight",weight);
+                        float mask=colors[location].a*weight;
+                        float definitionR=Mathf.Lerp(0.35f,definitions[location].r,mask);
+                        float metallic=Mathf.Lerp(0.2f,definitions[location].b,mask);
+                        int rampIndex=Mathf.Clamp((int)((definitionR-0.15f)*256f),0,255);
+                        Color expected=Color.Lerp(baseColor,colors[location],mask)*(rampIndex/255f)*0.96f*(1-metallic);
+                        expected.a=1f;
+                        string name="layer-atlas-"+location+"-"+weight;
+                        AddColorCheck(report,name,expected,Render(name));
+                    }
+                }
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(savedMaterial);_quad.uv2=savedUv2;
+                for(int i=0;i<globals.Length;i++)Shader.SetGlobalFloat(globals[i],savedGlobals[i]);
+                Shader.SetGlobalVector("_CapturedLightDirection",savedLight);
+                Shader.SetGlobalVector("_ActorMatcapParameters",savedParameters);
             }
         }
 
