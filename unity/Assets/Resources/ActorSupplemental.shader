@@ -85,12 +85,20 @@ Shader "Hidden/PhotoStudio/ActorSupplemental"
             Name "ACTOR_HAIR_COVER"
             Tags { "LightMode"="Always" }
             Cull [_Cull]
-            ZWrite Off
+            ZWrite [_ZWrite]
             ZTest LEqual
             Blend SrcAlpha OneMinusSrcAlpha, Zero One
-            // Bit 2 marks eye-white/eyebrow coverage. Opaque hair keeps its
-            // imported stencil/depth contract everywhere outside that region.
-            Stencil { Ref 4 ReadMask 4 WriteMask 0 Comp Equal Pass Keep }
+            // Complement the opaque hair's Ref >= masked-stencil test.
+            // Eye-white and eyebrow regions use distinct bits (4 and 8).
+            // Preserve those bits, but write hair depth even when color fades.
+            Stencil
+            {
+                Ref [_StencilRef]
+                ReadMask [_StencilReadMask]
+                WriteMask 0
+                Comp Less
+                Pass Keep
+            }
             CGPROGRAM
             #pragma target 4.5
             #pragma vertex vert

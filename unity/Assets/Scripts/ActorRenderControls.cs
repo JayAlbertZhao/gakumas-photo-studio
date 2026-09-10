@@ -87,7 +87,7 @@ namespace GakumasPhotoMode
         private void OnEnable()
         {
             _camera = GetComponent<Camera>();
-            _commands = new CommandBuffer { name = "Photo Studio: outline then hair cover" };
+            _commands = new CommandBuffer { name = "Photo Studio: body outline, hair coverage, hair outline" };
             _camera.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, _commands);
             string[] args = Environment.GetCommandLineArgs();
             outlines = Array.IndexOf(args, "--no-actor-outline") < 0;
@@ -118,11 +118,14 @@ namespace GakumasPhotoMode
             // Supplementary materials are never assigned to renderers, so their
             // Always passes only execute here. Unknown LightMode passes in a
             // built-in shader are otherwise stripped by the installed URP tools.
-            if (outlines) DrawPass("ACTOR_OUTLINE", false);
-            if (hairCover) DrawPass("ACTOR_HAIR_COVER", true);
+            if (outlines) DrawPass("ACTOR_OUTLINE", -1);
+            // Coverage owns the visible hair surface depth, including faded
+            // bangs. Submit it before the hair's back-facing outline shell.
+            if (hairCover) DrawPass("ACTOR_HAIR_COVER", 1);
+            if (outlines) DrawPass("ACTOR_OUTLINE", 1);
         }
 
-        private void DrawPass(string passName, bool onlyHair)
+        private void DrawPass(string passName, int hairFilter)
         {
             foreach (Renderer renderer in _renderers)
             {
@@ -134,10 +137,12 @@ namespace GakumasPhotoMode
                 {
                     Material material = materials[submesh];
                     if (material == null || material.shader != _shader) continue;
-                    if (onlyHair)
+                    bool isHair = Mathf.Abs(material.GetFloat("_ShaderType") - 8f) <= 0.25f;
+                    if ((hairFilter > 0 && !isHair) || (hairFilter < 0 && isHair)) continue;
+                    bool isHairCover = passName == "ACTOR_HAIR_COVER";
+                    if (isHairCover)
                     {
-                        if (Mathf.Abs(material.GetFloat("_ShaderType") - 8f) > 0.25f ||
-                            !material.GetShaderPassEnabled("ActorHairCover")) continue;
+                        if (!material.GetShaderPassEnabled("ActorHairCover")) continue;
                     }
                     else if (material.GetFloat("_OutlineEnabled") < 0.5f ||
                         !material.GetShaderPassEnabled("ActorOutline")) continue;
@@ -153,7 +158,7 @@ namespace GakumasPhotoMode
                     int pass = drawMaterial.FindPass(passName);
                     if (pass < 0) continue;
                     _commands.DrawRenderer(renderer, drawMaterial, submesh, pass);
-                    if (onlyHair) HairCoverDrawCount++; else OutlineDrawCount++;
+                    if (isHairCover) HairCoverDrawCount++; else OutlineDrawCount++;
                 }
             }
         }

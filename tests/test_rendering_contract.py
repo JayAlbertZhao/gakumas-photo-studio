@@ -54,7 +54,7 @@ class ActorRenderingWiringTests(unittest.TestCase):
         self.assertIn('Cull Front', outline)
         self.assertIn('ZTest LEqual', outline)
         self.assertNotIn('ZWrite Off', outline)
-        self.assertIn('ZWrite Off', hair)
+        self.assertIn('ZWrite [_ZWrite]', hair)
         probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
         for name in ('VerifyOutlineDepth(report);', 'outline-depth-near-then-far',
                      'outline-depth-far-then-near', 'outline-depth-optout-near-then-far',
@@ -239,8 +239,21 @@ class ActorRenderingWiringTests(unittest.TestCase):
         self.assertIn('#include "ActorSurface.cginc"', extra)
         self.assertIn('#include "ActorOutline.cginc"', extra)
         self.assertNotIn('Name "ACTOR_HAIR_COVER"', surface)
-        self.assertIn('Ref 4 ReadMask 4 WriteMask 0 Comp Equal', extra)
-        self.assertLess(extra.index('Name "ACTOR_OUTLINE"'), extra.index('Name "ACTOR_HAIR_COVER"'))
+        hair = extra.split('Name "ACTOR_HAIR_COVER"', 1)[1]
+        for contract in ('Ref [_StencilRef]', 'ReadMask [_StencilReadMask]',
+                         'WriteMask 0', 'Comp Less', 'Pass Keep', 'ZWrite [_ZWrite]'):
+            self.assertIn(contract, hair)
+        controls = (ROOT / 'unity/Assets/Scripts/ActorRenderControls.cs').read_text(encoding='utf-8')
+        self.assertLess(controls.index('DrawPass("ACTOR_OUTLINE", -1)'),
+                        controls.index('DrawPass("ACTOR_HAIR_COVER", 1)'))
+        self.assertLess(controls.index('DrawPass("ACTOR_HAIR_COVER", 1)'),
+                        controls.index('DrawPass("ACTOR_OUTLINE", 1)'))
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        for contract in ('hair-cover-stencil-', '64 < (stencil & 108)',
+                         'hair-cover-zero-alpha-depth-blocks-own-outline',
+                         'hair-cover-depth-optout-retains-own-outline',
+                         'hair-cover-half-alpha-precedes-own-outline'):
+            self.assertIn(contract, fixture)
 
     def test_profile_parameters_have_runtime_consumers(self):
         app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')

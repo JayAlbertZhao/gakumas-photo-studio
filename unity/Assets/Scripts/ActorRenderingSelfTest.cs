@@ -970,12 +970,12 @@ namespace GakumasPhotoMode
                     material.SetVector("_DefValue", new Vector4(0.5f, 0, 0, 0));
                 }
                 eye.SetTexture("_MainTex", eyeMap); eye.SetFloat("_ShaderType", 3f); eye.renderQueue = 2000;
-                eye.SetFloat("_StencilRef", 4f); eye.SetFloat("_StencilReadMask", 4f);
-                eye.SetFloat("_StencilWriteMask", 4f); eye.SetFloat("_StencilComp", (float)CompareFunction.Always);
+                eye.SetFloat("_StencilRef", 68f); eye.SetFloat("_StencilReadMask", 108f);
+                eye.SetFloat("_StencilWriteMask", 108f); eye.SetFloat("_StencilComp", (float)CompareFunction.Always);
                 eye.SetFloat("_StencilPass", (float)StencilOp.Replace);
                 hair.SetTexture("_MainTex", hairMap); hair.SetFloat("_ShaderType", 8f); hair.renderQueue = 2301;
-                hair.SetFloat("_StencilRef", 4f); hair.SetFloat("_StencilReadMask", 4f);
-                hair.SetFloat("_StencilWriteMask", 0f); hair.SetFloat("_StencilComp", (float)CompareFunction.NotEqual);
+                hair.SetFloat("_StencilRef", 64f); hair.SetFloat("_StencilReadMask", 108f);
+                hair.SetFloat("_StencilWriteMask", 96f); hair.SetFloat("_StencilComp", (float)CompareFunction.GreaterEqual);
                 hair.SetFloat("_StencilPass", (float)StencilOp.Keep);
                 hair.SetVector("_HairFadeParameters", new Vector4(0.75f, 2f, 0.4f, 4f));
                 Plane("Stencil eye region", eye, 0.3f, 0f);
@@ -1026,6 +1026,51 @@ namespace GakumasPhotoMode
                 AddColorCheck(report, "hair-cover-enabled-oblique-restored", restored, Render("hair-cover-enabled-oblique-restored"));
                 report.checks.Add(new Check { name = "hair-cover-actual-command-submitted",
                     accepted = controls.HairCoverDrawCount == 1 && controls.OutlineDrawCount == 0 });
+
+                // Opaque hair accepts Ref >= masked stencil. Its coverage
+                // pass must handle the complement, including eyebrow bit 8,
+                // and ignore bits outside the authored read mask.
+                hair.SetFloat("_StencilComp", (float)CompareFunction.Never);
+                eye.SetFloat("_StencilWriteMask", 255f);
+                foreach (int stencil in new[] { 0, 4, 8, 64, 68, 72, 76, 96, 108, 192, 200 })
+                {
+                    eye.SetFloat("_StencilRef", stencil);
+                    bool covered = 64 < (stencil & 108);
+                    string name = "hair-cover-stencil-" + stencil;
+                    AddColorCheck(report, name, covered ? restored : eyeColor, Render(name));
+                }
+                eye.SetFloat("_StencilRef", 72f);
+                eye.SetFloat("_StencilWriteMask", 108f);
+                hair.SetFloat("_StencilComp", (float)CompareFunction.GreaterEqual);
+
+                // Even fully faded bangs own depth. Their back-facing outline
+                // lies behind that depth and must not fill the eyebrow region.
+                var outline = Own(new Material(hair));
+                Color outlineColor = new Color(0.1f, 0.2f, 0.7f, 1f);
+                outline.SetFloat("_StencilComp", (float)CompareFunction.Never);
+                outline.SetFloat("_Cull", (float)CullMode.Back);
+                outline.SetFloat("_OutlineEnabled", 1f);
+                outline.SetFloat("_VertexColor", 0f);
+                outline.SetVector("_OutlineColor", outlineColor);
+                outline.SetShaderPassEnabled("ActorHairCover", false);
+                GameObject outlinePlane = Plane("Hair outline behind view-faded bangs", outline, 0.3f, -0.1f);
+                Mesh outlineMesh = outlinePlane.GetComponent<MeshFilter>().sharedMesh;
+                outlineMesh.triangles = new[] { 0,1,2,0,2,3 };
+                controls.Initialize(root, null); controls.outlines = true;
+                controls.outlineWidth = Vector2.zero;
+                Shader.SetGlobalVector("_HeadDirection", Vector3.back);
+                hairColor.a = 1f; hairMap.SetPixel(0, 0, hairColor); hairMap.Apply();
+                AddColorCheck(report, "hair-cover-zero-alpha-depth-blocks-own-outline", eyeColor,
+                    Render("hair-cover-zero-alpha-depth-blocks-own-outline"));
+                hair.SetFloat("_ZWrite", 0f);
+                AddColorCheck(report, "hair-cover-depth-optout-retains-own-outline", outlineColor,
+                    Render("hair-cover-depth-optout-retains-own-outline"));
+                hair.SetFloat("_ZWrite", 1f);
+                hairColor.a = 0.5f; hairMap.SetPixel(0, 0, hairColor); hairMap.Apply();
+                Color halfCovered = Color.Lerp(eyeColor, hairColor, 0.5f); halfCovered.a = 1f;
+                AddColorCheck(report, "hair-cover-half-alpha-precedes-own-outline", halfCovered,
+                    Render("hair-cover-half-alpha-precedes-own-outline"));
+                outlinePlane.SetActive(false); controls.outlines = false;
                 var occluder = Own(new Material(eye));
                 occluder.SetTexture("_MainTex", Texture2D.whiteTexture);
                 occluder.SetFloat("_ShaderType", 0f); occluder.SetFloat("_StencilWriteMask", 0f);
