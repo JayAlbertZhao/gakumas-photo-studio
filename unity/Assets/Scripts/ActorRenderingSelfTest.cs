@@ -96,6 +96,7 @@ namespace GakumasPhotoMode
                 VerifyHeadReflection(report);
                 VerifyDynamicPresentation(report);
                 VerifySkinSaturation(report);
+                VerifyMaterialBaseTint(report);
                 VerifyHairSpecularRegions(report);
                 VerifyHairHighlightBasis(report);
                 VerifyMainSpecularBasis(report);
@@ -497,6 +498,115 @@ namespace GakumasPhotoMode
             {
                 _material.CopyPropertiesFromMaterial(savedMaterial);
                 for (int i = 0; i < globals.Length; i++) Shader.SetGlobalFloat(globals[i], saved[i]);
+            }
+        }
+
+        private void VerifyMaterialBaseTint(Report report)
+        {
+            var savedMaterial = Own(new Material(_material));
+            Vector2[] savedUv = _quad.uv;
+            string[] floats = { "_FaceDebugMode", "_CapturedDirectScale", "_CapturedDiffuseBlend",
+                "_CapturedSkinSaturation", "_CapturedType5OutputScale" };
+            float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
+            string[] vectors = { "_CapturedShadeTint", "_CapturedLightDirection", "_ActorKeyColor",
+                "_CapturedLightColor", "_ActorRimColor", "_ActorEyeHighlightColor", "_ActorMatcapParameters" };
+            Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            Texture2D Map(Color color)
+            {
+                var texture = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+                texture.SetPixel(0, 0, color); texture.Apply(); return texture;
+            }
+            Color baseColor = new Color(0.7f, 0.3f, 0.15f, 0.6f);
+            Color shadeColor = new Color(0.2f, 0.4f, 0.55f, 0f);
+            Color lookup = new Color(0.8f, 1.1f, 0.65f, 0.75f);
+            Color shadeTint = new Color(0.9f, 0.7f, 1.3f, 1f);
+            Color[] tints = { Color.white, new Color(0.25f, 1.5f, 0.6f, 1f), new Color(0f, 0f, 0f, 1f) };
+            Texture2D shade = Map(shadeColor);
+            try
+            {
+                _material.SetTexture("_MainTex", Map(baseColor)); _material.SetTexture("_ShadeTex", shade);
+                _material.SetTexture("_RampTex", Map(lookup)); _material.SetTexture("_RampAddTex", Texture2D.blackTexture);
+                _material.SetFloat("_EnableLayer", 0f); _material.SetFloat("_DisableDefMap", 1f);
+                _material.SetVector("_DefValue", new Vector4(0.5f, 0f, 0f, 0f));
+                _material.SetVector("_SpecularThreshold", new Vector4(10f, 10f, 0, 0));
+                _material.SetFloat("_UseEmission", 0f); _material.SetFloat("_UseAlphaClip", 0f);
+                Shader.SetGlobalFloat("_FaceDebugMode", 19f); Shader.SetGlobalFloat("_CapturedDirectScale", 1f);
+                Shader.SetGlobalFloat("_CapturedDiffuseBlend", 1f);
+                Shader.SetGlobalVector("_CapturedShadeTint", shadeTint);
+                Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0.3f, 1f, 1f, 0f));
+                foreach (int type in new[] { 0, 4, 8, 9 }) foreach (float mask in new[] { 0f, 0.5f, 1f })
+                {
+                    _material.SetFloat("_ShaderType", type); shadeColor.a = mask;
+                    shade.SetPixel(0, 0, shadeColor); shade.Apply();
+                    Color raw = Color.Lerp(baseColor, shadeColor * shadeTint, lookup.a);
+                    Color skin = baseColor * lookup * Color.Lerp(Color.white, shadeTint, lookup.a);
+                    raw = Color.Lerp(raw, skin, mask);
+                    foreach (float saturation in new[] { 0f, -1f }) for (int tint = 0; tint < tints.Length; tint++)
+                    {
+                        _material.SetVector("_Color", tints[tint]); Shader.SetGlobalFloat("_CapturedSkinSaturation", saturation);
+                        float luma = raw.r * 0.2126729f + raw.g * 0.7151522f + raw.b * 0.0721750f;
+                        Color expected = Color.LerpUnclamped(new Color(luma, luma, luma, 1f), raw, 1f + saturation * mask);
+                        expected *= tints[tint] * 0.96f; expected.a = 1f;
+                        string name = "base-tint-shade-" + type + "-" + mask + "-" + saturation + "-" + tint;
+                        AddColorCheck(report, name, expected, Render(name));
+                    }
+                }
+                // Painted highlights, Layer and RampAdd all precede BaseColor.
+                // A late tint must color the entire mixture, including zero RGB.
+                _material.SetTexture("_RampTex", Map(new Color(1, 1, 1, 0)));
+                Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
+                Color layer = new Color(0.3f, 0.8f, 0.1f, 0.5f);
+                Color highlight = new Color(0.6f, 0.1f, 0.85f, 1f);
+                Color added = new Color(0.4f, 0.15f, 0.65f, 0.25f);
+                Color addTint = new Color(0.8f, 1.2f, 0.3f, 1f);
+                // RampAddColor is a ShaderLab Color, unlike the literal Vector
+                // used for BaseColor. Account for Unity's property conversion.
+                Color shaderAddTint = QualitySettings.activeColorSpace == ColorSpace.Linear ? addTint.linear : addTint;
+                Texture2D addMap = Map(added);
+                _material.SetTexture("_LayerTex", Map(layer)); _material.SetTexture("_HighlightTex", Map(highlight));
+                _material.SetVector("_RampAddColor", addTint); _material.SetFloat("_LayerWeight", 0.8f);
+                _quad.uv = new[] { Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero };
+                for (int effect = 0; effect < 5; effect++)
+                {
+                    bool useLayer = effect == 0 || effect == 3;
+                    bool useHighlight = effect == 1 || effect == 4;
+                    bool useAdd = effect >= 2;
+                    _material.SetFloat("_ShaderType", useLayer ? 9f : useHighlight ? 8f : 0f);
+                    _material.SetFloat("_EnableLayer", useLayer ? 1f : 0f);
+                    _material.SetVector("_DefValue", new Vector4(0.5f, 0, 0, useHighlight ? 1f : 0f));
+                    _material.SetVector("_SpecularThreshold", Vector4.zero);
+                    _material.SetTexture("_RampAddTex", useAdd ? addMap : Texture2D.blackTexture);
+                    Color raw = useLayer ? Color.Lerp(baseColor, layer, 0.4f) : useHighlight ? highlight : baseColor;
+                    if (useAdd) raw += added * shaderAddTint * (1f - added.a);
+                    for (int tint = 0; tint < tints.Length; tint++)
+                    {
+                        _material.SetVector("_Color", tints[tint]);
+                        Color expected = raw * tints[tint] * 0.96f; expected.a = 1f;
+                        string name = "base-tint-painted-" + effect + "-" + tint;
+                        AddColorCheck(report, name, expected, Render(name));
+                    }
+                }
+                // Type5 exits before the common material path. Retain its
+                // once-only HDR tint, independent of its source alpha.
+                _material.SetFloat("_ShaderType", 5f); _material.SetFloat("_EnableLayer", 0f);
+                _material.SetVector("_DefValue", new Vector4(1, 0, 0, 0));
+                _material.SetVector("_BaseMap_ST", new Vector4(1, 1, 0, 0));
+                Shader.SetGlobalFloat("_FaceDebugMode", 0f); Shader.SetGlobalFloat("_CapturedType5OutputScale", 1f);
+                Shader.SetGlobalVector("_ActorKeyColor", Vector4.one); Shader.SetGlobalVector("_CapturedLightColor", Vector4.one);
+                Shader.SetGlobalVector("_ActorEyeHighlightColor", Vector4.one); Shader.SetGlobalVector("_ActorRimColor", Vector4.zero);
+                for (int tint = 0; tint < tints.Length; tint++)
+                {
+                    _material.SetVector("_Color", tints[tint] * 3f);
+                    Color expected = baseColor * tints[tint] * (3f * 0.96f); expected.a = 1f;
+                    string name = "base-tint-eye-highlight-once-" + tint;
+                    AddColorCheck(report, name, expected, Render(name));
+                }
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(savedMaterial); _quad.uv = savedUv;
+                for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
+                for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
             }
         }
 
@@ -1903,7 +2013,9 @@ namespace GakumasPhotoMode
                     Color add = configuration==0 ? Color.clear : new Color(0.4f,0.6f,0.8f,0.5f);
                     rampAddMap.SetPixel(0,0,add); rampAddMap.Apply();
                     _material.SetVector("_DefValue",new Vector4(0.5f,0.3f,0,configuration==0?0f:0.65f));
-                    Color ramped = (baseColor*materialColor+add*(1f-add.a))*ramp*Color.Lerp(Color.white,tint,ramp.a);
+                    // BaseColor also tints the additive diffuse lookup. Keeping
+                    // it on BaseMap alone would encode the old tint-stage bug.
+                    Color ramped = (baseColor+add*(1f-add.a))*ramp*Color.Lerp(Color.white,tint,ramp.a)*materialColor;
                     ramped.a=1f;
                     Color highlight = ramped*2f*Color.Lerp(Color.white,add,add.a);
                     highlight.a=0f;

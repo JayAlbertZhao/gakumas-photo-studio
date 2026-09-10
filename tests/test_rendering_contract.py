@@ -7,6 +7,22 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_material_rgb_tint_follows_ramp_and_skin_saturation(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('baseSample.a *= _Color.a;', surface)
+        self.assertIn('baseSample.rgb = lerp(baseSample.rgb, layer.rgb, layerMask);', surface)
+        self.assertNotIn('float4 baseSample = rawBaseSample * _Color;', surface)
+        self.assertLess(surface.index('float skinSaturationDelta'), surface.index('diffuse *= _Color.rgb;'))
+        self.assertLess(surface.index('diffuse *= _Color.rgb;'), surface.index('float metallic = isSkin'))
+        eye = surface.split('if (isEyeHighlight)\n    {', 1)[1].split('float ndl =', 1)[0]
+        self.assertEqual(eye.count('baseSample.rgb *= _Color.rgb;'), 1)
+        self.assertIn('eyeHighlightLit * _CapturedType5OutputScale', eye)
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        for contract in ('VerifyMaterialBaseTint(report);', '"base-tint-shade-"',
+                         '"base-tint-painted-"', '"base-tint-eye-highlight-once-"',
+                         'expected *= tints[tint] * 0.96f', 'shaderAddTint'):
+            self.assertIn(contract, fixture)
+
     def test_rim_controls_are_independent_reversible_and_reach_shader(self):
         controls = (ROOT / 'unity/Assets/Scripts/ActorRenderControls.cs').read_text(encoding='utf-8')
         for contract in ('public bool overrideRim;', 'ApplyRimOverride();',

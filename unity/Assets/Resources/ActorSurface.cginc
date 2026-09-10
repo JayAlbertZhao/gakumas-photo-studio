@@ -459,7 +459,10 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     float4 actorTextureCoordinate = float4(
         actorUv, 0.0, _CapturedActorTextureLodBias);
     float4 rawBaseSample = tex2Dbias(_MainTex, actorTextureCoordinate);
-    float4 baseSample = rawBaseSample * _Color;
+    // Material RGB tints the complete ramped/saturated surface, not just
+    // BaseMap. Keep opacity separate so clipping and blending are unchanged.
+    float4 baseSample = rawBaseSample;
+    baseSample.a *= _Color.a;
     if (_UseAlphaClip > 0.5)
     {
         float alphaWidth = max(fwidth(baseSample.a), 0.0001);
@@ -502,13 +505,13 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     if (_FaceDebugMode > 12.5 && _FaceDebugMode < 13.5)
         return float4(definition.rgb, 1.0);
     if (_FaceDebugMode > 13.5 && _FaceDebugMode < 14.5)
-        return float4(baseSample.rgb, 1.0);
+        return float4(baseSample.rgb * _Color.rgb, 1.0);
     if (_FaceDebugMode > 14.5 && _FaceDebugMode < 15.5)
         return float4(shadeSample.rgb, 1.0);
 
     // Raw authored inputs, before the reconstructed layer equation.
     if (isSkin && _FaceDebugMode > 0.5 && _FaceDebugMode < 1.5)
-        return float4(baseSample.rgb, 1.0);
+        return float4(baseSample.rgb * _Color.rgb, 1.0);
 
     if (_EnableLayer > 0.5)
     {
@@ -518,7 +521,7 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         // painted the yellow right half of fce_lyr over the face and produced
         // the conspicuous centre seam.
         float layerMask = saturate(layer.a * _LayerWeight);
-        baseSample.rgb = lerp(baseSample.rgb, layer.rgb * _Color.rgb, layerMask);
+        baseSample.rgb = lerp(baseSample.rgb, layer.rgb, layerMask);
         float4 layerDefinition = tex2Dbias(_LayerTex,
             float4(input.layerUv + float2(0.5, 0.0), 0.0, _CapturedActorTextureLodBias - 1.0));
         definition = lerp(definition, layerDefinition, layerMask);
@@ -657,7 +660,7 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
 
     float typeZeroDebug = 1.0 - saturate(abs(_ShaderType) * 4.0);
     if (typeZeroDebug > 0.5 && _FaceDebugMode > 6.5 && _FaceDebugMode < 8.5)
-        return _FaceDebugMode < 7.5 ? float4(baseSample.rgb, 1.0) : float4(shadeSample.rgb, 1.0);
+        return _FaceDebugMode < 7.5 ? float4(baseSample.rgb * _Color.rgb, 1.0) : float4(shadeSample.rgb, 1.0);
 
     // Command-line diagnostics used by the reconstruction harness. These
     // isolate authored inputs from lighting without changing production output.
@@ -674,8 +677,9 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         // contribution in this material state: CB2[2]=(1,0,0,0)
         // makes metallic/spec visibility zero. It still applies the
         // common 0.96 direct diffuse and authored rim. m_ehl's HDR
-        // BaseColor (~3.0) is already included in baseSample, so it
-        // must not be multiplied by itself.
+        // Include the material tint once on this separate early-exit path;
+        // it does not enter the common ramp/saturation/BRDF path below.
+        baseSample.rgb *= _Color.rgb;
         float3 exactViewRimNormal = normalize(mul((float3x3)UNITY_MATRIX_V, n));
         float3 selectedRimNormal = normalize(lerp(
             n, exactViewRimNormal, saturate(_UseExactViewRimBasis)));
@@ -784,7 +788,7 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
 
     float3 shadeTarget = isFace
         ? baseSample.rgb * shadeSample.rgb
-        : shadeSample.rgb * _Color.rgb;
+        : shadeSample.rgb;
     float shadowFloor = isFace ? 0.70 : isHair ? 0.28 : 0.43;
     float shadeBlend = lerp(shadowFloor, 1.0, saturate(rampX + definition.g * 0.10 + (vertexDefinition - 0.5) * 0.05));
     if (isSkin) shadeBlend = max(shadeBlend, 0.95);
@@ -815,16 +819,16 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         return float4(max(n, 0.0), 1.0);
     if (debugSelectedType1 && _CapturedType1DebugStage > 0.5 &&
         _CapturedType1DebugStage < 1.5)
-        return float4(capturedDiffuse, 1.0);
+        return float4(capturedDiffuse * _Color.rgb, 1.0);
     if (isEye && _CapturedType4DebugStage > 0.5 &&
         _CapturedType4DebugStage < 1.5)
-        return float4(max(capturedDiffuse * baseSample.a, 0.0), baseSample.a);
+        return float4(max(capturedDiffuse * _Color.rgb * baseSample.a, 0.0), baseSample.a);
     // The signed replay now patches r13 on both opaque ps9300 and
     // transparent ps9360 type-8 variants.  Expose the same authored
     // diffuse stage for every local Actor material so hair can be
     // compared before BRDF/rim/temporal energy is added.
     if (_FaceDebugMode > 15.5 && _FaceDebugMode < 16.5)
-        return float4(capturedDiffuse, 1.0);
+        return float4(capturedDiffuse * _Color.rgb, 1.0);
     diffuse = lerp(diffuse, capturedDiffuse, saturate(_CapturedDiffuseBlend));
     if (isSkin && _FaceDecalCount > 0.5)
         diffuse = ApplyOriginalFaceDecals(diffuse, input.worldPosition);
@@ -839,6 +843,10 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         diffuse = lerp(skinLuma.xxx, diffuse,
             max(1.0 + skinSaturationDelta, 0.0));
     }
+    // Apply once after every authored diffuse contribution and skin saturation,
+    // before constructing BRDF and surface-tinted rim. This also handles zero
+    // color components without dividing an already tinted sample.
+    diffuse *= _Color.rgb;
 
     // Literal BRDF from bound 5C07/7372/717B DXBC.  The t1 resource
     // operand is explicitly swizzled xzyw: sampled r10.y is source
