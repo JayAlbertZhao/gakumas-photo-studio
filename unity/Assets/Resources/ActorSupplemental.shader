@@ -10,6 +10,7 @@ Shader "Hidden/PhotoStudio/ActorSupplemental"
         [HideInInspector] _ActorColor ("ADV Actor Color", Vector) = (1,1,1,1)
         _MainTex ("Base", 2D) = "white" {}
         [HideInInspector] _BaseMap_ST ("Original Base UV Transform", Vector) = (1,1,0,0)
+        [HideInInspector] _ActorTextureFrame ("Motion Atlas Frame (zero disables)", Vector) = (0,0,0,0)
         _ShadeTex ("Shade", 2D) = "white" {}
         _DefTex ("Definition", 2D) = "white" {}
         _RampTex ("Diffuse Ramp", 2D) = "white" {}

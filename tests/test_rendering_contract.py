@@ -7,6 +7,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_motion_material_sequence_uses_owner_clock_and_releases(self):
+        app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
+        self.assertIn('SamplePhotoMaterialEffects(seconds);', app)
+        self.assertIn('_faceMaterialEffects.Sample(blend > 0f ? motionName : previousMotionName,', app)
+        self.assertIn('_faceMaterialEffects.Dispose();', app)
+        runtime = (ROOT / 'unity/Assets/Scripts/ActorMaterialEffectRuntime.cs').read_text(encoding='utf-8')
+        self.assertNotIn('Time.time', runtime)
+        self.assertIn('materials[binding.slot] == binding.replacement', runtime)
+        self.assertIn('Math.Floor(seconds * fps)', runtime)
+        shader = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('actorUv = actorUv * _ActorTextureFrame.xy + _ActorTextureFrame.zw', shader)
+
     def test_layer_panel_is_scoped_and_restores_material_weights(self):
         source = (ROOT / 'unity/Assets/Scripts/ActorRenderControls.cs').read_text(encoding='utf-8')
         self.assertIn('Override material Layer', source)

@@ -39,6 +39,7 @@ namespace GakumasPhotoMode
         private VLActorFaceModel _faceDriver;
         private FaceExpressionRenderer _faceExpression;
         private FaceDecalRuntime _faceDecals;
+        private ActorMaterialEffectRuntime _faceMaterialEffects;
         private HairDynamicsSystem _hairDynamics;
         private HairDynamicsSystem _garmentDynamics;
         private QuartzArmDeformationSystem _quartzArmDeformation;
@@ -1219,6 +1220,7 @@ namespace GakumasPhotoMode
                 PreviewCamera);
             _faceDecals = new FaceDecalRuntime();
             _faceDecals.Initialize(_face, _catalog);
+            _faceMaterialEffects = new ActorMaterialEffectRuntime(_face.GetComponentsInChildren<Renderer>(true), _catalog);
             SetLayerRecursively(_characterRoot, OriginalStyleRenderPipeline.ActorLayer);
         }
 
@@ -1230,6 +1232,8 @@ namespace GakumasPhotoMode
             if (string.Equals(selected, _characterId, StringComparison.OrdinalIgnoreCase)) return;
 
             int costumeIndex = _costumeIndex;
+            if (_faceMaterialEffects != null) _faceMaterialEffects.Dispose();
+            _faceMaterialEffects = null;
             if (_motionGraph.IsValid()) _motionGraph.Destroy();
             if (_characterRoot != null) DestroyImmediate(_characterRoot);
             _body = null;
@@ -1589,6 +1593,7 @@ namespace GakumasPhotoMode
             if (bodyClip != null) bodyClip.SampleAnimation(_body, seconds);
             if (faceClip != null) faceClip.SampleAnimation(_characterRoot, seconds);
             if (_faceMotionLibrary != null && _faceDriver != null) _faceMotionLibrary.Sample(seconds, _faceDriver);
+            SamplePhotoMaterialEffects(seconds);
             if (_faceExpression != null) _faceExpression.ApplyCurrentWeights();
         }
 
@@ -1823,6 +1828,9 @@ namespace GakumasPhotoMode
                 }
             }
             if (_faceDecals != null) _faceDecals.ApplyStoryOverrides(overrides, storyTime);
+            if (_faceMaterialEffects != null)
+                _faceMaterialEffects.Sample(blend > 0f ? motionName : previousMotionName,
+                    blend > 0f ? localTime : previousLocalTime, false);
             if (_faceExpression != null) _faceExpression.ApplyCurrentWeights();
         }
 
@@ -3028,6 +3036,7 @@ namespace GakumasPhotoMode
             LoopPlayable(_facePlayable);
             if (_faceMotionLibrary != null && _faceDriver != null && _facePlayable.IsValid())
                 _faceMotionLibrary.Sample(_facePlayable.GetTime(), _faceDriver);
+            SamplePhotoMaterialEffects(_facePlayable.IsValid() ? _facePlayable.GetTime() : PhotoMotionTime);
         }
 
         private void UpdateAmbientWallpaperDemo()
@@ -3144,6 +3153,13 @@ namespace GakumasPhotoMode
             if (_faceDriver != null && _facePlayable.IsValid())
                 _faceMotionLibrary.Sample(_facePlayable.GetTime(), _faceDriver, true, true);
             _faceExpression.ApplyCurrentWeights();
+            SamplePhotoMaterialEffects(_facePlayable.IsValid() ? _facePlayable.GetTime() : PhotoMotionTime);
+        }
+
+        private void SamplePhotoMaterialEffects(double seconds)
+        {
+            if (_faceMaterialEffects != null && _faceMotionLibrary != null)
+                _faceMaterialEffects.Sample(_faceMotionLibrary.SelectedPhotoMotion, seconds, true);
         }
 
         public void SetFaceDebugShape(int index, float weight)
@@ -4586,6 +4602,11 @@ namespace GakumasPhotoMode
                 _riverbedEnvironment = null;
             }
             if (_motionGraph.IsValid()) _motionGraph.Destroy();
+            if (_faceMaterialEffects != null)
+            {
+                _faceMaterialEffects.Dispose();
+                _faceMaterialEffects = null;
+            }
             if (_catalog != null)
             {
                 _catalog.Dispose();

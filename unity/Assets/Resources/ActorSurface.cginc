@@ -21,6 +21,7 @@ UNITY_DECLARE_TEX2DARRAY(_ActorEnvironmentArray);
 UNITY_DECLARE_TEX2DARRAY_NOSAMPLER(_ActorEyeEnvironmentArray);
 float4 _MainTex_ST;
 float4 _BaseMap_ST;
+float4 _ActorTextureFrame;
 float4 _Color, _ActorColor, _DefValue, _SpecularThreshold;
 float4 _RampAddColor, _RimColor, _EmissionColor;
 float _ShaderType, _CapturedType1Variant, _EnableLayer, _LayerWeight, _VertexColor;
@@ -453,6 +454,8 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     float2 actorUv = isEyeHighlight
         ? input.uv * _BaseMap_ST.xy + _BaseMap_ST.zw
         : input.uv;
+    if (_ActorTextureFrame.x > 0.0 && _ActorTextureFrame.y > 0.0)
+        actorUv = actorUv * _ActorTextureFrame.xy + _ActorTextureFrame.zw;
     float4 actorTextureCoordinate = float4(
         actorUv, 0.0, _CapturedActorTextureLodBias);
     float4 rawBaseSample = tex2Dbias(_MainTex, actorTextureCoordinate);

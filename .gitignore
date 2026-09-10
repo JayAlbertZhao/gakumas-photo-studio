@@ -73,6 +73,8 @@
 !/unity/Assets/CampusCommonStub/CampusActorEyeHighlight.cs.meta
 !/unity/Assets/CampusCommonStub/CampusActorFaceCorrection.cs
 !/unity/Assets/CampusCommonStub/CampusActorFaceCorrection.cs.meta
+!/unity/Assets/CampusCommonStub/CampusActorMaterialEffect.cs
+!/unity/Assets/CampusCommonStub/CampusActorMaterialEffect.cs.meta
 !/unity/Assets/CampusCommonStub/CampusActorTalkModel.cs
 !/unity/Assets/CampusCommonStub/CampusActorTalkModel.cs.meta
 !/unity/Assets/CampusCommonStub/campus-submodule.Runtime.asmdef
@@ -120,6 +122,8 @@
 !/unity/Assets/Scripts.meta
 !/unity/Assets/Scripts/ActorHeadLightingDriver.cs
 !/unity/Assets/Scripts/ActorHeadLightingDriver.cs.meta
+!/unity/Assets/Scripts/ActorMaterialEffectRuntime.cs
+!/unity/Assets/Scripts/ActorMaterialEffectRuntime.cs.meta
 !/unity/Assets/Scripts/ActorRenderControls.cs
 !/unity/Assets/Scripts/ActorRenderControls.cs.meta
 !/unity/Assets/Scripts/ActorRenderingSelfTest.cs
@@ -195,6 +199,8 @@
 !/unity/Assets/VLStub.meta
 !/unity/Assets/VLStub/ActorMotionDefine.cs
 !/unity/Assets/VLStub/ActorMotionDefine.cs.meta
+!/unity/Assets/VLStub/MotionDefine.cs
+!/unity/Assets/VLStub/MotionDefine.cs.meta
 !/unity/Assets/VLStub/VLActorFaceModel.cs
 !/unity/Assets/VLStub/VLActorFaceModel.cs.meta
 !/unity/Assets/VLStub/VLIKStub.cs

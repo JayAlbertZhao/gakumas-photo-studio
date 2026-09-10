@@ -21,6 +21,7 @@ namespace GakumasPhotoMode
 
         public int MotionCount { get { return _motions.Count; } }
         public string CurrentMotion { get { return _current == null ? null : _current.motion; } }
+        public string SelectedPhotoMotion { get { return _photoExpression == null ? CurrentMotion : _photoExpression.motion; } }
         public int PhotoExpressionCount { get { return _photoExpressions.Count + 1; } }
         public int PhotoExpressionIndex { get { return _photoExpressionIndex; } }
         public string CurrentPhotoExpressionLabel

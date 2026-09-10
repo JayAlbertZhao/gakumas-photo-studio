@@ -100,6 +100,7 @@ namespace GakumasPhotoMode
                 VerifyReflectionSphere(report);
                 VerifyEyebrowHighlight(report);
                 VerifyLayerControl(report);
+                VerifyMaterialSequence(report);
                 VerifyRampAddSpecular(report);
                 VerifyAmbientMaterialResponse(report);
                 VerifyAdditionalLighting(report);
@@ -1379,6 +1380,84 @@ namespace GakumasPhotoMode
                 for (int i = 0; i < arrays.Length; i++) Shader.SetGlobalVectorArray(arrays[i],
                     savedArrays[i] != null && savedArrays[i].Length > 0 ? savedArrays[i] : new Vector4[8]);
             }
+        }
+
+        private void VerifyMaterialSequence(Report report)
+        {
+            Action<string,bool> check=(name,accepted)=>report.checks.Add(new Check{name="material-sequence-"+name,accepted=accepted});
+            check("name-boundary",ActorMaterialEffectRuntime.MatchesMaterial("m_eye_character__photo-toon","m_eye") &&
+                !ActorMaterialEffectRuntime.MatchesMaterial("m_eyebrow_character","m_eye"));
+            check("frame-first",ActorMaterialEffectRuntime.TextureFrame(3,3,10,0).Equals(new Vector4(1f/3,1f/3,0,2f/3)));
+            check("frame-second",ActorMaterialEffectRuntime.TextureFrame(3,3,10,0.1).z==1f/3);
+            check("frame-wrap",ActorMaterialEffectRuntime.TextureFrame(3,3,10,0.9).z==0);
+            check("frame-after-wrap",ActorMaterialEffectRuntime.TextureFrame(3,3,10,1.0).z==1f/3);
+            check("single-tile",ActorMaterialEffectRuntime.TextureFrame(1,1,1,999999).Equals(new Vector4(1,1,0,0)));
+            check("invalid-grid",ActorMaterialEffectRuntime.TextureFrame(0,1,10,0).Equals(Vector4.zero));
+            check("invalid-time",ActorMaterialEffectRuntime.TextureFrame(3,3,10,double.NaN).Equals(Vector4.zero) &&
+                ActorMaterialEffectRuntime.TextureFrame(3,3,10,-1).Equals(Vector4.zero) &&
+                ActorMaterialEffectRuntime.TextureFrame(3,3,10,double.MaxValue).Equals(Vector4.zero));
+            var owner=Own(new GameObject("Generated material sequence"));
+            var renderer=owner.AddComponent<MeshRenderer>();
+            var original=Own(new Material(_material.shader){name="m_eye_generated"});
+            var untouched=Own(new Material(_material.shader){name="m_eyebrow_generated"});
+            var external=Own(new Material(_material.shader){name="m_eye_external"});
+            original.SetFloat("_LayerWeight",0.4f);
+            renderer.sharedMaterials=new[]{original,untouched};
+            var block=new MaterialPropertyBlock();block.SetVector("_BaseMap_ST",new Vector4(1,1,0,0.2f));renderer.SetPropertyBlock(block,0);
+            var effect=owner.AddComponent<Campus.Common.CampusActorMaterialEffect>();
+            effect.overrideProperty=new Campus.Common.ActorTextureOverride {materialName="m_eye",col=Texture2D.redTexture,tileX=3,tileY=3,tileFPS=10};
+            var timing=new VL.MotionEffect {effect=effect,startTime=0.25f,duration=1f};
+            using(var runtime=new ActorMaterialEffectRuntime(new[]{renderer},null))
+            {
+                runtime.Bind(new[]{timing});runtime.Apply(0);
+                check("before-start",runtime.ActiveMaterialCount==0 && renderer.sharedMaterials[0]==original);
+                runtime.Apply(0.3);
+                Material replacement=renderer.sharedMaterials[0];
+                check("texture-applied",runtime.ActiveMaterialCount==1 && replacement!=original && replacement.GetTexture("_MainTex")==Texture2D.redTexture);
+                check("other-slot-preserved",renderer.sharedMaterials[1]==untouched);
+                check("other-property-preserved",replacement.GetFloat("_LayerWeight")==0.4f);
+                renderer.GetPropertyBlock(block,0);
+                check("property-block-preserved",block.GetVector("_BaseMap_ST").w==0.2f);
+                runtime.Apply(1.25);
+                check("end-exclusive-restores",renderer.sharedMaterials[0]==original && runtime.ActiveMaterialCount==0);
+                runtime.Apply(0.35);Vector4 a=renderer.sharedMaterials[0].GetVector("_ActorTextureFrame");runtime.Apply(0.35);
+                check("paused-sampling",renderer.sharedMaterials[0].GetVector("_ActorTextureFrame").Equals(a));
+                runtime.Apply(0.85);runtime.Apply(0.35);
+                check("seek-reproducible",renderer.sharedMaterials[0].GetVector("_ActorTextureFrame").Equals(a));
+                runtime.Clear();check("clear-restores",renderer.sharedMaterials[0]==original);
+                var other=owner.AddComponent<Campus.Common.CampusActorMaterialEffect>();
+                other.overrideProperty=new Campus.Common.ActorTextureOverride {materialName="m_eye",col=Texture2D.whiteTexture};
+                runtime.Bind(new[]{timing,new VL.MotionEffect{effect=other,startTime=0.5f,duration=0.2f}});
+                runtime.Apply(0.6);check("overlap-latest-active",renderer.sharedMaterials[0].GetTexture("_MainTex")==Texture2D.whiteTexture);
+                runtime.Apply(0.8);check("overlap-release-previous",renderer.sharedMaterials[0].GetTexture("_MainTex")==Texture2D.redTexture);
+                runtime.Clear();check("overlap-restores-original",renderer.sharedMaterials[0]==original);
+                runtime.Bind(new[]{timing});runtime.Apply(0.5);renderer.sharedMaterials=new[]{external,untouched};runtime.Clear();
+                check("external-slot-owner-preserved",renderer.sharedMaterials[0]==external);
+            }
+            var saved=Own(new Material(_material));float stage=Shader.GetGlobalFloat("_CapturedType4DebugStage");
+            var atlas=Own(new Texture2D(3,2,TextureFormat.RGBAFloat,false,true));atlas.filterMode=FilterMode.Point;
+            Color[] colors={new Color(0.2f,0.3f,0.4f,1),new Color(0.3f,0.4f,0.5f,1),new Color(0.4f,0.5f,0.6f,1),
+                new Color(0.6f,0.2f,0.3f,1),new Color(0.7f,0.3f,0.4f,1),new Color(0.8f,0.4f,0.5f,1)};
+            atlas.SetPixels(colors);atlas.Apply();
+            try
+            {
+                _material.SetFloat("_ShaderType",4f);_material.SetFloat("_DisableDefMap",0f);
+                _material.SetFloat("_UseAlphaClip",0f);_material.SetTexture("_MainTex",atlas);
+                _material.SetTexture("_ShadeTex",atlas);_material.SetTexture("_DefTex",atlas);
+                for(int frame=0;frame<6;frame++)
+                {
+                    _material.SetVector("_ActorTextureFrame",ActorMaterialEffectRuntime.TextureFrame(3,2,4,(frame+0.25)/4));
+                    Color color=colors[(1-frame/3)*3+frame%3];
+                    foreach(int debug in new[]{6,7,8})
+                    {
+                        Shader.SetGlobalFloat("_CapturedType4DebugStage",debug);
+                        Color expected=debug==8?new Color(color.r,color.b,color.g,color.a):color;
+                        string name="material-sequence-atlas-"+frame+"-map-"+debug;
+                        AddColorCheck(report,name,expected,Render(name));
+                    }
+                }
+            }
+            finally { _material.CopyPropertiesFromMaterial(saved);Shader.SetGlobalFloat("_CapturedType4DebugStage",stage); }
         }
 
         private void VerifyLayerControl(Report report)

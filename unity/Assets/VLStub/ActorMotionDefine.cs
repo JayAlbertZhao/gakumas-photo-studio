@@ -43,7 +43,12 @@ namespace VL
     }
 
     [Serializable]
-    public sealed class MotionEffect { }
+    public sealed class MotionEffect
+    {
+        public UnityEngine.Object effect;
+        public float startTime;
+        public float duration;
+    }
 
     // Exact serialized layout recovered from the current GameAssembly
     // (VL.PropConstraintData).  Keeping this shell field-for-field compatible

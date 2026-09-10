@@ -24,7 +24,7 @@
       "baseline_sha256": "011a42753c0817e2e3d9a8a8a7cc9def4e9505a6c81f549062e7201b543c61cb"
     },
     "unity/Assets/Resources/PhotoModeFallback.shader": {
-      "sha256": "7255f05893f25cee00aeaeb82e780969e6d4f4fac2d81294efad40cf75177081",
+      "sha256": "70b3cb58feabe5863d6bfd32cb26eb0016f255ff2e149d6e01cdcb17846ee5ac",
       "baseline_sha256": "cb883788445a6d0af6291d45efc8a7c8d2e3c9e0194dfdab6ea19acb72f39269"
     },
     "unity/Assets/Resources/ResearchOriginalShaderPipeline.asset": {
@@ -52,24 +52,32 @@
       "baseline_sha256": "08bc0a1eb0da8430850929da1a2ac27e3ae63426d06257c58fbfe6501ffa062d"
     },
     "unity/Assets/Scripts/PhotoModeApp.cs": {
-      "sha256": "1c454f56058598aedb1e0742a3f27596966b66f4099d1352a6711ceb493b8f86",
+      "sha256": "7f42f000e8dc67a4cc38ef58a21d24b851a6a9356f77e42c94e9fc2922e77568",
       "baseline_sha256": "0d8741b4550b6cef4185c7cb087b20747b2dbc3c52a03760b6c07ddc81d27e23"
     },
     "unity/Assets/Scripts/SupersamplePresenter.cs": {
       "sha256": "2b40b3f0204e537f05076394a8c1202b8f23d5bcacb682660321ce270220af5a",
       "baseline_sha256": "c5e120165d528de77ba8aedd2a186521afc8c012b964ef75ccbdb7b592094709"
+    },
+    "unity/Assets/VLStub/ActorMotionDefine.cs": {
+      "sha256": "15aec3bda01d1b75cd1d8641e871566bfd31360a82553a0bb7c328670e077632",
+      "baseline_sha256": "fb93480f2a348894850d7118d4cd41b81cd2bc47985468456ef917f3cfafc51f"
+    },
+    "unity/Assets/Scripts/FaceMotionLibrary.cs": {
+      "sha256": "c00790120430102031330d2352472910e346349c9d8c27ad291b1d2d07a14519",
+      "baseline_sha256": "518bab7bf36440460b686b37233cf3f1426334a3cea5234e184a05548882a8f5"
     }
   },
   "additions": {
     "unity/Assets/Resources/ActorOutline.cginc": "f1c47038fc32b19c1410a27ee0f238707d3371266c2d214efeabc04ac0da7bd6",
     "unity/Assets/Resources/ActorOutline.cginc.meta": "342f8d7e34d7b5d69a2b75b31fb811b72d0b1b0562a7b0d2280333282b01421d",
-    "unity/Assets/Resources/ActorSupplemental.shader": "9215d4fa4d6f9db33bdd56c6fa87825a2859d923e0c4e35bb407e1bcceb6bd04",
+    "unity/Assets/Resources/ActorSupplemental.shader": "669ed0eb8d7918beb89b7edc5786abed6c6156fdb13c9d77685e78d1933e7fa3",
     "unity/Assets/Resources/ActorSupplemental.shader.meta": "926b3c8cef54713a6494cf225ab90fb8c878c37cf9bdb2c3a74fe2e91bed01de",
-    "unity/Assets/Resources/ActorSurface.cginc": "03664b45a52de9f662f08c8a5aa059b8f99832c6b22b71ab0b53ddc56e8d7726",
+    "unity/Assets/Resources/ActorSurface.cginc": "cac242a3aa3a79d30dd602e5e20d4b80d6846e03267304e331362bb36b20f91e",
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "fae9cdd70a0b794654c04186221721c3de2ed1acb69659bd3e3718be542bf67b",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "7dcd00b99ba624535ae146666ac9134ce156370b2f99b0f8bc2ede47f389f9ca",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "9451b8dda8c9e00cfbf0b536ce1363014f7c2639cbff2b3418d5f606724b81b5",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
@@ -78,6 +86,12 @@
     "unity/Assets/Scripts/ActorRenderingValidation.cs": "86764d15ea7d23024c1f03425bc9542b244edd4819463815035c88904f1c3161",
     "unity/Assets/Scripts/ActorRenderingValidation.cs.meta": "88d99448da0c7d56796a4178bc74591bf289f41b6908d82cf0dcbedba8ed303a",
     "unity/Assets/Scripts/ActorShaderReferenceFeature.cs": "6fd46350166117908835af344bd1b5191a4ae8a602abe979a30247b4b4da1b25",
-    "unity/Assets/Scripts/ActorShaderReferenceFeature.cs.meta": "8fa75718c41cb1e52400c7e1ddb50d9b9b4b005d05c6b920597a7933270106f2"
+    "unity/Assets/Scripts/ActorShaderReferenceFeature.cs.meta": "8fa75718c41cb1e52400c7e1ddb50d9b9b4b005d05c6b920597a7933270106f2",
+    "unity/Assets/VLStub/MotionDefine.cs.meta": "5a35a5778236f68d8bccc3919706b0f17425f0c71348adaa0bb93f3c6ce33b5e",
+    "unity/Assets/VLStub/MotionDefine.cs": "ca4f7c7c53d77fa9ffdb68f7f4afffa356e0d9b13914876db7b14cd387bf985c",
+    "unity/Assets/CampusCommonStub/CampusActorMaterialEffect.cs.meta": "16763e6b911e495b0a8146f6e4fc80219fdc771d62c3f00d6210c6342c797809",
+    "unity/Assets/CampusCommonStub/CampusActorMaterialEffect.cs": "6472d0c9b51c552d0ae2fccdd8d4f655e8884baf1b674c586bb5639d6ded9362",
+    "unity/Assets/Scripts/ActorMaterialEffectRuntime.cs.meta": "75a6132fe405841965f97f50036839d61d549dbd9d055ce8610adac432f1749d",
+    "unity/Assets/Scripts/ActorMaterialEffectRuntime.cs": "dc5ce1a429dc136bc496ce61d87499cbae287bfa9a15d9025fd88ea399a5d82a"
   }
 }
