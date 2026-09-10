@@ -7,6 +7,24 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_outline_respects_material_depth_write_and_draw_order(self):
+        extra = (ROOT / 'unity/Assets/Resources/ActorSupplemental.shader').read_text(encoding='utf-8')
+        outline, hair = extra.split('Name "ACTOR_HAIR_COVER"', 1)
+        outline = outline.split('Name "ACTOR_OUTLINE"', 1)[1]
+        self.assertIn('ZWrite [_ZWrite]', outline)
+        self.assertIn('Cull Front', outline)
+        self.assertIn('ZTest LEqual', outline)
+        self.assertNotIn('ZWrite Off', outline)
+        self.assertIn('ZWrite Off', hair)
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        for name in ('VerifyOutlineDepth(report);', 'outline-depth-near-then-far',
+                     'outline-depth-far-then-near', 'outline-depth-optout-near-then-far',
+                     'outline-depth-blocks-late-surface-behind',
+                     'outline-depth-optout-allows-late-surface-behind',
+                     'outline-depth-allows-late-surface-in-front',
+                     'outline-depth-actual-commands-submitted'):
+            self.assertIn(name, probe)
+
     def test_main_specular_preserves_receiver_basis_in_both_light_modes(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('float3 halfVector = l + float3(0.0, 0.0, 1.0);', surface)

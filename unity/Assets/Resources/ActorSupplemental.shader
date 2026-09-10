@@ -67,7 +67,10 @@ Shader "Hidden/PhotoStudio/ActorSupplemental"
             Name "ACTOR_OUTLINE"
             Tags { "LightMode"="Always" }
             Cull Front
-            ZWrite Off
+            // Opaque outlines own their depth, including between submeshes.
+            // Preserve an explicit material opt-out rather than disabling
+            // depth writes for every outline and relying on hierarchy order.
+            ZWrite [_ZWrite]
             ZTest LEqual
             CGPROGRAM
             #pragma target 4.5

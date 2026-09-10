@@ -99,6 +99,7 @@ namespace GakumasPhotoMode
                 VerifyAmbientMaterialResponse(report);
                 VerifyAdditionalLighting(report);
                 VerifyHairCoverComposition(report);
+                VerifyOutlineDepth(report);
                 VerifyPresentationOwnership(report);
                 VerifyCapturedMaterialUv(report);
                 VerifyCapturedCamera(report);
@@ -1038,6 +1039,115 @@ namespace GakumasPhotoMode
                 root.SetActive(false);
                 _quadRenderer.enabled = true;
                 for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
+                for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
+                for (int i = 0; i < arrays.Length; i++) Shader.SetGlobalVectorArray(arrays[i],
+                    savedArrays[i] != null && savedArrays[i].Length > 0 ? savedArrays[i] : new Vector4[8]);
+            }
+        }
+
+        private void VerifyOutlineDepth(Report report)
+        {
+            // Back-facing planes are culled by the ordinary surface pass but
+            // drawn by the real supplemental outline pass. Zero extrusion
+            // isolates depth ownership from the outline width calculation.
+            var root = Own(new GameObject("Synthetic outline depth ordering"));
+            var near = Own(new Material(_material));
+            var far = Own(new Material(_material));
+            Color nearColor = new Color(0.2f, 0.5f, 0.8f, 1f);
+            Color farColor = new Color(0.7f, 0.3f, 0.1f, 1f);
+            GameObject Plane(string name, Material material, float z, Color color)
+            {
+                material.SetFloat("_Cull", (float)CullMode.Back);
+                material.SetFloat("_OutlineEnabled", 1f);
+                material.SetFloat("_VertexColor", 0f);
+                material.SetFloat("_UseAlphaClip", 0f);
+                material.SetFloat("_ZWrite", 1f);
+                material.SetVector("_ActorColor", Vector4.one);
+                material.SetVector("_OutlineColor", color);
+                var mesh = Own(new Mesh());
+                mesh.vertices = new[] { new Vector3(-1,-1,z), new Vector3(1,-1,z),
+                    new Vector3(1,1,z), new Vector3(-1,1,z) };
+                mesh.normals = new[] { Vector3.forward, Vector3.forward, Vector3.forward, Vector3.forward };
+                mesh.uv = new[] { Vector2.zero, Vector2.right, Vector2.one, Vector2.up };
+                mesh.triangles = new[] { 0,1,2,0,2,3 };
+                mesh.RecalculateBounds();
+                var plane = new GameObject(name);
+                plane.transform.SetParent(root.transform, false);
+                plane.AddComponent<MeshFilter>().sharedMesh = mesh;
+                plane.AddComponent<MeshRenderer>().sharedMaterial = material;
+                return plane;
+            }
+            var nearPlane = Plane("Near outline", near, -0.2f, nearColor);
+            var farPlane = Plane("Far outline", far, 0.2f, farColor);
+            string[] vectors = { "_ActorOutlineParameters", "_ActorKeyColor" };
+            Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            string[] arrays = { "_ActorAdditionalPositions", "_ActorAdditionalColors", "_ActorAdditionalDirections", "_ActorAdditionalSpots" };
+            Vector4[][] savedArrays = Array.ConvertAll(arrays, Shader.GetGlobalVectorArray);
+            float savedCount = Shader.GetGlobalFloat("_ActorAdditionalLightCount");
+            float savedDebug = Shader.GetGlobalFloat("_FaceDebugMode");
+            Vector3 savedPosition = _quadRenderer.transform.position;
+            var lateSurface = Own(new Material(_material));
+            lateSurface.SetTexture("_MainTex", Texture2D.whiteTexture);
+            lateSurface.SetVector("_Color", Vector4.one);
+            lateSurface.SetFloat("_ZWrite", 0f);
+            lateSurface.SetFloat("_SrcBlend", (float)BlendMode.One);
+            lateSurface.SetFloat("_DstBlend", (float)BlendMode.One);
+            lateSurface.SetFloat("_SrcAlphaBlend", (float)BlendMode.Zero);
+            lateSurface.SetFloat("_DstAlphaBlend", (float)BlendMode.One);
+            lateSurface.renderQueue = 3000;
+            ActorRenderControls controls = null;
+            void Check(string name, Color expected) { AddColorCheck(report, name, expected, Render(name)); }
+            try
+            {
+                _quadRenderer.enabled = false;
+                controls = _camera.gameObject.AddComponent<ActorRenderControls>();
+                controls.Initialize(root, null);
+                controls.hairCover = false;
+                controls.outlines = true;
+                controls.outlineWidth = Vector2.zero;
+                farPlane.SetActive(false);
+                Check("outline-depth-near-alone", nearColor);
+                farPlane.SetActive(true); nearPlane.SetActive(false);
+                Check("outline-depth-far-alone", farColor);
+                nearPlane.SetActive(true);
+                Check("outline-depth-near-then-far", nearColor);
+                report.checks.Add(new Check { name = "outline-depth-actual-commands-submitted",
+                    accepted = controls.OutlineDrawCount == 2 && controls.HairCoverDrawCount == 0 });
+                farPlane.transform.SetAsFirstSibling(); controls.RefreshRenderers();
+                Check("outline-depth-far-then-near", nearColor);
+                near.SetFloat("_ZWrite", 0f);
+                Check("outline-depth-optout-far-then-near", nearColor);
+                nearPlane.transform.SetAsFirstSibling(); controls.RefreshRenderers();
+                Check("outline-depth-optout-near-then-far", farColor);
+                near.SetFloat("_ZWrite", 1f); far.SetFloat("_ZWrite", 0f);
+                Check("outline-depth-restored-near-blocks-far-optout", nearColor);
+                farPlane.SetActive(false);
+                _quadRenderer.sharedMaterial = lateSurface;
+                _quadRenderer.enabled = true;
+                Shader.SetGlobalFloat("_FaceDebugMode", 14f); // Unlit raw white base.
+                _quadRenderer.transform.position = new Vector3(0, 0, 0.5f);
+                Check("outline-depth-blocks-late-surface-behind", nearColor);
+                Color composed = nearColor + Color.white; composed.a = 1f;
+                near.SetFloat("_ZWrite", 0f);
+                Check("outline-depth-optout-allows-late-surface-behind", composed);
+                near.SetFloat("_ZWrite", 1f);
+                _quadRenderer.transform.position = new Vector3(0, 0, -0.5f);
+                Check("outline-depth-allows-late-surface-in-front", composed);
+                _quadRenderer.enabled = false;
+                controls.outlines = false;
+                Check("outline-depth-disabled-background-control", _camera.backgroundColor);
+                controls.outlines = true;
+                Check("outline-depth-restored", nearColor);
+            }
+            finally
+            {
+                if (controls != null) DestroyImmediate(controls);
+                root.SetActive(false);
+                _quadRenderer.sharedMaterial = _material;
+                _quadRenderer.transform.position = savedPosition;
+                _quadRenderer.enabled = true;
+                Shader.SetGlobalFloat("_FaceDebugMode", savedDebug);
+                Shader.SetGlobalFloat("_ActorAdditionalLightCount", savedCount);
                 for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
                 for (int i = 0; i < arrays.Length; i++) Shader.SetGlobalVectorArray(arrays[i],
                     savedArrays[i] != null && savedArrays[i].Length > 0 ? savedArrays[i] : new Vector4[8]);
