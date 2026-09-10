@@ -7,6 +7,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_straight_alpha_keeps_opacity_and_single_rgb_weight(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('bool straightAlphaActor = abs(_SrcBlend - 5.0) < 0.25;', surface)
+        self.assertIn('(premultipliedActor || straightAlphaActor) ? baseSample.a : 1.0', surface)
+        self.assertIn('if (premultipliedActor) lit *= outputAlpha;', surface)
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifyStraightAlpha(report);', fixture)
+        for contract in ('source * alpha + background * (1f - alpha)',
+                         'expected.a = background.a * (1f - alpha)',
+                         'expected = source * alpha + background',
+                         'new Vector2(1f, 240f/255f)', '"-opaque-alpha"'):
+            self.assertIn(contract, fixture)
+
     def test_motion_material_sequence_uses_owner_clock_and_releases(self):
         app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
         self.assertIn('SamplePhotoMaterialEffects(seconds);', app)

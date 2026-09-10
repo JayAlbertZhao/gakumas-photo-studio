@@ -91,6 +91,7 @@ namespace GakumasPhotoMode
                 float response = Mathf.Abs(dark.r-bright.r);
                 report.checks.Add(new Check { name = "nonconstant-ramp-positive-control", expected = bright,
                     actual = dark, maximumDifference = response, accepted = response > 0.05f });
+                VerifyStraightAlpha(report);
                 VerifyHeadReflection(report);
                 VerifyDynamicPresentation(report);
                 VerifySkinSaturation(report);
@@ -126,6 +127,78 @@ namespace GakumasPhotoMode
         }
 
         private T Own<T>(T value) where T : UnityEngine.Object { _owned.Add(value); return value; }
+
+        private void VerifyStraightAlpha(Report report)
+        {
+            Material saved = _material;
+            Color savedBackground = _camera.backgroundColor;
+            float savedDebug = Shader.GetGlobalFloat("_FaceDebugMode");
+            try
+            {
+                _material = Own(new Material(saved));
+                _quadRenderer.sharedMaterial = _material;
+                // Exercise production output, not a debug return that forces alpha 1.
+                Shader.SetGlobalFloat("_FaceDebugMode", 0f);
+                _camera.backgroundColor = new Color(0.17f, 0.43f, 0.71f, 0.65f);
+                _quadRenderer.enabled = false;
+                Color background = Render("straight-alpha-background");
+                _quadRenderer.enabled = true;
+                _material.SetFloat("_ZWrite", 0f);
+                _material.SetFloat("_Cutoff", 0f);
+                _material.SetFloat("_UseEmission", 1f);
+                _material.SetTexture("_EmissionMap", Texture2D.whiteTexture);
+                _material.SetColor("_EmissionColor", new Color(0.6f, 0.7f, 0.8f, 1f));
+                var texture = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+                _material.SetTexture("_MainTex", texture);
+                // Texture alpha and material alpha are independent inputs. Include
+                // zero, fractional, opaque and the authored 240/255 overlay opacity.
+                Vector2[] inputs = { new Vector2(0f, 1f), new Vector2(0.25f, 1f),
+                    new Vector2(0.5f, 0.5f), new Vector2(1f, 240f/255f),
+                    new Vector2(1f, 1f), new Vector2(1f, 0f) };
+                foreach (int type in new[] { 0, 8 })
+                for (int i = 0; i < inputs.Length; i++)
+                {
+                    string prefix = "straight-alpha-type-" + type + "-input-" + i;
+                    _material.SetFloat("_ShaderType", type);
+                    texture.SetPixel(0, 0, new Color(0.8f, 0.5f, 0.3f, inputs[i].x));
+                    texture.Apply();
+                    _material.SetColor("_Color", new Color(1f, 1f, 1f, inputs[i].y));
+                    _material.SetFloat("_SrcBlend", 1f);
+                    _material.SetFloat("_DstBlend", 0f);
+                    _material.SetFloat("_SrcAlphaBlend", 1f);
+                    _material.SetFloat("_DstAlphaBlend", 0f);
+                    Color source = Render(prefix + "-opaque");
+                    AddColorCheck(report, prefix + "-opaque-alpha", new Color(source.r, source.g, source.b, 1f), source);
+                    report.checks.Add(new Check { name = prefix + "-nonblack-source",
+                        actual = source, accepted = source.r > 0.1f && source.g > 0.1f && source.b > 0.1f });
+                    float alpha = inputs[i].x * inputs[i].y;
+                    _material.SetFloat("_SrcBlend", 5f);
+                    _material.SetFloat("_DstBlend", 10f);
+                    _material.SetFloat("_SrcAlphaBlend", 0f);
+                    _material.SetFloat("_DstAlphaBlend", 10f);
+                    Color expected = source * alpha + background * (1f - alpha);
+                    expected.a = background.a * (1f - alpha);
+                    AddColorCheck(report, prefix + "-destination-alpha", expected, Render(prefix + "-destination-alpha"));
+                    _material.SetFloat("_SrcAlphaBlend", 1f);
+                    _material.SetFloat("_DstAlphaBlend", 0f);
+                    expected.a = alpha;
+                    AddColorCheck(report, prefix + "-source-alpha", expected, Render(prefix + "-source-alpha"));
+                    // SrcAlpha additive uses the same unpremultiplied source.
+                    _material.SetFloat("_DstBlend", 1f);
+                    expected = source * alpha + background;
+                    expected.a = alpha;
+                    AddColorCheck(report, prefix + "-additive", expected, Render(prefix + "-additive"));
+                }
+            }
+            finally
+            {
+                _material = saved;
+                _quadRenderer.sharedMaterial = saved;
+                _quadRenderer.enabled = true;
+                _camera.backgroundColor = savedBackground;
+                Shader.SetGlobalFloat("_FaceDebugMode", savedDebug);
+            }
+        }
 
         private static object DynamicField(object node, string name)
         {

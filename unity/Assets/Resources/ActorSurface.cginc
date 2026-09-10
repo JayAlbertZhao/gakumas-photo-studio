@@ -1147,10 +1147,12 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     // this distinction from the copied material blend contract.
     bool premultipliedActor = isEye || (isHair &&
         abs(_SrcBlend - 1.0) < 0.25 && abs(_DstBlend - 10.0) < 0.25);
-    // Every opaque active variant writes o1.a=1. Transparent eye/hair
-    // variants write Base.a * materialColor.a, already represented by
-    // baseSample.a after _Color multiplication.
-    float outputAlpha = premultipliedActor ? baseSample.a : 1.0;
+    // SrcAlpha materials also need texture * material opacity. Leave their
+    // RGB unscaled: the blend unit applies alpha once (including additive
+    // SrcAlpha/One). Opaque variants still write 1; eye/hair keep their
+    // separate premultiplied contract below.
+    bool straightAlphaActor = abs(_SrcBlend - 5.0) < 0.25;
+    float outputAlpha = (premultipliedActor || straightAlphaActor) ? baseSample.a : 1.0;
     #if defined(ACTOR_HAIR_COVER)
     clip(isHair ? 1.0 : -1.0);
     // Hair Base.a is an authored view-fade mask, not opacity. Unmarked
