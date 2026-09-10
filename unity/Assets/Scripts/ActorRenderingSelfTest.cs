@@ -102,6 +102,7 @@ namespace GakumasPhotoMode
                 VerifyReflectionSphere(report);
                 VerifyEyebrowHighlight(report);
                 VerifyLayerControl(report);
+                VerifyRimControl(report);
                 VerifyMaterialSequence(report);
                 VerifyRampAddSpecular(report);
                 VerifyAmbientMaterialResponse(report);
@@ -1615,6 +1616,140 @@ namespace GakumasPhotoMode
                 }
             }
             finally { _material.CopyPropertiesFromMaterial(saved);Shader.SetGlobalFloat("_CapturedType4DebugStage",stage); }
+        }
+
+        private void VerifyRimControl(Report report)
+        {
+            string[] vectors = { "_ActorMatcapParameters", "_ActorLightingScales", "_CapturedLightDirection",
+                "_CapturedLightColor", "_CapturedShadeTint", "_CapturedShadeAdditive", "_ActorRimColor",
+                "_CapturedRimViewDirection", "_CapturedRimDirection", "_CapturedRimParameters" };
+            Vector4[] saved = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            float savedBasis = Shader.GetGlobalFloat("_UseExactViewRimBasis");
+            float savedDebug = Shader.GetGlobalFloat("_FaceDebugMode");
+            float savedDiffuse = Shader.GetGlobalFloat("_CapturedDiffuseBlend");
+            float savedSaturation = Shader.GetGlobalFloat("_CapturedSkinSaturation");
+            var material = Own(new Material(_material));
+            Color32[] savedColors = _quad.colors32;
+            Quaternion savedRotation = _quadRenderer.transform.rotation;
+            Vector3 cameraPosition = _camera.transform.position;
+            Quaternion cameraRotation = _camera.transform.rotation;
+            var owner = Own(new GameObject("Generated rim controls camera"));
+            var camera = owner.AddComponent<Camera>(); camera.enabled = false;
+            var controls = owner.AddComponent<ActorRenderControls>(); controls.enabled = false;
+            MethodInfo apply = typeof(ActorRenderControls).GetMethod("ApplyOverride", BindingFlags.Instance | BindingFlags.NonPublic);
+            Action update = () => apply.Invoke(controls, null);
+            Action<string, bool> check = (name, accepted) => report.checks.Add(new Check { name = "rim-control-" + name, accepted = accepted });
+            Vector4[] initial = new Vector4[vectors.Length];
+            for (int i = 0; i < initial.Length; i++)
+            {
+                initial[i] = new Vector4(0.1f + i * 0.03f, 0.2f, 0.3f, 0.4f);
+                Shader.SetGlobalVector(vectors[i], initial[i]);
+            }
+            Shader.SetGlobalFloat("_UseExactViewRimBasis", 0f);
+            Func<int, Vector4> current = i => Shader.GetGlobalVector(vectors[i]);
+            try
+            {
+                update();
+                check("default-untouched", Array.TrueForAll(Array.ConvertAll(vectors, Shader.GetGlobalVector),
+                    value => Array.IndexOf(initial, value) >= 0) && Shader.GetGlobalFloat("_UseExactViewRimBasis") == 0f);
+                controls.overrideRim = true; controls.rimAngle = new Vector2(65f, 25f);
+                controls.rimPower = 8f; controls.rimBaseColorRatio = 0.4f;
+                controls.rimColor = new Color(0.2f, 0.6f, 0.9f); controls.rimIntensity = 2f;
+                update();
+                check("keeps-main-light", current(0).Equals(initial[0]) && current(2).Equals(initial[2]) && current(3).Equals(initial[3]));
+                check("color-intensity", current(6).Equals(new Vector4(0.4f, 1.2f, 1.8f, 1f)));
+                check("power-tint-view-basis", current(9).y == 0.4f && current(9).z == 8f && Shader.GetGlobalFloat("_UseExactViewRimBasis") == 1f);
+                Vector4 firstView = current(7);
+                camera.transform.rotation = Quaternion.Euler(18f, 73f, -31f); update();
+                Vector3 expectedView = new Vector3(Mathf.Sin(65f * Mathf.Deg2Rad) * Mathf.Cos(25f * Mathf.Deg2Rad),
+                    -Mathf.Sin(25f * Mathf.Deg2Rad), Mathf.Cos(65f * Mathf.Deg2Rad) * Mathf.Cos(25f * Mathf.Deg2Rad));
+                check("view-direction-roll-independent", firstView.Equals(current(7)) && ((Vector3)current(7) - expectedView).magnitude < 1e-6f);
+                check("world-direction-matches-view-matrix", (camera.worldToCameraMatrix.MultiplyVector(current(8)) - expectedView).magnitude < 1e-6f);
+                Vector4 later = current(9); later.y += 0.000001f;
+                Shader.SetGlobalVector(vectors[9], later); update();
+                controls.overrideRim = false; update();
+                check("small-script-write-restored", current(9).Equals(later));
+                check("original-color-direction-basis-restored", current(6).Equals(initial[6]) && current(7).Equals(initial[7]) &&
+                    current(8).Equals(initial[8]) && Shader.GetGlobalFloat("_UseExactViewRimBasis") == 0f);
+                controls.overrideRim = true; update();
+                Vector4 late = current(7); late.x += 0.000001f;
+                Shader.SetGlobalVector(vectors[7], late); Shader.SetGlobalFloat("_UseExactViewRimBasis", 0.25f);
+                controls.overrideRim = false; update();
+                check("late-writer-preserved", current(7).Equals(late) && Shader.GetGlobalFloat("_UseExactViewRimBasis") == 0.25f);
+                controls.overrideLighting = true; controls.overrideRim = true; update();
+                controls.overrideRim = false; update();
+                check("lighting-retains-shared-color", current(6).Equals((Vector4)controls.rimColor));
+                controls.overrideRim = true; update(); controls.overrideLighting = false; update();
+                check("rim-retains-shared-color", current(6).Equals(new Vector4(0.4f, 1.2f, 1.8f, 1f)) && current(0).Equals(initial[0]));
+                controls.overrideRim = false; update();
+                check("both-released-color-restored", current(6).Equals(initial[6]));
+                controls.overrideLighting = true; update();
+                Vector4 smallLight = current(3); smallLight.x += 0.000001f;
+                Shader.SetGlobalVector(vectors[3], smallLight); update(); controls.overrideLighting = false; update();
+                check("small-main-light-write-restored", current(3).Equals(smallLight));
+                controls.overrideRim = true; controls.rimAngle = new Vector2(float.NaN, float.PositiveInfinity);
+                controls.rimPower = -1f; controls.rimBaseColorRatio = 3f; controls.rimIntensity = float.NaN; update();
+                check("invalid-inputs-finite-clamped", current(7).Equals(new Vector4(0, 0, 1, 0)) && current(9).y == 1f &&
+                    current(9).z == 0.01f && current(6).Equals(new Vector4(0, 0, 0, 1)));
+                controls.enabled = true; controls.enabled = false;
+                check("disable-releases", current(6).Equals(initial[6]) && current(7).Equals(late) &&
+                    Shader.GetGlobalFloat("_UseExactViewRimBasis") == 0.25f);
+
+                // Generated constant maps and analytic plane normal: actual actor
+                // rim output, not merely a check that shader globals were set.
+                Color baseColor = new Color(0.2f, 0.45f, 0.7f, 1f);
+                var map = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+                map.SetPixel(0, 0, baseColor); map.Apply();
+                var ramp = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+                ramp.SetPixel(0, 0, new Color(1, 1, 1, 0)); ramp.Apply();
+                _material.SetTexture("_MainTex", map); _material.SetTexture("_RampTex", ramp);
+                _material.SetTexture("_ShadeTex", Texture2D.blackTexture);
+                _material.SetTexture("_RampAddTex", Texture2D.blackTexture);
+                _material.SetFloat("_DisableDefMap", 1f); _material.SetVector("_DefValue", new Vector4(1, 0, 0, 0));
+                _material.SetFloat("_EnableLayer", 0f); _material.SetFloat("_UseBump", 0f);
+                _material.SetColor("_Color", Color.white); _material.SetVector("_SpecularThreshold", new Vector4(10, 10, 10, 10));
+                Shader.SetGlobalFloat("_FaceDebugMode", 22f); Shader.SetGlobalFloat("_CapturedDiffuseBlend", 1f);
+                Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
+                controls.rimColor = new Color(0.3f, 0.7f, 1.2f); controls.rimIntensity = 1.5f;
+                controls.rimAngle = new Vector2(65f, 20f);
+                for (int pose = 0; pose < 2; pose++)
+                {
+                    Quaternion rotation = pose == 0 ? Quaternion.identity : Quaternion.Euler(27, 68, -23);
+                    _camera.transform.SetPositionAndRotation(rotation * cameraPosition, rotation);
+                    _quadRenderer.transform.rotation = rotation;
+                    camera.transform.rotation = rotation;
+                    foreach (float power in new[] { 2f, 8f }) foreach (float tint in new[] { 0f, 0.6f, 1f })
+                    {
+                        controls.rimPower = power; controls.rimBaseColorRatio = tint; update();
+                        float factor = Mathf.Pow(1f - Mathf.Cos(65f * Mathf.Deg2Rad) * Mathf.Cos(20f * Mathf.Deg2Rad), power);
+                        foreach (int mask in new[] { 0, 8, 15 })
+                        {
+                            Color32 packed = new Color32(0, 0, 0, (byte)(mask * 16 + 3));
+                            _quad.colors32 = new[] { packed, packed, packed, packed };
+                            foreach (int type in new[] { 0, 8, 9 })
+                            {
+                                _material.SetFloat("_ShaderType", type);
+                                Color expected = Color.Lerp(Color.white, baseColor, tint) * controls.rimColor *
+                                    (controls.rimIntensity * factor * mask / 15f); expected.a = 1f;
+                                string name = "rim-control-gpu-" + pose + "-" + power + "-" + tint + "-" + mask + "-" + type;
+                                AddColorCheck(report, name, expected, Render(name));
+                            }
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                controls.overrideLighting = false; controls.overrideRim = false; update();
+                _material.CopyPropertiesFromMaterial(material); _quad.colors32 = savedColors;
+                _quadRenderer.transform.rotation = savedRotation;
+                _camera.transform.SetPositionAndRotation(cameraPosition, cameraRotation);
+                for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], saved[i]);
+                Shader.SetGlobalFloat("_UseExactViewRimBasis", savedBasis);
+                Shader.SetGlobalFloat("_FaceDebugMode", savedDebug);
+                Shader.SetGlobalFloat("_CapturedDiffuseBlend", savedDiffuse);
+                Shader.SetGlobalFloat("_CapturedSkinSaturation", savedSaturation);
+            }
         }
 
         private void VerifyLayerControl(Report report)

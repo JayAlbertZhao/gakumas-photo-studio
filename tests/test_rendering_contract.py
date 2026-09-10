@@ -7,6 +7,24 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_rim_controls_are_independent_reversible_and_reach_shader(self):
+        controls = (ROOT / 'unity/Assets/Scripts/ActorRenderControls.cs').read_text(encoding='utf-8')
+        for contract in ('public bool overrideRim;', 'ApplyRimOverride();',
+                         '"Override view-space rim only"', '"Rim power (narrowness)"',
+                         '"Rim surface tint"', '"Rim intensity"',
+                         '_camera.cameraToWorldMatrix.MultiplyVector(view)',
+                         'Shader.SetGlobalFloat("_UseExactViewRimBasis", 1f)',
+                         '!current.Equals(_appliedGlobals[index])',
+                         'Shader.GetGlobalVector(OverrideGlobals[index]).Equals(_appliedGlobals[index])',
+                         'RestoreRimBasis();'):
+            self.assertIn(contract, controls)
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        for contract in ('VerifyRimControl(report);', '"small-script-write-restored"',
+                         '"late-writer-preserved"', '"lighting-retains-shared-color"',
+                         '"rim-retains-shared-color"', '"small-main-light-write-restored"',
+                         '"view-direction-roll-independent"', '"rim-control-gpu-"'):
+            self.assertIn(contract, fixture)
+
     def test_view_profile_uses_authored_shape_and_head_relative_camera(self):
         source = (ROOT / 'unity/Assets/Scripts/FaceExpressionRenderer.cs').read_text(encoding='utf-8')
         profile = source.split('private void ResolveViewProfileCorrection()', 1)[1].split('public string DiagnosticJson()', 1)[0]

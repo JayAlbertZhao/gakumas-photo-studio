@@ -30,6 +30,12 @@ namespace GakumasPhotoMode
         [ColorUsage(false, true)] public Color shadeColor = Color.white;
         [ColorUsage(false, true)] public Color shadeAdditive = Color.black;
         [ColorUsage(false, true)] public Color rimColor = new Color(0.7f, 0.7f, 0.7f);
+        [Tooltip("Override only the view-space rim; main light and story shading remain independent.")]
+        public bool overrideRim;
+        public Vector2 rimAngle = new Vector2(10f, 5f);
+        [Range(0.01f, 128f)] public float rimPower = 32f;
+        [Range(0f, 1f)] public float rimBaseColorRatio = 0.85f;
+        [Range(0f, 4f)] public float rimIntensity = 1f;
         public bool showPanel;
         public int OutlineDrawCount { get; private set; }
         public int HairCoverDrawCount { get; private set; }
@@ -54,11 +60,14 @@ namespace GakumasPhotoMode
         private readonly List<Light> _selected = new List<Light>();
         private static readonly string[] OverrideGlobals = {
             "_ActorMatcapParameters", "_ActorLightingScales", "_CapturedLightDirection",
-            "_CapturedLightColor", "_CapturedShadeTint", "_CapturedShadeAdditive", "_ActorRimColor"
+            "_CapturedLightColor", "_CapturedShadeTint", "_CapturedShadeAdditive", "_ActorRimColor",
+            "_CapturedRimViewDirection", "_CapturedRimDirection", "_CapturedRimParameters"
         };
         private readonly Vector4[] _savedGlobals = new Vector4[OverrideGlobals.Length];
         private readonly Vector4[] _appliedGlobals = new Vector4[OverrideGlobals.Length];
-        private bool _wasOverridden;
+        private readonly bool[] _overridden = new bool[OverrideGlobals.Length];
+        private bool _rimBasisOverridden;
+        private float _savedRimBasis;
         private readonly List<Material> _layerMaterials = new List<Material>();
         private struct LayerState { public float saved, applied; }
         private readonly Dictionary<Material, LayerState> _layerOverrides = new Dictionary<Material, LayerState>();
@@ -223,36 +232,98 @@ namespace GakumasPhotoMode
 
         private void ApplyOverride()
         {
-            if (!overrideLighting) { RestoreOverride(); return; }
-            for (int i = 0; i < OverrideGlobals.Length; i++)
+            if (!overrideLighting)
             {
-                Vector4 current = Shader.GetGlobalVector(OverrideGlobals[i]);
-                if (!_wasOverridden || current != _appliedGlobals[i]) _savedGlobals[i] = current;
+                for (int i = 0; i < 6; i++) ReleaseVectorOverride(i);
             }
-            _wasOverridden = true;
-            Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(diffuseOffset, smoothnessScale, shadeStrength, 0f));
-            Shader.SetGlobalVector("_ActorLightingScales", new Vector4(giScale, additionalLightScale, additionalSpecularScale, 0f));
-            Quaternion rotation = worldSpaceLight
-                ? Quaternion.Euler(-lightAngle.x, lightAngle.y + 180f, 0f)
-                : Quaternion.AngleAxis(-transform.eulerAngles.z, Vector3.forward) *
-                    Quaternion.Euler(-lightAngle.y, lightAngle.x, 0f);
-            Vector3 direction = rotation * Vector3.forward;
-            Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(direction.x, direction.y, direction.z, worldSpaceLight ? 1f : 0f));
-            Shader.SetGlobalVector("_CapturedLightColor", lightColor);
-            Shader.SetGlobalVector("_CapturedShadeTint", shadeColor);
-            Shader.SetGlobalVector("_CapturedShadeAdditive", shadeAdditive);
-            Shader.SetGlobalVector("_ActorRimColor", rimColor);
-            for (int i = 0; i < OverrideGlobals.Length; i++)
-                _appliedGlobals[i] = Shader.GetGlobalVector(OverrideGlobals[i]);
+            else
+            {
+                ApplyVectorOverride(0, new Vector4(diffuseOffset, smoothnessScale, shadeStrength, 0f));
+                ApplyVectorOverride(1, new Vector4(giScale, additionalLightScale, additionalSpecularScale, 0f));
+                Quaternion rotation = worldSpaceLight
+                    ? Quaternion.Euler(-lightAngle.x, lightAngle.y + 180f, 0f)
+                    : Quaternion.AngleAxis(-transform.eulerAngles.z, Vector3.forward) *
+                        Quaternion.Euler(-lightAngle.y, lightAngle.x, 0f);
+                Vector3 direction = rotation * Vector3.forward;
+                ApplyVectorOverride(2, new Vector4(direction.x, direction.y, direction.z, worldSpaceLight ? 1f : 0f));
+                ApplyVectorOverride(3, lightColor);
+                ApplyVectorOverride(4, shadeColor);
+                ApplyVectorOverride(5, shadeAdditive);
+            }
+            // A single owner for the shared colour avoids restoring one override
+            // on top of the other when only one of the two controls is released.
+            if (!overrideRim)
+            {
+                if (overrideLighting) ApplyVectorOverride(6, rimColor);
+                else ReleaseVectorOverride(6);
+            }
+            ApplyRimOverride();
+        }
+
+        private void ApplyVectorOverride(int index, Vector4 value)
+        {
+            Vector4 current = Shader.GetGlobalVector(OverrideGlobals[index]);
+            // Vector4 operators have an epsilon; ownership must preserve even
+            // a small animation/script write, not mistake it for our own value.
+            if (!_overridden[index] || !current.Equals(_appliedGlobals[index])) _savedGlobals[index] = current;
+            Shader.SetGlobalVector(OverrideGlobals[index], value);
+            _appliedGlobals[index] = value;
+            _overridden[index] = true;
+        }
+
+        private void ReleaseVectorOverride(int index)
+        {
+            if (!_overridden[index]) return;
+            if (Shader.GetGlobalVector(OverrideGlobals[index]).Equals(_appliedGlobals[index]))
+                Shader.SetGlobalVector(OverrideGlobals[index], _savedGlobals[index]);
+            _overridden[index] = false;
+        }
+
+        private static float FiniteOr(float value, float fallback)
+        {
+            return float.IsNaN(value) || float.IsInfinity(value) ? fallback : value;
+        }
+
+        private void ApplyRimOverride()
+        {
+            if (!overrideRim)
+            {
+                for (int i = 7; i < OverrideGlobals.Length; i++) ReleaseVectorOverride(i);
+                RestoreRimBasis();
+                return;
+            }
+            Vector3 view = Quaternion.Euler(
+                Mathf.Clamp(FiniteOr(rimAngle.y, 0f), -90f, 90f),
+                Mathf.Clamp(FiniteOr(rimAngle.x, 0f), -180f, 180f), 0f) * Vector3.forward;
+            Vector3 world = _camera.cameraToWorldMatrix.MultiplyVector(view).normalized;
+            float intensity = Mathf.Clamp(FiniteOr(rimIntensity, 0f), 0f, 4f);
+            Vector4 color = new Vector4(Mathf.Max(0f, FiniteOr(rimColor.r, 0f)),
+                Mathf.Max(0f, FiniteOr(rimColor.g, 0f)), Mathf.Max(0f, FiniteOr(rimColor.b, 0f)), 1f);
+            color.x *= intensity; color.y *= intensity; color.z *= intensity;
+            ApplyVectorOverride(6, color);
+            ApplyVectorOverride(7, new Vector4(view.x, view.y, view.z, 0f));
+            ApplyVectorOverride(8, new Vector4(world.x, world.y, world.z, 0f));
+            ApplyVectorOverride(9, new Vector4((color.x + color.y + color.z) / 3f,
+                Mathf.Clamp01(FiniteOr(rimBaseColorRatio, 0f)),
+                Mathf.Clamp(FiniteOr(rimPower, 32f), 0.01f, 128f), 1f));
+            float current = Shader.GetGlobalFloat("_UseExactViewRimBasis");
+            if (!_rimBasisOverridden || current != 1f) _savedRimBasis = current;
+            Shader.SetGlobalFloat("_UseExactViewRimBasis", 1f);
+            _rimBasisOverridden = true;
+        }
+
+        private void RestoreRimBasis()
+        {
+            if (!_rimBasisOverridden) return;
+            if (Shader.GetGlobalFloat("_UseExactViewRimBasis") == 1f)
+                Shader.SetGlobalFloat("_UseExactViewRimBasis", _savedRimBasis);
+            _rimBasisOverridden = false;
         }
 
         private void RestoreOverride()
         {
-            if (!_wasOverridden) return;
-            for (int i = 0; i < OverrideGlobals.Length; i++)
-                if (Shader.GetGlobalVector(OverrideGlobals[i]) == _appliedGlobals[i])
-                    Shader.SetGlobalVector(OverrideGlobals[i], _savedGlobals[i]);
-            _wasOverridden = false;
+            for (int i = 0; i < OverrideGlobals.Length; i++) ReleaseVectorOverride(i);
+            RestoreRimBasis();
         }
 
         private void ApplyLayerOverride()
@@ -323,6 +394,17 @@ namespace GakumasPhotoMode
             smoothnessScale = Slider("Smoothness", smoothnessScale, 0f, 2f);
             giScale = Slider("Ambient", giScale, 0f, 2f);
             additionalLightScale = Slider("Additional lights", additionalLightScale, 0f, 3f);
+            GUI.enabled = true;
+            overrideRim = GUILayout.Toggle(overrideRim, "Override view-space rim only");
+            GUI.enabled = overrideRim;
+            rimAngle.x = Slider("Rim yaw", rimAngle.x, -180f, 180f);
+            rimAngle.y = Slider("Rim pitch", rimAngle.y, -90f, 90f);
+            rimPower = Slider("Rim power (narrowness)", rimPower, 0.01f, 128f);
+            rimBaseColorRatio = Slider("Rim surface tint", rimBaseColorRatio, 0f, 1f);
+            rimIntensity = Slider("Rim intensity", rimIntensity, 0f, 4f);
+            rimColor.r = Slider("Rim red", rimColor.r, 0f, 2f);
+            rimColor.g = Slider("Rim green", rimColor.g, 0f, 2f);
+            rimColor.b = Slider("Rim blue", rimColor.b, 0f, 2f);
             GUI.enabled = true;
             if (GUILayout.Button("Toggle two test lights")) ToggleTestLights();
             GUILayout.Label(string.Format("Outline {0} / Hair {1} / Lights {2}", OutlineDrawCount, HairCoverDrawCount, AdditionalLightCount));
