@@ -7,6 +7,26 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_optional_sphere_reflection_is_bound_and_composited(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('if (_UseReflection > 0.5)', surface)
+        self.assertIn('SphereReflection(n, v) * specularVisibility * capturedSpecularModulation', surface)
+        sphere = surface.split('float3 SphereReflection(', 1)[1].split('float AnisotropicHighlight(', 1)[0]
+        self.assertNotIn('reflect(', sphere)
+        self.assertIn('unity_OrthoParams.w', sphere)
+        self.assertIn('_ReflectionSphereMap_HDR', sphere)
+        self.assertIn('UNITY_DECLARE_TEX2DARRAY_NOSAMPLER(_ActorEyeEnvironmentArray)', surface)
+        self.assertIn('_ActorEyeEnvironmentArray, _ActorEnvironmentArray, float3(uv, face), mip', surface)
+        repair = (ROOT / 'unity/Assets/Scripts/MaterialRepairer.cs').read_text(encoding='utf-8')
+        self.assertIn('hasReflection && reflectionEnabled', repair)
+        self.assertIn('source.IsKeywordEnabled("_USE_REFLECTION_SPHERE")', repair)
+        for name in ('PhotoModeFallback.shader', 'ActorSupplemental.shader'):
+            self.assertIn('_ReflectionSphereMap_HDR (', (ROOT / 'unity/Assets/Resources' / name).read_text(encoding='utf-8'))
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifyReflectionSphere(report);', fixture)
+        self.assertIn('reflection-sphere-import-disabled', fixture)
+        self.assertIn('reflection-sphere-no-strand-brdf', fixture)
+
     def test_dynamic_presentation_attaches_whole_chain_without_changing_solver_cache(self):
         source = (ROOT / 'unity/Assets/Scripts/HairDynamicsSystem.cs').read_text(encoding='utf-8')
         present = source.split('private void ApplyRuntimePose()', 1)[1].split('private void ApplySegmentRotation(', 1)[0]

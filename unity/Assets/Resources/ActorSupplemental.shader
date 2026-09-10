@@ -19,6 +19,7 @@ Shader "Hidden/PhotoStudio/ActorSupplemental"
         _BumpMap ("Normal", 2D) = "bump" {}
         _AnisotropicMap ("Anisotropic", 2D) = "black" {}
         _ReflectionSphereMap ("Reflection Sphere", 2D) = "black" {}
+        _ReflectionSphereMap_HDR ("Reflection Sphere Decode (scale, exponent, unused, alpha weight)", Vector) = (1,1,0,0)
         _EmissionMap ("Emission", 2D) = "black" {}
         [HideInInspector] _FaceDecalAtlas ("Original Face Decal Atlas", 2D) = "white" {}
 

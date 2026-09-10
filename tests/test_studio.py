@@ -137,6 +137,34 @@ class StudioOnboardingTests(unittest.TestCase):
                     self.assertEqual(studio.main(['build'], Path(temporary)), 2)
                 run.assert_not_called()
 
+    def test_build_rejects_compile_errors_even_with_success_marker(self):
+        success = '[PhotoMode] Build succeeded: synthetic fixture\n'
+        cases = [
+            (0, success, 0),
+            (0, success + 'Shader warning: synthetic warning\n', 0),
+            (0, success + '[Licensing::Client] Error: synthetic non-compiler message\n', 0),
+            (0, success + "Shader error in 'Fixture': maximum ps_5_0 sampler register index (16) exceeded\n", 2),
+            (0, 'Fixture.cs(1,1): error CS1002: ; expected\n' + success, 2),
+            (0, 'No success marker\n', 2),
+            (1, success, 2),
+            (0, None, 2),
+        ]
+        for exit_code, contents, expected in cases:
+            with self.subTest(exit_code=exit_code, contents=contents), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                (root / 'unity').mkdir()
+                editor = root / 'Editor.exe'
+                editor.write_bytes(b'Synthetic fixture, never executed')
+
+                def complete(command, **kwargs):
+                    if contents is not None:
+                        Path(command[command.index('-logFile') + 1]).write_text(contents, encoding='utf-8')
+                    return studio.subprocess.CompletedProcess(command, exit_code)
+
+                with patch.object(studio, 'check_baseline'), patch.object(studio.subprocess, 'run', side_effect=complete):
+                    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                        self.assertEqual(studio.main(['build', '--editor', str(editor)], root), expected)
+
 
 if __name__ == '__main__':
     unittest.main()

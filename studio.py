@@ -240,8 +240,13 @@ def main(argv=None, root: Path = ROOT) -> int:
                 startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 startup.wShowWindow = 0
             result = subprocess.run(command, cwd=root, timeout=args.timeout, startupinfo=startup)
-            if result.returncode != 0 or not log.is_file() or '[PhotoMode] Build succeeded:' not in log.read_text(encoding='utf-8-sig', errors='replace'):
+            build_log = log.read_text(encoding='utf-8-sig', errors='replace') if log.is_file() else ''
+            if result.returncode != 0 or '[PhotoMode] Build succeeded:' not in build_log:
                 raise ValueError(f'Editor did not report a successful build. Inspect {log}')
+            # Unity can still report success after discarding a failed shader
+            # variant. A working default frame does not validate those variants.
+            if re.search(r'^\s*Shader error\b|\berror CS\d+\b', build_log, re.MULTILINE):
+                raise ValueError(f'Build contains shader or script compilation errors. Inspect {log}')
             check_baseline(root)
             print('Built unity/output/KotonePhotoStudio.exe. Local builds may embed private Resources; do not upload them.')
             return 0

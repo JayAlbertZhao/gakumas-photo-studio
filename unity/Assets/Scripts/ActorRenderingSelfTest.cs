@@ -97,6 +97,7 @@ namespace GakumasPhotoMode
                 VerifyHairSpecularRegions(report);
                 VerifyHairHighlightBasis(report);
                 VerifyMainSpecularBasis(report);
+                VerifyReflectionSphere(report);
                 VerifyRampAddSpecular(report);
                 VerifyAmbientMaterialResponse(report);
                 VerifyAdditionalLighting(report);
@@ -1375,6 +1376,123 @@ namespace GakumasPhotoMode
                 for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
                 for (int i = 0; i < arrays.Length; i++) Shader.SetGlobalVectorArray(arrays[i],
                     savedArrays[i] != null && savedArrays[i].Length > 0 ? savedArrays[i] : new Vector4[8]);
+            }
+        }
+
+        private void VerifyReflectionSphere(Report report)
+        {
+            var savedMaterial = Own(new Material(_material));
+            Vector3[] savedNormals = _quad.normals;
+            Vector2[] savedUv = _quad.uv;
+            Vector3 savedPosition = _camera.transform.position;
+            Quaternion savedRotation = _camera.transform.rotation;
+            bool savedOrthographic = _camera.orthographic;
+            string[] floats = { "_FaceDebugMode", "_ActorEnvironmentIntensity", "_UseCapturedActorShadow", "_UseCapturedDirectSpecular" };
+            float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
+            string[] vectors = { "_CapturedLightDirection", "_CapturedCameraUp", "_ActorMatcapParameters" };
+            Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            var map = Own(new Texture2D(16, 16, TextureFormat.RGBAFloat, false, true));
+            map.filterMode = FilterMode.Point;
+            map.wrapMode = TextureWrapMode.Clamp;
+            for (int y = 0; y < 16; y++)
+                for (int x = 0; x < 16; x++)
+                    map.SetPixel(x, y, new Color(0.1f+x*0.03f, 0.15f+y*0.02f, 0.2f+(x+y)*0.01f, 0.25f));
+            map.Apply();
+            try
+            {
+                _material.SetTexture("_ReflectionSphereMap", map);
+                _material.SetTexture("_RampAddTex", Texture2D.blackTexture);
+                _material.SetFloat("_DisableDefMap", 1f);
+                _material.SetFloat("_UseBump", 0f);
+                _material.SetFloat("_EnableLayer", 0f);
+                _material.SetVector("_DefValue", new Vector4(0.5f, 0.3f, 0.4f, 0.6f));
+                Shader.SetGlobalFloat("_FaceDebugMode", 20f);
+                Shader.SetGlobalFloat("_ActorEnvironmentIntensity", 0f);
+                Shader.SetGlobalFloat("_UseCapturedActorShadow", 0f);
+                Shader.SetGlobalFloat("_UseCapturedDirectSpecular", 1f);
+                Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(0,0,-1,0));
+                Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0,1,1,0));
+                Vector4[] decodes = { new Vector4(1,1,0,0), new Vector4(2,2,0,1), new Vector4(1.5f,2,0,0.5f) };
+                Vector3[] normals = { new Vector3(0.35f,0.2f,-1).normalized, new Vector3(-0.4f,-0.3f,-1).normalized };
+                for (int cameraCase = 0; cameraCase < 2; cameraCase++)
+                {
+                    _camera.orthographic = cameraCase == 0;
+                    _camera.transform.SetPositionAndRotation(new Vector3(0,0,-3), cameraCase == 0
+                        ? Quaternion.identity : Quaternion.Euler(5,-7,19));
+                    Shader.SetGlobalVector("_CapturedCameraUp", _camera.transform.up);
+                    // Compute the point on the actual quad plane, independently
+                    // of the shader's camera-facing projection.
+                    Ray ray = _camera.ViewportPointToRay(new Vector3(32.5f/64f,32.5f/64f,0));
+                    Vector3 point = ray.origin-ray.direction*(ray.origin.z/ray.direction.z);
+                    Vector3 view = _camera.orthographic ? -_camera.transform.forward : (_camera.transform.position-point).normalized;
+                    Vector3 horizontal = Vector3.Cross(view, _camera.transform.up).normalized;
+                    Vector3 vertical = Vector3.Cross(horizontal, view).normalized;
+                    for (int normalCase = 0; normalCase < normals.Length; normalCase++)
+                    {
+                        Vector3 n = normals[normalCase];
+                        _quad.normals = new[] { n,n,n,n };
+                        float u = 0.5f+0.5f*Vector3.Dot(horizontal,n);
+                        float v = 0.5f+0.5f*Vector3.Dot(vertical,n);
+                        Color texel = map.GetPixel(Mathf.Clamp((int)(u*16),0,15),Mathf.Clamp((int)(v*16),0,15));
+                        for (int decode = 0; decode < decodes.Length; decode++)
+                        {
+                            Vector4 hdr = decodes[decode];
+                            _material.SetVector("_ReflectionSphereMap_HDR", hdr);
+                            foreach (int type in new[] { 0, 4, 8 })
+                            {
+                                _material.SetFloat("_ShaderType", type);
+                                Vector2 uv = new Vector2(0.85f,0.85f);
+                                _quad.uv = new[] { uv,uv,uv,uv };
+                                _material.SetFloat("_UseReflection", 0f);
+                                string name = "reflection-sphere-"+cameraCase+"-"+normalCase+"-"+decode+"-type-"+type;
+                                Color baseline = Render(name+"-off");
+                                _material.SetFloat("_UseReflection", 1f);
+                                Color expected = texel * (hdr.x*Mathf.Pow(Mathf.Max(1f+(texel.a-1f)*hdr.w,0f),hdr.y)*0.6f);
+                                expected.a = 0f;
+                                AddColorCheck(report, name, baseline+expected, Render(name));
+                                _material.SetFloat("_UseReflection", 0f);
+                                AddColorCheck(report, name+"-restored", baseline, Render(name+"-restored"));
+                            }
+                        }
+                    }
+                }
+                _material.SetFloat("_UseReflection", 1f);
+                _material.SetFloat("_ShaderType", 0f);
+                _material.SetVector("_DefValue", new Vector4(0.5f,0.3f,0.4f,0));
+                AddColorCheck(report, "reflection-sphere-zero-mask", Color.black, Render("reflection-sphere-zero-mask"));
+                _material.SetFloat("_ShaderType", 8f);
+                _material.SetVector("_DefValue", new Vector4(0.5f,0.3f,0.4f,1));
+                _quad.uv = new[] { Vector2.zero,Vector2.zero,Vector2.zero,Vector2.zero };
+                AddColorCheck(report, "reflection-sphere-no-strand-brdf", Color.black, Render("reflection-sphere-no-strand-brdf"));
+                var source = Own(new Material(_material));
+                var repaired = Own(new Material(_material.shader));
+                MethodInfo configure = typeof(MaterialRepairer).GetMethod("ConfigureFromSource", BindingFlags.Static|BindingFlags.NonPublic);
+                // Round-trip our declared material control. Enabling an absent
+                // source keyword is ignored by Unity and cannot test import.
+                source.SetFloat("_UseReflection", 0f);
+                configure.Invoke(null, new object[] { source,repaired });
+                report.checks.Add(new Check { name="reflection-sphere-import-disabled", accepted=repaired.GetFloat("_UseReflection")==0f });
+                source.SetFloat("_UseReflection", 1f);
+                source.SetVector("_ReflectionSphereMap_HDR", new Vector4(2,2,0,1));
+                configure.Invoke(null, new object[] { source,repaired });
+                report.checks.Add(new Check { name="reflection-sphere-import-enabled", accepted=repaired.GetFloat("_UseReflection")==1f &&
+                    repaired.GetTexture("_ReflectionSphereMap")==map && repaired.GetVector("_ReflectionSphereMap_HDR").Equals(new Vector4(2,2,0,1)) });
+                source.SetTexture("_ReflectionSphereMap",Texture2D.whiteTexture);
+                configure.Invoke(null,new object[]{source,repaired});
+                report.checks.Add(new Check{name="reflection-sphere-import-uniform",accepted=repaired.GetFloat("_UseReflection")==1f &&
+                    repaired.GetTexture("_ReflectionSphereMap")==Texture2D.whiteTexture});
+                source.SetTexture("_ReflectionSphereMap",null);
+                configure.Invoke(null,new object[]{source,repaired});
+                report.checks.Add(new Check{name="reflection-sphere-import-missing",accepted=repaired.GetFloat("_UseReflection")==0f});
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(savedMaterial);
+                _quad.normals=savedNormals; _quad.uv=savedUv;
+                _camera.orthographic=savedOrthographic;
+                _camera.transform.SetPositionAndRotation(savedPosition,savedRotation);
+                for (int i=0;i<floats.Length;i++) Shader.SetGlobalFloat(floats[i],savedFloats[i]);
+                for (int i=0;i<vectors.Length;i++) Shader.SetGlobalVector(vectors[i],savedVectors[i]);
             }
         }
 

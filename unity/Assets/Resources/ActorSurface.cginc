@@ -15,7 +15,10 @@ sampler2D _CapturedActorShadowTex;
 samplerCUBE _ActorEnvironmentCube;
 samplerCUBE _ActorEyeEnvironmentCube;
 UNITY_DECLARE_TEX2DARRAY(_ActorEnvironmentArray);
-UNITY_DECLARE_TEX2DARRAY(_ActorEyeEnvironmentArray);
+// Both captured arrays are built with bilinear/clamp sampling. Share that
+// state so the optional matcap plus ForwardBase screen shadows stay within
+// the D3D11 limit; the eye payload is only loaded with the actor environment.
+UNITY_DECLARE_TEX2DARRAY_NOSAMPLER(_ActorEyeEnvironmentArray);
 float4 _MainTex_ST;
 float4 _BaseMap_ST;
 float4 _Color, _ActorColor, _DefValue, _SpecularThreshold;
@@ -62,6 +65,7 @@ float _SrcBlend, _DstBlend;
 float _ActorEnvironmentIntensity;
 float _CapturedSkinSaturation;
 float4 _CapturedReflectionColor, _CapturedEyeReflectionColor;
+float4 _ReflectionSphereMap_HDR;
 float _CapturedEyeCubeTransformMode;
 float _CapturedActorCubeTransformMode;
 float _UseCapturedEyeEnvironmentArray;
@@ -161,8 +165,8 @@ float3 SampleCapturedEyeEnvironmentArray(float3 direction, float mip)
         }
     }
     float2 uv = faceCoordinate / max(majorAxis, 1e-6) * 0.5 + 0.5;
-    return UNITY_SAMPLE_TEX2DARRAY_LOD(
-        _ActorEyeEnvironmentArray, float3(uv, face), mip).rgb;
+    return UNITY_SAMPLE_TEX2DARRAY_SAMPLER_LOD(
+        _ActorEyeEnvironmentArray, _ActorEnvironmentArray, float3(uv, face), mip).rgb;
 }
 
 float3 SampleCapturedActorEnvironmentArray(float3 direction, float mip)
@@ -289,10 +293,17 @@ float3 ActorNormal(v2f input)
 
 float3 SphereReflection(float3 worldNormal, float3 viewDirection)
 {
-    float3 reflected = reflect(-viewDirection, worldNormal);
-    float3 viewReflected = mul((float3x3)UNITY_MATRIX_V, reflected);
-    float2 uv = viewReflected.xy * 0.5 + 0.5;
-    return tex2D(_ReflectionSphereMap, uv).rgb;
+    // A matcap projects the normal into a camera-facing frame; it does not
+    // sample the reflected cubemap direction. Orthographic rays are parallel.
+    float3 view = unity_OrthoParams.w > 0.5
+        ? normalize(UNITY_MATRIX_V[2].xyz) : viewDirection;
+    float3 horizontal = normalize(cross(view, UNITY_MATRIX_V[1].xyz));
+    float3 vertical = normalize(cross(horizontal, view));
+    float2 uv = float2(dot(worldNormal, horizontal), dot(worldNormal, vertical)) * 0.5 + 0.5;
+    float4 sample = tex2Dbias(_ReflectionSphereMap,
+        float4(uv, 0.0, _CapturedActorTextureLodBias + 1.0));
+    float encodedScale = max(1.0 + _ReflectionSphereMap_HDR.w * (sample.a - 1.0), 0.0);
+    return sample.rgb * (_ReflectionSphereMap_HDR.x * pow(encodedScale, _ReflectionSphereMap_HDR.y));
 }
 
 float AnisotropicHighlight(float3 tangent, float3 bitangent, float3 halfDirection, float3 anisotropic)
@@ -1002,6 +1013,11 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         _CapturedType1DebugStage < 15.5)
         return float4(capturedPremodSpecular, 1.0);
     float3 capturedSpecular = capturedPremodSpecular * capturedSpecularModulation;
+    // Optional painted reflection is added independently of BRDF/Fresnel,
+    // then shares material visibility and RampAdd tint with other reflections.
+    // Keep the disabled path unchanged, including its floating-point grouping.
+    [branch] if (_UseReflection > 0.5)
+        capturedSpecular += SphereReflection(n, v) * specularVisibility * capturedSpecularModulation;
     if (debugSelectedType1 && _CapturedType1DebugStage > 8.5 &&
         _CapturedType1DebugStage < 9.5)
         return float4(capturedSpecular, 1.0);

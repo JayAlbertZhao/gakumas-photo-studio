@@ -106,7 +106,9 @@ namespace GakumasPhotoMode
             CopyTexture(source, target, "_RampAddMap", "_RampAddTex", Texture2D.blackTexture);
             bool hasBump = CopyOptionalTexture(source, target, "_BumpMap", "_BumpMap");
             bool hasAnisotropic = CopyOptionalTexture(source, target, "_AnisotropicMap", "_AnisotropicMap");
-            bool hasReflection = CopyOptionalTexture(source, target, "_ReflectionSphereMap", "_ReflectionSphereMap");
+            CopyOptionalTexture(source, target, "_ReflectionSphereMap", "_ReflectionSphereMap");
+            // An explicitly enabled uniform white/black matcap is valid too.
+            bool hasReflection = source.HasProperty("_ReflectionSphereMap") && source.GetTexture("_ReflectionSphereMap") != null;
             bool hasEmission = CopyOptionalTexture(source, target, "_EmissionMap", "_EmissionMap");
 
             // Copy the serialized float4 literally.  SetColor on a ShaderLab
@@ -153,7 +155,12 @@ namespace GakumasPhotoMode
             target.SetFloat("_VertexColor", source.HasProperty("_VertexColor") ? source.GetFloat("_VertexColor") : 1f);
             target.SetFloat("_UseBump", hasBump ? 1f : 0f);
             target.SetFloat("_UseAnisotropic", hasAnisotropic ? 1f : 0f);
-            target.SetFloat("_UseReflection", hasReflection ? 1f : 0f);
+            // A stored/default texture does not enable its shader branch.
+            bool reflectionEnabled = source.IsKeywordEnabled("_USE_REFLECTION_SPHERE") ||
+                (source.HasProperty("_EnableReflectionSphereMap") && source.GetFloat("_EnableReflectionSphereMap") > 0.5f) ||
+                (source.HasProperty("_UseReflection") && source.GetFloat("_UseReflection") > 0.5f);
+            target.SetFloat("_UseReflection", hasReflection && reflectionEnabled ? 1f : 0f);
+            CopyVector(source, target, "_ReflectionSphereMap_HDR", new Vector4(1f, 1f, 0f, 0f));
             target.SetFloat("_UseEmission", hasEmission && source.HasProperty("_EnableEmission") && source.GetFloat("_EnableEmission") > 0.5f ? 1f : 0f);
             CopyFloat(source, target, "_BumpScale", 1f);
             CopyFloat(source, target, "_AnisotropicScale", 0f);
