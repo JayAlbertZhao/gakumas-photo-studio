@@ -33,6 +33,7 @@ namespace GakumasPhotoMode
         private Texture2D _preview;
         private Material _material;
         private Mesh _quad;
+        private MeshRenderer _quadRenderer;
         private readonly List<UnityEngine.Object> _owned = new List<UnityEngine.Object>();
 
         public static bool TryStart(GameObject owner)
@@ -95,6 +96,7 @@ namespace GakumasPhotoMode
                 VerifyRampAddSpecular(report);
                 VerifyAmbientMaterialResponse(report);
                 VerifyAdditionalLighting(report);
+                VerifyHairCoverComposition(report);
                 VerifyPresentationOwnership(report);
                 VerifyCapturedMaterialUv(report);
                 VerifyCapturedCamera(report);
@@ -668,6 +670,136 @@ namespace GakumasPhotoMode
             }
         }
 
+        private void VerifyHairCoverComposition(Report report)
+        {
+            string[] floats = { "_FaceDebugMode", "_CapturedDirectScale", "_CapturedDiffuseBlend",
+                "_ActorEnvironmentIntensity", "_CapturedSkinSaturation", "_CapturedActorOutputScale", "_ActorAdditionalLightCount" };
+            float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
+            string[] vectors = { "_ActorLightingScales", "_ActorKeyColor", "_CapturedLightColor",
+                "_ActorRimColor", "_CapturedShadeAdditive", "_CapturedLightDirection", "_ActorMatcapParameters",
+                "_HeadDirection", "_HeadUpDirection", "_ActorOutlineParameters" };
+            Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            string[] arrays = { "_ActorAdditionalPositions", "_ActorAdditionalColors", "_ActorAdditionalDirections", "_ActorAdditionalSpots" };
+            Vector4[][] savedArrays = Array.ConvertAll(arrays, Shader.GetGlobalVectorArray);
+            var root = Own(new GameObject("Synthetic stencil composition"));
+            var eye = Own(new Material(_material));
+            var hair = Own(new Material(_material));
+            var ramp = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var hairMap = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var eyeMap = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            Color eyeColor = new Color(0.2f, 0.5f, 0.8f, 1);
+            Color hairColor = new Color(0.6f, 0.3f, 0.1f, 1);
+            ramp.SetPixel(0, 0, new Color(1, 1, 1, 0)); ramp.Apply();
+            eyeMap.SetPixel(0, 0, eyeColor); eyeMap.Apply();
+            GameObject Plane(string name, Material material, float size, float z)
+            {
+                var plane = new GameObject(name);
+                plane.transform.SetParent(root.transform, false);
+                var mesh = Own(new Mesh());
+                mesh.vertices = new[] { new Vector3(-size,-size,z), new Vector3(size,-size,z),
+                    new Vector3(size,size,z), new Vector3(-size,size,z) };
+                mesh.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
+                mesh.uv = new[] { Vector2.zero, Vector2.right, Vector2.one, Vector2.up };
+                mesh.triangles = new[] { 0,2,1,0,3,2 };
+                mesh.RecalculateBounds();
+                plane.AddComponent<MeshFilter>().sharedMesh = mesh;
+                plane.AddComponent<MeshRenderer>().sharedMaterial = material;
+                return plane;
+            }
+            ActorRenderControls controls = null;
+            try
+            {
+                _quadRenderer.enabled = false;
+                foreach (Material material in new[] { eye, hair })
+                {
+                    material.SetColor("_Color", Color.white);
+                    material.SetTexture("_ShadeTex", Texture2D.blackTexture);
+                    material.SetTexture("_RampTex", ramp);
+                    material.SetTexture("_RampAddTex", Texture2D.blackTexture);
+                    material.SetFloat("_EnableLayer", 0f);
+                    material.SetFloat("_UseEmission", 0f);
+                    material.SetFloat("_DisableDefMap", 1f);
+                    material.SetFloat("_OutlineEnabled", 0f);
+                    material.SetFloat("_SrcBlend", 1f); material.SetFloat("_DstBlend", 0f);
+                    material.SetFloat("_ZWrite", 1f);
+                    material.SetVector("_DefValue", new Vector4(0.5f, 0, 0, 0));
+                }
+                eye.SetTexture("_MainTex", eyeMap); eye.SetFloat("_ShaderType", 3f); eye.renderQueue = 2000;
+                eye.SetFloat("_StencilRef", 4f); eye.SetFloat("_StencilReadMask", 4f);
+                eye.SetFloat("_StencilWriteMask", 4f); eye.SetFloat("_StencilComp", (float)CompareFunction.Always);
+                eye.SetFloat("_StencilPass", (float)StencilOp.Replace);
+                hair.SetTexture("_MainTex", hairMap); hair.SetFloat("_ShaderType", 8f); hair.renderQueue = 2301;
+                hair.SetFloat("_StencilRef", 4f); hair.SetFloat("_StencilReadMask", 4f);
+                hair.SetFloat("_StencilWriteMask", 0f); hair.SetFloat("_StencilComp", (float)CompareFunction.NotEqual);
+                hair.SetFloat("_StencilPass", (float)StencilOp.Keep);
+                hair.SetVector("_HairFadeParameters", new Vector4(0.75f, 2f, 0.4f, 4f));
+                Plane("Stencil eye region", eye, 0.3f, 0f);
+                Plane("Opaque hair with marked bangs", hair, 1f, -0.2f);
+                controls = _camera.gameObject.AddComponent<ActorRenderControls>();
+                controls.Initialize(root, null); controls.outlines = false;
+                foreach (string name in vectors) Shader.SetGlobalVector(name, Vector4.zero);
+                Shader.SetGlobalVector("_CapturedLightColor", Vector4.one);
+                Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(0, 0, -1, 1));
+                Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0.3f, 1, 1, 0));
+                Shader.SetGlobalVector("_HeadUpDirection", Vector3.up);
+                Shader.SetGlobalFloat("_FaceDebugMode", 0f);
+                Shader.SetGlobalFloat("_CapturedDirectScale", 1f / 0.96f);
+                Shader.SetGlobalFloat("_CapturedDiffuseBlend", 1f);
+                Shader.SetGlobalFloat("_ActorEnvironmentIntensity", 0f);
+                Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
+                Shader.SetGlobalFloat("_CapturedActorOutputScale", 1f);
+                Vector3 fragment = _camera.ViewportToWorldPoint(new Vector3(32.5f / 64f, 32.5f / 64f, 2.8f));
+                Vector3 view = (_camera.transform.position - fragment).normalized;
+                Vector3[] forward = { Vector3.back, new Vector3(0.8f, 0, -0.6f),
+                    Vector3.right, new Vector3(0, 0.6f, -0.8f) };
+                for (int angle = 0; angle < forward.Length; angle++)
+                {
+                    Vector3 up = angle == 3 ? new Vector3(0, 0.8f, 0.6f) : Vector3.up;
+                    Shader.SetGlobalVector("_HeadDirection", forward[angle]);
+                    Shader.SetGlobalVector("_HeadUpDirection", up);
+                    float horizontal = Mathf.Clamp01((0.75f - Vector3.Dot(view, forward[angle])) * 2f);
+                    float vertical = Mathf.Clamp01((Mathf.Abs(Vector3.Dot(view, up)) - 0.4f) * 4f);
+                    foreach (float mask in new[] { 0f, 0.5f, 1f })
+                    {
+                        hairColor.a = mask;
+                        hairMap.SetPixel(0, 0, hairColor); hairMap.Apply();
+                        controls.hairCover = true;
+                        string name = "hair-cover-angle-" + angle + "-mask-" + mask;
+                        float opacity = 1f - mask * (1f - Mathf.Max(horizontal, vertical));
+                        Color expected = Color.Lerp(eyeColor, hairColor, opacity); expected.a = 1f;
+                        AddColorCheck(report, name, expected, Render(name));
+                        Color opaqueHair = hairColor; opaqueHair.a = 1f;
+                        AddColorCheck(report, name + "-outside-stencil", opaqueHair, _readback.GetPixel(12, 32));
+                    }
+                }
+                controls.hairCover = false;
+                AddColorCheck(report, "hair-cover-disabled-retains-eye", eyeColor, Render("hair-cover-disabled-retains-eye"));
+                controls.hairCover = true;
+                Shader.SetGlobalVector("_HeadDirection", Vector3.right);
+                Shader.SetGlobalVector("_HeadUpDirection", Vector3.up);
+                Color restored = hairColor; restored.a = 1f;
+                AddColorCheck(report, "hair-cover-enabled-oblique-restored", restored, Render("hair-cover-enabled-oblique-restored"));
+                report.checks.Add(new Check { name = "hair-cover-actual-command-submitted",
+                    accepted = controls.HairCoverDrawCount == 1 && controls.OutlineDrawCount == 0 });
+                var occluder = Own(new Material(eye));
+                occluder.SetTexture("_MainTex", Texture2D.whiteTexture);
+                occluder.SetFloat("_ShaderType", 0f); occluder.SetFloat("_StencilWriteMask", 0f);
+                occluder.renderQueue = 2400;
+                Plane("Near depth occluder", occluder, 0.3f, -0.4f);
+                AddColorCheck(report, "hair-cover-respects-nearer-depth", Color.white, Render("hair-cover-respects-nearer-depth"));
+            }
+            finally
+            {
+                if (controls != null) DestroyImmediate(controls);
+                root.SetActive(false);
+                _quadRenderer.enabled = true;
+                for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
+                for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
+                for (int i = 0; i < arrays.Length; i++) Shader.SetGlobalVectorArray(arrays[i],
+                    savedArrays[i] != null && savedArrays[i].Length > 0 ? savedArrays[i] : new Vector4[8]);
+            }
+        }
+
         private static void AddColorCheck(Report report, string name, Color expected, Color actual)
         {
             float difference = Mathf.Max(Mathf.Abs(expected.r - actual.r),
@@ -926,7 +1058,8 @@ namespace GakumasPhotoMode
             quad.RecalculateBounds();
             var actor = Own(new GameObject("Self-test generated actor"));
             actor.AddComponent<MeshFilter>().sharedMesh = quad;
-            actor.AddComponent<MeshRenderer>().sharedMaterial = _material;
+            _quadRenderer = actor.AddComponent<MeshRenderer>();
+            _quadRenderer.sharedMaterial = _material;
             _camera = Own(new GameObject("Self-test camera")).AddComponent<Camera>();
             _camera.enabled = false;
             _camera.transform.position = new Vector3(0,0,-3);

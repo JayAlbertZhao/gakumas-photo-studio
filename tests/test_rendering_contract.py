@@ -158,6 +158,16 @@ class ActorRenderingWiringTests(unittest.TestCase):
         self.assertIn('1.0 - saturate(rawBaseSample.a)', shader)
         self.assertIn('max(obliqueCoverage.x, obliqueCoverage.y)', shader)
 
+    def test_hair_cover_selftest_uses_actual_composition_and_records_expression(self):
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifyHairCoverComposition(report);', probe)
+        self.assertIn('_camera.gameObject.AddComponent<ActorRenderControls>()', probe)
+        for name in ('hair-cover-disabled-retains-eye', 'hair-cover-enabled-oblique-restored',
+                     'hair-cover-actual-command-submitted', 'hair-cover-respects-nearer-depth', '-outside-stencil'):
+            self.assertIn(name, probe)
+        validation = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')
+        self.assertIn('expression = FindObjectOfType<PhotoModeApp>().CurrentExpression', validation)
+
     def test_probe_comparisons_reset_history_and_check_restoration(self):
         probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')
         pipeline = (ROOT / 'unity/Assets/Scripts/OriginalStyleRenderPipeline.cs').read_text(encoding='utf-8')

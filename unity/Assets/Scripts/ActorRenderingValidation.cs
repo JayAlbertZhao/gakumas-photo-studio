@@ -14,6 +14,7 @@ namespace GakumasPhotoMode
         {
             public string name;
             public string actorPoseDigest;
+            public string expression;
             public int width, height, outlineDraws, hairCoverDraws, additionalLights;
             public float skinSaturationDelta;
             public Vector3 cameraPosition;
@@ -293,6 +294,7 @@ namespace GakumasPhotoMode
             _report.frames.Add(new Frame {
                 name = name, width = image.width, height = image.height,
                 actorPoseDigest = ActorPoseDigest(),
+                expression = FindObjectOfType<PhotoModeApp>().CurrentExpression,
                 outlineDraws = _controls.OutlineDrawCount, hairCoverDraws = _controls.HairCoverDrawCount,
                 additionalLights = _controls.AdditionalLightCount, cameraPosition = transform.position,
                 matcapParameters = Shader.GetGlobalVector("_ActorMatcapParameters"),
