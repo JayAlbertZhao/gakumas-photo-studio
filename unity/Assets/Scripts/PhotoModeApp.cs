@@ -886,6 +886,10 @@ namespace GakumasPhotoMode
             _actorEyeEnvironmentCube = null;
             _actorEnvironmentArray = null;
             _actorEyeEnvironmentArray = null;
+            // Captured cube payloads need their recovered direction adapters.
+            // The generated Unity cube below is authored in ordinary world
+            // faces, including when captured resources are unavailable.
+            Shader.SetGlobalFloat("_UseCapturedEnvironmentBasis", 0f);
             Shader.SetGlobalFloat("_UseCapturedType1ActorEnvironmentArray", 0f);
             Shader.SetGlobalFloat("_UseCapturedActorEnvironmentArray", 0f);
             Shader.SetGlobalFloat("_UseCapturedEyeEnvironmentArray", 0f);
@@ -901,6 +905,7 @@ namespace GakumasPhotoMode
                 !Environment.GetCommandLineArgs().Contains("--legacy-actor-env") &&
                 TryBuildCapturedActorEnvironmentCube())
             {
+                Shader.SetGlobalFloat("_UseCapturedEnvironmentBasis", 1f);
                 if (!TryBuildCapturedEnvironmentCube(
                         "CapturedEyeEnvironment", "CapturedEyeEnvironmentCube", out _actorEyeEnvironmentCube))
                     _actorEyeEnvironmentCube = _actorEnvironmentCube;

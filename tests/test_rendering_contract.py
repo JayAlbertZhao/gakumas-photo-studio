@@ -7,6 +7,22 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_local_environment_does_not_use_capture_direction_adapters(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('bool capturedEnvironment = _UseCapturedEnvironmentBasis > 0.5;', surface)
+        self.assertIn('isTypeOne && capturedEnvironment', surface)
+        self.assertIn('float3 transformedEyeReflection = capturedEnvironment', surface)
+        self.assertIn('float3 transformedActorReflection = capturedEnvironment', surface)
+        app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
+        build = app.split('private void BuildActorEnvironmentCube(', 1)[1].split('private void ApplyRenderContextProfile(', 1)[0]
+        self.assertLess(build.index('Shader.SetGlobalFloat("_UseCapturedEnvironmentBasis", 0f);'),
+                        build.index('TryBuildCapturedActorEnvironmentCube()'))
+        self.assertLess(build.index('TryBuildCapturedActorEnvironmentCube()'),
+                        build.index('Shader.SetGlobalFloat("_UseCapturedEnvironmentBasis", 1f);'))
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifyEnvironmentCoordinates(report);', fixture)
+        self.assertIn('environment-coordinates-', fixture)
+
     def test_material_rgb_tint_follows_ramp_and_skin_saturation(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('baseSample.a *= _Color.a;', surface)

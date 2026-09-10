@@ -69,6 +69,7 @@ float4 _CapturedReflectionColor, _CapturedEyeReflectionColor;
 float4 _ReflectionSphereMap_HDR;
 float _CapturedEyeCubeTransformMode;
 float _CapturedActorCubeTransformMode;
+float _UseCapturedEnvironmentBasis;
 float _UseCapturedEyeEnvironmentArray;
 float _UseCapturedActorEnvironmentArray;
 float _UseCapturedType1ActorEnvironmentArray;
@@ -914,7 +915,11 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         -0.0866342783 * geometricNormal.x - 0.996240199 * geometricNormal.z,
         geometricNormal.y,
         0.996240199 * geometricNormal.x - 0.0866342783 * geometricNormal.z);
-    float3 reflectionDirection = isTypeOne
+    // Direction adapters belong to the archived cube payload. Ordinary Unity
+    // studio/story cubes are world-oriented for every material, including
+    // type1 and eyes; do not rotate those into an unrelated captured scene.
+    bool capturedEnvironment = _UseCapturedEnvironmentBasis > 0.5;
+    float3 reflectionDirection = isTypeOne && capturedEnvironment
         ? float3(
             -0.0866342783 * worldReflectionDirection.x -
                 0.996240199 * worldReflectionDirection.z,
@@ -943,14 +948,16 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
             0.996240199 * rawViewDirection.x -
                 0.0866342783 * rawViewDirection.z,
             1.0);
-    float3 transformedEyeReflection =
-        TransformCapturedEyeCubeDirection(reflectionDirection);
+    float3 transformedEyeReflection = capturedEnvironment
+        ? TransformCapturedEyeCubeDirection(reflectionDirection)
+        : reflectionDirection;
     float3 eyeEnvironmentCube = texCUBElod(_ActorEyeEnvironmentCube,
         float4(transformedEyeReflection, reflectionMip)).rgb;
     float3 eyeEnvironmentArray = SampleCapturedEyeEnvironmentArray(
         transformedEyeReflection, reflectionMip);
-    float3 transformedActorReflection = TransformCapturedCubeDirection(
-        reflectionDirection, _CapturedActorCubeTransformMode);
+    float3 transformedActorReflection = capturedEnvironment
+        ? TransformCapturedCubeDirection(reflectionDirection, _CapturedActorCubeTransformMode)
+        : reflectionDirection;
     float3 actorEnvironmentCube = texCUBElod(_ActorEnvironmentCube,
         float4(transformedActorReflection, reflectionMip)).rgb;
     float3 actorEnvironmentArray = SampleCapturedActorEnvironmentArray(

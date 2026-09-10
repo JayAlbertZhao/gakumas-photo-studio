@@ -101,6 +101,7 @@ namespace GakumasPhotoMode
                 VerifyHairHighlightBasis(report);
                 VerifyMainSpecularBasis(report);
                 VerifyReflectionSphere(report);
+                VerifyEnvironmentCoordinates(report);
                 VerifyEyebrowHighlight(report);
                 VerifyLayerControl(report);
                 VerifyRimControl(report);
@@ -2162,6 +2163,115 @@ namespace GakumasPhotoMode
                 _camera.transform.SetPositionAndRotation(savedPosition,savedRotation);
                 for (int i=0;i<floats.Length;i++) Shader.SetGlobalFloat(floats[i],savedFloats[i]);
                 for (int i=0;i<vectors.Length;i++) Shader.SetGlobalVector(vectors[i],savedVectors[i]);
+            }
+        }
+
+        private void VerifyEnvironmentCoordinates(Report report)
+        {
+            var saved = Own(new Material(_material));
+            Vector2[] savedUv = _quad.uv;
+            Quaternion savedActorRotation = _quadRenderer.transform.rotation;
+            Vector3 savedPosition = _camera.transform.position;
+            Quaternion savedRotation = _camera.transform.rotation;
+            string[] floats = { "_FaceDebugMode", "_ActorEnvironmentIntensity", "_UseCapturedEnvironmentBasis",
+                "_CapturedActorCubeTransformMode", "_CapturedEyeCubeTransformMode",
+                "_UseCapturedActorEnvironmentArray", "_UseCapturedType1ActorEnvironmentArray",
+                "_UseCapturedEyeEnvironmentArray", "_UseCapturedActorShadow", "_CapturedType4DiffuseF0",
+                "_CapturedType1DebugStage", "_CapturedType4DebugStage" };
+            float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
+            string[] vectors = { "_CapturedReflectionColor", "_CapturedEyeReflectionColor", "_ActorMatcapParameters" };
+            Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            Texture savedCube = Shader.GetGlobalTexture("_ActorEnvironmentCube");
+            Texture savedEyeCube = Shader.GetGlobalTexture("_ActorEyeEnvironmentCube");
+            Color[] faces = { new Color(2,1,0.5f), new Color(0.5f,3,1), new Color(1,0.5f,4),
+                new Color(4,2,0.5f), new Color(0.5f,4,2), new Color(2,0.5f,3) };
+            Vector3[] axes = { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back };
+            var cube = Own(new Cubemap(8, TextureFormat.RGBAFloat, true));
+            cube.filterMode = FilterMode.Point;
+            cube.wrapMode = TextureWrapMode.Clamp;
+            for (int face = 0; face < 6; face++) for (int mip = 0; mip < cube.mipmapCount; mip++)
+            {
+                int size = Mathf.Max(1, cube.width >> mip);
+                var pixels = new Color[size * size];
+                for (int i = 0; i < pixels.Length; i++) pixels[i] = faces[face];
+                cube.SetPixels(pixels, (CubemapFace)face, mip);
+            }
+            cube.Apply(false, false);
+            int Face(Vector3 direction)
+            {
+                Vector3 a = new Vector3(Mathf.Abs(direction.x), Mathf.Abs(direction.y), Mathf.Abs(direction.z));
+                if (a.x >= a.y && a.x >= a.z) return direction.x >= 0 ? 0 : 1;
+                if (a.y >= a.z) return direction.y >= 0 ? 2 : 3;
+                return direction.z >= 0 ? 4 : 5;
+            }
+            try
+            {
+                _material.SetVector("_Color", Vector4.one);
+                _material.SetFloat("_UseBump", 0f); _material.SetFloat("_UseReflection", 0f);
+                _material.SetFloat("_EnableLayer", 0f); _material.SetFloat("_UseAlphaClip", 0f);
+                _material.SetFloat("_DisableDefMap", 1f);
+                _material.SetVector("_DefValue", new Vector4(0.5f, 0.5f, 0f, 0.6f));
+                _material.SetTexture("_RampAddTex", Texture2D.blackTexture);
+                Vector2 uv = new Vector2(0.85f, 0.85f); // Hair accessory, not the painted-strand lobe.
+                _quad.uv = new[] { uv, uv, uv, uv };
+                Shader.SetGlobalTexture("_ActorEnvironmentCube", cube);
+                Shader.SetGlobalTexture("_ActorEyeEnvironmentCube", cube);
+                Shader.SetGlobalFloat("_FaceDebugMode", 20f);
+                Shader.SetGlobalFloat("_UseCapturedActorShadow", 0f);
+                Shader.SetGlobalFloat("_CapturedType4DiffuseF0", 0f);
+                Shader.SetGlobalFloat("_CapturedType1DebugStage", 0f); Shader.SetGlobalFloat("_CapturedType4DebugStage", 0f);
+                Shader.SetGlobalFloat("_UseCapturedActorEnvironmentArray", 0f);
+                Shader.SetGlobalFloat("_UseCapturedType1ActorEnvironmentArray", 0f);
+                Shader.SetGlobalFloat("_UseCapturedEyeEnvironmentArray", 0f);
+                Shader.SetGlobalFloat("_CapturedActorCubeTransformMode", 0f);
+                Shader.SetGlobalFloat("_CapturedEyeCubeTransformMode", 43f);
+                Shader.SetGlobalVector("_CapturedReflectionColor", Vector4.one);
+                Shader.SetGlobalVector("_CapturedEyeReflectionColor", Vector4.one);
+                Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0.3f, 1f, 1f, 0f));
+                for (int captured = 0; captured < 2; captured++) for (int face = 0; face < axes.Length; face++)
+                {
+                    Shader.SetGlobalFloat("_UseCapturedEnvironmentBasis", captured);
+                    Vector3 normal = axes[face];
+                    Quaternion rotation = Quaternion.LookRotation(-normal, Mathf.Abs(normal.y) > 0.9f ? Vector3.forward : Vector3.up);
+                    _quadRenderer.transform.rotation = rotation;
+                    _camera.transform.SetPositionAndRotation(normal * 3f, rotation);
+                    // Current ordinary view calculation is perspective-style even
+                    // with an orthographic camera. Account for the center sample
+                    // explicitly; changing that separate contract is out of scope.
+                    float offset = (32.5f / 64f * 2f - 1f) * _camera.orthographicSize;
+                    Vector3 point = rotation * new Vector3(offset, offset, 0f);
+                    Vector3 view = (_camera.transform.position - point).normalized;
+                    Vector3 reflection = Vector3.Reflect(-view, normal);
+                    float fresnel = Mathf.Pow(1f - Mathf.Clamp01(Vector3.Dot(normal, view)), 4f);
+                    float brdf = Mathf.Lerp(0.04f, 0.54f, fresnel) / (1f + Mathf.Pow(0.5f, 4f));
+                    foreach (int type in new[] { 0, 1, 4, 8, 9 })
+                    {
+                        _material.SetFloat("_ShaderType", type);
+                        Vector3 direction = reflection;
+                        if (captured != 0 && type == 1)
+                            direction = Quaternion.Euler(0f, -94.9698f, 0f) * direction;
+                        if (captured != 0 && type == 4)
+                            direction = new Vector3(-direction.z, -direction.y, direction.x);
+                        string name = "environment-coordinates-" + captured + "-face-" + face + "-type-" + type;
+                        Shader.SetGlobalFloat("_ActorEnvironmentIntensity", 0f);
+                        Color baseline = Render(name + "-off");
+                        Shader.SetGlobalFloat("_ActorEnvironmentIntensity", 1f);
+                        Color contribution = faces[Face(direction)] * (brdf * 0.6f); contribution.a = 0f;
+                        AddColorCheck(report, name, baseline + contribution, Render(name));
+                        Shader.SetGlobalFloat("_ActorEnvironmentIntensity", 0f);
+                        AddColorCheck(report, name + "-restored", baseline, Render(name + "-restored"));
+                    }
+                }
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(saved); _quad.uv = savedUv;
+                _quadRenderer.transform.rotation = savedActorRotation;
+                _camera.transform.SetPositionAndRotation(savedPosition, savedRotation);
+                Shader.SetGlobalTexture("_ActorEnvironmentCube", savedCube);
+                Shader.SetGlobalTexture("_ActorEyeEnvironmentCube", savedEyeCube);
+                for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
+                for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
             }
         }
 
