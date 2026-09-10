@@ -98,6 +98,7 @@ namespace GakumasPhotoMode
                 VerifyHairHighlightBasis(report);
                 VerifyMainSpecularBasis(report);
                 VerifyReflectionSphere(report);
+                VerifyEyebrowHighlight(report);
                 VerifyRampAddSpecular(report);
                 VerifyAmbientMaterialResponse(report);
                 VerifyAdditionalLighting(report);
@@ -1376,6 +1377,80 @@ namespace GakumasPhotoMode
                 for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
                 for (int i = 0; i < arrays.Length; i++) Shader.SetGlobalVectorArray(arrays[i],
                     savedArrays[i] != null && savedArrays[i].Length > 0 ? savedArrays[i] : new Vector4[8]);
+            }
+        }
+
+        private void VerifyEyebrowHighlight(Report report)
+        {
+            var savedMaterial = Own(new Material(_material));
+            Vector2[] savedUv = _quad.uv;
+            string[] floats = { "_FaceDebugMode", "_CapturedDiffuseBlend", "_CapturedSkinSaturation",
+                "_UseCapturedActorShadow", "_ActorEnvironmentIntensity", "_UseCapturedDirectSpecular" };
+            float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
+            string[] vectors = { "_CapturedShadeTint", "_ActorMatcapParameters", "_CapturedLightDirection" };
+            Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            var baseMap = Own(new Texture2D(1,1,TextureFormat.RGBAFloat,false,true));
+            var shadeMap = Own(new Texture2D(1,1,TextureFormat.RGBAFloat,false,true));
+            var rampMap = Own(new Texture2D(1,1,TextureFormat.RGBAFloat,false,true));
+            var rampAddMap = Own(new Texture2D(1,1,TextureFormat.RGBAFloat,false,true));
+            Color baseColor = new Color(0.2f,0.5f,0.7f,1f);
+            Color materialColor = new Color(1.2f,0.7f,1.1f,1f);
+            Color ramp = new Color(0.4f,0.6f,0.2f,0.3f);
+            Color tint = new Color(0.8f,1.1f,0.7f,1f);
+            baseMap.SetPixel(0,0,baseColor); baseMap.Apply();
+            shadeMap.SetPixel(0,0,new Color(0.1f,0.3f,0.4f,1f)); shadeMap.Apply();
+            rampMap.SetPixel(0,0,ramp); rampMap.Apply();
+            Vector2[] coordinates = { new Vector2(0.96875f,0.99f), new Vector2(0.99f,0.96875f),
+                new Vector2(0.96874f,0.99f), new Vector2(0.99f,0.96874f),
+                new Vector2(0.99f,0.99f), new Vector2(0.968751f,0.968751f) };
+            try
+            {
+                _material.SetTexture("_MainTex",baseMap); _material.SetTexture("_ShadeTex",shadeMap);
+                _material.SetTexture("_RampTex",rampMap); _material.SetTexture("_RampAddTex",rampAddMap);
+                _material.SetColor("_Color",materialColor); _material.SetColor("_RampAddColor",Color.white);
+                _material.SetFloat("_DisableDefMap",1f); _material.SetFloat("_EnableLayer",0f);
+                _material.SetFloat("_UseReflection",0f); _material.SetFloat("_UseBump",0f);
+                Shader.SetGlobalFloat("_CapturedDiffuseBlend",1f); Shader.SetGlobalFloat("_CapturedSkinSaturation",0f);
+                Shader.SetGlobalFloat("_UseCapturedActorShadow",0f); Shader.SetGlobalFloat("_ActorEnvironmentIntensity",0f);
+                Shader.SetGlobalFloat("_UseCapturedDirectSpecular",1f);
+                Shader.SetGlobalVector("_CapturedShadeTint",tint);
+                Shader.SetGlobalVector("_ActorMatcapParameters",new Vector4(0.3f,1f,1f,0f));
+                Shader.SetGlobalVector("_CapturedLightDirection",new Vector4(0,0,-1,0));
+                for (int configuration=0;configuration<2;configuration++)
+                {
+                    Color add = configuration==0 ? Color.clear : new Color(0.4f,0.6f,0.8f,0.5f);
+                    rampAddMap.SetPixel(0,0,add); rampAddMap.Apply();
+                    _material.SetVector("_DefValue",new Vector4(0.5f,0.3f,0,configuration==0?0f:0.65f));
+                    Color ramped = (baseColor*materialColor+add*(1f-add.a))*ramp*Color.Lerp(Color.white,tint,ramp.a);
+                    ramped.a=1f;
+                    Color highlight = ramped*2f*Color.Lerp(Color.white,add,add.a);
+                    highlight.a=0f;
+                    foreach (int type in new[]{0,6,9})
+                    {
+                        string prefix="eyebrow-highlight-"+configuration+"-type-"+type;
+                        _material.SetFloat("_ShaderType",type);
+                        Vector2 outside=new Vector2(0.5f,0.5f);
+                        _quad.uv=new[]{outside,outside,outside,outside};
+                        Shader.SetGlobalFloat("_FaceDebugMode",16f);
+                        AddColorCheck(report,prefix+"-ramped-input",ramped,Render(prefix+"-ramped-input"));
+                        Shader.SetGlobalFloat("_FaceDebugMode",20f);
+                        Color baseline=Render(prefix+"-baseline");
+                        for (int i=0;i<coordinates.Length;i++)
+                        {
+                            Vector2 uv=coordinates[i]; _quad.uv=new[]{uv,uv,uv,uv};
+                            Color expected=baseline+(type==6 && i>=4 ? highlight : Color.clear);
+                            AddColorCheck(report,prefix+"-uv-"+i,expected,Render(prefix+"-uv-"+i));
+                        }
+                        _quad.uv=new[]{outside,outside,outside,outside};
+                        AddColorCheck(report,prefix+"-restored",baseline,Render(prefix+"-restored"));
+                    }
+                }
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(savedMaterial); _quad.uv=savedUv;
+                for(int i=0;i<floats.Length;i++) Shader.SetGlobalFloat(floats[i],savedFloats[i]);
+                for(int i=0;i<vectors.Length;i++) Shader.SetGlobalVector(vectors[i],savedVectors[i]);
             }
         }
 

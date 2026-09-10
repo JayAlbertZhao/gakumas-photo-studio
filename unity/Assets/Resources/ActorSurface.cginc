@@ -1018,6 +1018,11 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     // Keep the disabled path unchanged, including its floating-point grouping.
     [branch] if (_UseReflection > 0.5)
         capturedSpecular += SphereReflection(n, v) * specularVisibility * capturedSpecularModulation;
+    // Type 6 stores its closed-eye highlight in the small upper UV corner.
+    // It adds twice the ramped color, independently of Definition.A/BRDF;
+    // exact boundary coordinates and other regions retain ordinary shading.
+    if (isFaceCap && input.uv.x > 0.96875 && input.uv.y > 0.96875)
+        capturedSpecular += 2.0 * diffuse * capturedSpecularModulation;
     if (debugSelectedType1 && _CapturedType1DebugStage > 8.5 &&
         _CapturedType1DebugStage < 9.5)
         return float4(capturedSpecular, 1.0);

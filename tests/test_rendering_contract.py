@@ -7,6 +7,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_eyebrow_highlight_has_strict_uv_mask_and_own_light_contribution(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('isFaceCap && input.uv.x > 0.96875 && input.uv.y > 0.96875', surface)
+        self.assertIn('capturedSpecular += 2.0 * diffuse * capturedSpecularModulation', surface)
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifyEyebrowHighlight(report);', fixture)
+        self.assertIn('new Vector2(0.96875f,0.99f)', fixture)
+        self.assertIn('new Vector2(0.99f,0.96875f)', fixture)
+
     def test_optional_sphere_reflection_is_bound_and_composited(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('if (_UseReflection > 0.5)', surface)
