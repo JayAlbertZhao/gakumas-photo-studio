@@ -3,6 +3,10 @@
   "reason": "2026-09-09 authorized character-rendering development after source-only cleanup; see docs/rendering.md. Original-shader replay remains diagnostic, not accepted.",
   "base_archive_sha256": "597c4a95781d4a2394a81be85826a2de2a58f547d9449e04c648426f061d5cfb",
   "replacements": {
+    "unity/Assets/Scripts/FaceExpressionRenderer.cs": {
+      "sha256": "088708aa08c6621a9837ba9d75f9f213cbdbabc3bbf0b6850e7f1a8b61a6393c",
+      "baseline_sha256": "d67db5da84725ba0551ea720f0045cf34c14a141491596e05e9eeea96ea5cf01"
+    },
     "unity/Assets/Scripts/HairDynamicsSystem.cs": {
       "sha256": "fe7736864e6902e4218489c79e1de238b54782bb5d0343de251b6ccec584cdac",
       "baseline_sha256": "b0f2ef43db3e0f68701174890ceb33fade864f1068da2e7b9c6b7557ef015760"
@@ -77,7 +81,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "fae9cdd70a0b794654c04186221721c3de2ed1acb69659bd3e3718be542bf67b",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "9522c6890799e9ecd7fc71facc62f3afd35dd59753fbdcaf5f1a1187e0ae8f98",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "7fd12d3fa0b7e723ebd9c70ab12b6bea3e0ddaa27ed8d37a28f2e3375032ad8e",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",

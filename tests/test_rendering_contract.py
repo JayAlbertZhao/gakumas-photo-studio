@@ -7,6 +7,24 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_view_profile_uses_authored_shape_and_head_relative_camera(self):
+        source = (ROOT / 'unity/Assets/Scripts/FaceExpressionRenderer.cs').read_text(encoding='utf-8')
+        profile = source.split('private void ResolveViewProfileCorrection()', 1)[1].split('public string DiagnosticJson()', 1)[0]
+        for contract in ('value.blendShapeName == "side090"',
+                         'camera.orthographic ? -camera.transform.forward : camera.transform.position - center',
+                         'Vector3.Dot(view, head.right)', 'Vector3.Dot(view, head.forward)',
+                         'Mathf.Atan2(right, forward)', 'curves[_viewProfileSlot].Evaluate(ViewProfileAngle)',
+                         'weights[shape] = Mathf.Max(weights[shape], ViewProfileWeight)'):
+            self.assertIn(contract, profile)
+        self.assertNotIn('5201', profile)
+        self.assertNotIn('weights[85]', profile)
+        self.assertIn('if (!enabled && !args.Contains("--face-angle-correction-off")) ApplyViewProfileCorrection(weights);', source)
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        for contract in ('VerifyViewProfileCorrection(report);', 'view-profile-preserves-authored-weights',
+                         'view-profile-disabled-restores-base', 'view-profile-manual-debug-owns-weight',
+                         'view-profile-unrelated-shape-not-selected', '"-whole-authored-shape"', '"-chin"'):
+            self.assertIn(contract, fixture)
+
     def test_straight_alpha_keeps_opacity_and_single_rgb_weight(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('bool straightAlphaActor = abs(_SrcBlend - 5.0) < 0.25;', surface)

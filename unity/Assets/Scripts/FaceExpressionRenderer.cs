@@ -88,6 +88,12 @@ namespace GakumasPhotoMode
         private Transform _faceCorrectionPoseTarget;
         private Vector3 _faceCorrectionSourceLocalEuler;
         private Vector3 _faceCorrectionSourceWorldEuler;
+        private int _viewProfileSlot = -1;
+
+        public bool ViewProfileCorrectionEnabled { get; set; } = true;
+        public bool ViewProfileCorrectionAvailable { get { return _viewProfileSlot >= 0; } }
+        public float ViewProfileAngle { get; private set; }
+        public float ViewProfileWeight { get; private set; }
 
         public string[] PresetNames { get { return Presets.Select(value => value.name).ToArray(); } }
         public int PresetIndex { get { return _presetIndex; } }
@@ -179,6 +185,7 @@ namespace GakumasPhotoMode
                 _lastWeights = new float[_shapeSource.blendShapes.Count];
                 for (int index = 0; index < _lastWeights.Length; index++) _lastWeights[index] = float.NaN;
                 _ready = true;
+                ResolveViewProfileCorrection();
                 ResolveEyeHighlightMaterialContract();
                 ResolveOriginalBlinkContract();
                 _nextBlinkTime = UnityEngine.Random.Range(3f, 6f);
@@ -631,6 +638,8 @@ namespace GakumasPhotoMode
 
         private void ApplyAuthoredFaceCorrection(float[] weights)
         {
+            ViewProfileAngle = 0f;
+            ViewProfileWeight = 0f;
             Array.Clear(_faceCorrectionWeights, 0, _faceCorrectionWeights.Length);
             _faceCorrectionYaw = 0f;
             _faceCorrectionPitch = 0f;
@@ -683,6 +692,56 @@ namespace GakumasPhotoMode
                 if (index < _faceCorrectionWeights.Length) _faceCorrectionWeights[index] = correction;
                 weights[shapeIndex] = Mathf.Max(weights[shapeIndex], correction);
             }
+            if (!enabled && !args.Contains("--face-angle-correction-off")) ApplyViewProfileCorrection(weights);
+        }
+
+        private void ResolveViewProfileCorrection()
+        {
+            _viewProfileSlot = -1;
+            if (_faceCorrection == null || _faceCorrection.curves == null ||
+                _faceCorrection.blendShapeIndices == null) return;
+            int count = Mathf.Min(_faceCorrection.curves.Length, _faceCorrection.blendShapeIndices.Length);
+            for (int slot = 0; slot < count; slot++)
+            {
+                int shape = _faceCorrection.blendShapeIndices[slot];
+                if (shape < 0 || shape >= _shapeSource.blendShapes.Count || _faceCorrection.curves[slot] == null) continue;
+                VLFaceBlendShape value = _shapeSource.blendShapes[shape];
+                if (value != null && value.blendShapeName == "side090")
+                {
+                    _viewProfileSlot = slot;
+                    return;
+                }
+            }
+        }
+
+        internal static float ViewProfileYaw(Transform head, Camera camera, Vector3 center)
+        {
+            if (head == null || camera == null) return 0f;
+            Vector3 view = camera.orthographic ? -camera.transform.forward : camera.transform.position - center;
+            float right = Vector3.Dot(view, head.right);
+            float forward = Vector3.Dot(view, head.forward);
+            if (float.IsNaN(right) || float.IsNaN(forward) || float.IsInfinity(right) || float.IsInfinity(forward) ||
+                right * right + forward * forward < 1e-12f) return 0f;
+            // Keep the back hemisphere and ignore vertical parallax. Clamping
+            // forward to positive would turn every rear view into a side view.
+            return Mathf.Abs(Mathf.Atan2(right, forward) * Mathf.Rad2Deg);
+        }
+
+        private void ApplyViewProfileCorrection(float[] weights)
+        {
+            if (!ViewProfileCorrectionEnabled || _viewProfileSlot < 0 || _debugShape >= 0 ||
+                _faceCorrectionPoseTarget == null || _lookCamera == null) return;
+            // Preserve explicit historical A/B modes. The broad pitch/45-degree
+            // correction remains opt-in; this uses only the authored side090
+            // shape and its whole delta set, including nose-line retraction.
+            ViewProfileAngle = ViewProfileYaw(_faceCorrectionPoseTarget, _lookCamera,
+                HasEyeBones ? EyeCenterPosition : _faceCorrectionPoseTarget.position);
+            float value = _faceCorrection.curves[_viewProfileSlot].Evaluate(ViewProfileAngle);
+            if (float.IsNaN(value) || float.IsInfinity(value)) return;
+            ViewProfileWeight = Mathf.Clamp01(value);
+            int shape = _faceCorrection.blendShapeIndices[_viewProfileSlot];
+            weights[shape] = Mathf.Max(weights[shape], ViewProfileWeight);
+            if (_viewProfileSlot < _faceCorrectionWeights.Length) _faceCorrectionWeights[_viewProfileSlot] = ViewProfileWeight;
         }
 
         public string DiagnosticJson()
@@ -690,7 +749,10 @@ namespace GakumasPhotoMode
             string[] args = Environment.GetCommandLineArgs();
             bool legacyCameraBasis = args.Contains("--legacy-camera-face-correction");
             bool enabled = legacyCameraBasis || args.Contains("--face-angle-correction-on");
-            bool disabled = args.Contains("--face-angle-correction-off") || !enabled;
+            bool viewProfile = !enabled && !args.Contains("--face-angle-correction-off") &&
+                ViewProfileCorrectionEnabled && ViewProfileCorrectionAvailable && _debugShape < 0 &&
+                _faceCorrectionPoseTarget != null && _lookCamera != null;
+            bool disabled = args.Contains("--face-angle-correction-off") || (!enabled && !viewProfile);
             Vector3 leftEyeDelta = _leftEye == null
                 ? Vector3.zero
                 : SignedEuler((Quaternion.Inverse(_leftEyeRest) * _leftEye.localRotation).eulerAngles);
@@ -716,8 +778,8 @@ namespace GakumasPhotoMode
             return string.Format(
                 "{{\"schema\":\"digital-kotone.face-runtime-diagnostic.v9\",\"correction_disabled\":{0},\"correction_basis\":\"{1}\",\"correction_yaw\":{2},\"correction_pitch\":{3},\"pose_target_local_euler\":[{4},{5},{6}],\"pose_target_world_euler\":[{7},{8},{9}],\"correction_weights\":[{10},{11},{12},{13}],\"gaze_yaw\":{14},\"gaze_pitch\":{15},\"story_gaze_active\":{46},\"preserve_animated_gaze\":{39},\"captured_lookat_owned\":{47},\"left_eye_rest_delta_euler\":[{40},{41},{42}],\"right_eye_rest_delta_euler\":[{43},{44},{45}],\"custom_skinning_ready\":{16},\"custom_skinning_disabled\":{17},\"custom_skinning_bone_count\":{18},\"maximum_bone_displacement_m\":{19},\"blink_contract\":\"VLActorEyeBlinkData/resources.assets/pathID-765125\",\"blink_shape_index\":{20},\"blink_active\":{21},\"blink_elapsed_seconds\":{22},\"blink_wait_remaining_seconds\":{23},\"automatic_blink_enabled\":{24},\"auto_blink_allowed\":{25},\"eye_limit_active\":{26},\"auto_blink_weight\":{27},\"story_blink_weight\":{28},\"effective_blink_weight\":{29},\"eye_limit_shapes_resolved\":{30},\"eye_limit_shape_count\":{31},\"eye_highlight_offset\":{32},\"eye_highlight_material_count\":{33},\"eye_highlight_base_map_st\":[{34},{35},{36},{37}],\"active_weights\":[{38}]}}",
                 disabled ? "true" : "false",
-                legacyCameraBasis ? "camera-direction-legacy" : "pose-target-local-euler",
-                FloatJson(_faceCorrectionYaw), FloatJson(_faceCorrectionPitch),
+                legacyCameraBasis ? "camera-direction-legacy" : viewProfile ? "head-relative-view-side090" : "pose-target-local-euler",
+                FloatJson(viewProfile ? ViewProfileAngle : _faceCorrectionYaw), FloatJson(viewProfile ? 0f : _faceCorrectionPitch),
                 FloatJson(_faceCorrectionSourceLocalEuler.x), FloatJson(_faceCorrectionSourceLocalEuler.y),
                 FloatJson(_faceCorrectionSourceLocalEuler.z), FloatJson(_faceCorrectionSourceWorldEuler.x),
                 FloatJson(_faceCorrectionSourceWorldEuler.y), FloatJson(_faceCorrectionSourceWorldEuler.z),

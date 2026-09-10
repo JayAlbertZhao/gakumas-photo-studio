@@ -92,6 +92,7 @@ namespace GakumasPhotoMode
                 report.checks.Add(new Check { name = "nonconstant-ramp-positive-control", expected = bright,
                     actual = dark, maximumDifference = response, accepted = response > 0.05f });
                 VerifyStraightAlpha(report);
+                VerifyViewProfileCorrection(report);
                 VerifyHeadReflection(report);
                 VerifyDynamicPresentation(report);
                 VerifySkinSaturation(report);
@@ -198,6 +199,89 @@ namespace GakumasPhotoMode
                 _camera.backgroundColor = savedBackground;
                 Shader.SetGlobalFloat("_FaceDebugMode", savedDebug);
             }
+        }
+
+        private void VerifyViewProfileCorrection(Report report)
+        {
+            var owner = Own(new GameObject("Generated view profile face"));
+            var source = owner.AddComponent<VL.FaceSystem.VLActorFaceModel>();
+            Vector3[] vertices = { new Vector3(0, 0, 0.08f), new Vector3(0, -0.06f, 0.02f), new Vector3(0.01f, 0.02f, 0.01f) };
+            var mesh = Own(new Mesh()); mesh.vertices = vertices; mesh.triangles = new[] { 0, 1, 2 };
+            var filter = owner.AddComponent<MeshFilter>(); filter.sharedMesh = mesh;
+            owner.AddComponent<MeshRenderer>().sharedMaterial = _material;
+            source.blendShapes.Add(new VL.FaceSystem.VLFaceBlendShape { blendShapeName = "expression" });
+            source.blendShapes.Add(new VL.FaceSystem.VLFaceBlendShape { blendShapeName = "side090", blendShapeVertices =
+                new List<VL.FaceSystem.VLFaceBlendShapeVertex> {
+                    new VL.FaceSystem.VLFaceBlendShapeVertex { vertIndex = 0, position = Vector3.back * 0.006f },
+                    new VL.FaceSystem.VLFaceBlendShapeVertex { vertIndex = 2, position = Vector3.right * 0.001f } } });
+            source.blendShapes.Add(new VL.FaceSystem.VLFaceBlendShape { blendShapeName = "under045", blendShapeVertices =
+                new List<VL.FaceSystem.VLFaceBlendShapeVertex> {
+                    new VL.FaceSystem.VLFaceBlendShapeVertex { vertIndex = 1, position = Vector3.down * 0.01f } } });
+            var correction = owner.AddComponent<Campus.Common.CampusActorFaceCorrection>();
+            correction.faceModel = source;
+            correction.blendShapeIndices = new[] { 2, 1 };
+            // Generated asymmetric tangents make both the rise and the authored
+            // falloff observable. No private curve or vertex data is embedded.
+            correction.curves = new[] { AnimationCurve.Linear(-45f, 1f, 0f, 0f), new AnimationCurve(
+                new Keyframe(40, 0, 0, 0.025f), new Keyframe(80, 1, 0.025f, -0.05f),
+                new Keyframe(100, 0, -0.05f, 0), new Keyframe(180, 0, 0, 0)) };
+            Transform head = Own(new GameObject("Generated view head")).transform;
+            Camera camera = Own(new GameObject("Generated view camera")).AddComponent<Camera>(); camera.enabled = false;
+            var face = owner.AddComponent<FaceExpressionRenderer>();
+            try
+            {
+                bool initialized = face.Initialize(source, source);
+                face.SetFaceCorrectionPoseTarget(head); face.InitializeGaze(null, null, camera);
+                face.SetAutomaticBlinkEnabled(false);
+                report.checks.Add(new Check { name = "view-profile-resolves-authored-shape-not-fixed-index",
+                    accepted = initialized && face.ViewProfileCorrectionAvailable && face.ViewProfileCorrectionEnabled });
+                float[] angles = { 0, 30, 60, 80, 90, 100, 180, -60 };
+                float[] expectedWeights = { 0, 0, 0.5f, 1, 0.5f, 0, 0, 0.5f };
+                for (int pose = 0; pose < 2; pose++)
+                for (int orthographic = 0; orthographic < 2; orthographic++)
+                for (int i = 0; i < angles.Length; i++)
+                {
+                    head.SetPositionAndRotation(new Vector3(2, 3, -4), pose == 0 ? Quaternion.identity : Quaternion.Euler(-35, 123, 47));
+                    float angle = angles[i] * Mathf.Deg2Rad;
+                    Vector3 view = head.right * Mathf.Sin(angle) + head.forward * Mathf.Cos(angle) + head.up * 0.7f;
+                    camera.orthographic = orthographic != 0;
+                    camera.transform.SetPositionAndRotation(head.position + (orthographic == 0 ? view * 4f : Vector3.one * 123f),
+                        Quaternion.LookRotation(-view, head.up));
+                    face.ApplyCurrentWeights(); Vector3[] actual = filter.sharedMesh.vertices;
+                    float weight = expectedWeights[i];
+                    string name = "view-profile-pose-" + pose + "-ortho-" + orthographic + "-yaw-" + angles[i];
+                    AddColorCheck(report, name + "-angle", new Color(Mathf.Abs(angles[i])/180f, 0, 0, 1),
+                        new Color(face.ViewProfileAngle/180f, 0, 0, 1));
+                    Vector3 expected = vertices[0] + Vector3.back * 0.006f * weight;
+                    AddColorCheck(report, name + "-nose", new Color(expected.x, expected.y, expected.z, weight),
+                        new Color(actual[0].x, actual[0].y, actual[0].z, face.ViewProfileWeight));
+                    AddColorCheck(report, name + "-chin", new Color(vertices[1].x, vertices[1].y, vertices[1].z, 1),
+                        new Color(actual[1].x, actual[1].y, actual[1].z, 1));
+                    expected = vertices[2] + Vector3.right * 0.001f * weight;
+                    AddColorCheck(report, name + "-whole-authored-shape", new Color(expected.x, expected.y, expected.z, 1),
+                        new Color(actual[2].x, actual[2].y, actual[2].z, 1));
+                }
+                source.SetWeight(1, 0.7f); source.SetWeight(2, 0.2f); face.ApplyCurrentWeights();
+                Vector3[] authored = filter.sharedMesh.vertices;
+                AddColorCheck(report, "view-profile-preserves-authored-weights", new Color(vertices[0].z - 0.006f * 0.7f, vertices[1].y - 0.01f * 0.2f, 0.7f, 0.2f),
+                    new Color(authored[0].z, authored[1].y, source.GetWeight(1), source.GetWeight(2)));
+                source.ClearWeights(); face.ViewProfileCorrectionEnabled = false; face.ApplyCurrentWeights();
+                AddColorCheck(report, "view-profile-disabled-restores-base", new Color(vertices[0].z, vertices[2].x, 0, 1),
+                    new Color(filter.sharedMesh.vertices[0].z, filter.sharedMesh.vertices[2].x, face.ViewProfileWeight, 1));
+                face.ViewProfileCorrectionEnabled = true; face.SetDebugShape(1, 0.25f);
+                AddColorCheck(report, "view-profile-manual-debug-owns-weight", new Color(vertices[0].z - 0.006f * 0.25f, 0, 0, 1),
+                    new Color(filter.sharedMesh.vertices[0].z, face.ViewProfileWeight, 0, 1));
+                face.ClearDebugShape(); face.SetFaceCorrectionPoseTarget(null); face.ApplyCurrentWeights();
+                report.checks.Add(new Check { name = "view-profile-missing-head-is-neutral", accepted = face.ViewProfileWeight == 0f });
+                head.rotation = Quaternion.identity; camera.orthographic = false; camera.transform.position = head.position;
+                report.checks.Add(new Check { name = "view-profile-zero-and-invalid-direction-is-neutral",
+                    accepted = FaceExpressionRenderer.ViewProfileYaw(head, camera, head.position) == 0f &&
+                        FaceExpressionRenderer.ViewProfileYaw(head, camera, new Vector3(float.NaN, 0, 0)) == 0f });
+                source.blendShapes[1].blendShapeName = "unrelated";
+                face.SendMessage("ResolveViewProfileCorrection");
+                report.checks.Add(new Check { name = "view-profile-unrelated-shape-not-selected", accepted = !face.ViewProfileCorrectionAvailable });
+            }
+            finally { owner.SetActive(false); }
         }
 
         private static object DynamicField(object node, string name)
