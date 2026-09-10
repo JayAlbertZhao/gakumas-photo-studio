@@ -7,6 +7,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_shadow_offset_uses_layered_definition_not_depth_comparison(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('float authoredOffset = max(definitionRed * 2.0 - 1.0, 0.0);', surface)
+        self.assertIn('authoredOffset * saturate(_CapturedActorShadowUseOffset) + filtered', surface)
+        call = 'CapturedActorShadow(input.worldPosition, definition.r)'
+        self.assertIn(call, surface)
+        self.assertLess(surface.index('definition = lerp(definition, layerDefinition, layerMask);'), surface.index(call))
+        self.assertNotIn('centre * saturate(_CapturedActorShadowUseOffset)', surface)
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('shadow-definition-offset-', probe)
+        self.assertIn('new Vector3(0.75f, 0.5f, 0.5f)', probe)
+        self.assertIn('new[] { 0, 8, 9 }', probe)
+
     def test_shadow_filter_preserves_subtexel_phase_and_strict_comparison(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('float2 fraction = frac(grid);', surface)

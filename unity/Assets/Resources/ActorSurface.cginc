@@ -315,7 +315,7 @@ float CapturedShadowComparison(float2 uv, float receiverDepth)
     #endif
 }
 
-float CapturedActorShadow(float3 worldPosition)
+float CapturedActorShadow(float3 worldPosition, float definitionRed)
 {
     // Disabled previews need no shadow matrix or texture dimensions. Avoid
     // evaluating an unset projection/texel division and then lerping its NaN.
@@ -363,16 +363,17 @@ float CapturedActorShadow(float3 worldPosition)
     // The four hardware-bilinear half-texel comparison taps above
     // are equivalent to this phase-aware 3x3 kernel. The
     // distance term fades that filtered result to fully lit. When
-    // useOffset is enabled, the unfiltered centre comparison is
-    // added before the strength lerp (DXBC `mad center, y, filtered`).
+    // useOffset is enabled, the positive half of the authored Definition.R
+    // response is added before strength. It is independent of the central
+    // shadow-map comparison: shaded material regions can still be lifted.
     float3 cameraDelta = worldPosition - _WorldSpaceCameraPos.xyz;
     float distanceFade = saturate(
         dot(cameraDelta, cameraDelta) * 1.6992614269256592 -
         4.937002182006836);
     distanceFade *= distanceFade;
     filtered = lerp(filtered, 1.0, distanceFade);
-    float centre = max(CapturedShadowComparison(uv, projected.z), 0.0);
-    float receiver = centre * saturate(_CapturedActorShadowUseOffset) + filtered;
+    float authoredOffset = max(definitionRed * 2.0 - 1.0, 0.0);
+    float receiver = authoredOffset * saturate(_CapturedActorShadowUseOffset) + filtered;
     return lerp(1.0, receiver, saturate(_CapturedActorShadowStrength));
 }
 
@@ -555,7 +556,7 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     #else
     float unityShadow = SHADOW_ATTENUATION(input);
     #endif
-    float capturedShadow = CapturedActorShadow(input.worldPosition);
+    float capturedShadow = CapturedActorShadow(input.worldPosition, definition.r);
     float shadow = lerp(unityShadow, capturedShadow, saturate(_UseCapturedActorShadow));
     if (_FaceDebugMode > 11.5 && _FaceDebugMode < 12.5)
         return float4(shadow.xxx, 1.0);

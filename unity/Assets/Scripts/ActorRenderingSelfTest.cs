@@ -1073,6 +1073,51 @@ namespace GakumasPhotoMode
                     expected = new Color(expected, expected, expected, 1), actual = actual,
                     maximumDifference = difference, accepted = !float.IsNaN(difference) && difference <= 0.00001f });
             }
+            // Shadow offset is an authored Definition.R response, independent
+            // of whether the central shadow-map comparison is lit. Include
+            // partial weights and neutral controls, not only all-or-none cases.
+            Vector4 savedDefinition = _material.GetVector("_DefValue");
+            var offsetCases = new[] {
+                new Vector3(0.25f, 1f, 1f), new Vector3(0.5f, 1f, 1f),
+                new Vector3(0.75f, 1f, 1f), new Vector3(1f, 1f, 1f),
+                new Vector3(0.75f, 0.5f, 0.5f), new Vector3(0.75f, 0f, 1f),
+                new Vector3(0.75f, 1f, 0f)
+            };
+            Matrix4x4 offsetMatrix = Matrix4x4.zero;
+            offsetMatrix.m03 = 0.5f; offsetMatrix.m13 = 0.5f;
+            offsetMatrix.m23 = 0.5f; offsetMatrix.m33 = 1f;
+            Shader.SetGlobalMatrix("_CapturedActorWorldToShadow", offsetMatrix);
+            foreach (float storedDepth in new[] { 0.25f, 0.75f })
+            {
+                for (int y = 0; y < size; y++)
+                    for (int x = 0; x < size; x++)
+                        depth.SetPixel(x, y, new Color(storedDepth, 0, 0, 1));
+                depth.Apply();
+                float comparison = (SystemInfo.usesReversedZBuffer
+                    ? 0.5f > storedDepth : 0.5f < storedDepth) ? 1f : 0f;
+                foreach (int type in new[] { 0, 8, 9 })
+                {
+                    _material.SetFloat("_ShaderType", type);
+                    for (int i = 0; i < offsetCases.Length; i++)
+                    {
+                        Vector3 settings = offsetCases[i];
+                        _material.SetVector("_DefValue", new Vector4(settings.x, 0, 0, 1));
+                        Shader.SetGlobalFloat("_CapturedActorShadowUseOffset", settings.y);
+                        Shader.SetGlobalFloat("_CapturedActorShadowStrength", settings.z);
+                        float expected = Mathf.Lerp(1f,
+                            comparison + Mathf.Max(2f*settings.x-1f, 0f)*settings.y, settings.z);
+                        string name = "shadow-definition-offset-" + type + "-" + comparison + "-" + i;
+                        Color actual = Render(name);
+                        float difference = Mathf.Max(Mathf.Abs(actual.r-expected), Mathf.Abs(actual.g-expected), Mathf.Abs(actual.b-expected));
+                        report.checks.Add(new Check { name = name,
+                            expected = new Color(expected, expected, expected, 1), actual = actual,
+                            maximumDifference = difference, accepted = !float.IsNaN(difference) && difference <= 0.00001f });
+                    }
+                }
+            }
+            _material.SetVector("_DefValue", savedDefinition);
+            Shader.SetGlobalFloat("_CapturedActorShadowUseOffset", 0f);
+            Shader.SetGlobalFloat("_CapturedActorShadowStrength", 1f);
             Shader.SetGlobalFloat("_UseCapturedActorShadow", 0f);
             Shader.SetGlobalFloat("_UseExactCapturedActorShadowMatrix", 0f);
             Shader.SetGlobalFloat("_FaceDebugMode", savedDebug);
