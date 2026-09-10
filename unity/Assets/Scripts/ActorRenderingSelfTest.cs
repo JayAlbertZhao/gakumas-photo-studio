@@ -94,6 +94,7 @@ namespace GakumasPhotoMode
                 VerifyHairSpecularRegions(report);
                 VerifyRampAddSpecular(report);
                 VerifyAmbientMaterialResponse(report);
+                VerifyAdditionalLighting(report);
                 VerifyPresentationOwnership(report);
                 VerifyCapturedMaterialUv(report);
                 VerifyCapturedCamera(report);
@@ -497,6 +498,173 @@ namespace GakumasPhotoMode
                 _material.CopyPropertiesFromMaterial(savedMaterial);
                 for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
                 for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
+            }
+        }
+
+        private void VerifyAdditionalLighting(Report report)
+        {
+            var savedMaterial = Own(new Material(_material));
+            Vector3[] savedNormals = _quad.normals;
+            Vector2[] savedUv = _quad.uv;
+            string[] floats = { "_FaceDebugMode", "_CapturedDirectScale", "_CapturedDiffuseBlend",
+                "_ActorEnvironmentIntensity", "_CapturedSkinSaturation", "_ActorAdditionalLightCount" };
+            float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
+            string[] vectors = { "_ActorLightingScales", "_ActorKeyColor", "_CapturedLightColor",
+                "_ActorRimColor", "_CapturedShadeAdditive", "_CapturedLightDirection", "_ActorMatcapParameters" };
+            Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            string[] arrays = { "_ActorAdditionalPositions", "_ActorAdditionalColors",
+                "_ActorAdditionalDirections", "_ActorAdditionalSpots" };
+            Vector4[][] savedArrays = Array.ConvertAll(arrays, Shader.GetGlobalVectorArray);
+            var baseMap = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var ramp = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var rampAdd = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            Color albedo = new Color(0.2f, 0.35f, 0.6f, 1f);
+            Color lamp = new Color(0.3f, 0.5f, 0.7f, 1f);
+            baseMap.SetPixel(0, 0, albedo); baseMap.Apply();
+            ramp.SetPixel(0, 0, new Color(1, 1, 1, 0)); ramp.Apply();
+            rampAdd.SetPixel(0, 0, Color.clear); rampAdd.Apply();
+            // Place lights relative to the actual sampled fragment, not the
+            // quad centre (an even-sized render target has no centre pixel).
+            Vector3 samplePosition = _camera.ViewportToWorldPoint(new Vector3(32.5f / 64f, 32.5f / 64f, 3f));
+            var positions = new Vector4[8];
+            var colors = new Vector4[8]; colors[0] = lamp;
+            var directions = new Vector4[8]; directions[0].w = -1f;
+            var spots = new Vector4[8];
+            void LightAt(Vector3 direction, float distance = 2f)
+            {
+                Vector3 p = samplePosition + direction * distance;
+                positions[0] = new Vector4(p.x, p.y, p.z, 0.01f);
+                Shader.SetGlobalVectorArray(arrays[0], positions);
+                Shader.SetGlobalVectorArray(arrays[1], colors);
+                Shader.SetGlobalVectorArray(arrays[2], directions);
+                Shader.SetGlobalVectorArray(arrays[3], spots);
+            }
+            void CheckColor(string name, Color expected)
+            {
+                expected.a = 1f;
+                AddColorCheck(report, name, expected, Render(name));
+            }
+            const float attenuation = 0.2304f; // distance=2, range=10
+            try
+            {
+                _material.SetColor("_Color", Color.white);
+                _material.SetTexture("_MainTex", baseMap);
+                _material.SetTexture("_ShadeTex", Texture2D.blackTexture);
+                _material.SetTexture("_RampTex", ramp);
+                _material.SetTexture("_RampAddTex", rampAdd);
+                _material.SetFloat("_EnableLayer", 0f);
+                _material.SetFloat("_UseEmission", 0f);
+                _material.SetFloat("_DisableDefMap", 1f);
+                _material.SetVector("_DefValue", new Vector4(0.5f, 0.5f, 0, 0));
+                _quad.uv = new[] { Vector2.one, Vector2.one, Vector2.one, Vector2.one };
+                Shader.SetGlobalFloat("_FaceDebugMode", 23f);
+                Shader.SetGlobalFloat("_CapturedDirectScale", 1f);
+                Shader.SetGlobalFloat("_CapturedDiffuseBlend", 1f);
+                Shader.SetGlobalFloat("_ActorEnvironmentIntensity", 0f);
+                Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
+                foreach (string name in vectors) Shader.SetGlobalVector(name, Vector4.zero);
+                Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(0, 0, -1, 1));
+                Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0.3f, 1, 1, 0));
+                Shader.SetGlobalVector("_ActorLightingScales", new Vector4(0, 1, 0, 0));
+                Color profile = new Color(0.8f, 0.5f, 0.3f, 1);
+                Shader.SetGlobalVector("_CapturedLightColor", profile);
+                foreach (int type in new[] { 0, 8, 9 })
+                {
+                    _material.SetFloat("_ShaderType", type);
+                    foreach (Color key in new[] { Color.white, new Color(0.4f, 0.7f, 0.2f, 1) })
+                    {
+                        Shader.SetGlobalVector("_ActorKeyColor", key);
+                        Color main = albedo * 0.96f * key * profile;
+                        string prefix = "additional-type-" + type + (key == Color.white ? "-white" : "-tinted");
+                        Shader.SetGlobalInt("_ActorAdditionalLightCount", 0);
+                        CheckColor(prefix + "-unlit-control", main);
+                        Shader.SetGlobalInt("_ActorAdditionalLightCount", 1);
+                        Vector3[] axes = { Vector3.back, Vector3.right, Vector3.forward };
+                        for (int i = 0; i < axes.Length; i++)
+                        {
+                            LightAt(axes[i]);
+                            // At the normal profile the stylized light is not
+                            // Lambert: side/back lights retain the ramped look.
+                            CheckColor(prefix + "-direction-" + i, main + main * lamp * attenuation);
+                        }
+                    }
+                }
+                _material.SetFloat("_ShaderType", 0f);
+                Shader.SetGlobalVector("_ActorKeyColor", Vector4.one);
+                Color outgoing = albedo * 0.96f * profile;
+                LightAt(Vector3.forward);
+                foreach (float strength in new[] { 0f, 0.4f, 1f })
+                {
+                    Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(1.5f, 1, strength, 0));
+                    CheckColor("additional-shade-floor-" + strength, outgoing + outgoing * lamp * (attenuation * strength));
+                }
+                Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0.3f, 1, 1, 0));
+                foreach (float scale in new[] { 0f, 0.5f, 2f })
+                {
+                    Shader.SetGlobalVector("_ActorLightingScales", new Vector4(0, scale, 0, 0));
+                    CheckColor("additional-scale-" + scale, outgoing + outgoing * lamp * (attenuation * scale));
+                }
+                Shader.SetGlobalVector("_ActorLightingScales", new Vector4(0, 1, 0, 0));
+                positions[1] = positions[0]; colors[1] = lamp * 0.5f; directions[1].w = -1f;
+                LightAt(Vector3.forward);
+                Shader.SetGlobalInt("_ActorAdditionalLightCount", 2);
+                CheckColor("additional-two-lights-add-once", outgoing + outgoing * lamp * (attenuation * 1.5f));
+                Shader.SetGlobalInt("_ActorAdditionalLightCount", 1);
+                LightAt(Vector3.forward, 12f);
+                CheckColor("additional-outside-range", outgoing);
+                directions[0] = new Vector4(0, 0, -1, 0.8f); spots[0].x = 0.9f;
+                LightAt(Vector3.forward);
+                CheckColor("additional-spot-inside", outgoing + outgoing * lamp * attenuation);
+                directions[0] = new Vector4(0, 0, 1, 0.8f);
+                LightAt(Vector3.forward);
+                CheckColor("additional-spot-outside", outgoing);
+                directions[0] = new Vector4(0, 0, 0, -1);
+                LightAt(Vector3.back);
+                // Isolate the extra specular lobe, including its roughness and
+                // view response; the main key is zero so it cannot mask errors.
+                Shader.SetGlobalVector("_ActorKeyColor", Vector4.zero);
+                Shader.SetGlobalVector("_ActorLightingScales", new Vector4(0, 1, 1, 0));
+                rampAdd.SetPixel(0, 0, new Color(0.4f, 0.7f, 0.2f, 1f)); rampAdd.Apply();
+                _material.SetColor("_RampAddColor", Color.white);
+                Vector3 view = (_camera.transform.position - samplePosition).normalized;
+                Vector3 half = (Vector3.back + view).normalized;
+                Vector3[] normals = { Vector3.back, new Vector3(0.9f, 0, -0.4358899f).normalized };
+                for (int i = 0; i < normals.Length; i++)
+                {
+                    Vector3 normal = normals[i];
+                    _quad.normals = new[] { normal, normal, normal, normal };
+                    foreach (float smoothness in new[] { 0f, 0.5f })
+                        foreach (float metal in new[] { 0f, 0.5f, 1f })
+                        {
+                            _material.SetVector("_DefValue", new Vector4(0.5f, smoothness, metal, 0.6f));
+                            float a = Mathf.Max((1f - smoothness) * (1f - smoothness), 0.0078125f);
+                            float a2 = a * a;
+                            float nh = Mathf.Clamp01(Vector3.Dot(normal, half));
+                            float lh = Vector3.Dot(Vector3.back, half);
+                            float divisor = nh * nh * (a2 - 1f) + 1.00001f;
+                            float distribution = a2 / Mathf.Max(0.000001f, divisor * divisor *
+                                Mathf.Max(0.1f, lh * lh) * (4f * a + 2f));
+                            Color f0 = Color.Lerp(new Color(0.04f, 0.04f, 0.04f, 1), albedo, metal);
+                            float grazing = Mathf.Clamp01(smoothness + 1f - 0.96f * (1f - metal));
+                            float fresnel = Mathf.Pow(1f - Mathf.Clamp01(Vector3.Dot(normal, view)), 4f);
+                            Color response = Color.Lerp(f0, new Color(grazing, grazing, grazing, 1), fresnel) / (1f + a2);
+                            Color expected = response * new Color(0.4f, 0.7f, 0.2f, 1) * lamp * (distribution * 0.6f * attenuation);
+                            CheckColor("additional-spec-normal-" + i + "-smooth-" + smoothness + "-metal-" + metal, expected);
+                        }
+                }
+                Shader.SetGlobalVector("_ActorLightingScales", new Vector4(0, 1, 0, 0));
+                CheckColor("additional-spec-scale-zero", Color.black);
+                Shader.SetGlobalInt("_ActorAdditionalLightCount", 0);
+                CheckColor("additional-removed", Color.black);
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(savedMaterial);
+                _quad.normals = savedNormals; _quad.uv = savedUv;
+                for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
+                for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
+                for (int i = 0; i < arrays.Length; i++) Shader.SetGlobalVectorArray(arrays[i],
+                    savedArrays[i] != null && savedArrays[i].Length > 0 ? savedArrays[i] : new Vector4[8]);
             }
         }
 

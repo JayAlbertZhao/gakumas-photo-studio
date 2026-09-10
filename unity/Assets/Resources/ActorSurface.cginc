@@ -1030,10 +1030,20 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         float distribution = roughnessFourth / max(0.000001,
             pow(normalHalf * normalHalf * (roughnessFourth - 1.0) + 1.00001, 2.0) *
             lightHalf * (4.0 * roughnessSquared + 2.0));
-        float3 additionalSpecular = distribution * specularF0 * definitionVisibility *
+        float3 additionalSpecular = distribution * environmentBrdf * definitionVisibility *
             capturedSpecularModulation * _ActorLightingScales.z;
-        float radiance = saturate(dot(n, direction)) * attenuation;
-        lit += (capturedBrdf + additionalSpecular) * _ActorAdditionalColors[lightIndex].rgb *
+        // Preserve the already ramped, key-colored material under local lights.
+        // The stylized angular gate normally stays open even on the back side;
+        // range and spot attenuation still bound the illuminated region.
+        float angularCoordinate = (1.0 + saturate(dot(n, direction))) * 1.178097;
+        float angularWeight = smoothstep(_ActorMatcapParameters.x - 0.000488,
+            _ActorMatcapParameters.x + 0.001464, angularCoordinate);
+        float radiance = saturate(angularWeight + shadeStrength) * attenuation;
+        // Keep this product within the additional-light branch. Sharing its
+        // intermediate with the main/sky sum changes the compiled main pass's
+        // multiply-add rounding even when no additional light is active.
+        float3 mainLighting = capturedBrdf * (_ActorKeyColor.rgb * _CapturedLightColor.rgb);
+        lit += (mainLighting + additionalSpecular) * _ActorAdditionalColors[lightIndex].rgb *
             radiance * _ActorLightingScales.y;
     }
     if (debugSelectedType1 && _CapturedType1DebugStage > 2.5 &&

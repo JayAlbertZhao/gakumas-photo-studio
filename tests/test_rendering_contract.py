@@ -7,6 +7,30 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_additional_lights_modulate_key_colored_shading(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('float3 mainLighting = capturedBrdf * (_ActorKeyColor.rgb * _CapturedLightColor.rgb);', surface)
+        self.assertGreater(surface.index('float3 mainLighting ='), surface.index('for (int lightIndex'))
+        self.assertIn('(mainLighting + additionalSpecular)', surface)
+        self.assertIn('distribution * environmentBrdf * definitionVisibility', surface)
+        self.assertIn('saturate(angularWeight + shadeStrength)', surface)
+        self.assertNotIn('float radiance = saturate(dot(n, direction)) * attenuation;', surface)
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifyAdditionalLighting(report);', probe)
+        for case in ('additional-two-lights-add-once', 'additional-shade-floor-',
+                     'additional-outside-range', 'additional-spot-outside',
+                     'additional-spec-normal-', 'additional-spec-scale-zero'):
+            self.assertIn(case, probe)
+
+    def test_fullbody_additional_lights_have_input_and_restoration_checks(self):
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')
+        self.assertIn('Capture("13b-fullbody-point", expectedLights: 2)', probe)
+        self.assertIn('Capture("13c-fullbody-spot", expectedLights: 2)', probe)
+        self.assertIn('Capture("13d-fullbody-tinted-spot", expectedLights: 2)', probe)
+        self.assertIn('expectedLights.HasValue && _controls.AdditionalLightCount != expectedLights.Value', probe)
+        self.assertIn('_report.additionalRestoreChangedPixels == 0', probe)
+        self.assertIn('_report.additionalRestoreChangedPixels = changed', probe)
+
     def test_sky_light_uses_material_diffuse_independent_of_direct_scale(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('float dielectricDiffuse = 0.96 * (1.0 - metallic);', surface)
@@ -52,7 +76,7 @@ class ActorRenderingWiringTests(unittest.TestCase):
         self.assertIn(gate, surface)
         self.assertLess(surface.index('hairHighlightWeight);'), surface.index(gate))
         self.assertLess(surface.index(gate), surface.index('float specularVisibility ='))
-        self.assertIn('distribution * specularF0 * definitionVisibility', surface)
+        self.assertIn('distribution * environmentBrdf * definitionVisibility', surface)
         probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
         self.assertIn('VerifyHairSpecularRegions(report);', probe)
         self.assertIn('new Vector2(0.75f, 0.9f)', probe)
@@ -162,7 +186,8 @@ class ActorRenderingWiringTests(unittest.TestCase):
         self.assertIn('expectedSkin.HasValue && Shader.GetGlobalFloat("_CapturedSkinSaturation") != expectedSkin.Value', probe)
         self.assertIn('Shader.SetGlobalFloat("_CapturedSkinSaturation", previousSkin)', probe)
         self.assertIn('name == "18c-skin-restored" ? "18-skin-neutral" :', probe)
-        self.assertIn('name == "15c-fullbody-restored" ? "15a-fullbody-noambient" : "01-front";', probe)
+        self.assertIn('name == "15c-fullbody-restored" ? "15a-fullbody-noambient" :', probe)
+        self.assertIn('name == "13g-fullbody-lights-restored" ? "13a-fullbody-no-lights" : "01-front";', probe)
 
     def test_reference_rejects_missing_original_forward_pass(self):
         reference = (ROOT / 'unity/Assets/Scripts/ActorShaderReferenceFeature.cs').read_text(encoding='utf-8')

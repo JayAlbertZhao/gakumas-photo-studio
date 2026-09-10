@@ -17,7 +17,7 @@ namespace GakumasPhotoMode
             public int width, height, outlineDraws, hairCoverDraws, additionalLights;
             public float skinSaturationDelta;
             public Vector3 cameraPosition;
-            public Vector4 matcapParameters, lightingScales, lightDirection;
+            public Vector4 matcapParameters, lightingScales, lightDirection, keyColor, profileLightColor;
         }
         [Serializable] private sealed class Report
         {
@@ -30,6 +30,7 @@ namespace GakumasPhotoMode
             public int lightRemovalChangedPixels = -1;
             public int skinRestoreChangedPixels = -1;
             public int ambientRestoreChangedPixels = -1;
+            public int additionalRestoreChangedPixels = -1;
             public List<Frame> frames = new List<Frame>();
         }
 
@@ -119,6 +120,37 @@ namespace GakumasPhotoMode
             yield return Capture("12b-spot-lights");
             _controls.ToggleTestLights();
             yield return Capture("13-point-lights-removed");
+            Vector3 lightTarget = orbit.target;
+            float lightDistance = orbit.distance;
+            Color profileColor = _controls.lightColor;
+            float specularScale = _controls.additionalSpecularScale;
+            orbit.target = new Vector3(0f, 0.8f, 0f);
+            orbit.distance = 3.2f;
+            yield return Capture("13a-fullbody-no-lights", expectedLights: 0);
+            _controls.ToggleTestLights();
+            yield return Capture("13b-fullbody-point", expectedLights: 2);
+            foreach (Light light in FindObjectsOfType<Light>())
+                if (light.name == "Warm point" || light.name == "Cool point")
+                {
+                    light.type = LightType.Spot;
+                    light.spotAngle = 55f;
+                    light.innerSpotAngle = 30f;
+                    light.transform.LookAt(new Vector3(0f, 1.0f, 0f));
+                }
+            yield return Capture("13c-fullbody-spot", expectedLights: 2);
+            _controls.overrideLighting = true;
+            _controls.lightColor = new Color(0.35f, 0.6f, 1f);
+            yield return Capture("13d-fullbody-tinted-spot", expectedLights: 2);
+            _controls.additionalSpecularScale = 0f;
+            yield return Capture("13e-fullbody-tinted-no-extra-specular", expectedLights: 2);
+            _controls.ToggleTestLights();
+            yield return Capture("13f-fullbody-tinted-no-lights", expectedLights: 0);
+            _controls.overrideLighting = false;
+            _controls.lightColor = profileColor;
+            _controls.additionalSpecularScale = specularScale;
+            yield return Capture("13g-fullbody-lights-restored", expectedLights: 0);
+            orbit.target = lightTarget;
+            orbit.distance = lightDistance;
             var layerMaterials = new List<Material>();
             var weights = new List<float>();
             foreach (Renderer renderer in FindObjectsOfType<Renderer>())
@@ -188,10 +220,11 @@ namespace GakumasPhotoMode
             Debug.Log("[ActorRenderingValidation] Captured " + _report.frames.Count + " probes to " + _directory);
             Application.Quit(_report.repeatChangedPixels == 0 &&
                 _report.profileRestoreChangedPixels == 0 && _report.lightRemovalChangedPixels == 0 &&
-                _report.skinRestoreChangedPixels == 0 && _report.ambientRestoreChangedPixels == 0 ? 0 : 2);
+                _report.skinRestoreChangedPixels == 0 && _report.ambientRestoreChangedPixels == 0 &&
+                _report.additionalRestoreChangedPixels == 0 ? 0 : 2);
         }
 
-        private IEnumerator Capture(string name, float? expectedSkin = null, float? expectedGi = null)
+        private IEnumerator Capture(string name, float? expectedSkin = null, float? expectedGi = null, int? expectedLights = null)
         {
             // Let the camera, controls and material bindings settle first.
             for (int frame = 0; frame < 24; frame++) yield return null;
@@ -212,11 +245,15 @@ namespace GakumasPhotoMode
                 throw new InvalidOperationException("Skin saturation probe input was overwritten: " + name);
             if (expectedGi.HasValue && Shader.GetGlobalVector("_ActorLightingScales").x != expectedGi.Value)
                 throw new InvalidOperationException("Ambient probe input was overwritten: " + name);
+            if (expectedLights.HasValue && _controls.AdditionalLightCount != expectedLights.Value)
+                throw new InvalidOperationException("Additional light probe input differs: " + name);
             Texture2D image = ScreenCapture.CaptureScreenshotAsTexture();
             if (image == null) throw new InvalidOperationException("Presented-frame readback failed: " + name);
-            if (name == "01-front" || name == "18-skin-neutral" || name == "15a-fullbody-noambient") _repeatReference = image.GetPixels32();
+            if (name == "01-front" || name == "18-skin-neutral" || name == "15a-fullbody-noambient" ||
+                name == "13a-fullbody-no-lights") _repeatReference = image.GetPixels32();
             if (name == "01b-front-repeat" || name == "11-profile-restored" ||
-                name == "13-point-lights-removed" || name == "18c-skin-restored" || name == "15c-fullbody-restored")
+                name == "13-point-lights-removed" || name == "18c-skin-restored" || name == "15c-fullbody-restored" ||
+                name == "13g-fullbody-lights-restored")
             {
                 Color32[] pixels = image.GetPixels32();
                 int changed = 0, maximum = 0;
@@ -237,9 +274,11 @@ namespace GakumasPhotoMode
                 else if (name == "11-profile-restored") _report.profileRestoreChangedPixels = changed;
                 else if (name == "18c-skin-restored") { _report.skinRestoreChangedPixels = changed; _repeatReference = null; }
                 else if (name == "15c-fullbody-restored") { _report.ambientRestoreChangedPixels = changed; _repeatReference = null; }
+                else if (name == "13g-fullbody-lights-restored") { _report.additionalRestoreChangedPixels = changed; _repeatReference = null; }
                 else { _report.lightRemovalChangedPixels = changed; _repeatReference = null; }
                 string reference = name == "18c-skin-restored" ? "18-skin-neutral" :
-                    name == "15c-fullbody-restored" ? "15a-fullbody-noambient" : "01-front";
+                    name == "15c-fullbody-restored" ? "15a-fullbody-noambient" :
+                    name == "13g-fullbody-lights-restored" ? "13a-fullbody-no-lights" : "01-front";
                 Debug.Log("[ActorRenderingValidation] " + name + " vs " + reference + ": changed pixels=" + changed +
                     " max channel difference=" + maximum);
             }
@@ -257,6 +296,8 @@ namespace GakumasPhotoMode
                 outlineDraws = _controls.OutlineDrawCount, hairCoverDraws = _controls.HairCoverDrawCount,
                 additionalLights = _controls.AdditionalLightCount, cameraPosition = transform.position,
                 matcapParameters = Shader.GetGlobalVector("_ActorMatcapParameters"),
+                keyColor = Shader.GetGlobalVector("_ActorKeyColor"),
+                profileLightColor = Shader.GetGlobalVector("_CapturedLightColor"),
                 lightingScales = Shader.GetGlobalVector("_ActorLightingScales"),
                 lightDirection = Shader.GetGlobalVector("_CapturedLightDirection"),
                 skinSaturationDelta = Shader.GetGlobalFloat("_CapturedSkinSaturation")
