@@ -15,6 +15,8 @@ namespace GakumasPhotoMode
             public string name;
             public string actorPoseDigest;
             public string expression;
+            public double photoMotionTime;
+            public bool photoMotionPlaying;
             public int width, height, outlineDraws, hairCoverDraws, additionalLights;
             public float skinSaturationDelta;
             public Vector3 cameraPosition;
@@ -32,6 +34,11 @@ namespace GakumasPhotoMode
             public int skinRestoreChangedPixels = -1;
             public int ambientRestoreChangedPixels = -1;
             public int additionalRestoreChangedPixels = -1;
+            public bool pausedGraphStopped;
+            public bool pausedOrbitPosePreserved;
+            public int pausedOrbitComparedFrames;
+            public bool animationResumed;
+            public double resumeStartTime, resumeEndTime;
             public List<Frame> frames = new List<Frame>();
         }
 
@@ -39,6 +46,8 @@ namespace GakumasPhotoMode
         private ActorRenderControls _controls;
         private OriginalStyleRenderPipeline _pipeline;
         private Color32[] _repeatReference;
+        private string _pausedPoseDigest;
+        private double _pausedMotionTime;
         private readonly Report _report = new Report();
 
         public static void AttachIfRequested(GameObject camera)
@@ -83,6 +92,23 @@ namespace GakumasPhotoMode
             _controls.hairCover = true;
             orbit.yaw = 270f;
             yield return Capture("05-side");
+            // A front/side sweep cannot expose broken posterior hair. Keep
+            // the same paused rig while checking both rear quarters and back.
+            orbit.yaw = 315f;
+            yield return Capture("05b-rear-quarter");
+            // Stay in front of the physical studio backdrop at z=-1.10.
+            orbit.distance = 1f;
+            orbit.yaw = 0f;
+            yield return Capture("05c-back");
+            _controls.outlines = false;
+            yield return Capture("05d-back-no-outline");
+            _controls.outlines = true;
+            _controls.hairCover = false;
+            yield return Capture("05e-back-no-cover");
+            _controls.hairCover = true;
+            orbit.distance = 1.25f;
+            orbit.yaw = 45f;
+            yield return Capture("05f-other-rear-quarter");
             orbit.yaw = 180f;
             _controls.overrideLighting = true;
             _controls.diffuseOffset = -0.5f;
@@ -214,20 +240,31 @@ namespace GakumasPhotoMode
             yield return Capture("17-render-panel");
             _controls.showPanel = false;
             Time.timeScale = 1f;
+            _report.resumeStartTime = app.PhotoMotionTime;
             app.TogglePause();
+            double previousMotionTime = _report.resumeStartTime;
             // This sequence deliberately resumes the existing animation and
             // dynamics. No hand-written pose or substitute rig is used.
             for (int i = 0; i < 12; i++)
             {
                 orbit.yaw = 165f + i * 3f;
                 yield return Capture("motion-" + i.ToString("00"));
+                // A short looping clip may finish below its starting time.
+                // Require observed advancement, not a larger final timestamp.
+                double motionTime = app.PhotoMotionTime;
+                _report.animationResumed |= app.PhotoMotionPlaying && motionTime > previousMotionTime;
+                previousMotionTime = motionTime;
             }
+            _report.resumeEndTime = app.PhotoMotionTime;
+            _report.animationResumed &= app.PhotoMotionPlaying;
             File.WriteAllText(Path.Combine(_directory, "rendering-probes.json"), JsonUtility.ToJson(_report, true));
             Debug.Log("[ActorRenderingValidation] Captured " + _report.frames.Count + " probes to " + _directory);
             Application.Quit(_report.repeatChangedPixels == 0 &&
                 _report.profileRestoreChangedPixels == 0 && _report.lightRemovalChangedPixels == 0 &&
                 _report.skinRestoreChangedPixels == 0 && _report.ambientRestoreChangedPixels == 0 &&
-                _report.additionalRestoreChangedPixels == 0 ? 0 : 2);
+                _report.additionalRestoreChangedPixels == 0 && _report.pausedGraphStopped &&
+                _report.pausedOrbitPosePreserved && _report.pausedOrbitComparedFrames == 11 &&
+                _report.animationResumed ? 0 : 2);
         }
 
         private IEnumerator Capture(string name, float? expectedSkin = null, float? expectedGi = null, int? expectedLights = null, bool? expectedWorldSpace = null)
@@ -247,6 +284,9 @@ namespace GakumasPhotoMode
                 yield return null;
             }
             yield return new WaitForEndOfFrame();
+            if (name == "05c-back")
+                foreach (HairDynamicsSystem dynamics in FindObjectsOfType<HairDynamicsSystem>())
+                    dynamics.LogCurrentState("rear-hair");
             if (expectedSkin.HasValue && Shader.GetGlobalFloat("_CapturedSkinSaturation") != expectedSkin.Value)
                 throw new InvalidOperationException("Skin saturation probe input was overwritten: " + name);
             if (expectedGi.HasValue && Shader.GetGlobalVector("_ActorLightingScales").x != expectedGi.Value)
@@ -298,10 +338,28 @@ namespace GakumasPhotoMode
                 yield break;
             }
             File.WriteAllBytes(Path.Combine(_directory, name + ".png"), image.EncodeToPNG());
+            PhotoModeApp app = FindObjectOfType<PhotoModeApp>();
+            string poseDigest = ActorPoseDigest();
+            if (name == "01-front")
+            {
+                _pausedPoseDigest = poseDigest;
+                _pausedMotionTime = app.PhotoMotionTime;
+                _report.pausedGraphStopped = !app.PhotoMotionPlaying;
+                _report.pausedOrbitPosePreserved = true;
+            }
+            else if (name.StartsWith("01", StringComparison.Ordinal) ||
+                name.StartsWith("02", StringComparison.Ordinal) || name.StartsWith("03", StringComparison.Ordinal) ||
+                name.StartsWith("04", StringComparison.Ordinal) || name.StartsWith("05", StringComparison.Ordinal))
+            {
+                _report.pausedOrbitComparedFrames++;
+                _report.pausedGraphStopped &= !app.PhotoMotionPlaying;
+                _report.pausedOrbitPosePreserved &= poseDigest == _pausedPoseDigest &&
+                    app.PhotoMotionTime == _pausedMotionTime;
+            }
             _report.frames.Add(new Frame {
                 name = name, width = image.width, height = image.height,
-                actorPoseDigest = ActorPoseDigest(),
-                expression = FindObjectOfType<PhotoModeApp>().CurrentExpression,
+                actorPoseDigest = poseDigest, expression = app.CurrentExpression,
+                photoMotionTime = app.PhotoMotionTime, photoMotionPlaying = app.PhotoMotionPlaying,
                 outlineDraws = _controls.OutlineDrawCount, hairCoverDraws = _controls.HairCoverDrawCount,
                 additionalLights = _controls.AdditionalLightCount, cameraPosition = transform.position,
                 matcapParameters = Shader.GetGlobalVector("_ActorMatcapParameters"),

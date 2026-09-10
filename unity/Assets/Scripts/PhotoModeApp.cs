@@ -53,6 +53,8 @@ namespace GakumasPhotoMode
         private readonly float[] _storyPreviousFaceWeights = new float[192];
         private readonly float[] _storyCurrentFaceWeights = new float[192];
         private PlayableGraph _motionGraph;
+        public double PhotoMotionTime { get { return _bodyPlayable.IsValid() ? _bodyPlayable.GetTime() : 0d; } }
+        public bool PhotoMotionPlaying { get { return _motionGraph.IsValid() && _motionGraph.IsPlaying(); } }
         private AnimationClipPlayable _bodyPlayable;
         private AnimationClipPlayable _facePlayable;
         private AnimationMixerPlayable _storyMixer;
@@ -3103,6 +3105,11 @@ namespace GakumasPhotoMode
             {
                 _motionGraph.GetRootPlayable(index).SetSpeed(_paused ? 0 : 1);
             }
+            // Zero clip speed still evaluates the look-at job. Stop graph
+            // evaluation as well so orbiting a paused pose cannot move its
+            // head independently of frozen world-space dynamics.
+            if (_paused) _motionGraph.Stop();
+            else _motionGraph.Play();
             _status = _paused ? "Paused" : "Playing";
         }
 

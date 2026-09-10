@@ -40,7 +40,7 @@
       "baseline_sha256": "08bc0a1eb0da8430850929da1a2ac27e3ae63426d06257c58fbfe6501ffa062d"
     },
     "unity/Assets/Scripts/PhotoModeApp.cs": {
-      "sha256": "e1cb0c77979170f6f77ee4a3b24b2e51d613337313a4d8464e02ad82064467df",
+      "sha256": "1c454f56058598aedb1e0742a3f27596966b66f4099d1352a6711ceb493b8f86",
       "baseline_sha256": "0d8741b4550b6cef4185c7cb087b20747b2dbc3c52a03760b6c07ddc81d27e23"
     },
     "unity/Assets/Scripts/SupersamplePresenter.cs": {
@@ -63,7 +63,7 @@
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
     "unity/Assets/Scripts/CapturedMaterialUvState.cs": "1c647143b25c362feed8a3ffb0892e8a23d30e29914883ee3dcfe813c3f6bfd8",
     "unity/Assets/Scripts/CapturedMaterialUvState.cs.meta": "3d87154fbfbe3d692aceaefd566a96a777e5033706b817cc88a5bb71b2a48d88",
-    "unity/Assets/Scripts/ActorRenderingValidation.cs": "0fc97f6f4afbf890feb67394da7d4e6f71424b6db6e45bf5e1cb48ad28141012",
+    "unity/Assets/Scripts/ActorRenderingValidation.cs": "86764d15ea7d23024c1f03425bc9542b244edd4819463815035c88904f1c3161",
     "unity/Assets/Scripts/ActorRenderingValidation.cs.meta": "88d99448da0c7d56796a4178bc74591bf289f41b6908d82cf0dcbedba8ed303a",
     "unity/Assets/Scripts/ActorShaderReferenceFeature.cs": "6fd46350166117908835af344bd1b5191a4ae8a602abe979a30247b4b4da1b25",
     "unity/Assets/Scripts/ActorShaderReferenceFeature.cs.meta": "8fa75718c41cb1e52400c7e1ddb50d9b9b4b005d05c6b920597a7933270106f2"

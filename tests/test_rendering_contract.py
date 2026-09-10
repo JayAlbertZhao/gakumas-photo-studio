@@ -7,6 +7,23 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_paused_orbit_stops_graph_and_checks_actual_pose_and_resume(self):
+        app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
+        pause = app.split('public void TogglePause()', 1)[1].split('public void SelectExpression', 1)[0]
+        self.assertIn('if (_paused) _motionGraph.Stop();', pause)
+        self.assertIn('else _motionGraph.Play();', pause)
+        self.assertIn('_storyPlayer.TogglePause();', pause)
+        self.assertNotIn('SetHairDynamics', pause)
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')
+        for name in ('05b-rear-quarter', '05c-back', '05d-back-no-outline',
+                     '05e-back-no-cover', '05f-other-rear-quarter'):
+            self.assertIn(name, probe)
+        for contract in ('poseDigest == _pausedPoseDigest', 'app.PhotoMotionTime == _pausedMotionTime',
+                         '_report.pausedOrbitComparedFrames == 11', '_report.animationResumed ? 0 : 2',
+                         'app.PhotoMotionPlaying && motionTime > previousMotionTime',
+                         'previousMotionTime = motionTime;', '_report.animationResumed &= app.PhotoMotionPlaying;'):
+            self.assertIn(contract, probe)
+
     def test_outline_depth_nibble_is_integer_not_normalized(self):
         outline = (ROOT / 'unity/Assets/Resources/ActorOutline.cginc').read_text(encoding='utf-8')
         self.assertIn('float depthOffset = floor(bytes.b / 16.0) * packed;', outline)
@@ -253,7 +270,8 @@ class ActorRenderingWiringTests(unittest.TestCase):
                      'hair-cover-actual-command-submitted', 'hair-cover-respects-nearer-depth', '-outside-stencil'):
             self.assertIn(name, probe)
         validation = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')
-        self.assertIn('expression = FindObjectOfType<PhotoModeApp>().CurrentExpression', validation)
+        self.assertIn('PhotoModeApp app = FindObjectOfType<PhotoModeApp>();', validation)
+        self.assertIn('expression = app.CurrentExpression', validation)
 
     def test_probe_comparisons_reset_history_and_check_restoration(self):
         probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')
