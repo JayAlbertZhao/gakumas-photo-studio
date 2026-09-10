@@ -109,6 +109,7 @@ namespace GakumasPhotoMode
                 VerifyMaterialSequence(report);
                 VerifyRampAddSpecular(report);
                 VerifyAmbientMaterialResponse(report);
+                VerifyAmbientInputContext(report);
                 VerifyAdditionalLighting(report);
                 VerifyHairCoverComposition(report);
                 VerifyOutlineDepth(report);
@@ -1052,7 +1053,8 @@ namespace GakumasPhotoMode
         {
             var savedMaterial = Own(new Material(_material));
             string[] floats = { "_FaceDebugMode", "_CapturedDirectScale", "_CapturedDiffuseBlend",
-                "_ActorEnvironmentIntensity", "_CapturedSkinSaturation", "_ActorAdditionalLightCount" };
+                "_ActorEnvironmentIntensity", "_CapturedSkinSaturation", "_ActorAdditionalLightCount",
+                "_UseCapturedAmbientSH" };
             float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
             string[] vectors = { "_CapturedSH0", "_CapturedSH1", "_CapturedSH2", "_CapturedSH3",
                 "_CapturedSH4", "_CapturedSH5", "_CapturedSH6", "_ActorLightingScales", "_ActorKeyColor",
@@ -1079,6 +1081,9 @@ namespace GakumasPhotoMode
                 Shader.SetGlobalFloat("_ActorEnvironmentIntensity", 0f);
                 Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
                 Shader.SetGlobalFloat("_ActorAdditionalLightCount", 0f);
+                // This existing fixture deliberately supplies archived-format
+                // SH. Keep its coefficients/oracle and explicitly own the input.
+                Shader.SetGlobalFloat("_UseCapturedAmbientSH", 1f);
                 foreach (string name in vectors) Shader.SetGlobalVector(name, Vector4.zero);
                 Shader.SetGlobalVector("_CapturedSH0", new Vector4(0, 0, 0, irradiance.r));
                 Shader.SetGlobalVector("_CapturedSH1", new Vector4(0, 0, 0, irradiance.g));
@@ -1119,6 +1124,105 @@ namespace GakumasPhotoMode
                 _material.CopyPropertiesFromMaterial(savedMaterial);
                 for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
                 for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
+            }
+        }
+
+        private void VerifyAmbientInputContext(Report report)
+        {
+            var saved = Own(new Material(_material));
+            var savedBlock = new MaterialPropertyBlock(); _quadRenderer.GetPropertyBlock(savedBlock);
+            LightProbeUsage savedUsage = _quadRenderer.lightProbeUsage;
+            Vector3[] savedNormals = _quad.normals;
+            string[] floats = { "_FaceDebugMode", "_CapturedDirectScale", "_ActorEnvironmentIntensity",
+                "_CapturedSkinSaturation", "_ActorAdditionalLightCount", "_UseCapturedAmbientSH" };
+            float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
+            string[] vectors = { "_CapturedSH0", "_CapturedSH1", "_CapturedSH2", "_CapturedSH3",
+                "_CapturedSH4", "_CapturedSH5", "_CapturedSH6", "_ActorLightingScales", "_ActorKeyColor",
+                "_ActorRimColor", "_CapturedShadeAdditive", "_ActorMatcapParameters" };
+            Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            string[] engineNames = { "unity_SHAr", "unity_SHAg", "unity_SHAb", "unity_SHBr",
+                "unity_SHBg", "unity_SHBb", "unity_SHC" };
+            // Authored test polynomials, not copied scene data. Include all
+            // first/second-order terms and distinct RGB to reject stale inputs.
+            Vector4[] engine = { new Vector4(.06f,-.04f,.08f,.3f), new Vector4(-.03f,.09f,.02f,.4f),
+                new Vector4(.04f,.02f,-.06f,.5f), new Vector4(.03f,.02f,.01f,-.02f),
+                new Vector4(-.02f,.01f,.03f,.02f), new Vector4(.01f,-.03f,.02f,.01f), new Vector4(.02f,-.01f,.03f,1) };
+            Vector4[] archived = { new Vector4(-.02f,.04f,.01f,.7f), new Vector4(.06f,-.02f,.04f,.2f),
+                new Vector4(.02f,.01f,-.04f,.3f), new Vector4(.01f,.02f,.03f,.01f),
+                new Vector4(.02f,-.01f,.01f,-.02f), new Vector4(.01f,.01f,-.02f,.03f), new Vector4(.01f,.02f,-.01f,1) };
+            Vector3[] normals = { Vector3.back, Vector3.right, Vector3.up,
+                new Vector3(-1,2,-3).normalized, new Vector3(2,-3,1).normalized, new Vector3(3,1,2).normalized };
+            var baseMap = Own(new Texture2D(1,1,TextureFormat.RGBAFloat,false,true));
+            var ramp = Own(new Texture2D(1,1,TextureFormat.RGBAFloat,false,true));
+            Color albedo = new Color(.7f,.4f,.2f,1);
+            baseMap.SetPixel(0,0,albedo); baseMap.Apply();
+            ramp.SetPixel(0,0,new Color(1,1,1,0)); ramp.Apply();
+            Color Evaluate(Vector4[] coefficients, Vector3 n)
+            {
+                Color color = Color.black;
+                // Independent scalar polynomial, no shader dot/swizzle helpers.
+                for (int channel=0; channel<3; channel++)
+                {
+                    Vector4 a=coefficients[channel], b=coefficients[channel+3];
+                    color[channel]=Mathf.Max(0,a.w+a.x*n.x+a.y*n.y+a.z*n.z+
+                        b.x*n.x*n.y+b.y*n.y*n.z+b.z*n.z*n.z+b.w*n.x*n.z+
+                        coefficients[6][channel]*(n.x*n.x-n.y*n.y));
+                }
+                color *= albedo*.96f; color.a=1; return color;
+            }
+            try
+            {
+                _material.SetColor("_Color",Color.white);
+                _material.SetTexture("_MainTex",baseMap); _material.SetTexture("_ShadeTex",Texture2D.blackTexture);
+                _material.SetTexture("_RampTex",ramp); _material.SetTexture("_RampAddTex",Texture2D.blackTexture);
+                _material.SetFloat("_EnableLayer",0); _material.SetFloat("_UseEmission",0);
+                _material.SetFloat("_DisableDefMap",1); _material.SetVector("_DefValue",new Vector4(.5f,0,0,0));
+                Shader.SetGlobalFloat("_FaceDebugMode",23); Shader.SetGlobalFloat("_CapturedDirectScale",0);
+                Shader.SetGlobalFloat("_ActorEnvironmentIntensity",0); Shader.SetGlobalFloat("_CapturedSkinSaturation",0);
+                Shader.SetGlobalFloat("_ActorAdditionalLightCount",0);
+                foreach(string name in vectors) Shader.SetGlobalVector(name,Vector4.zero);
+                Shader.SetGlobalVector("_ActorMatcapParameters",new Vector4(0,1,1,0));
+                Shader.SetGlobalVector("_ActorLightingScales",new Vector4(1,0,0,0));
+                _quadRenderer.lightProbeUsage=LightProbeUsage.CustomProvided;
+                for(int probe=0; probe<2; probe++)
+                {
+                    Vector4[] coefficients=(Vector4[])engine.Clone();
+                    if(probe==1) for(int i=0;i<coefficients.Length;i++) coefficients[i]*=.35f;
+                    var block=new MaterialPropertyBlock();
+                    for(int i=0;i<engineNames.Length;i++) block.SetVector(engineNames[i],coefficients[i]);
+                    _quadRenderer.SetPropertyBlock(block);
+                    for(int context=0;context<3;context++)
+                    {
+                        // Local ignores populated archived SH; captured uses it;
+                        // absent archived input retains the engine fallback.
+                        Shader.SetGlobalFloat("_UseCapturedAmbientSH",context==0?0:1);
+                        for(int i=0;i<7;i++) Shader.SetGlobalVector(vectors[i],context==2?Vector4.zero:archived[i]);
+                        for(int ni=0;ni<normals.Length;ni++)
+                        {
+                            Vector3 n=normals[ni]; _quad.normals=new[]{n,n,n,n};
+                            foreach(int type in new[]{0,4,9})
+                            {
+                                _material.SetFloat("_ShaderType",type);
+                                string name="ambient-context-"+context+"-probe-"+probe+"-normal-"+ni+"-type-"+type;
+                                Color expected=Evaluate(context==1?archived:coefficients,n);
+                                AddColorCheck(report,name,expected,Render(name));
+                            }
+                        }
+                    }
+                }
+                Shader.SetGlobalFloat("_UseCapturedAmbientSH",0);
+                Color reference=Render("ambient-context-local-reference");
+                Shader.SetGlobalVector("_ActorLightingScales",Vector4.zero);
+                AddColorCheck(report,"ambient-context-gi-zero",Color.black,Render("ambient-context-gi-zero"));
+                Shader.SetGlobalVector("_ActorLightingScales",new Vector4(1,0,0,0));
+                AddColorCheck(report,"ambient-context-gi-restored",reference,Render("ambient-context-gi-restored"));
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(saved); _quad.normals=savedNormals;
+                _quadRenderer.lightProbeUsage=savedUsage; _quadRenderer.SetPropertyBlock(savedBlock);
+                for(int i=0;i<floats.Length;i++) Shader.SetGlobalFloat(floats[i],savedFloats[i]);
+                for(int i=0;i<vectors.Length;i++) Shader.SetGlobalVector(vectors[i],savedVectors[i]);
             }
         }
 
@@ -1292,7 +1396,8 @@ namespace GakumasPhotoMode
         private void VerifyHairCoverComposition(Report report)
         {
             string[] floats = { "_FaceDebugMode", "_CapturedDirectScale", "_CapturedDiffuseBlend",
-                "_ActorEnvironmentIntensity", "_CapturedSkinSaturation", "_CapturedActorOutputScale", "_ActorAdditionalLightCount" };
+                "_ActorEnvironmentIntensity", "_CapturedSkinSaturation", "_CapturedActorOutputScale", "_ActorAdditionalLightCount",
+                "_UseCapturedAmbientSH" };
             float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
             string[] vectors = { "_ActorLightingScales", "_ActorKeyColor", "_CapturedLightColor",
                 "_ActorRimColor", "_CapturedShadeAdditive", "_CapturedLightDirection", "_ActorMatcapParameters",
@@ -1326,6 +1431,8 @@ namespace GakumasPhotoMode
                 return plane;
             }
             ActorRenderControls controls = null;
+            CommandBuffer staleLighting = null;
+            SphericalHarmonicsL2 savedAmbientProbe = RenderSettings.ambientProbe;
             try
             {
                 _quadRenderer.enabled = false;
@@ -1353,7 +1460,7 @@ namespace GakumasPhotoMode
                 hair.SetFloat("_StencilPass", (float)StencilOp.Keep);
                 hair.SetVector("_HairFadeParameters", new Vector4(0.75f, 2f, 0.4f, 4f));
                 Plane("Stencil eye region", eye, 0.3f, 0f);
-                Plane("Opaque hair with marked bangs", hair, 1f, -0.2f);
+                GameObject hairPlane = Plane("Opaque hair with marked bangs", hair, 1f, -0.2f);
                 controls = _camera.gameObject.AddComponent<ActorRenderControls>();
                 controls.Initialize(root, null); controls.outlines = false;
                 foreach (string name in vectors) Shader.SetGlobalVector(name, Vector4.zero);
@@ -1449,11 +1556,65 @@ namespace GakumasPhotoMode
                 occluder.SetTexture("_MainTex", Texture2D.whiteTexture);
                 occluder.SetFloat("_ShaderType", 0f); occluder.SetFloat("_StencilWriteMask", 0f);
                 occluder.renderQueue = 2400;
-                Plane("Near depth occluder", occluder, 0.3f, -0.4f);
+                GameObject nearOccluder = Plane("Near depth occluder", occluder, 0.3f, -0.4f);
                 AddColorCheck(report, "hair-cover-respects-nearer-depth", Color.white, Render("hair-cover-respects-nearer-depth"));
+                nearOccluder.SetActive(false);
+
+                // CommandBuffer.DrawRenderer does not bind light probes. Supply
+                // hostile prior draw state: coverage must match the ordinary
+                // hair's scene probe, not inherit whichever draw ran last.
+                string[] shNames={"unity_SHAr","unity_SHAg","unity_SHAb","unity_SHBr","unity_SHBg","unity_SHBb","unity_SHC"};
+                staleLighting=new CommandBuffer{name="Self-test stale lighting before hair coverage"};
+                foreach(string name in shNames) staleLighting.SetGlobalVector(name,Vector4.zero);
+                staleLighting.SetGlobalVector("unity_SHAr",new Vector4(0,0,0,3));
+                _camera.AddCommandBuffer(CameraEvent.AfterForwardOpaque,staleLighting);
+                Shader.SetGlobalFloat("_UseCapturedAmbientSH",0);
+                Shader.SetGlobalFloat("_FaceDebugMode",23);
+                Shader.SetGlobalFloat("_CapturedDirectScale",0);
+                Shader.SetGlobalVector("_ActorLightingScales",new Vector4(1,0,0,0));
+                foreach(Renderer renderer in root.GetComponentsInChildren<Renderer>()) renderer.lightProbeUsage=LightProbeUsage.Off;
+                hairColor.a=0; hairMap.SetPixel(0,0,hairColor); hairMap.Apply();
+                Color[] ambientColors={new Color(.2f,.4f,.6f),new Color(.6f,.1f,.2f),Color.black};
+                Renderer hairRenderer=hairPlane.GetComponent<Renderer>();
+                LightProbeUsage[] usages={LightProbeUsage.Off,LightProbeUsage.BlendProbes,LightProbeUsage.CustomProvided};
+                for(int usage=0;usage<usages.Length;usage++)
+                for(int probe=0;probe<ambientColors.Length;probe++)
+                {
+                    var sh=new SphericalHarmonicsL2(); sh.AddAmbientLight(ambientColors[probe]);
+                    RenderSettings.ambientProbe=sh;
+                    hairRenderer.lightProbeUsage=usages[usage];
+                    var block=new MaterialPropertyBlock();
+                    Color irradiance=ambientColors[probe];
+                    if(usage==2)
+                    {
+                        irradiance=new Color(.1f+.2f*probe,.6f-.2f*probe,.3f);
+                        foreach(string property in shNames) block.SetVector(property,Vector4.zero);
+                        for(int channel=0;channel<3;channel++) block.SetVector(shNames[channel],new Vector4(0,0,0,irradiance[channel]));
+                    }
+                    hairRenderer.SetPropertyBlock(block);
+                    string name="hair-cover-ambient-usage-"+usage+"-probe-"+probe;
+                    Color expected=hairColor*irradiance*.96f; expected.a=1;
+                    AddColorCheck(report,name,expected,Render(name));
+                    // Outside the stencil, ordinary forward hair uses the same
+                    // scene probe. Check both against the independent constant.
+                    AddColorCheck(report,name+"-ordinary",expected,_readback.GetPixel(12,32));
+                }
+                var partialProbe=new MaterialPropertyBlock();
+                partialProbe.SetVector("unity_SHAr",new Vector4(0,0,0,.3f));
+                hairRenderer.SetPropertyBlock(partialProbe);
+                Color partialExpected=new Color(hairColor.r*.3f*.96f,0,0,1);
+                AddColorCheck(report,"hair-cover-ambient-custom-missing-coefficients",partialExpected,
+                    Render("hair-cover-ambient-custom-missing-coefficients"));
+                AddColorCheck(report,"hair-cover-ambient-custom-missing-ordinary",partialExpected,_readback.GetPixel(12,32));
             }
             finally
             {
+                if(staleLighting!=null)
+                {
+                    _camera.RemoveCommandBuffer(CameraEvent.AfterForwardOpaque,staleLighting);
+                    staleLighting.Release();
+                }
+                RenderSettings.ambientProbe=savedAmbientProbe;
                 if (controls != null) DestroyImmediate(controls);
                 root.SetActive(false);
                 _quadRenderer.enabled = true;

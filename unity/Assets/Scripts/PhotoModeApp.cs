@@ -190,6 +190,7 @@ namespace GakumasPhotoMode
         private void Awake()
         {
             ResetCapturedActorRenderGlobals();
+            Shader.SetGlobalFloat("_UseCapturedAmbientSH", 0f);
             if (Application.isPlaying)
             {
                 string[] commandLine = Environment.GetCommandLineArgs();
@@ -983,6 +984,11 @@ namespace GakumasPhotoMode
             _renderContextProfile = desired;
             _actorRenderProfileInitialized = true;
             OriginalStyleRenderPipeline.SetPresentationContext(desired);
+            // Archived SH belongs to the captured lighting context, not every
+            // scene that happens to share the actor. Other contexts consume
+            // Unity's per-renderer ambient/light-probe coefficients.
+            Shader.SetGlobalFloat("_UseCapturedAmbientSH",
+                desired == OriginalStyleRenderPipeline.PresentationContext.CapturedRiverbed ? 1f : 0f);
             BuildActorEnvironmentCube(
                 desired == OriginalStyleRenderPipeline.PresentationContext.CapturedRiverbed);
             Debug.Log(string.Format(

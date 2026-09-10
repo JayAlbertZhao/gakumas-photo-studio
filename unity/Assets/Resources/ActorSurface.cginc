@@ -60,6 +60,7 @@ float4 _CapturedRimDirection, _CapturedRimViewDirection, _CapturedRimParameters;
 float _UseExactViewRimBasis;
 float4 _CapturedSH0, _CapturedSH1, _CapturedSH2, _CapturedSH3;
 float4 _CapturedSH4, _CapturedSH5, _CapturedSH6;
+float _UseCapturedAmbientSH;
 float _UseBump, _UseAnisotropic, _UseReflection, _UseEmission;
 float _BumpScale, _AnisotropicScale, _UseAlphaClip, _Cutoff;
 float _SrcBlend, _DstBlend;
@@ -860,6 +861,9 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     // names without the resource swizzle produces a plausible but
     // wrong channel swap and removes most costume diffuse energy.
     float capturedSHValid = step(0.01, abs(_CapturedSH0.w) + abs(_CapturedSH1.w) + abs(_CapturedSH2.w));
+    // Populated archive constants alone do not own scene lighting. Studio and
+    // ADV actors use the ambient/light probe Unity supplies to their renderer.
+    capturedSHValid = _UseCapturedAmbientSH > 0.5 ? capturedSHValid : 0.0;
     float3 ambient = lerp(max(ShadeSH9(float4(n, 1.0)), 0.0),
                           CapturedActorSH(n),
                           capturedSHValid);

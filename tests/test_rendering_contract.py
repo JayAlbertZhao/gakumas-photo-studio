@@ -7,6 +7,29 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_ambient_input_context_and_hair_pass_binding(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('capturedSHValid = _UseCapturedAmbientSH > 0.5 ? capturedSHValid : 0.0;', surface)
+        app = (ROOT / 'unity/Assets/Scripts/PhotoModeApp.cs').read_text(encoding='utf-8')
+        self.assertIn('Shader.SetGlobalFloat("_UseCapturedAmbientSH", 0f);', app)
+        context = app.split('private void ApplyRenderContextProfile(', 1)[1].split('private static float ActorEnvironmentIntensity(', 1)[0]
+        self.assertIn('Shader.SetGlobalFloat("_UseCapturedAmbientSH",\n                desired == OriginalStyleRenderPipeline.PresentationContext.CapturedRiverbed ? 1f : 0f);', context)
+        controls = (ROOT / 'unity/Assets/Scripts/ActorRenderControls.cs').read_text(encoding='utf-8')
+        self.assertIn('if (isHairCover) BindAmbientProbe(renderer);', controls)
+        binder = controls.split('private void BindAmbientProbe(', 1)[1].split('private void PublishLights(', 1)[0]
+        for contract in ('LightProbeUsage.CustomProvided', 'LightProbeUsage.Off',
+                         'RenderSettings.ambientProbe', 'LightProbes.GetInterpolatedProbe(',
+                         'renderer.probeAnchor.position : renderer.bounds.center',
+                         '_ambientPacked.CopySHCoefficientArraysFrom(_ambientProbe)',
+                         '_commands.SetGlobalVector(name,'):
+            self.assertIn(contract, binder)
+        self.assertNotIn('renderer.SetPropertyBlock', binder)
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        for contract in ('VerifyAmbientInputContext(report);', '"ambient-context-"',
+                         '"hair-cover-ambient-usage-"', '"hair-cover-ambient-custom-missing-coefficients"',
+                         'CameraEvent.AfterForwardOpaque,staleLighting', 'LightProbeUsage.CustomProvided'):
+            self.assertIn(contract, fixture)
+
     def test_common_actor_view_direction_respects_projection(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('float3 rawViewDirection = UnityWorldSpaceViewDir(input.worldPosition);', surface)

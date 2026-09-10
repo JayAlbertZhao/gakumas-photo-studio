@@ -58,6 +58,12 @@ namespace GakumasPhotoMode
         private readonly Vector4[] _directions = new Vector4[8];
         private readonly Vector4[] _spots = new Vector4[8];
         private readonly List<Light> _selected = new List<Light>();
+        private static readonly string[] AmbientProbeNames = {
+            "unity_SHAr", "unity_SHAg", "unity_SHAb", "unity_SHBr", "unity_SHBg", "unity_SHBb", "unity_SHC"
+        };
+        private readonly SphericalHarmonicsL2[] _ambientProbe = new SphericalHarmonicsL2[1];
+        private readonly MaterialPropertyBlock _ambientPacked = new MaterialPropertyBlock();
+        private readonly List<Vector4> _ambientValues = new List<Vector4>(1);
         private static readonly string[] OverrideGlobals = {
             "_ActorMatcapParameters", "_ActorLightingScales", "_CapturedLightDirection",
             "_CapturedLightColor", "_CapturedShadeTint", "_CapturedShadeAdditive", "_ActorRimColor",
@@ -183,9 +189,42 @@ namespace GakumasPhotoMode
                     drawMaterial.CopyPropertiesFromMaterial(material);
                     int pass = drawMaterial.FindPass(passName);
                     if (pass < 0) continue;
+                    if (isHairCover) BindAmbientProbe(renderer);
                     _commands.DrawRenderer(renderer, drawMaterial, submesh, pass);
                     if (isHairCover) HairCoverDrawCount++; else OutlineDrawCount++;
                 }
+            }
+        }
+
+        private void BindAmbientProbe(Renderer renderer)
+        {
+            // DrawRenderer carries authored property blocks, but Unity does
+            // not set up lighting/probe data for these command-buffer draws.
+            // Bind each hair renderer's source explicitly, never the last draw's.
+            if (Shader.GetGlobalVector("_ActorLightingScales").x == 0f) return;
+            if (Shader.GetGlobalFloat("_UseCapturedAmbientSH") > 0.5f &&
+                Mathf.Abs(Shader.GetGlobalVector("_CapturedSH0").w) +
+                Mathf.Abs(Shader.GetGlobalVector("_CapturedSH1").w) +
+                Mathf.Abs(Shader.GetGlobalVector("_CapturedSH2").w) >= 0.01f) return;
+            bool custom = renderer.lightProbeUsage == LightProbeUsage.CustomProvided;
+            if (!custom)
+            {
+                if (renderer.lightProbeUsage == LightProbeUsage.Off)
+                    _ambientProbe[0] = RenderSettings.ambientProbe;
+                else
+                    LightProbes.GetInterpolatedProbe(renderer.probeAnchor != null
+                        ? renderer.probeAnchor.position : renderer.bounds.center, renderer, out _ambientProbe[0]);
+                // Let Unity pack its own coefficient convention; do not duplicate
+                // normalization constants or overwrite any renderer property block.
+                _ambientPacked.CopySHCoefficientArraysFrom(_ambientProbe);
+            }
+            foreach (string name in AmbientProbeNames)
+            {
+                _ambientValues.Clear();
+                if (!custom) _ambientPacked.GetVectorArray(name, _ambientValues);
+                // CustomProvided's explicit block wins over these defaults;
+                // omitted coefficients must be zero, as in ordinary forward draws.
+                _commands.SetGlobalVector(name, _ambientValues.Count == 0 ? Vector4.zero : _ambientValues[0]);
             }
         }
 
