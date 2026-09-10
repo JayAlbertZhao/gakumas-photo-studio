@@ -29,6 +29,7 @@ namespace GakumasPhotoMode
             public int profileRestoreChangedPixels = -1;
             public int lightRemovalChangedPixels = -1;
             public int skinRestoreChangedPixels = -1;
+            public int ambientRestoreChangedPixels = -1;
             public List<Frame> frames = new List<Frame>();
         }
 
@@ -136,6 +137,19 @@ namespace GakumasPhotoMode
             _controls.worldSpaceLight = false;
             _controls.lightAngle = new Vector2(-5f, 10f);
             yield return Capture("15-ambient");
+            // Include metallic outfit regions, not only a face close-up.
+            Vector3 ambientTarget = orbit.target;
+            float ambientDistance = orbit.distance;
+            orbit.target = new Vector3(0f, 0.8f, 0f);
+            orbit.distance = 3.2f;
+            _controls.giScale = 0f;
+            yield return Capture("15a-fullbody-noambient", expectedGi: 0f);
+            _controls.giScale = 0.5f;
+            yield return Capture("15b-fullbody-ambient", expectedGi: 0.5f);
+            _controls.giScale = 0f;
+            yield return Capture("15c-fullbody-restored", expectedGi: 0f);
+            orbit.target = ambientTarget;
+            orbit.distance = ambientDistance;
             _controls.giScale = 0f;
             _controls.rimColor = new Color(0.1f, 0.8f, 0.2f);
             yield return Capture("16-colored-rim");
@@ -174,10 +188,10 @@ namespace GakumasPhotoMode
             Debug.Log("[ActorRenderingValidation] Captured " + _report.frames.Count + " probes to " + _directory);
             Application.Quit(_report.repeatChangedPixels == 0 &&
                 _report.profileRestoreChangedPixels == 0 && _report.lightRemovalChangedPixels == 0 &&
-                _report.skinRestoreChangedPixels == 0 ? 0 : 2);
+                _report.skinRestoreChangedPixels == 0 && _report.ambientRestoreChangedPixels == 0 ? 0 : 2);
         }
 
-        private IEnumerator Capture(string name, float? expectedSkin = null)
+        private IEnumerator Capture(string name, float? expectedSkin = null, float? expectedGi = null)
         {
             // Let the camera, controls and material bindings settle first.
             for (int frame = 0; frame < 24; frame++) yield return null;
@@ -196,11 +210,13 @@ namespace GakumasPhotoMode
             yield return new WaitForEndOfFrame();
             if (expectedSkin.HasValue && Shader.GetGlobalFloat("_CapturedSkinSaturation") != expectedSkin.Value)
                 throw new InvalidOperationException("Skin saturation probe input was overwritten: " + name);
+            if (expectedGi.HasValue && Shader.GetGlobalVector("_ActorLightingScales").x != expectedGi.Value)
+                throw new InvalidOperationException("Ambient probe input was overwritten: " + name);
             Texture2D image = ScreenCapture.CaptureScreenshotAsTexture();
             if (image == null) throw new InvalidOperationException("Presented-frame readback failed: " + name);
-            if (name == "01-front" || name == "18-skin-neutral") _repeatReference = image.GetPixels32();
+            if (name == "01-front" || name == "18-skin-neutral" || name == "15a-fullbody-noambient") _repeatReference = image.GetPixels32();
             if (name == "01b-front-repeat" || name == "11-profile-restored" ||
-                name == "13-point-lights-removed" || name == "18c-skin-restored")
+                name == "13-point-lights-removed" || name == "18c-skin-restored" || name == "15c-fullbody-restored")
             {
                 Color32[] pixels = image.GetPixels32();
                 int changed = 0, maximum = 0;
@@ -220,8 +236,10 @@ namespace GakumasPhotoMode
                 }
                 else if (name == "11-profile-restored") _report.profileRestoreChangedPixels = changed;
                 else if (name == "18c-skin-restored") { _report.skinRestoreChangedPixels = changed; _repeatReference = null; }
+                else if (name == "15c-fullbody-restored") { _report.ambientRestoreChangedPixels = changed; _repeatReference = null; }
                 else { _report.lightRemovalChangedPixels = changed; _repeatReference = null; }
-                string reference = name == "18c-skin-restored" ? "18-skin-neutral" : "01-front";
+                string reference = name == "18c-skin-restored" ? "18-skin-neutral" :
+                    name == "15c-fullbody-restored" ? "15a-fullbody-noambient" : "01-front";
                 Debug.Log("[ActorRenderingValidation] " + name + " vs " + reference + ": changed pixels=" + changed +
                     " max channel difference=" + maximum);
             }

@@ -1001,7 +1001,11 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         return float4(capturedBrdf, 1.0);
     if (_FaceDebugMode > 20.5 && _FaceDebugMode < 21.5)
         return float4(capturedBrdf, 1.0);
-    float3 lit = diffuse * ambient * _ActorLightingScales.x + capturedBrdf *
+    // Sky irradiance uses the material's diffuse response, not raw albedo.
+    // Metals have no diffuse sky lobe; the eye branch retains its authored
+    // nonmetallic response. Keep direct-only intensity out of this term.
+    float3 ambientDiffuse = diffuse * (isEye ? 0.96 : dielectricDiffuse);
+    float3 lit = ambientDiffuse * ambient * _ActorLightingScales.x + capturedBrdf *
         _ActorKeyColor.rgb * _CapturedLightColor.rgb;
     // Explicit lights remain valid in command-buffer passes, where Unity does
     // not bind per-renderer lighting constants. Range and spot cone are local.

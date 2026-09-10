@@ -93,6 +93,7 @@ namespace GakumasPhotoMode
                 VerifySkinSaturation(report);
                 VerifyHairSpecularRegions(report);
                 VerifyRampAddSpecular(report);
+                VerifyAmbientMaterialResponse(report);
                 VerifyPresentationOwnership(report);
                 VerifyCapturedMaterialUv(report);
                 VerifyCapturedCamera(report);
@@ -420,6 +421,80 @@ namespace GakumasPhotoMode
             {
                 _material.CopyPropertiesFromMaterial(savedMaterial);
                 _quad.uv = savedUv;
+                for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
+                for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
+            }
+        }
+
+        private void VerifyAmbientMaterialResponse(Report report)
+        {
+            var savedMaterial = Own(new Material(_material));
+            string[] floats = { "_FaceDebugMode", "_CapturedDirectScale", "_CapturedDiffuseBlend",
+                "_ActorEnvironmentIntensity", "_CapturedSkinSaturation", "_ActorAdditionalLightCount" };
+            float[] savedFloats = Array.ConvertAll(floats, Shader.GetGlobalFloat);
+            string[] vectors = { "_CapturedSH0", "_CapturedSH1", "_CapturedSH2", "_CapturedSH3",
+                "_CapturedSH4", "_CapturedSH5", "_CapturedSH6", "_ActorLightingScales", "_ActorKeyColor",
+                "_ActorRimColor", "_CapturedShadeAdditive", "_CapturedLightDirection", "_ActorMatcapParameters" };
+            Vector4[] savedVectors = Array.ConvertAll(vectors, Shader.GetGlobalVector);
+            var baseMap = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            var ramp = Own(new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true));
+            Color baseColor = new Color(0.8f, 0.35f, 0.15f, 1f);
+            Color irradiance = new Color(0.2f, 0.4f, 0.6f, 1f);
+            baseMap.SetPixel(0, 0, baseColor); baseMap.Apply();
+            ramp.SetPixel(0, 0, new Color(1, 1, 1, 0)); ramp.Apply();
+            try
+            {
+                _material.SetColor("_Color", Color.white);
+                _material.SetTexture("_MainTex", baseMap);
+                _material.SetTexture("_ShadeTex", Texture2D.blackTexture);
+                _material.SetTexture("_RampTex", ramp);
+                _material.SetTexture("_RampAddTex", Texture2D.blackTexture);
+                _material.SetFloat("_EnableLayer", 0f);
+                _material.SetFloat("_UseEmission", 0f);
+                _material.SetFloat("_DisableDefMap", 1f);
+                Shader.SetGlobalFloat("_FaceDebugMode", 23f);
+                Shader.SetGlobalFloat("_CapturedDiffuseBlend", 1f);
+                Shader.SetGlobalFloat("_ActorEnvironmentIntensity", 0f);
+                Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
+                Shader.SetGlobalFloat("_ActorAdditionalLightCount", 0f);
+                foreach (string name in vectors) Shader.SetGlobalVector(name, Vector4.zero);
+                Shader.SetGlobalVector("_CapturedSH0", new Vector4(0, 0, 0, irradiance.r));
+                Shader.SetGlobalVector("_CapturedSH1", new Vector4(0, 0, 0, irradiance.g));
+                Shader.SetGlobalVector("_CapturedSH2", new Vector4(0, 0, 0, irradiance.b));
+                Shader.SetGlobalVector("_CapturedLightDirection", new Vector4(0, 0, -1, 1));
+                Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0, 1, 1, 0));
+                Shader.SetGlobalVector("_ActorLightingScales", new Vector4(1, 0, 0, 0));
+                foreach (int type in new[] { 0, 1, 4, 9 })
+                {
+                    _material.SetFloat("_ShaderType", type);
+                    foreach (float metallic in new[] { 0f, 0.5f, 1f })
+                    {
+                        _material.SetVector("_DefValue", new Vector4(0.5f, 0.5f, metallic, 0));
+                        // Direct-light debug strength must not scale sky light.
+                        foreach (float directScale in new[] { 0f, 2f })
+                        {
+                            Shader.SetGlobalFloat("_CapturedDirectScale", directScale);
+                            string name = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                                "ambient-type-{0}-metal-{1}-direct-{2}", type, metallic, directScale);
+                            Color expected = baseColor * irradiance * (0.96f * (type == 4 || type == 9 ? 1f : 1f - metallic));
+                            expected.a = 1f;
+                            AddColorCheck(report, name, expected, Render(name));
+                        }
+                    }
+                }
+                _material.SetFloat("_ShaderType", 0f);
+                _material.SetVector("_DefValue", new Vector4(0.5f, 0.5f, 0, 0));
+                Color reference = Render("ambient-positive-control");
+                report.checks.Add(new Check { name = "ambient-positive-control", actual = reference,
+                    accepted = reference.r > 0.1f && reference.g > 0.1f && reference.b > 0.05f });
+                Shader.SetGlobalVector("_ActorLightingScales", Vector4.zero);
+                AddColorCheck(report, "ambient-scale-zero", Color.black, Render("ambient-scale-zero"));
+                Shader.SetGlobalVector("_ActorLightingScales", new Vector4(1, 0, 0, 0));
+                AddColorCheck(report, "ambient-scale-restored", reference, Render("ambient-scale-restored"));
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(savedMaterial);
                 for (int i = 0; i < floats.Length; i++) Shader.SetGlobalFloat(floats[i], savedFloats[i]);
                 for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);
             }

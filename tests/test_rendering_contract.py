@@ -7,6 +7,28 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_sky_light_uses_material_diffuse_independent_of_direct_scale(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('float dielectricDiffuse = 0.96 * (1.0 - metallic);', surface)
+        self.assertIn('float3 ambientDiffuse = diffuse * (isEye ? 0.96 : dielectricDiffuse);', surface)
+        self.assertIn('ambientDiffuse * ambient * _ActorLightingScales.x', surface)
+        self.assertNotIn('lit = diffuse * ambient', surface)
+        self.assertNotIn('lit = directDiffuse * ambient', surface)
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifyAmbientMaterialResponse(report);', probe)
+        self.assertIn('new[] { 0, 1, 4, 9 }', probe)
+        self.assertIn('new[] { 0f, 2f }', probe)
+        self.assertIn('ambient-scale-restored', probe)
+
+    def test_full_body_sky_probe_checks_input_and_strict_restoration(self):
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingValidation.cs').read_text(encoding='utf-8')
+        self.assertIn('Capture("15a-fullbody-noambient", expectedGi: 0f)', probe)
+        self.assertIn('Capture("15b-fullbody-ambient", expectedGi: 0.5f)', probe)
+        self.assertIn('Capture("15c-fullbody-restored", expectedGi: 0f)', probe)
+        self.assertIn('expectedGi.HasValue && Shader.GetGlobalVector("_ActorLightingScales").x != expectedGi.Value', probe)
+        self.assertIn('_report.ambientRestoreChangedPixels == 0', probe)
+        self.assertIn('_report.ambientRestoreChangedPixels = changed', probe)
+
     def test_ramp_add_keeps_diffuse_and_specular_alpha_roles_separate(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('float3 authoredRampAddRgb = rampAddColor * (1.0 - authoredRampAdd.a);', surface)
@@ -139,7 +161,8 @@ class ActorRenderingWiringTests(unittest.TestCase):
         self.assertIn('orbit.target = previousTarget;', probe)
         self.assertIn('expectedSkin.HasValue && Shader.GetGlobalFloat("_CapturedSkinSaturation") != expectedSkin.Value', probe)
         self.assertIn('Shader.SetGlobalFloat("_CapturedSkinSaturation", previousSkin)', probe)
-        self.assertIn('name == "18c-skin-restored" ? "18-skin-neutral" : "01-front"', probe)
+        self.assertIn('name == "18c-skin-restored" ? "18-skin-neutral" :', probe)
+        self.assertIn('name == "15c-fullbody-restored" ? "15a-fullbody-noambient" : "01-front";', probe)
 
     def test_reference_rejects_missing_original_forward_pass(self):
         reference = (ROOT / 'unity/Assets/Scripts/ActorShaderReferenceFeature.cs').read_text(encoding='utf-8')
