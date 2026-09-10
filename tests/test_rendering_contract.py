@@ -7,6 +7,25 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_dynamic_presentation_attaches_whole_chain_without_changing_solver_cache(self):
+        source = (ROOT / 'unity/Assets/Scripts/HairDynamicsSystem.cs').read_text(encoding='utf-8')
+        present = source.split('private void ApplyRuntimePose()', 1)[1].split('private void ApplySegmentRotation(', 1)[0]
+        for contract in ('while (root.parent != null) root = root.parent;',
+                         'root.authoredPosition - root.position',
+                         'node.bone.position = node.position + presentationOffset;',
+                         'node.bone.rotation = node.rotation;'):
+            self.assertIn(contract, present)
+        for field in ('node.position =', 'node.rotation =', 'node.childSpeed ='):
+            self.assertNotIn(field, present)
+        self.assertIn('if (steps == 0) ApplyRuntimePose();', source)
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        for contract in ('VerifyDynamicPresentation(report);', 'dynamic-presentation-generated-rig',
+                         'dynamic-presentation-root-', 'dynamic-presentation-segments-',
+                         'dynamic-presentation-rotations-', 'dynamic-presentation-cache-',
+                         'dynamic-presentation-zero-offset-', '"translated", "rotated", "held-repeat"',
+                         'cached[i,j].Equals(DynamicField(node,fields[j]))'):
+            self.assertIn(contract, fixture)
+
     def test_lookat_keeps_fullbody_motion_constraint_before_solving(self):
         profile = (ROOT / 'unity/Assets/Scripts/CapturedLookAtProfile.cs').read_text(encoding='utf-8')
         runtime = (ROOT / 'unity/Assets/Scripts/CapturedLookAtRuntime.cs').read_text(encoding='utf-8')

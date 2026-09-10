@@ -806,7 +806,16 @@ namespace GakumasPhotoMode
             foreach (Node node in _nodes)
             {
                 if (!node.ready) continue;
-                node.bone.position = node.position;
+                // A rendered frame may contain no fixed simulation step. Keep
+                // the held chain attached to the current animated root in that
+                // frame, without advancing its solver positions or velocities.
+                // One translation for the entire chain preserves segment lengths
+                // and persistent world rotations; moving only its root stretches
+                // the first segment. After a step this offset is exactly zero.
+                Node root = node;
+                while (root.parent != null) root = root.parent;
+                Vector3 presentationOffset = root.authoredPosition - root.position;
+                node.bone.position = node.position + presentationOffset;
                 node.bone.rotation = node.rotation;
             }
         }

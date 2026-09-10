@@ -2,12 +2,13 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace GakumasPhotoMode
 {
-    /// <summary>Asset-free GPU contracts using only a generated quad and ramp.</summary>
+    /// <summary>Asset-free rendering contracts using generated geometry and rigs.</summary>
     public sealed class ActorRenderingSelfTest : MonoBehaviour
     {
         [Serializable] private sealed class Check
@@ -91,6 +92,7 @@ namespace GakumasPhotoMode
                 report.checks.Add(new Check { name = "nonconstant-ramp-positive-control", expected = bright,
                     actual = dark, maximumDifference = response, accepted = response > 0.05f });
                 VerifyHeadReflection(report);
+                VerifyDynamicPresentation(report);
                 VerifySkinSaturation(report);
                 VerifyHairSpecularRegions(report);
                 VerifyHairHighlightBasis(report);
@@ -120,6 +122,104 @@ namespace GakumasPhotoMode
         }
 
         private T Own<T>(T value) where T : UnityEngine.Object { _owned.Add(value); return value; }
+
+        private static object DynamicField(object node, string name)
+        {
+            return node.GetType().GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).GetValue(node);
+        }
+
+        private void VerifyDynamicPresentation(Report report)
+        {
+            // Two independent, generated chains exercise the actual presentation
+            // method between simulation steps. No original rig or sampled pose.
+            var owner = Own(new GameObject("Synthetic dynamic presentation"));
+            var anchors = new Transform[2];
+            for (int chain = 0; chain < anchors.Length; chain++)
+            {
+                anchors[chain] = new GameObject("Attachment " + chain).transform;
+                anchors[chain].SetParent(owner.transform, false);
+                anchors[chain].localPosition = new Vector3(chain * 0.4f, 2f, 0f);
+                Transform parent = anchors[chain];
+                for (int link = 0; link < 4; link++)
+                {
+                    var bone = new GameObject("Chain " + chain + " link " + link);
+                    bone.transform.SetParent(parent, false);
+                    bone.transform.localPosition = link == 0 ? new Vector3(0.04f, 0f, 0f) : new Vector3(0f, -0.1f, 0.01f);
+                    bone.AddComponent<ActorAnimation.ActorSwingDynamicBone>().wind = 0f;
+                    parent = bone.transform;
+                }
+            }
+            var dynamics = owner.AddComponent<HairDynamicsSystem>();
+            dynamics.gravityStrength = 0f;
+            dynamics.collisionStrength = 0f;
+            dynamics.Initialize(anchors[0], anchors[0]);
+            dynamics.enabled = false;
+            var nodes = new List<object>();
+            foreach (object node in (IEnumerable)typeof(HairDynamicsSystem).GetField("_nodes",
+                BindingFlags.Instance | BindingFlags.NonPublic).GetValue(dynamics)) nodes.Add(node);
+            report.checks.Add(new Check { name = "dynamic-presentation-generated-rig",
+                accepted = nodes.Count == 8 && dynamics.SimulatedBoneCount == 6 });
+            string[] states = { "stationary", "translated", "rotated", "held-repeat", "restored", "after-step" };
+            foreach (string state in states)
+            {
+                if (state == "translated" || state == "after-step")
+                    for (int chain = 0; chain < anchors.Length; chain++)
+                        anchors[chain].localPosition += new Vector3(0.006f * (chain + 1), -0.003f, 0.002f * (1 - 2 * chain));
+                if (state == "rotated")
+                    for (int chain = 0; chain < anchors.Length; chain++)
+                        anchors[chain].localRotation = Quaternion.Euler(15f, 35f * (1 - 2 * chain), -10f);
+                if (state == "restored")
+                    for (int chain = 0; chain < anchors.Length; chain++)
+                    {
+                        anchors[chain].localPosition = new Vector3(chain * 0.4f, 2f, 0f);
+                        anchors[chain].localRotation = Quaternion.identity;
+                    }
+                dynamics.SendMessage("ResetNodesToBasePose");
+                dynamics.SendMessage("CaptureAuthoredPose");
+                if (state == "after-step")
+                    typeof(HairDynamicsSystem).GetMethod("SimulateStep", BindingFlags.Instance | BindingFlags.NonPublic)
+                        .Invoke(dynamics, new object[] { 0.01667f, false, true, false });
+                string[] fields = { "position", "rotation", "childSpeed", "defaultPosition", "defaultRotation", "defaultWorldRotation", "ready" };
+                // Nonzero history makes an accidental velocity reset observable.
+                for (int i = 0; i < nodes.Count; i++)
+                    nodes[i].GetType().GetField("childSpeed").SetValue(nodes[i], new Vector3(0.01f * (i + 1), -0.02f, 0.03f));
+                var cached = new object[nodes.Count, fields.Length];
+                for (int i = 0; i < nodes.Count; i++)
+                    for (int j = 0; j < fields.Length; j++) cached[i,j] = DynamicField(nodes[i], fields[j]);
+                // Repeat presentation must also leave the solver cache intact.
+                dynamics.SendMessage("ApplyRuntimePose");
+                dynamics.SendMessage("ApplyRuntimePose");
+                float rootError = 0f, segmentError = 0f, rotationError = 0f, steppedError = 0f;
+                bool cachePreserved = true;
+                foreach (object node in nodes)
+                {
+                    int i = nodes.IndexOf(node);
+                    Transform bone = (Transform)DynamicField(node,"bone");
+                    object parent = DynamicField(node,"parent");
+                    if (parent == null)
+                        rootError = Mathf.Max(rootError, Vector3.Distance(bone.position, (Vector3)DynamicField(node,"authoredPosition")));
+                    else
+                    {
+                        Transform parentBone = (Transform)DynamicField(parent,"bone");
+                        Vector3 heldSegment = (Vector3)cached[i,0] - (Vector3)cached[nodes.IndexOf(parent),0];
+                        segmentError = Mathf.Max(segmentError, Vector3.Distance(bone.position-parentBone.position, heldSegment));
+                    }
+                    rotationError = Mathf.Max(rotationError, Quaternion.Angle(bone.rotation, (Quaternion)cached[i,1]));
+                    steppedError = Mathf.Max(steppedError, Vector3.Distance(bone.position,(Vector3)cached[i,0]));
+                    for (int j = 0; j < fields.Length; j++) cachePreserved &= cached[i,j].Equals(DynamicField(node,fields[j]));
+                }
+                report.checks.Add(new Check { name = "dynamic-presentation-root-" + state,
+                    maximumDifference = rootError, accepted = rootError < 0.000001f });
+                report.checks.Add(new Check { name = "dynamic-presentation-segments-" + state,
+                    maximumDifference = segmentError, accepted = segmentError < 0.000001f });
+                report.checks.Add(new Check { name = "dynamic-presentation-rotations-" + state,
+                    maximumDifference = rotationError, accepted = rotationError < 0.05f });
+                report.checks.Add(new Check { name = "dynamic-presentation-cache-" + state, accepted = cachePreserved });
+                if (state == "stationary" || state == "restored" || state == "after-step")
+                    report.checks.Add(new Check { name = "dynamic-presentation-zero-offset-" + state,
+                        maximumDifference = steppedError, accepted = steppedError < 0.000001f });
+            }
+        }
 
         private void VerifyHeadReflection(Report report)
         {
