@@ -7,6 +7,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_common_actor_view_direction_respects_projection(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('float3 rawViewDirection = UnityWorldSpaceViewDir(input.worldPosition);', surface)
+        self.assertIn('float3 v = unity_OrthoParams.w > 0.5\n        ? normalize(UNITY_MATRIX_V[2].xyz) : normalize(rawViewDirection);', surface)
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifyProjectionViewDirection(report);', fixture)
+        self.assertIn('projection-view-', fixture)
+        self.assertIn('-perspective-varies', fixture)
+
     def test_local_environment_does_not_use_capture_direction_adapters(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('bool capturedEnvironment = _UseCapturedEnvironmentBasis > 0.5;', surface)

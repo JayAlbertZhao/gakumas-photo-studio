@@ -541,7 +541,11 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     float capturedLightValid = step(0.25, dot(_CapturedLightDirection.xyz, _CapturedLightDirection.xyz));
     float3 l = normalize(lerp(UnityWorldSpaceLightDir(input.worldPosition), _CapturedLightDirection.xyz, capturedLightValid));
     float3 rawViewDirection = UnityWorldSpaceViewDir(input.worldPosition);
-    float3 v = normalize(rawViewDirection);
+    // Orthographic rays are parallel; using camera-to-fragment vectors would
+    // move highlights and bang coverage as the camera slides along its axis.
+    // Keep the perspective expression and raw diagnostic vector unchanged.
+    float3 v = unity_OrthoParams.w > 0.5
+        ? normalize(UNITY_MATRIX_V[2].xyz) : normalize(rawViewDirection);
     // PS 5C07/717B/7372 constructs a camera-facing receiver basis
     // from the per-pixel view direction and the camera-up column,
     // then evaluates ramp/direct BRDF terms with that transformed

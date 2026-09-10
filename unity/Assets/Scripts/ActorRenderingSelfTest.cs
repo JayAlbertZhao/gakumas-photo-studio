@@ -102,6 +102,7 @@ namespace GakumasPhotoMode
                 VerifyMainSpecularBasis(report);
                 VerifyReflectionSphere(report);
                 VerifyEnvironmentCoordinates(report);
+                VerifyProjectionViewDirection(report);
                 VerifyEyebrowHighlight(report);
                 VerifyLayerControl(report);
                 VerifyRimControl(report);
@@ -767,7 +768,7 @@ namespace GakumasPhotoMode
                 Shader.SetGlobalVector("_CapturedCameraUp", Vector3.up);
                 Vector3 point = _camera.ViewportToWorldPoint(new Vector3(32.5f/64f, 32.5f/64f,
                     -_camera.transform.position.z));
-                Vector3 view = (_camera.transform.position-point).normalized;
+                Vector3 view = _camera.orthographic ? -_camera.transform.forward : (_camera.transform.position-point).normalized;
                 Vector3 receiverX = Vector3.Cross(view, Vector3.up);
                 Vector3 receiverY = Vector3.Cross(receiverX, view);
                 var normals = new[] { Vector3.back, new Vector3(0.8f, 0, -0.6f), new Vector3(-0.8f, 0, -0.6f) };
@@ -856,7 +857,7 @@ namespace GakumasPhotoMode
                     _camera.transform.right*(offset*_camera.aspect) + _camera.transform.up*offset;
                 Vector3 direction = _camera.transform.forward;
                 Vector3 point = origin-direction*(origin.z/direction.z);
-                Vector3 view = (_camera.transform.position-point).normalized;
+                Vector3 view = _camera.orthographic ? -_camera.transform.forward : (_camera.transform.position-point).normalized;
                 Vector3 x = Vector3.Cross(view, _camera.transform.up);
                 Vector3 y = Vector3.Cross(x, view);
                 Vector3 receiver = captured ? new Vector3(Vector3.Dot(x, normal),
@@ -1246,7 +1247,7 @@ namespace GakumasPhotoMode
                 Shader.SetGlobalVector("_ActorLightingScales", new Vector4(0, 1, 1, 0));
                 rampAdd.SetPixel(0, 0, new Color(0.4f, 0.7f, 0.2f, 1f)); rampAdd.Apply();
                 _material.SetColor("_RampAddColor", Color.white);
-                Vector3 view = (_camera.transform.position - samplePosition).normalized;
+                Vector3 view = _camera.orthographic ? -_camera.transform.forward : (_camera.transform.position - samplePosition).normalized;
                 Vector3 half = (Vector3.back + view).normalized;
                 Vector3[] normals = { Vector3.back, new Vector3(0.9f, 0, -0.4358899f).normalized };
                 for (int i = 0; i < normals.Length; i++)
@@ -1367,7 +1368,7 @@ namespace GakumasPhotoMode
                 Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
                 Shader.SetGlobalFloat("_CapturedActorOutputScale", 1f);
                 Vector3 fragment = _camera.ViewportToWorldPoint(new Vector3(32.5f / 64f, 32.5f / 64f, 2.8f));
-                Vector3 view = (_camera.transform.position - fragment).normalized;
+                Vector3 view = _camera.orthographic ? -_camera.transform.forward : (_camera.transform.position - fragment).normalized;
                 Vector3[] forward = { Vector3.back, new Vector3(0.8f, 0, -0.6f),
                     Vector3.right, new Vector3(0, 0.6f, -0.8f) };
                 for (int angle = 0; angle < forward.Length; angle++)
@@ -2166,6 +2167,72 @@ namespace GakumasPhotoMode
             }
         }
 
+        private void VerifyProjectionViewDirection(Report report)
+        {
+            var saved = Own(new Material(_material));
+            Vector3[] savedNormals = _quad.normals;
+            Quaternion savedActorRotation = _quadRenderer.transform.rotation;
+            Vector3 savedPosition = _camera.transform.position;
+            Quaternion savedRotation = _camera.transform.rotation;
+            bool savedOrthographic = _camera.orthographic;
+            float savedFov = _camera.fieldOfView;
+            float savedDebug = Shader.GetGlobalFloat("_FaceDebugMode");
+            Vector4 savedUp = Shader.GetGlobalVector("_CapturedCameraUp");
+            try
+            {
+                _material.SetFloat("_ShaderType", 0f); _material.SetFloat("_UseBump", 0f);
+                _material.SetFloat("_UseAlphaClip", 0f);
+                Shader.SetGlobalFloat("_FaceDebugMode", 29f);
+                int[] pixels = { 16, 32, 48 };
+                Vector3[] normals = { new Vector3(0.4f, 0.3f, -0.8660254f).normalized,
+                    new Vector3(0.7f, 0.2f, -0.6855655f).normalized };
+                for (int projection = 0; projection < 2; projection++) for (int pose = 0; pose < 2; pose++)
+                {
+                    _camera.orthographic = projection == 0; _camera.fieldOfView = 20f;
+                    Quaternion rotation = pose == 0 ? Quaternion.identity : Quaternion.Euler(12f, 23f, -17f);
+                    _quadRenderer.transform.rotation = rotation;
+                    Shader.SetGlobalVector("_CapturedCameraUp", rotation * Vector3.up);
+                    foreach (float distance in new[] { 1.25f, 4.5f }) for (int normalCase = 0; normalCase < normals.Length; normalCase++)
+                    {
+                        Vector3 normal = normals[normalCase];
+                        _quad.normals = new[] { normal, normal, normal, normal };
+                        _camera.transform.SetPositionAndRotation(rotation * (Vector3.back * distance), rotation);
+                        string name = "projection-view-" + projection + "-pose-" + pose + "-distance-" + distance + "-normal-" + normalCase;
+                        Render(name);
+                        float minimum = float.PositiveInfinity, maximum = float.NegativeInfinity;
+                        foreach (int pixel in pixels)
+                        {
+                            float coordinate = ((pixel + 0.5f) / 64f * 2f - 1f);
+                            float extent = _camera.orthographic ? _camera.orthographicSize : distance * Mathf.Tan(10f * Mathf.Deg2Rad);
+                            Vector3 point = rotation * new Vector3(coordinate * extent * _camera.aspect, coordinate * extent, 0f);
+                            // Parallel camera rays do not depend on this point
+                            // or on camera distance; perspective rays still do.
+                            Vector3 view = _camera.orthographic ? rotation * Vector3.back : (_camera.transform.position - point).normalized;
+                            Vector3 worldNormal = rotation * normal;
+                            Vector3 horizontal = Vector3.Cross(view, rotation * Vector3.up);
+                            Vector3 vertical = Vector3.Cross(horizontal, view);
+                            Color expected = new Color(Mathf.Max(Vector3.Dot(horizontal, worldNormal), 0f),
+                                Mathf.Max(Vector3.Dot(vertical, worldNormal), 0f), Mathf.Max(Vector3.Dot(view, worldNormal), 0f), 1f);
+                            Color actual = _readback.GetPixel(pixel, pixel);
+                            AddColorCheck(report, name + "-pixel-" + pixel, expected, actual);
+                            minimum = Mathf.Min(minimum, actual.b); maximum = Mathf.Max(maximum, actual.b);
+                        }
+                        if (projection != 0) report.checks.Add(new Check { name = name + "-perspective-varies",
+                            maximumDifference = maximum - minimum, accepted = maximum - minimum > 0.02f });
+                    }
+                }
+            }
+            finally
+            {
+                _material.CopyPropertiesFromMaterial(saved); _quad.normals = savedNormals;
+                _quadRenderer.transform.rotation = savedActorRotation;
+                _camera.transform.SetPositionAndRotation(savedPosition, savedRotation);
+                _camera.orthographic = savedOrthographic; _camera.fieldOfView = savedFov;
+                Shader.SetGlobalFloat("_FaceDebugMode", savedDebug);
+                Shader.SetGlobalVector("_CapturedCameraUp", savedUp);
+            }
+        }
+
         private void VerifyEnvironmentCoordinates(Report report)
         {
             var saved = Own(new Material(_material));
@@ -2235,12 +2302,11 @@ namespace GakumasPhotoMode
                     Quaternion rotation = Quaternion.LookRotation(-normal, Mathf.Abs(normal.y) > 0.9f ? Vector3.forward : Vector3.up);
                     _quadRenderer.transform.rotation = rotation;
                     _camera.transform.SetPositionAndRotation(normal * 3f, rotation);
-                    // Current ordinary view calculation is perspective-style even
-                    // with an orthographic camera. Account for the center sample
-                    // explicitly; changing that separate contract is out of scope.
+                    // Parallel rays use camera orientation, while a perspective
+                    // projection uses the independently derived sample point.
                     float offset = (32.5f / 64f * 2f - 1f) * _camera.orthographicSize;
                     Vector3 point = rotation * new Vector3(offset, offset, 0f);
-                    Vector3 view = (_camera.transform.position - point).normalized;
+                    Vector3 view = _camera.orthographic ? -_camera.transform.forward : (_camera.transform.position - point).normalized;
                     Vector3 reflection = Vector3.Reflect(-view, normal);
                     float fresnel = Mathf.Pow(1f - Mathf.Clamp01(Vector3.Dot(normal, view)), 4f);
                     float brdf = Mathf.Lerp(0.04f, 0.54f, fresnel) / (1f + Mathf.Pow(0.5f, 4f));
