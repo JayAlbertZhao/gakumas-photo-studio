@@ -7,6 +7,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_outline_depth_nibble_is_integer_not_normalized(self):
+        outline = (ROOT / 'unity/Assets/Resources/ActorOutline.cginc').read_text(encoding='utf-8')
+        self.assertIn('float depthOffset = floor(bytes.b / 16.0) * packed;', outline)
+        self.assertNotIn('float depthOffset = high.b * packed;', outline)
+        self.assertIn('output.position.z -= depthOffset * (0.001 / 15.0);', outline)
+        self.assertIn('output.position.z += depthOffset * (0.001 / 15.0);', outline)
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('outline-packed-depth-', probe)
+        self.assertIn('new[] { 0, 1, 8, 15 }', probe)
+        self.assertIn('Mathf.Max(nibble, 1) * unitDistance * fraction', probe)
+
     def test_outline_respects_material_depth_write_and_draw_order(self):
         extra = (ROOT / 'unity/Assets/Resources/ActorSupplemental.shader').read_text(encoding='utf-8')
         outline, hair = extra.split('Name "ACTOR_HAIR_COVER"', 1)

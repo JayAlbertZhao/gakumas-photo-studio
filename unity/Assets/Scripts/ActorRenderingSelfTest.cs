@@ -1085,6 +1085,7 @@ namespace GakumasPhotoMode
             Vector4[][] savedArrays = Array.ConvertAll(arrays, Shader.GetGlobalVectorArray);
             float savedCount = Shader.GetGlobalFloat("_ActorAdditionalLightCount");
             float savedDebug = Shader.GetGlobalFloat("_FaceDebugMode");
+            float savedNear = _camera.nearClipPlane, savedFar = _camera.farClipPlane;
             Vector3 savedPosition = _quadRenderer.transform.position;
             var lateSurface = Own(new Material(_material));
             lateSurface.SetTexture("_MainTex", Texture2D.whiteTexture);
@@ -1138,6 +1139,31 @@ namespace GakumasPhotoMode
                 Check("outline-depth-disabled-background-control", _camera.backgroundColor);
                 controls.outlines = true;
                 Check("outline-depth-restored", nearColor);
+
+                // The upper blue nibble counts clip-depth units (0..15),
+                // unlike normalized RGB/width nibbles. Place an opaque plane
+                // on either side of the independently computed depth shift.
+                _camera.nearClipPlane = 0.1f; _camera.farClipPlane = 10f;
+                lateSurface.renderQueue = 2000;
+                lateSurface.SetFloat("_ZWrite", 1f);
+                lateSurface.SetFloat("_DstBlend", (float)BlendMode.Zero);
+                _quadRenderer.enabled = true;
+                near.SetFloat("_VertexColor", 1f);
+                Mesh outlineMesh = nearPlane.GetComponent<MeshFilter>().sharedMesh;
+                foreach (int nibble in new[] { 0, 1, 8, 15 })
+                {
+                    Color packed = new Color(0, 0, (nibble * 16 + 7) / 255f, 1);
+                    outlineMesh.colors = new[] { packed, packed, packed, packed };
+                    float unitDistance = (10f - 0.1f) * (0.001f / 15f);
+                    foreach (float fraction in new[] { 0.5f, 1.5f })
+                    {
+                        _quadRenderer.transform.position = new Vector3(0, 0,
+                            -0.2f + Mathf.Max(nibble, 1) * unitDistance * fraction);
+                        bool hidden = nibble > 0 && fraction < 1f;
+                        Check("outline-packed-depth-" + nibble + "-plane-" + fraction,
+                            hidden ? Color.white : nearColor);
+                    }
+                }
             }
             finally
             {
@@ -1146,6 +1172,7 @@ namespace GakumasPhotoMode
                 _quadRenderer.sharedMaterial = _material;
                 _quadRenderer.transform.position = savedPosition;
                 _quadRenderer.enabled = true;
+                _camera.nearClipPlane = savedNear; _camera.farClipPlane = savedFar;
                 Shader.SetGlobalFloat("_FaceDebugMode", savedDebug);
                 Shader.SetGlobalFloat("_ActorAdditionalLightCount", savedCount);
                 for (int i = 0; i < vectors.Length; i++) Shader.SetGlobalVector(vectors[i], savedVectors[i]);

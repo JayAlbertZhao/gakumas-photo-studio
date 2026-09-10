@@ -32,7 +32,9 @@ OutlineVaryings outlineVertex(OutlineInput input)
     low /= 15.0;
     float packed = step(0.5, _VertexColor);
     float widthMask = lerp(1.0, low.b, packed);
-    float depthOffset = high.b * packed;
+    // Depth counts 0..15 clip-offset units. Normalizing this nibble like
+    // RGB/width reduces the authored offset fifteenfold.
+    float depthOffset = floor(bytes.b / 16.0) * packed;
     output.color = lerp(float4(0.08, 0.06, 0.08, 1.0),
         float4(high.r, low.r, high.g, low.a), packed);
     input.vertex.xyz *= _WardrobeScaleCorrection.xyz;
@@ -52,9 +54,9 @@ OutlineVaryings outlineVertex(OutlineInput input)
     // Move away from the camera; account for reversed depth rather than
     // assuming the same clip-space sign on D3D and non-reversed backends.
     #if defined(UNITY_REVERSED_Z)
-    output.position.z -= depthOffset * 0.00006666667;
+    output.position.z -= depthOffset * (0.001 / 15.0);
     #else
-    output.position.z += depthOffset * 0.00006666667;
+    output.position.z += depthOffset * (0.001 / 15.0);
     #endif
     output.uv = TRANSFORM_TEX(input.uv, _MainTex);
     return output;
