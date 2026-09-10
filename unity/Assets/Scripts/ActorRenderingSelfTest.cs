@@ -100,6 +100,7 @@ namespace GakumasPhotoMode
                 VerifyPresentationOwnership(report);
                 VerifyCapturedMaterialUv(report);
                 VerifyCapturedCamera(report);
+                VerifyShadowSubtexelFiltering(report);
                 report.accepted = report.checks.TrueForAll(check => check.accepted);
             }
             catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); }
@@ -1025,6 +1026,76 @@ namespace GakumasPhotoMode
             bool absent = CapturedCameraState.TryReadOption(new[] { "--photo-mode" }, out path, out error);
             report.checks.Add(new Check { name = "captured-camera-command-line-missing-equals-and-absent",
                 accepted = !missingPath && !equalsPath && absent && path == null });
+        }
+
+        private void VerifyShadowSubtexelFiltering(Report report)
+        {
+            // Independent oracle: four half-texel-offset bilinear comparisons.
+            // Do not duplicate the shader's collapsed separable kernel here.
+            const int size = 4;
+            var depth = Own(new Texture2D(size, size, TextureFormat.RGBAFloat, false, true));
+            depth.filterMode = FilterMode.Point;
+            depth.wrapMode = TextureWrapMode.Clamp;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                    depth.SetPixel(x, y, new Color(((x + y * 3) % 5) / 4f, 0, 0, 1));
+            depth.Apply();
+            Vector3 savedPosition = _camera.transform.position;
+            float savedType = _material.GetFloat("_ShaderType");
+            float savedDebug = Shader.GetGlobalFloat("_FaceDebugMode");
+            _camera.transform.position = new Vector3(0, 0, -1);
+            _material.SetFloat("_ShaderType", 8f);
+            Shader.SetGlobalFloat("_FaceDebugMode", 12f);
+            Shader.SetGlobalFloat("_UseCapturedActorShadow", 1f);
+            Shader.SetGlobalFloat("_UseExactCapturedActorShadowMatrix", 1f);
+            Shader.SetGlobalFloat("_CapturedActorShadowStrength", 1f);
+            Shader.SetGlobalFloat("_CapturedActorShadowUseOffset", 0f);
+            Shader.SetGlobalTexture("_CapturedActorShadowTex", depth);
+            Shader.SetGlobalVector("_CapturedActorShadowTexelSize", new Vector4(1f/size, 1f/size, size, size));
+            var coordinates = new List<Vector2>();
+            foreach (float y in new[] { 0f, 0.25f, 0.5f, 0.75f })
+                foreach (float x in new[] { 0f, 0.25f, 0.5f, 0.75f })
+                    coordinates.Add(new Vector2((1f+x)/size, (1f+y)/size));
+            coordinates.AddRange(new[] { Vector2.zero, Vector2.one, new Vector2(0, 1), new Vector2(1, 0) });
+            for (int i = 0; i < coordinates.Count; i++)
+            {
+                Vector2 uv = coordinates[i];
+                Matrix4x4 matrix = Matrix4x4.zero;
+                matrix.m03 = uv.x; matrix.m13 = uv.y; matrix.m23 = 0.5f; matrix.m33 = 1f;
+                Shader.SetGlobalMatrix("_CapturedActorWorldToShadow", matrix);
+                float expected = 0f;
+                foreach (float dy in new[] { -0.5f, 0.5f })
+                    foreach (float dx in new[] { -0.5f, 0.5f })
+                        expected += ShadowBilinearOracle(depth, uv + new Vector2(dx/size, dy/size), 0.5f) * 0.25f;
+                Color actual = Render("shadow-subtexel-" + i);
+                float difference = Mathf.Max(Mathf.Abs(actual.r-expected), Mathf.Abs(actual.g-expected), Mathf.Abs(actual.b-expected));
+                report.checks.Add(new Check { name = "shadow-subtexel-bilinear-" + i,
+                    expected = new Color(expected, expected, expected, 1), actual = actual,
+                    maximumDifference = difference, accepted = !float.IsNaN(difference) && difference <= 0.00001f });
+            }
+            Shader.SetGlobalFloat("_UseCapturedActorShadow", 0f);
+            Shader.SetGlobalFloat("_UseExactCapturedActorShadowMatrix", 0f);
+            Shader.SetGlobalFloat("_FaceDebugMode", savedDebug);
+            _material.SetFloat("_ShaderType", savedType);
+            _camera.transform.position = savedPosition;
+        }
+
+        private static float ShadowBilinearOracle(Texture2D depth, Vector2 uv, float reference)
+        {
+            float x = uv.x * depth.width - 0.5f, y = uv.y * depth.height - 0.5f;
+            int ix = Mathf.FloorToInt(x), iy = Mathf.FloorToInt(y);
+            float result = 0f;
+            for (int dy = 0; dy < 2; dy++)
+                for (int dx = 0; dx < 2; dx++)
+                {
+                    float sample = depth.GetPixel(Mathf.Clamp(ix+dx, 0, depth.width-1),
+                        Mathf.Clamp(iy+dy, 0, depth.height-1)).r;
+                    bool lit = SystemInfo.usesReversedZBuffer ? reference > sample : reference < sample;
+                    float wx = dx == 0 ? 1f-(x-ix) : x-ix;
+                    float wy = dy == 0 ? 1f-(y-iy) : y-iy;
+                    result += (lit ? 1f : 0f) * wx * wy;
+                }
+            return result;
         }
 
         private void SetUp()

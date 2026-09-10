@@ -309,14 +309,17 @@ float CapturedShadowComparison(float2 uv, float receiverDepth)
 {
     float mapDepth = tex2D(_CapturedActorShadowTex, uv).r;
     #if defined(UNITY_REVERSED_Z)
-        return step(mapDepth, receiverDepth);
+        return receiverDepth > mapDepth ? 1.0 : 0.0;
     #else
-        return step(receiverDepth, mapDepth);
+        return receiverDepth < mapDepth ? 1.0 : 0.0;
     #endif
 }
 
 float CapturedActorShadow(float3 worldPosition)
 {
+    // Disabled previews need no shadow matrix or texture dimensions. Avoid
+    // evaluating an unset projection/texel division and then lerping its NaN.
+    if (_UseCapturedActorShadow <= 0.0) return 1.0;
     float4 clip = mul(_CapturedActorWorldToShadow, float4(worldPosition, 1.0));
     float3 projected = clip.xyz / clip.w;
     float2 uv = projected.xy * 0.5 + 0.5;
@@ -332,28 +335,33 @@ float CapturedActorShadow(float3 worldPosition)
                      step(0.0, uv.y) * step(uv.y, 1.0);
     if (inBounds < 0.5) return 1.0;
 
-    // Until Unity exposes the captured GREATER comparison-sampler
-    // state, the explicit separable 3x3 kernel is the validated
-    // approximation. Against the same-camera GPA receiver it gives
-    // materially lower error/correct mean coverage than Unity's
-    // implicit SampleCmp or a zero-offset manual reconstruction.
+    // Four half-texel-offset bilinear comparison samples collapse to
+    // a separable 3x3 kernel. Its outer weights depend on the receiver's
+    // fractional texel position; fixed binomial weights only match at
+    // texel centres and make moving shadow edges advance in steps.
+    // Sample texel centres explicitly: the depth texture is point-filtered.
     float2 texel = _CapturedActorShadowTexelSize.xy;
+    float2 grid = uv / texel;
+    float2 fraction = frac(grid);
+    float2 centreUv = (floor(grid) + 0.5) * texel;
+    float3 weightX = float3(1.0 - fraction.x, 1.0, fraction.x) * 0.5;
+    float3 weightY = float3(1.0 - fraction.y, 1.0, fraction.y) * 0.5;
     float filtered = 0.0;
-    filtered += CapturedShadowComparison(uv + texel * float2(-1,-1), projected.z) * 0.0625;
-    filtered += CapturedShadowComparison(uv + texel * float2( 0,-1), projected.z) * 0.1250;
-    filtered += CapturedShadowComparison(uv + texel * float2( 1,-1), projected.z) * 0.0625;
-    filtered += CapturedShadowComparison(uv + texel * float2(-1, 0), projected.z) * 0.1250;
-    filtered += CapturedShadowComparison(uv, projected.z) * 0.2500;
-    filtered += CapturedShadowComparison(uv + texel * float2( 1, 0), projected.z) * 0.1250;
-    filtered += CapturedShadowComparison(uv + texel * float2(-1, 1), projected.z) * 0.0625;
-    filtered += CapturedShadowComparison(uv + texel * float2( 0, 1), projected.z) * 0.1250;
-    filtered += CapturedShadowComparison(uv + texel * float2( 1, 1), projected.z) * 0.0625;
+    filtered += CapturedShadowComparison(centreUv + texel * float2(-1,-1), projected.z) * weightX.x * weightY.x;
+    filtered += CapturedShadowComparison(centreUv + texel * float2( 0,-1), projected.z) * weightX.y * weightY.x;
+    filtered += CapturedShadowComparison(centreUv + texel * float2( 1,-1), projected.z) * weightX.z * weightY.x;
+    filtered += CapturedShadowComparison(centreUv + texel * float2(-1, 0), projected.z) * weightX.x * weightY.y;
+    filtered += CapturedShadowComparison(centreUv, projected.z) * weightX.y * weightY.y;
+    filtered += CapturedShadowComparison(centreUv + texel * float2( 1, 0), projected.z) * weightX.z * weightY.y;
+    filtered += CapturedShadowComparison(centreUv + texel * float2(-1, 1), projected.z) * weightX.x * weightY.z;
+    filtered += CapturedShadowComparison(centreUv + texel * float2( 0, 1), projected.z) * weightX.y * weightY.z;
+    filtered += CapturedShadowComparison(centreUv + texel * float2( 1, 1), projected.z) * weightX.z * weightY.z;
 
     // Literal receiver tail shared by the bound type 0/1/4/6/9
     // Actor pixel shaders. CB0[144] is
     // (shadowStrength, useOffset, 1.69926143, -4.93700218).
     // The four hardware-bilinear half-texel comparison taps above
-    // are equivalent to this explicit 3x3 binomial kernel. The
+    // are equivalent to this phase-aware 3x3 kernel. The
     // distance term fades that filtered result to fully lit. When
     // useOffset is enabled, the unfiltered centre comparison is
     // added before the strength lerp (DXBC `mad center, y, filtered`).

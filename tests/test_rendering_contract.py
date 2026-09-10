@@ -7,6 +7,21 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_shadow_filter_preserves_subtexel_phase_and_strict_comparison(self):
+        surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        self.assertIn('float2 fraction = frac(grid);', surface)
+        self.assertIn('if (_UseCapturedActorShadow <= 0.0) return 1.0;', surface)
+        self.assertIn('(floor(grid) + 0.5) * texel', surface)
+        self.assertIn('float3(1.0 - fraction.x, 1.0, fraction.x) * 0.5', surface)
+        self.assertIn('float3(1.0 - fraction.y, 1.0, fraction.y) * 0.5', surface)
+        self.assertIn('receiverDepth > mapDepth ? 1.0 : 0.0', surface)
+        self.assertIn('receiverDepth < mapDepth ? 1.0 : 0.0', surface)
+        self.assertNotIn('return step(mapDepth, receiverDepth);', surface)
+        probe = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifyShadowSubtexelFiltering(report);', probe)
+        self.assertIn('ShadowBilinearOracle(depth, uv +', probe)
+        self.assertIn('shadow-subtexel-bilinear-', probe)
+
     def test_additional_lights_modulate_key_colored_shading(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('float3 mainLighting = capturedBrdf * (_ActorKeyColor.rgb * _CapturedLightColor.rgb);', surface)
