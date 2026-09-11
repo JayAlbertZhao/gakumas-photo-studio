@@ -26,6 +26,7 @@
 !/.githooks/pre-commit
 !/.github/workflows/source-audit.yml
 !/.gitignore
+!/CONTEXT.md
 !/LocalAssets/README.md
 !/NOTICE.md
 !/README.md
