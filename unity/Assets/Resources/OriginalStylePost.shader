@@ -567,5 +567,38 @@ Shader "Hidden/GakumasPhotoMode/OriginalStylePost"
             }
             ENDCG
         }
+        Pass
+        {
+            Name "SCENE_DISTANCE_FOG"
+            Blend One OneMinusSrcAlpha, Zero One
+            CGPROGRAM
+            #pragma vertex vert_img
+            #pragma fragment frag
+            #pragma target 3.0
+            #include "UnityCG.cginc"
+            UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
+            float4 _SceneFogParameters; // effective density, opacity cap, sky weight
+            float3 _SceneFogColor;      // linear RGB
+            float4 _SceneFogDepthDecode; // perspective z/w, near/far
+            float _SceneFogOrthographic, _SceneFogReversedZ;
+
+            float4 frag(v2f_img input):SV_Target
+            {
+                float rawDepth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, input.uv);
+                float forwardDepth = _SceneFogReversedZ > 0.5 ? 1.0 - rawDepth : rawDepth;
+                float valid = forwardDepth < 1.0 ? 1.0 : 0.0;
+                float distance = _SceneFogOrthographic > 0.5
+                    ? lerp(_SceneFogDepthDecode.z, _SceneFogDepthDecode.w, forwardDepth)
+                    : rcp(rawDepth * _SceneFogDepthDecode.x + _SceneFogDepthDecode.y);
+                float weight = max(1.0 - exp(-max(distance, 0.0) * _SceneFogParameters.x), 0.0);
+                weight *= max(valid, _SceneFogParameters.z);
+                if (_SceneFogParameters.x <= 0.0) weight = 0.0;
+                float opacity = saturate(min(weight, _SceneFogParameters.y));
+                // The uncapped distance weight also modulates fog color.
+                // Keep this separate from the capped alpha used by blending.
+                return float4(_SceneFogColor * weight * opacity, opacity);
+            }
+            ENDCG
+        }
     }
 }

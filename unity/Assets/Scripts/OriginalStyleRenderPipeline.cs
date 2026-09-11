@@ -41,6 +41,15 @@ namespace GakumasPhotoMode
         [Range(0f, 2f)] public float outlineStrength = 0f;
         [Range(0f, 1f)] public float temporalBlend = 0.95f;
 
+        // An explicit local override is separate from the captured riverbed
+        // profile. Studio/ADV do not inherit riverbed fog merely by sharing an
+        // actor. Density is the effective inverse-distance coefficient.
+        public bool overrideSceneDistanceFog;
+        [Min(0f)] public float sceneFogDensity = 0.0081f;
+        public Color sceneFogColor = new Color(0.5f, 0.6f, 0.7f, 1f);
+        [Range(0f, 1f)] public float sceneFogMaximumOpacity = 0.3f;
+        [Range(0f, 1f)] public float sceneFogSkyWeight;
+
         private Camera _sourceCamera;
         private Camera _actorCamera;
         private Material _postMaterial;
@@ -289,13 +298,13 @@ namespace GakumasPhotoMode
             // no full-resolution skin-only blur here. Bypass the former identity blit in
             // production so it cannot add an extra resample/format round-trip. Retain the
             // old face blur only behind an explicit diagnostic switch.
-            RenderTexture current = source;
+            RenderTexture current = ApplySceneDistanceFog(source, temporaries);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "--legacy-diffusion") >= 0)
             {
                 RenderTexture legacyDiffused = GetTemporary(
                     source.width, source.height, RenderTextureFormat.ARGBHalf, temporaries);
                 _postMaterial.SetFloat("_DiffusionStrength", 0.12f);
-                Graphics.Blit(source, legacyDiffused, _postMaterial, 8);
+                Graphics.Blit(current, legacyDiffused, _postMaterial, 8);
                 current = legacyDiffused;
             }
             if (!string.IsNullOrEmpty(currentHdrDumpPrefix))
@@ -308,7 +317,7 @@ namespace GakumasPhotoMode
             }
 
             bool continuousFrame = _historyValid && _historyFrame == Time.frameCount - 1;
-            RenderTexture temporal = GetTemporary(source.width, source.height, RenderTextureFormat.ARGBHalf, temporaries);
+            RenderTexture temporal = GetTemporary(source.width, source.height, SupersamplePresenter.SceneColorFormat, temporaries);
             _postMaterial.SetTexture("_HistoryTex", _history != null ? _history : Texture2D.blackTexture);
             _postMaterial.SetFloat("_HistoryValid", continuousFrame ? 1f : 0f);
             _postMaterial.SetFloat("_TemporalBlend", temporalBlend);
@@ -479,6 +488,49 @@ namespace GakumasPhotoMode
             texture.wrapMode = TextureWrapMode.Clamp;
             collection.Add(texture);
             return texture;
+        }
+
+        public bool TryGetSceneDistanceFog(out Vector4 parameters, out Color linearColor)
+        {
+            parameters = Vector4.zero;
+            linearColor = Color.black;
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "--disable-scene-fog") >= 0)
+                return false;
+            if (!overrideSceneDistanceFog && _presentationContext != PresentationContext.CapturedRiverbed)
+                return false;
+            float density = overrideSceneDistanceFog ? Mathf.Max(0f, sceneFogDensity) : 0.0081f;
+            float cap = overrideSceneDistanceFog ? Mathf.Clamp01(sceneFogMaximumOpacity) : 0.3f;
+            float skyWeight = overrideSceneDistanceFog ? Mathf.Clamp01(sceneFogSkyWeight) : 0f;
+            if (density <= 0f || cap <= 0f) return false;
+            parameters = new Vector4(density, cap, skyWeight, 0f);
+            linearColor = (overrideSceneDistanceFog ? sceneFogColor : new Color(0.5f, 0.6f, 0.7f, 1f)).linear;
+            return true;
+        }
+
+        private RenderTexture ApplySceneDistanceFog(
+            RenderTexture source, ICollection<RenderTexture> temporaries)
+        {
+            Vector4 parameters;
+            Color color;
+            if (!TryGetSceneDistanceFog(out parameters, out color) || _postMaterial == null || _sourceCamera == null)
+                return source;
+            float near = _sourceCamera.nearClipPlane;
+            float far = _sourceCamera.farClipPlane;
+            bool reversed = SystemInfo.usesReversedZBuffer;
+            _postMaterial.SetVector("_SceneFogParameters", parameters);
+            _postMaterial.SetVector("_SceneFogColor", new Vector4(color.r, color.g, color.b, 0f));
+            _postMaterial.SetVector("_SceneFogDepthDecode", new Vector4(
+                reversed ? 1f / near - 1f / far : 1f / far - 1f / near,
+                reversed ? 1f / far : 1f / near, near, far));
+            _postMaterial.SetFloat("_SceneFogOrthographic", _sourceCamera.orthographic ? 1f : 0f);
+            _postMaterial.SetFloat("_SceneFogReversedZ", reversed ? 1f : 0f);
+            RenderTexture fogged = GetTemporary(source.width, source.height, source.format, temporaries);
+            // Preserve the pre-fog surface exactly, then blend a fog-only
+            // contribution once. Sampling/copying via another shader would
+            // introduce an unrelated resample and rounding step.
+            Graphics.CopyTexture(source, 0, 0, fogged, 0, 0);
+            Graphics.Blit(null, fogged, _postMaterial, 11);
+            return fogged;
         }
 
         private RenderTexture ApplyDepthOfField(
@@ -1038,7 +1090,7 @@ namespace GakumasPhotoMode
         {
             if (_history != null && _history.width == width && _history.height == height) return;
             ReleaseHistory();
-            _history = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf)
+            _history = new RenderTexture(width, height, 0, SupersamplePresenter.SceneColorFormat)
             {
                 name = "TaaAccumulation",
                 filterMode = FilterMode.Bilinear,

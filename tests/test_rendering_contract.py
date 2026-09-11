@@ -7,6 +7,41 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ActorRenderingWiringTests(unittest.TestCase):
+    def test_scene_fog_routes_before_temporal_without_leaking_capture_profile(self):
+        pipeline = (ROOT / 'unity/Assets/Scripts/OriginalStyleRenderPipeline.cs').read_text(encoding='utf-8')
+        render = pipeline.split('private void OnRenderImage(', 1)[1].split('public bool TryGetSceneDistanceFog(', 1)[0]
+        self.assertLess(render.index('ApplySceneDistanceFog(source, temporaries)'),
+                        render.index('Graphics.Blit(current, temporal, _postMaterial, 7)'))
+        fog = pipeline.split('public bool TryGetSceneDistanceFog(', 1)[1].split('private RenderTexture ApplyDepthOfField(', 1)[0]
+        for contract in ('!overrideSceneDistanceFog && _presentationContext != PresentationContext.CapturedRiverbed',
+                         'if (density <= 0f || cap <= 0f) return false;',
+                         'Graphics.CopyTexture(source, 0, 0, fogged, 0, 0)',
+                         'Graphics.Blit(null, fogged, _postMaterial, 11)',
+                         '_sourceCamera.nearClipPlane', '_sourceCamera.farClipPlane',
+                         'SystemInfo.usesReversedZBuffer', '_sourceCamera.orthographic'):
+            self.assertIn(contract, fog)
+        post = (ROOT / 'unity/Assets/Resources/OriginalStylePost.shader').read_text(encoding='utf-8')
+        fog_pass = post.split('Name "SCENE_DISTANCE_FOG"', 1)[1]
+        self.assertIn('Blend One OneMinusSrcAlpha, Zero One', fog_pass)
+        self.assertIn('_SceneFogColor * weight * opacity', fog_pass)
+        fixture = (ROOT / 'unity/Assets/Scripts/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        for contract in ('VerifySceneDistanceFog(report);', '"ApplySceneDistanceFog", BindingFlags.Instance',
+                         '"scene-fog-no-riverbed-leak-"', '"scene-fog-actual-pipeline-"',
+                         '"scene-fog-override-release-restores-local"', 'accepted = finite && maximum <= 0.00001f'):
+            self.assertIn(contract, fixture)
+
+    def test_scene_rgb_format_keeps_actor_data_and_presentation_alpha_separate(self):
+        presenter = (ROOT / 'unity/Assets/Scripts/SupersamplePresenter.cs').read_text(encoding='utf-8')
+        self.assertIn('SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RGB111110Float)', presenter)
+        self.assertIn('return RenderTextureFormat.ARGBHalf;', presenter)
+        source = presenter.split('_sourceTarget = new RenderTexture(', 1)[1].split('_sourceTarget.Create()', 1)[0]
+        self.assertIn('SceneColorFormat', source)
+        presentation = presenter.split('_presentationTarget = new RenderTexture(', 1)[1].split('_presentationTarget.Create()', 1)[0]
+        self.assertIn('RenderTextureFormat.ARGBHalf', presentation)
+        pipeline = (ROOT / 'unity/Assets/Scripts/OriginalStyleRenderPipeline.cs').read_text(encoding='utf-8')
+        self.assertIn('_actorData = new RenderTexture(width, height, 24, RenderTextureFormat.ARGBHalf)', pipeline)
+        self.assertIn('_history = new RenderTexture(width, height, 0, SupersamplePresenter.SceneColorFormat)', pipeline)
+
     def test_ramp_add_clamps_after_signed_view_offset(self):
         surface = (ROOT / 'unity/Assets/Resources/ActorSurface.cginc').read_text(encoding='utf-8')
         self.assertIn('float rampAddX = saturate(definition.r * 2.0 - 1.0 + dot(n, v));', surface)

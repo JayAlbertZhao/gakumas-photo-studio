@@ -256,14 +256,12 @@ namespace GakumasPhotoMode
                 float capturedActorTextureLodBias = commandLine.Contains("--actor-lod-bias-zero") ? 0f :
                                                     commandLine.Contains("--actor-lod-bias-minus-two") ? -2f : -1f;
                 Shader.SetGlobalFloat("_CapturedActorTextureLodBias", capturedActorTextureLodBias);
-                // Compare the settled local temporal target with the captured
-                // post-input temporal target, under the exact camera/pose and
-                // captured deformed normals. The remaining bias is coherent
-                // across costume/hair/face (1.0285/1.0238/1.0377), so calibrate
-                // the Actor output once rather than changing the verified final
-                // post or inventing per-material exposure hacks.
+                // Surface color precedes scene fog and target quantization.
+                // The former .97 fit mixed those stages into material shading.
+                // Keep it only as an explicit historical regression control;
+                // --actor-output-literal remains a compatible no-op.
                 Shader.SetGlobalFloat("_CapturedActorOutputScale",
-                    commandLine.Contains("--actor-output-literal") ? 1f : 0.97f);
+                    commandLine.Contains("--legacy-actor-output-scale") ? 0.97f : 1f);
                 Shader.SetGlobalFloat("_CapturedType4DebugStage",
                     commandLine.Contains("--type4-debug-diffuse") ? 1f :
                     commandLine.Contains("--type4-debug-direct-diffuse") ? 2f :

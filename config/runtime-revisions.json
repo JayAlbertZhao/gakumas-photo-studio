@@ -52,16 +52,20 @@
       "baseline_sha256": "8d96a3cfdc758ef1ee6ac5c8c6b4f6900c2bfe45676e786ee3c169a59881db72"
     },
     "unity/Assets/Scripts/OriginalStyleRenderPipeline.cs": {
-      "sha256": "e1640d1beb754cbbdb6998df9ff6892cb4dae7bdf0311244e300266b0a628fd3",
+      "sha256": "08148ce13c7963c5cf649a778e9ded5e1886cc17b90c23401ebfb39b645f237c",
       "baseline_sha256": "08bc0a1eb0da8430850929da1a2ac27e3ae63426d06257c58fbfe6501ffa062d"
     },
     "unity/Assets/Scripts/PhotoModeApp.cs": {
-      "sha256": "b1db6b58e89098654576f941fbed3c858464068547c9ebc21e47e7f55b5da58c",
+      "sha256": "9bedd803ae4525c5549ade201fd31ade160b671e2285579bf7a6fa09f39d487f",
       "baseline_sha256": "0d8741b4550b6cef4185c7cb087b20747b2dbc3c52a03760b6c07ddc81d27e23"
     },
     "unity/Assets/Scripts/SupersamplePresenter.cs": {
-      "sha256": "2b40b3f0204e537f05076394a8c1202b8f23d5bcacb682660321ce270220af5a",
+      "sha256": "dcf086ffdfa421d035d78b9dc553405f1a395ff32f25c44623215cf67844bc76",
       "baseline_sha256": "c5e120165d528de77ba8aedd2a186521afc8c012b964ef75ccbdb7b592094709"
+    },
+    "unity/Assets/Resources/OriginalStylePost.shader": {
+      "sha256": "04cc4ffc0c831262b16173d57589f0ca8e5dd4b7f75a290a84dec1ceaafa4806",
+      "baseline_sha256": "b80e4c3ac482761f7331b37814d4242aabe23de1c7afa86aab5daf71641155ac"
     },
     "unity/Assets/VLStub/ActorMotionDefine.cs": {
       "sha256": "15aec3bda01d1b75cd1d8641e871566bfd31360a82553a0bb7c328670e077632",
@@ -81,7 +85,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "2d82ea0e5a4b65ba67ceadb40678cd63463b079d0482cd98af12e8c92fd7b76e",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "a488e7c502c27039173a36378f413bb7bc3d0ebd550e2752a249856ab5da6a24",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "6f40c48f91f3e487df0b1b8bc0e2aa566142986486ae63b4a11252b338f27065",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",

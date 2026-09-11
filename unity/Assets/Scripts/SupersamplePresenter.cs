@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -27,6 +28,19 @@ namespace GakumasPhotoMode
 
         private const float AdvAuthoredWidth = 3840f;
         private const float AdvAuthoredHeight = 2160f;
+
+        public static RenderTextureFormat SceneColorFormat
+        {
+            get
+            {
+                // Scene RGB has no coverage alpha; ActorData and the final
+                // presentation retain their separate four-channel formats.
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "--legacy-half-scene-color") >= 0 ||
+                    !SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RGB111110Float))
+                    return RenderTextureFormat.ARGBHalf;
+                return RenderTextureFormat.RGB111110Float;
+            }
+        }
 
         public void Initialize(Camera sourceCamera, int scale)
         {
@@ -66,7 +80,7 @@ namespace GakumasPhotoMode
             _windowWidth = width;
             _windowHeight = height;
             _sourceTarget = new RenderTexture(
-                width * _scale, height * _scale, 24, RenderTextureFormat.ARGBHalf)
+                width * _scale, height * _scale, 24, SceneColorFormat)
             {
                 name = string.Format("PhotoSupersample{0}x_{1}x{2}", _scale, width, height),
                 filterMode = FilterMode.Bilinear,

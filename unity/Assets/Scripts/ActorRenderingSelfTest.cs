@@ -118,6 +118,7 @@ namespace GakumasPhotoMode
                 VerifyCapturedMaterialUv(report);
                 VerifyCapturedCamera(report);
                 VerifyShadowSubtexelFiltering(report);
+                VerifySceneDistanceFog(report);
                 report.accepted = report.checks.TrueForAll(check => check.accepted);
             }
             catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); }
@@ -2908,6 +2909,120 @@ namespace GakumasPhotoMode
                     result += (lit ? 1f : 0f) * wx * wy;
                 }
             return result;
+        }
+
+        private void VerifySceneDistanceFog(Report report)
+        {
+            var savedContext = OriginalStyleRenderPipeline.CurrentPresentationContext;
+            var host = Own(new GameObject("Self-test scene fog camera"));
+            var camera = host.AddComponent<Camera>();
+            camera.enabled = false;
+            camera.nearClipPlane = 0.1f;
+            camera.farClipPlane = 10f;
+            var pipeline = host.AddComponent<OriginalStyleRenderPipeline>();
+            var material = (Material)typeof(OriginalStyleRenderPipeline).GetField(
+                "_postMaterial", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(pipeline);
+            var apply = typeof(OriginalStyleRenderPipeline).GetMethod(
+                "ApplySceneDistanceFog", BindingFlags.Instance | BindingFlags.NonPublic);
+            var source = Own(new RenderTexture(8, 8, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear));
+            source.Create();
+            var depth = Own(new Texture2D(8, 8, TextureFormat.RFloat, false, true));
+            depth.filterMode = FilterMode.Point;
+            depth.wrapMode = TextureWrapMode.Clamp;
+            var readback = Own(new Texture2D(8, 8, TextureFormat.RGBAFloat, false, true));
+            var temporaries = new List<RenderTexture>();
+            RenderTexture previous = RenderTexture.active;
+            Color background = new Color(1.25f, 0.5f, 0.125f, 0.375f);
+            Color linearFog = new Color(0.5f, 0.6f, 0.7f, 1f).linear;
+            float[] distances = { 0.1f, 0.3f, 1.5f, 4f, 8f, 9.99f, 10f, 10f };
+            Vector3[] settings = {
+                new Vector3(0.0081f, 0.3f, 0f), new Vector3(0.7f, 0.3f, 0f),
+                new Vector3(0.7f, 1f, 0f), new Vector3(0.7f, 0.3f, 0.4f),
+                new Vector3(0f, 0.3f, 0f), new Vector3(0.7f, 0f, 0f) };
+            try
+            {
+                if (material == null || material.FindPass("SCENE_DISTANCE_FOG") != 11)
+                    throw new InvalidOperationException("Scene fog production pass missing");
+                material.SetTexture("_CameraDepthTexture", depth);
+                OriginalStyleRenderPipeline.SetPresentationContext(OriginalStyleRenderPipeline.PresentationContext.StudioLocal);
+                RenderTexture.active = source;
+                GL.Clear(false, true, background);
+                foreach (var context in new[] { OriginalStyleRenderPipeline.PresentationContext.StudioLocal,
+                    OriginalStyleRenderPipeline.PresentationContext.BakedAdv })
+                {
+                    OriginalStyleRenderPipeline.SetPresentationContext(context);
+                    var unchanged = (RenderTexture)apply.Invoke(pipeline, new object[] { source, temporaries });
+                    report.checks.Add(new Check { name = "scene-fog-no-riverbed-leak-" + context,
+                        accepted = ReferenceEquals(source, unchanged) && temporaries.Count == 0 });
+                }
+                OriginalStyleRenderPipeline.SetPresentationContext(OriginalStyleRenderPipeline.PresentationContext.CapturedRiverbed);
+                Vector4 parameters;
+                Color selectedColor;
+                bool selected = pipeline.TryGetSceneDistanceFog(out parameters, out selectedColor);
+                report.checks.Add(new Check { name = "scene-fog-captured-profile-selected",
+                    accepted = selected && parameters == new Vector4(0.0081f, 0.3f, 0f, 0f) && selectedColor == linearFog });
+                pipeline.overrideSceneDistanceFog = true;
+                foreach (bool orthographic in new[] { false, true })
+                {
+                    camera.orthographic = orthographic;
+                    for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++)
+                    {
+                        int index = (x + y) % 8;
+                        float forward = orthographic ? (distances[index] - 0.1f) / 9.9f
+                            : (10f - 1f / distances[index]) / 9.9f;
+                        if (index >= 6) forward = 1f;
+                        float raw = SystemInfo.usesReversedZBuffer ? 1f - forward : forward;
+                        depth.SetPixel(x, y, new Color(raw, 0f, 0f, 0f));
+                    }
+                    depth.Apply();
+                    for (int setting = 0; setting < settings.Length; setting++)
+                    {
+                        Vector3 config = settings[setting];
+                        pipeline.sceneFogDensity = config.x;
+                        pipeline.sceneFogMaximumOpacity = config.y;
+                        pipeline.sceneFogSkyWeight = config.z;
+                        var target = (RenderTexture)apply.Invoke(pipeline, new object[] { source, temporaries });
+                        RenderTexture.active = target;
+                        readback.ReadPixels(new Rect(0, 0, 8, 8), 0, 0);
+                        readback.Apply();
+                        float maximum = 0f;
+                        bool finite = true;
+                        Color worstExpected = background, worstActual = background;
+                        for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++)
+                        {
+                            int index = (x + y) % 8;
+                            double weight = config.x > 0 ? 1.0 - Math.Exp(-distances[index] * config.x) : 0.0;
+                            weight *= index >= 6 ? config.z : 1.0;
+                            double opacity = Math.Max(0.0, Math.Min(1.0, Math.Min(weight, config.y)));
+                            Color expected = background * (float)(1.0 - opacity) + linearFog * (float)(weight * opacity);
+                            expected.a = background.a;
+                            Color actual = readback.GetPixel(x, y);
+                            for (int channel = 0; channel < 4; channel++)
+                                finite &= !float.IsNaN(actual[channel]) && !float.IsInfinity(actual[channel]);
+                            float difference = Mathf.Max(Mathf.Abs(actual.r - expected.r), Mathf.Abs(actual.g - expected.g),
+                                Mathf.Abs(actual.b - expected.b), Mathf.Abs(actual.a - expected.a));
+                            if (difference > maximum) { maximum = difference; worstExpected = expected; worstActual = actual; }
+                        }
+                        report.checks.Add(new Check { name = "scene-fog-actual-pipeline-" + orthographic + "-" + setting,
+                            expected = worstExpected, actual = worstActual, maximumDifference = maximum,
+                            accepted = finite && maximum <= 0.00001f &&
+                                ((config.x == 0f || config.y == 0f) ? ReferenceEquals(target, source) : !ReferenceEquals(target, source)) });
+                        foreach (RenderTexture temporary in temporaries) RenderTexture.ReleaseTemporary(temporary);
+                        temporaries.Clear();
+                    }
+                }
+                pipeline.overrideSceneDistanceFog = false;
+                OriginalStyleRenderPipeline.SetPresentationContext(OriginalStyleRenderPipeline.PresentationContext.StudioLocal);
+                report.checks.Add(new Check { name = "scene-fog-override-release-restores-local",
+                    accepted = !pipeline.TryGetSceneDistanceFog(out parameters, out selectedColor) });
+            }
+            finally
+            {
+                foreach (RenderTexture temporary in temporaries) RenderTexture.ReleaseTemporary(temporary);
+                RenderTexture.active = previous;
+                source.Release();
+                OriginalStyleRenderPipeline.SetPresentationContext(savedContext);
+            }
         }
 
         private void SetUp()
