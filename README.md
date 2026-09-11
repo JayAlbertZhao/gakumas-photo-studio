@@ -2,11 +2,21 @@
 
 使用 Unity / Tuanjie 渲染类似《学园偶像大师》的角色动画。目前是 **研究预览版**：面向能够自行准备兼容资产的开发者，不是下载后直接使用的完整动画制作软件。
 
-项目的长期定位是可复用的**角色与场景工具库**，支持 Photo Studio、开放沙盒、番茄钟等不同应用的开发。Photo Studio 是当前的首个应用载体；现有代码仍以摄影应用为中心，尚未拆成可独立接入的工具库，也未交付沙盒或番茄钟应用。领域用语见 [项目术语](CONTEXT.md)。
+项目提供可复用的**角色与场景工具库**，Photo Studio 是使用该工具库的首个应用。核心以独立 UPM 包提供；其他应用可以引用它，不必引入摄影 UI、快捷键或应用构建入口。开放沙盒、番茄钟是后续应用方向，本仓库尚未交付这些应用。领域用语见 [项目术语](CONTEXT.md)。
 
-[使用指南](docs/user-guide.md) · [示范脚本](examples/README.md) · [时间线格式](docs/scene-format.md) · [资产接口](docs/assets.md)
+[使用指南](docs/user-guide.md) · [工具库接入](docs/toolkit.md) · [示范脚本](examples/README.md) · [时间线格式](docs/scene-format.md) · [资产接口](docs/assets.md)
 
 仓库只提供本项目的复现代码、工程配置和原创格式示例，不附带原版模型、贴图、动画、语音、剧情文本、游戏 DLL、原始源码或解包/采集工具。复现存在差异，与官方无隶属关系。
+
+## 工具模块与应用
+
+| 位置 | 用途 |
+| --- | --- |
+| `packages/com.digital-kotone.toolkit/` | 可独立引用的 UPM 包：角色装配、动画/表情/语音、剧情时间线和渲染；程序集 `Gakumas.Toolkit` |
+| `unity/Assets/Applications/PhotoStudio/` | 摄影应用：窗口与画质策略、UI、快捷键、命令行及诊断；程序集 `Gakumas.PhotoStudio` |
+| `unity/Assets/Editor/`、`studio.py` | 摄影应用的构建与启动工具，不是核心依赖 |
+
+开发自己的应用：克隆后，在同版本编辑器的 Package Manager 中选择 **Add package from disk**，打开 `packages/com.digital-kotone.toolkit/package.json`。导入包内 **Minimal Character Host** 示例，将组件挂到空物体，填写自己的兼容数据目录即可接入。步骤、C# API 和当前限制见 [工具库接入](docs/toolkit.md)。使用现有摄影应用则继续下面的流程，原命令和默认行为不变。
 
 ## 当前能做什么
 

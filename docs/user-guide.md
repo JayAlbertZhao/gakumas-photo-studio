@@ -172,4 +172,4 @@ $project = (Resolve-Path -LiteralPath './unity').Path
 
 完整参数以 `python -I studio.py <命令> --help` 为准。`--dry-run` 仅用于 build/photo/story；`--character` 仅用于 doctor/photo/story；`--timeout` 仅用于 build。
 
-入口与路径规则对应 [studio.py](../studio.py)，剧情起播、面板及快捷键对应 [PhotoModeApp.cs](../unity/Assets/Scripts/PhotoModeApp.cs)，事件选择与循环对应 [StoryTimelinePlayer.cs](../unity/Assets/Scripts/StoryTimelinePlayer.cs)。素材边界和授权现状见 [NOTICE](../NOTICE.md)。
+入口与路径规则对应 [studio.py](../studio.py)，面板及快捷键对应 [PhotoModeApp.cs](../unity/Assets/Applications/PhotoStudio/PhotoModeApp.cs)，角色与剧情协调对应 [CharacterSceneRuntime.cs](../packages/com.digital-kotone.toolkit/Runtime/CharacterSceneRuntime.cs)，事件选择与循环对应 [StoryTimelinePlayer.cs](../packages/com.digital-kotone.toolkit/Runtime/StoryTimelinePlayer.cs)。开发自己的应用见 [工具库接入](toolkit.md)。素材边界和授权现状见 [NOTICE](../NOTICE.md)。

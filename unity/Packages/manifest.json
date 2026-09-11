@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.digital-kotone.toolkit": "file:../../packages/com.digital-kotone.toolkit",
     "com.unity.render-pipelines.universal": "14.2.0-t1",
     "com.unity.ugui": "1.0.0",
     "com.unity.modules.animation": "1.0.0",

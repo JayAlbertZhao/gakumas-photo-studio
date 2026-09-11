@@ -1,0 +1,27 @@
+{
+  "name": "com.digital-kotone.toolkit",
+  "version": "0.1.0",
+  "displayName": "Character and Scene Toolkit",
+  "description": "Experimental reconstructed character, animation and scene runtime. External compatible assets required. No original game assets included.",
+  "unity": "2022.3",
+  "dependencies": {
+    "com.unity.mathematics": "1.3.2",
+    "com.unity.render-pipelines.universal": "14.2.0-t1",
+    "com.unity.modules.animation": "1.0.0",
+    "com.unity.modules.assetbundle": "1.0.0",
+    "com.unity.modules.audio": "1.0.0",
+    "com.unity.modules.director": "1.0.0",
+    "com.unity.modules.imageconversion": "1.0.0",
+    "com.unity.modules.imgui": "1.0.0",
+    "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.physics": "1.0.0",
+    "com.unity.modules.unitywebrequestaudio": "1.0.0"
+  },
+  "samples": [
+    {
+      "displayName": "Minimal Character Host",
+      "description": "Use the runtime without the Photo Studio application or its UI.",
+      "path": "Samples~/MinimalHost"
+    }
+  ]
+}

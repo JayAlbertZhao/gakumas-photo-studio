@@ -71,4 +71,4 @@
 
 `studio.py story --dry-run` 检查根时长、非空身体动作数组、身体动作引用及非负 time/duration；它不完整校验高级事件，也不打开 bundle 检查其内容。模板生成器另外要求所选身体动作的 role 为 motion。仅加载可信输入，旧运行时路径解析不是安全沙箱。
 
-数据类型和 `Latest` / `Previous` / `Active` / `Evaluate` 的实际逻辑见 [StoryTimelinePlayer.cs](../unity/Assets/Scripts/StoryTimelinePlayer.cs)；声音和身体 clip 加载见 [PhotoModeApp.cs](../unity/Assets/Scripts/PhotoModeApp.cs)。可运行的参数替换步骤见[示范脚本](../examples/README.md)。
+数据类型和 `Latest` / `Previous` / `Active` / `Evaluate` 的实际逻辑见 [StoryTimelinePlayer.cs](../packages/com.digital-kotone.toolkit/Runtime/StoryTimelinePlayer.cs)；声音和身体 clip 加载见 [CharacterSceneRuntime.cs](../packages/com.digital-kotone.toolkit/Runtime/CharacterSceneRuntime.cs)。可运行的参数替换步骤见[示范脚本](../examples/README.md)。

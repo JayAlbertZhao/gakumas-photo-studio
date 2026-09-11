@@ -7,7 +7,7 @@ namespace GakumasPhotoMode
 {
     /// <summary>Built-in pipeline actor passes and a small, independent lighting workbench.</summary>
     [RequireComponent(typeof(Camera))]
-    public sealed class ActorRenderControls : MonoBehaviour
+    public class ActorRenderControls : MonoBehaviour
     {
         public bool outlines = true;
         public bool hairCover = true;
@@ -62,7 +62,7 @@ namespace GakumasPhotoMode
             "unity_SHAr", "unity_SHAg", "unity_SHAb", "unity_SHBr", "unity_SHBg", "unity_SHBb", "unity_SHC"
         };
         private readonly SphericalHarmonicsL2[] _ambientProbe = new SphericalHarmonicsL2[1];
-        private readonly MaterialPropertyBlock _ambientPacked = new MaterialPropertyBlock();
+        private MaterialPropertyBlock _ambientPacked;
         private readonly List<Vector4> _ambientValues = new List<Vector4>(1);
         private static readonly string[] OverrideGlobals = {
             "_ActorMatcapParameters", "_ActorLightingScales", "_CapturedLightDirection",
@@ -77,8 +77,6 @@ namespace GakumasPhotoMode
         private readonly List<Material> _layerMaterials = new List<Material>();
         private struct LayerState { public float saved, applied; }
         private readonly Dictionary<Material, LayerState> _layerOverrides = new Dictionary<Material, LayerState>();
-        private Vector2 _panelScroll;
-
         public void Initialize(GameObject actor, Light key)
         {
             _actor = actor;
@@ -115,8 +113,11 @@ namespace GakumasPhotoMode
             public void Dispose() { Destroy(material); }
         }
 
-        private void OnEnable()
+        protected void OnEnable()
         {
+            // Unity native objects must be created after MonoBehaviour construction.
+            // Retain the same block across enable/disable cycles.
+            if (_ambientPacked == null) _ambientPacked = new MaterialPropertyBlock();
             _camera = GetComponent<Camera>();
             _commands = new CommandBuffer { name = "Photo Studio: body outline, hair coverage, hair outline" };
             _camera.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, _commands);
@@ -125,12 +126,7 @@ namespace GakumasPhotoMode
             hairCover = Array.IndexOf(args, "--no-hair-cover") < 0;
         }
 
-        private void Update()
-        {
-            if (Input.GetKeyDown(KeyCode.F8)) showPanel = !showPanel;
-        }
-
-        private void OnPreCull()
+        protected void OnPreCull()
         {
             if (_commands == null) return;
             ApplyOverride();
@@ -409,55 +405,7 @@ namespace GakumasPhotoMode
             _nextLightScan = 0f;
         }
 
-        private void OnGUI()
-        {
-            if (!showPanel) return;
-            GUILayout.BeginArea(new Rect(Screen.width - 310, 20, 290, Mathf.Min(590, Mathf.Max(160, Screen.height - 40))), GUI.skin.box);
-            _panelScroll = GUILayout.BeginScrollView(_panelScroll);
-            GUILayout.Label("ACTOR RENDERING / F8");
-            outlines = GUILayout.Toggle(outlines, "Smooth-normal outline");
-            hairCover = GUILayout.Toggle(hairCover, "Hair over eyes (stencil only)");
-            GUI.enabled = LayerMaterialCount > 0;
-            overrideLayer = GUILayout.Toggle(overrideLayer, "Override material Layer");
-            GUI.enabled = LayerMaterialCount > 0 && overrideLayer;
-            layerWeight = Slider("Sweat / messy layer", layerWeight, 0f, 1f);
-            GUI.enabled = true;
-            GUILayout.Label("Layer-enabled materials: " + LayerMaterialCount);
-            overrideLighting = GUILayout.Toggle(overrideLighting, "Override story lighting");
-            GUI.enabled = overrideLighting;
-            worldSpaceLight = GUILayout.Toggle(worldSpaceLight, "World-space main light");
-            lightAngle.x = Slider("Light X", lightAngle.x, -180f, 180f);
-            lightAngle.y = Slider("Light Y", lightAngle.y, -90f, 90f);
-            diffuseOffset = Slider("Diffuse offset", diffuseOffset, -1f, 1f);
-            shadeStrength = Slider("Shade strength", shadeStrength, 0f, 1f);
-            smoothnessScale = Slider("Smoothness", smoothnessScale, 0f, 2f);
-            giScale = Slider("Ambient", giScale, 0f, 2f);
-            additionalLightScale = Slider("Additional lights", additionalLightScale, 0f, 3f);
-            GUI.enabled = true;
-            overrideRim = GUILayout.Toggle(overrideRim, "Override view-space rim only");
-            GUI.enabled = overrideRim;
-            rimAngle.x = Slider("Rim yaw", rimAngle.x, -180f, 180f);
-            rimAngle.y = Slider("Rim pitch", rimAngle.y, -90f, 90f);
-            rimPower = Slider("Rim power (narrowness)", rimPower, 0.01f, 128f);
-            rimBaseColorRatio = Slider("Rim surface tint", rimBaseColorRatio, 0f, 1f);
-            rimIntensity = Slider("Rim intensity", rimIntensity, 0f, 4f);
-            rimColor.r = Slider("Rim red", rimColor.r, 0f, 2f);
-            rimColor.g = Slider("Rim green", rimColor.g, 0f, 2f);
-            rimColor.b = Slider("Rim blue", rimColor.b, 0f, 2f);
-            GUI.enabled = true;
-            if (GUILayout.Button("Toggle two test lights")) ToggleTestLights();
-            GUILayout.Label(string.Format("Outline {0} / Hair {1} / Lights {2}", OutlineDrawCount, HairCoverDrawCount, AdditionalLightCount));
-            GUILayout.EndScrollView();
-            GUILayout.EndArea();
-        }
-
-        private static float Slider(string label, float value, float min, float max)
-        {
-            GUILayout.Label(label + ": " + value.ToString("0.00"));
-            return GUILayout.HorizontalSlider(value, min, max);
-        }
-
-        private void OnDisable()
+        protected void OnDisable()
         {
             RestoreOverride();
             RestoreLayerOverride();

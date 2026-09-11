@@ -15,134 +15,119 @@ using VL.FaceSystem;
 
 namespace GakumasPhotoMode
 {
-    public sealed class PhotoModeApp : MonoBehaviour
+    public partial class CharacterSceneRuntime : MonoBehaviour
     {
-        private BundleCatalog _catalog;
-        private List<BundleRecord> _faces;
-        private List<BundleRecord> _costumes;
-        private List<BundleRecord> _hairs;
-        private List<BundleRecord> _motions;
-        private List<string> _characterIds;
-        private string _characterId = "fktn";
-        private GameObject _characterRoot;
-        private GameObject _body;
-        private GameObject _face;
-        private Transform _faceHead;
-        private Transform _faceHeadPrefabParent;
-        private Vector3 _faceHeadPrefabLocalPosition;
-        private Quaternion _faceHeadPrefabLocalRotation;
-        private Vector3 _faceHeadPrefabLocalScale;
-        private GameObject _hair;
-        private GameObject _faceDriverRoot;
-        private Animator _bodyAnimator;
-        private Animator _faceAnimator;
-        private VLActorFaceModel _faceDriver;
-        private FaceExpressionRenderer _faceExpression;
-        private FaceDecalRuntime _faceDecals;
-        private ActorMaterialEffectRuntime _faceMaterialEffects;
-        private HairDynamicsSystem _hairDynamics;
-        private HairDynamicsSystem _garmentDynamics;
-        private QuartzArmDeformationSystem _quartzArmDeformation;
-        private QuartzLegAndRotationDeformationSystem _quartzLegRotationDeformation;
-        private QuartzGarmentDeformationSystem _quartzGarmentDeformation;
-        private BreastDynamicsSystem _breastDynamics;
-        private BodySoftTissueDynamicsSystem _bodySoftTissueDynamics;
-        private HairDynamicsSystem _skirtDynamics;
-        private CapturedLookAtRuntime _capturedLookAt;
-        private FaceMotionLibrary _faceMotionLibrary;
-        private StoryTimelinePlayer _storyPlayer;
-        private readonly float[] _storyPreviousFaceWeights = new float[192];
-        private readonly float[] _storyCurrentFaceWeights = new float[192];
-        private PlayableGraph _motionGraph;
+        protected BundleCatalog _catalog;
+        protected List<BundleRecord> _faces;
+        protected List<BundleRecord> _costumes;
+        protected List<BundleRecord> _hairs;
+        protected List<BundleRecord> _motions;
+        protected List<string> _characterIds;
+        protected string _characterId = "fktn";
+        protected GameObject _characterRoot;
+        protected GameObject _body;
+        protected GameObject _face;
+        protected Transform _faceHead;
+        protected Transform _faceHeadPrefabParent;
+        protected Vector3 _faceHeadPrefabLocalPosition;
+        protected Quaternion _faceHeadPrefabLocalRotation;
+        protected Vector3 _faceHeadPrefabLocalScale;
+        protected GameObject _hair;
+        protected GameObject _faceDriverRoot;
+        protected Animator _bodyAnimator;
+        protected Animator _faceAnimator;
+        protected VLActorFaceModel _faceDriver;
+        protected FaceExpressionRenderer _faceExpression;
+        protected FaceDecalRuntime _faceDecals;
+        protected ActorMaterialEffectRuntime _faceMaterialEffects;
+        protected HairDynamicsSystem _hairDynamics;
+        protected HairDynamicsSystem _garmentDynamics;
+        protected QuartzArmDeformationSystem _quartzArmDeformation;
+        protected QuartzLegAndRotationDeformationSystem _quartzLegRotationDeformation;
+        protected QuartzGarmentDeformationSystem _quartzGarmentDeformation;
+        protected BreastDynamicsSystem _breastDynamics;
+        protected BodySoftTissueDynamicsSystem _bodySoftTissueDynamics;
+        protected HairDynamicsSystem _skirtDynamics;
+        protected CapturedLookAtRuntime _capturedLookAt;
+        protected FaceMotionLibrary _faceMotionLibrary;
+        protected StoryTimelinePlayer _storyPlayer;
+        protected readonly float[] _storyPreviousFaceWeights = new float[192];
+        protected readonly float[] _storyCurrentFaceWeights = new float[192];
+        protected PlayableGraph _motionGraph;
         public double PhotoMotionTime { get { return _bodyPlayable.IsValid() ? _bodyPlayable.GetTime() : 0d; } }
         public bool PhotoMotionPlaying { get { return _motionGraph.IsValid() && _motionGraph.IsPlaying(); } }
-        private AnimationClipPlayable _bodyPlayable;
-        private AnimationClipPlayable _facePlayable;
-        private AnimationMixerPlayable _storyMixer;
-        private AnimationClipPlayable _storyPreviousPlayable;
-        private AnimationClipPlayable _storyCurrentPlayable;
-        private readonly Dictionary<string, AnimationClip> _storyBodyClips = new Dictionary<string, AnimationClip>(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, AudioClip> _voiceCache = new Dictionary<string, AudioClip>(StringComparer.OrdinalIgnoreCase);
-        private string _storyPreviousMotion;
-        private string _storyCurrentMotion;
-        private int _storyVoiceRequest;
-        private AudioSource _audioSource;
-        private OrbitPhotoCamera _orbit;
-        private Light _keyLight;
-        private bool _useLegacyRimDirection;
-        private bool _useRootOnlyRimDirection;
-        private bool _disableStoryActorProfile;
-        private StoryActorRenderProfile _storyActorRenderProfile;
-        private bool _storyActorRenderProfileActive;
-        private string _storyActorRenderProfileSignature = string.Empty;
+        protected AnimationClipPlayable _bodyPlayable;
+        protected AnimationClipPlayable _facePlayable;
+        protected AnimationMixerPlayable _storyMixer;
+        protected AnimationClipPlayable _storyPreviousPlayable;
+        protected AnimationClipPlayable _storyCurrentPlayable;
+        protected readonly Dictionary<string, AnimationClip> _storyBodyClips = new Dictionary<string, AnimationClip>(StringComparer.OrdinalIgnoreCase);
+        protected readonly Dictionary<string, AudioClip> _voiceCache = new Dictionary<string, AudioClip>(StringComparer.OrdinalIgnoreCase);
+        protected string _storyPreviousMotion;
+        protected string _storyCurrentMotion;
+        protected int _storyVoiceRequest;
+        protected AudioSource _audioSource;
+        protected OrbitPhotoCamera _orbit;
+        protected Light _keyLight;
+        protected bool _useLegacyRimDirection;
+        protected bool _useRootOnlyRimDirection;
+        protected bool _disableStoryActorProfile;
+        protected StoryActorRenderProfile _storyActorRenderProfile;
+        protected bool _storyActorRenderProfileActive;
+        protected string _storyActorRenderProfileSignature = string.Empty;
         // CB0[153] expressed in the Unity camera basis after reconciling the
         // D3D view-axis signs and the captured Actor root. Transforming this
         // vector by the live photo camera reproduces the original r7 view-space
         // rim convention while preserving orbit-camera behaviour.
-        private static readonly Vector3 CapturedViewRimDirection =
+        protected static readonly Vector3 CapturedViewRimDirection =
             new Vector3(-0.29590727f, -0.29125261f, -0.90973117f).normalized;
-        private static readonly Vector3 CapturedActorLightDirection =
+        protected static readonly Vector3 CapturedActorLightDirection =
             new Vector3(0.38302225f, 0.42261827f, 0.82139379f).normalized;
-        private static readonly Vector3 CapturedActorRimViewDirection =
+        protected static readonly Vector3 CapturedActorRimViewDirection =
             new Vector3(-0.29704621f, -0.27563736f, 0.91421419f).normalized;
-        private static readonly Color CapturedActorShadeTint =
+        protected static readonly Color CapturedActorShadeTint =
             new Color(0.85849059f, 0.76552117f, 0.74105555f, 1f);
-        private CapturedActorShadowMap _capturedActorShadowMap;
-        private ActorRenderControls _actorRenderControls;
-        private Cubemap _actorEnvironmentCube;
-        private Cubemap _actorEyeEnvironmentCube;
-        private Texture2DArray _actorEnvironmentArray;
-        private Texture2DArray _actorEyeEnvironmentArray;
-        private GameObject _photoStudioRoot;
-        private SupersamplePresenter _supersamplePresenter;
-        private OriginalRiverbedEnvironment _riverbedEnvironment;
-        private AdvStoryBackgroundRuntime _storyBackgroundRuntime;
-        private AdvStoryOverlayRuntime _storyOverlayRuntime;
-        private StoryActorDeclaration[] _storyActorDeclarations;
-        private StoryActorRendererEvent _storyActorRendererState;
-        private readonly Dictionary<string, GameObject> _storyActorExtras =
+        protected CapturedActorShadowMap _capturedActorShadowMap;
+        protected ActorRenderControls _actorRenderControls;
+        protected Cubemap _actorEnvironmentCube;
+        protected Cubemap _actorEyeEnvironmentCube;
+        protected Texture2DArray _actorEnvironmentArray;
+        protected Texture2DArray _actorEyeEnvironmentArray;
+        protected GameObject _photoStudioRoot;
+        protected SupersamplePresenter _supersamplePresenter;
+        protected OriginalRiverbedEnvironment _riverbedEnvironment;
+        protected AdvStoryBackgroundRuntime _storyBackgroundRuntime;
+        protected AdvStoryOverlayRuntime _storyOverlayRuntime;
+        protected StoryActorDeclaration[] _storyActorDeclarations;
+        protected StoryActorRendererEvent _storyActorRendererState;
+        protected readonly Dictionary<string, GameObject> _storyActorExtras =
             new Dictionary<string, GameObject>(StringComparer.OrdinalIgnoreCase);
-        private StoryPropDeclaration[] _storyPropDeclarations;
-        private readonly Dictionary<string, GameObject> _storyProps =
+        protected StoryPropDeclaration[] _storyPropDeclarations;
+        protected readonly Dictionary<string, GameObject> _storyProps =
             new Dictionary<string, GameObject>(StringComparer.OrdinalIgnoreCase);
-        private GameObject _storyPropRoot;
-        private bool _useAdvPhotoBackground;
-        private bool _useRiverbedBackground;
-        private bool _actorRenderProfileInitialized;
-        private OriginalStyleRenderPipeline.PresentationContext _renderContextProfile =
+        protected GameObject _storyPropRoot;
+        protected bool _useAdvPhotoBackground;
+        protected bool _useRiverbedBackground;
+        protected bool _actorRenderProfileInitialized;
+        protected OriginalStyleRenderPipeline.PresentationContext _renderContextProfile =
             OriginalStyleRenderPipeline.PresentationContext.StudioLocal;
-        private int _costumeIndex;
-        private string _requestedHairLabel;
-        private int _motionIndex;
-        private int _expressionIndex;
-        private int _voiceIndex;
-        private bool _paused;
-        private bool _ambientWallpaperDemo;
-        private bool _ambientReactionActive;
-        private int _ambientReactionSequence;
-        private float _ambientNextReactionAt;
-        private float _ambientReturnToIdleAt;
-        private bool _initialized;
-        private string _stagingRoot;
-        private string _capturedMaterialUvPath;
-        private string _capturedCameraPath;
-        private string _status = "Starting";
-        private bool _showUi = true;
-        private Color _storyActorColor = Color.white;
-        private Vector2 _storyShakePosition;
-        private bool _storyCameraDofActive;
-        private float _storyCameraDofFocalPoint = 4f;
-        private float _storyCameraDofFNumber = 4f;
-        private float _storyCameraDofMaxBlurSpread = 1.5f;
-        private StoryDepthOfFieldEvent _storyDepthOfFieldOverride;
-        private GUIStyle _panelStyle;
-        private GUIStyle _titleStyle;
-        private GUIStyle _sectionStyle;
-        private GUIStyle _captionStyle;
-        private GUIStyle _buttonStyle;
-        private Texture2D _panelTexture;
-        private Texture2D _buttonTexture;
-
+        protected int _costumeIndex;
+        protected string _requestedHairLabel;
+        protected int _motionIndex;
+        protected int _expressionIndex;
+        protected int _voiceIndex;
+        protected bool _paused;
+        protected bool _ambientWallpaperDemo;
+        protected bool _initialized;
+        protected string _stagingRoot;
+        protected string _status = "Starting";
+        protected Color _storyActorColor = Color.white;
+        protected Vector2 _storyShakePosition;
+        protected bool _storyCameraDofActive;
+        protected float _storyCameraDofFocalPoint = 4f;
+        protected float _storyCameraDofFNumber = 4f;
+        protected float _storyCameraDofMaxBlurSpread = 1.5f;
+        protected StoryDepthOfFieldEvent _storyDepthOfFieldOverride;
         public Camera PreviewCamera { get; private set; }
         public int RendererCount { get; private set; }
         public int ErrorMaterialCount { get; private set; }
@@ -187,340 +172,7 @@ namespace GakumasPhotoMode
         public string StoryFaceMotion { get { return _storyPlayer == null ? string.Empty : _storyPlayer.CurrentFaceMotion; } }
         public Color StoryActorColor { get { return _storyActorColor; } }
 
-        private void Awake()
-        {
-            ResetCapturedActorRenderGlobals();
-            Shader.SetGlobalFloat("_UseCapturedAmbientSH", 0f);
-            if (Application.isPlaying)
-            {
-                string[] commandLine = Environment.GetCommandLineArgs();
-                string capturedUvError;
-                if (!CapturedMaterialUvState.TryReadOption(commandLine, out _capturedMaterialUvPath, out capturedUvError))
-                {
-                    Debug.LogError("[PhotoMode] " + capturedUvError);
-                    Application.Quit(3);
-                    return;
-                }
-                string capturedCameraError;
-                if (!CapturedCameraState.TryReadOption(commandLine, out _capturedCameraPath, out capturedCameraError))
-                {
-                    Debug.LogError("[PhotoMode] " + capturedCameraError);
-                    Application.Quit(3);
-                    return;
-                }
-                _ambientWallpaperDemo = commandLine.Contains("--ambient-wallpaper-demo");
-                _disableStoryActorProfile = commandLine.Contains("--disable-story-actor-profile");
-                float faceDebugMode = commandLine.Contains("--face-debug-base") ? 1f :
-                                      commandLine.Contains("--face-debug-shade") ? 2f :
-                                      commandLine.Contains("--face-debug-layer") ? 3f :
-                                      commandLine.Contains("--face-debug-normal") ? 4f :
-                                      commandLine.Contains("--actor-debug-skin") ? 5f :
-                                      commandLine.Contains("--actor-debug-neck") ? 6f :
-                                      commandLine.Contains("--actor-debug-base") ? 7f :
-                                      commandLine.Contains("--actor-debug-shade") ? 8f :
-                                      commandLine.Contains("--actor-debug-type") ? 9f :
-                                      commandLine.Contains("--actor-debug-ramp-alpha") ? 10f :
-                                      commandLine.Contains("--actor-debug-shade-alpha") ? 11f :
-                                      commandLine.Contains("--actor-debug-shadow") ? 12f :
-                                      commandLine.Contains("--actor-debug-definition") ? 13f :
-                                      commandLine.Contains("--actor-debug-raw-base") ? 14f :
-                                      commandLine.Contains("--actor-debug-raw-shade") ? 15f :
-                                      commandLine.Contains("--actor-debug-captured-diffuse") ? 16f :
-                                      commandLine.Contains("--actor-debug-ramp-coordinate") ? 17f :
-                                      commandLine.Contains("--actor-debug-ramp-add") ? 18f :
-                                      commandLine.Contains("--actor-debug-direct-diffuse") ? 19f :
-                                      commandLine.Contains("--actor-debug-specular") ? 20f :
-                                      commandLine.Contains("--actor-debug-brdf") ? 21f :
-                                      commandLine.Contains("--actor-debug-rim") ? 22f :
-                                      commandLine.Contains("--actor-debug-prelight") ? 23f :
-                                      commandLine.Contains("--actor-debug-ramp-rgb") ? 24f :
-                                      commandLine.Contains("--actor-debug-ramp-a") ? 25f :
-                                      commandLine.Contains("--actor-debug-shade-a") ? 26f :
-                                      commandLine.Contains("--actor-debug-base-a") ? 27f :
-                                      commandLine.Contains("--actor-debug-ramp-add-a") ? 28f :
-                                      commandLine.Contains("--actor-debug-receiver-normal") ? 29f :
-                                      commandLine.Contains("--actor-debug-receiver-ndl") ? 30f : 0f;
-                Shader.SetGlobalFloat("_FaceDebugMode", faceDebugMode);
-                // The captured Base/Shade/Ramp equation is the production path for every
-                // active Actor material. Type 9 additionally consumes the animated
-                // head-basis normal emitted through VS TEXCOORD4 for its ramp coordinate.
-                float capturedDiffuseBlend = commandLine.Contains("--actor-legacy-diffuse") ? 0f :
-                                             commandLine.Contains("--actor-captured-diffuse") ? 1f : 1f;
-                Shader.SetGlobalFloat("_CapturedDiffuseBlend", capturedDiffuseBlend);
-                float capturedDirectScale = commandLine.Contains("--captured-direct-055") ? 0.55f :
-                                            commandLine.Contains("--captured-direct-082") ? 0.82f : 1.0f;
-                Shader.SetGlobalFloat("_CapturedDirectScale", capturedDirectScale);
-                // Bound Actor PS variants sample Base/Shade/Definition/Highlight
-                // with CB0[5].x - 1. CB0[5].x is zero in the archived frame.
-                // Keep the old unbiased path only for a controlled A/B.
-                float capturedActorTextureLodBias = commandLine.Contains("--actor-lod-bias-zero") ? 0f :
-                                                    commandLine.Contains("--actor-lod-bias-minus-two") ? -2f : -1f;
-                Shader.SetGlobalFloat("_CapturedActorTextureLodBias", capturedActorTextureLodBias);
-                // Surface color precedes scene fog and target quantization.
-                // The former .97 fit mixed those stages into material shading.
-                // Keep it only as an explicit historical regression control;
-                // --actor-output-literal remains a compatible no-op.
-                Shader.SetGlobalFloat("_CapturedActorOutputScale",
-                    commandLine.Contains("--legacy-actor-output-scale") ? 0.97f : 1f);
-                Shader.SetGlobalFloat("_CapturedType4DebugStage",
-                    commandLine.Contains("--type4-debug-diffuse") ? 1f :
-                    commandLine.Contains("--type4-debug-direct-diffuse") ? 2f :
-                    commandLine.Contains("--type4-debug-ramp-coordinate") ? 3f :
-                    commandLine.Contains("--type4-debug-visibility") ? 4f :
-                    commandLine.Contains("--type4-debug-shadowed-ramp") ? 5f :
-                    commandLine.Contains("--type4-debug-raw-base") ? 6f :
-                    commandLine.Contains("--type4-debug-raw-shade") ? 7f :
-                    commandLine.Contains("--type4-debug-raw-definition") ? 8f :
-                    commandLine.Contains("--type4-debug-raw-ramp") ? 9f :
-                    commandLine.Contains("--type4-debug-light-source") ? 10f :
-                    commandLine.Contains("--type4-debug-rim-source") ? 11f :
-                    commandLine.Contains("--type4-debug-environment") ? 12f :
-                    commandLine.Contains("--type4-debug-environment-brdf") ? 13f :
-                    commandLine.Contains("--type4-debug-direct-specular") ? 14f :
-                    commandLine.Contains("--type4-debug-specular") ? 15f :
-                    commandLine.Contains("--type4-debug-receiver-normal") ? 16f :
-                    commandLine.Contains("--type4-debug-definition-alpha") ? 17f : 0f);
-                Shader.SetGlobalFloat("_CapturedType4RampFlip",
-                    commandLine.Contains("--type4-unflipped-ramp") ? 0f : 1f);
-                Shader.SetGlobalFloat("_CapturedType4DiffuseF0",
-                    commandLine.Contains("--type4-legacy-dielectric-f0") ? 0f : 1f);
-                // exactdefinitiona4 and exactvisibility4 are numerically the
-                // same field for the captured type-4 draw (r10.w -> r4.z).
-                // The local shadow lookup is therefore not a visibility input
-                // for this branch; keep it only as an explicit counterexample.
-                Shader.SetGlobalFloat("_CapturedType4DefinitionVisibility",
-                    commandLine.Contains("--type4-shadowed-visibility") ? 0f : 1f);
-                // Exhaustive 6-permutation × 8-sign replay comparison selects
-                // mode 43: local cube direction (-Z,-Y,+X).  Keep all 48 modes
-                // available for counterexample captures.
-                int eyeCubeTransformMode = 43;
-                const string eyeCubeTransformPrefix = "--eye-cube-transform-";
-                foreach (string argument in commandLine)
-                {
-                    if (!argument.StartsWith(eyeCubeTransformPrefix, StringComparison.Ordinal)) continue;
-                    int parsed;
-                    if (int.TryParse(argument.Substring(eyeCubeTransformPrefix.Length), out parsed))
-                        eyeCubeTransformMode = Mathf.Clamp(parsed, 0, 47);
-                }
-                Shader.SetGlobalFloat("_CapturedEyeCubeTransformMode", eyeCubeTransformMode);
-                int actorCubeTransformMode = 0;
-                const string actorCubeTransformPrefix = "--actor-cube-transform-";
-                foreach (string argument in Environment.GetCommandLineArgs())
-                {
-                    if (!argument.StartsWith(actorCubeTransformPrefix, StringComparison.Ordinal)) continue;
-                    int parsed;
-                    if (int.TryParse(argument.Substring(actorCubeTransformPrefix.Length), out parsed))
-                        actorCubeTransformMode = Mathf.Clamp(parsed, 0, 47);
-                }
-                Shader.SetGlobalFloat("_CapturedActorCubeTransformMode", actorCubeTransformMode);
-                Shader.SetGlobalFloat("_UseCapturedEyeEnvironmentArray",
-                    commandLine.Contains("--explicit-d3d-eye-array") ? 1f : 0f);
-                Shader.SetGlobalFloat("_UseCapturedActorEnvironmentArray",
-                    commandLine.Contains("--explicit-d3d-actor-array") ? 1f : 0f);
-                // Type-1 production selects the explicit D3D face array only
-                // after the captured payload is loaded. Other Actor variants
-                // retain their already-validated Unity-cube path.
-                Shader.SetGlobalFloat("_UseCapturedType1ActorEnvironmentArray", 0f);
-                // Type 4 is a premultiplied One/OneMinusSrcAlpha eye draw.  The
-                // shader zeros both RGB and alpha for this paired diagnostic so
-                // it is equivalent to suppressing the original 9132-byte draw.
-                Shader.SetGlobalFloat("_CapturedType4OutputScale",
-                    commandLine.Contains("--discard-type4-color") ? 0f : 1f);
-                // Paired with the GPA discardtype1 replay. Type 1 is opaque
-                // One/Zero in the captured frame, so MaterialRepairer switches
-                // only this diagnostic to destination-preserving additive blend.
-                Shader.SetGlobalFloat("_CapturedType1OutputScale",
-                    commandLine.Contains("--discard-type1-color") ? 0f : 1f);
-                Shader.SetGlobalFloat("_CapturedType1BodyOutputScale",
-                    commandLine.Contains("--discard-type1-body-color") ? 0f : 1f);
-                Shader.SetGlobalFloat("_CapturedType1HairOutputScale",
-                    commandLine.Contains("--discard-type1-hair-color") ? 0f : 1f);
-                bool debugType1Body =
-                    commandLine.Contains("--type1-debug-body-diffuse") ||
-                    commandLine.Contains("--type1-debug-body-direct-diffuse") ||
-                    commandLine.Contains("--type1-debug-body-light-source") ||
-                    commandLine.Contains("--type1-debug-body-rim-source") ||
-                    commandLine.Contains("--type1-debug-body-view-normal") ||
-                    commandLine.Contains("--type1-debug-body-world-normal") ||
-                    commandLine.Contains("--type1-debug-body-rim-mask") ||
-                    commandLine.Contains("--type1-debug-body-rim-factor") ||
-                    commandLine.Contains("--type1-debug-body-specular") ||
-                    commandLine.Contains("--type1-debug-body-brdf") ||
-                    commandLine.Contains("--type1-debug-body-environment") ||
-                    commandLine.Contains("--type1-debug-body-env-brdf") ||
-                    commandLine.Contains("--type1-debug-body-direct-specular") ||
-                    commandLine.Contains("--type1-debug-body-specular-visibility") ||
-                    commandLine.Contains("--type1-debug-body-premod-specular") ||
-                    commandLine.Contains("--type1-debug-body-reflection-direction") ||
-                    commandLine.Contains("--type1-debug-body-reflection-lod") ||
-                    commandLine.Contains("--type1-debug-body-view-direction") ||
-                    commandLine.Contains("--type1-debug-body-geometric-normal") ||
-                    commandLine.Contains("--type1-debug-body-raw-view-vector");
-                bool debugType1Hair =
-                    commandLine.Contains("--type1-debug-hair-diffuse") ||
-                    commandLine.Contains("--type1-debug-hair-direct-diffuse") ||
-                    commandLine.Contains("--type1-debug-hair-light-source") ||
-                    commandLine.Contains("--type1-debug-hair-rim-source") ||
-                    commandLine.Contains("--type1-debug-hair-view-normal") ||
-                    commandLine.Contains("--type1-debug-hair-world-normal") ||
-                    commandLine.Contains("--type1-debug-hair-rim-mask") ||
-                    commandLine.Contains("--type1-debug-hair-rim-factor") ||
-                    commandLine.Contains("--type1-debug-hair-specular") ||
-                    commandLine.Contains("--type1-debug-hair-brdf");
-                Shader.SetGlobalFloat("_CapturedType1DebugVariant",
-                    debugType1Body ? 1f : debugType1Hair ? 2f : 0f);
-                Shader.SetGlobalFloat("_CapturedType1DebugStage",
-                    commandLine.Contains("--type1-debug-body-diffuse") ||
-                    commandLine.Contains("--type1-debug-hair-diffuse") ? 1f :
-                    commandLine.Contains("--type1-debug-body-direct-diffuse") ||
-                    commandLine.Contains("--type1-debug-hair-direct-diffuse") ? 2f :
-                    commandLine.Contains("--type1-debug-body-light-source") ||
-                    commandLine.Contains("--type1-debug-hair-light-source") ? 3f :
-                    commandLine.Contains("--type1-debug-body-rim-source") ||
-                    commandLine.Contains("--type1-debug-hair-rim-source") ? 4f :
-                    commandLine.Contains("--type1-debug-body-view-normal") ||
-                    commandLine.Contains("--type1-debug-hair-view-normal") ? 5f :
-                    commandLine.Contains("--type1-debug-body-world-normal") ||
-                    commandLine.Contains("--type1-debug-hair-world-normal") ? 6f :
-                    commandLine.Contains("--type1-debug-body-rim-mask") ||
-                    commandLine.Contains("--type1-debug-hair-rim-mask") ? 7f :
-                    commandLine.Contains("--type1-debug-body-rim-factor") ||
-                    commandLine.Contains("--type1-debug-hair-rim-factor") ? 8f :
-                    commandLine.Contains("--type1-debug-body-specular") ||
-                    commandLine.Contains("--type1-debug-hair-specular") ? 9f :
-                    commandLine.Contains("--type1-debug-body-brdf") ||
-                    commandLine.Contains("--type1-debug-hair-brdf") ? 10f :
-                    commandLine.Contains("--type1-debug-body-environment") ? 11f :
-                    commandLine.Contains("--type1-debug-body-env-brdf") ? 12f :
-                    commandLine.Contains("--type1-debug-body-direct-specular") ? 13f :
-                    commandLine.Contains("--type1-debug-body-specular-visibility") ? 14f :
-                    commandLine.Contains("--type1-debug-body-premod-specular") ? 15f :
-                    commandLine.Contains("--type1-debug-body-reflection-direction") ? 16f :
-                    commandLine.Contains("--type1-debug-body-reflection-lod") ? 17f :
-                    commandLine.Contains("--type1-debug-body-view-direction") ? 18f :
-                    commandLine.Contains("--type1-debug-body-geometric-normal") ? 19f :
-                    commandLine.Contains("--type1-debug-body-raw-view-vector") ? 20f : 0f);
-                // Offline GPA replay can now suppress only the captured
-                // 7496-byte type-5 colour draw. Mirror that probe without
-                // changing local raster/depth/ActorData so paired HDR dumps
-                // isolate the reconstructed additive eye-highlight energy.
-                Shader.SetGlobalFloat("_CapturedType5OutputScale",
-                    commandLine.Contains("--discard-type5-color") ? 0f : 1f);
-                // Bound Actor PS 5C07/717B/7372 evaluates ramp and direct BRDF
-                // in its camera-facing receiver basis (r6), not directly in the
-                // interpolated world-normal basis.  Exact-pose pass151/152 closed
-                // that contract against the replay, so it is now the production
-                // default.  Keep the former world-normal path only for A/B.
-                Shader.SetGlobalFloat("_UseCapturedReceiverNormal",
-                    commandLine.Contains("--legacy-world-receiver-normal") ? 0f : 1f);
-                // Literal GGX denominator and visibility gate from active
-                // Actor PS 5C07/717B/7372.  The former reconstruction used
-                // smoothness where DXBC uses roughness^4-1 and gated the lobe
-                // with world N.L instead of receiver-basis N.L.  Keep that
-                // compensating approximation only for a controlled A/B.
-                Shader.SetGlobalFloat("_UseCapturedDirectSpecular",
-                    commandLine.Contains("--legacy-direct-specular") ? 0f : 1f);
-                // Exact values recovered from the active actor draws through a signed GPA
-                // replay layer. CB0 is identical across all seven type 9/8/3 draws.
-                // Pass80 tested both the literal CB0 directions and an inverse-root
-                // transform derived from VS CB1. The literal constants converge much
-                // better (Actor HDR luma 1.0089x vs 1.1489x), which shows the authored
-                // BRDF/rim vectors are already in the receiver convention expected by
-                // the extracted model. Keep the transformed path only as a diagnostic.
-                bool transformCapturedShadingDirections = commandLine.Contains("--actor-local-shading-direction");
-                _useRootOnlyRimDirection = transformCapturedShadingDirections;
-                Shader.SetGlobalVector("_CapturedLightDirection", transformCapturedShadingDirections
-                    ? new Vector4(0.78512269f, 0.42261863f, -0.45274259f, 0f)
-                    : new Vector4(0.38302225f, 0.42261827f, 0.82139379f, 0f));
-                Shader.SetGlobalVector("_CapturedShadeTint", new Vector4(0.85849059f, 0.76552117f, 0.74105555f, 1f));
-                Shader.SetGlobalVector("_CapturedLightColor", Vector4.one);
-                Shader.SetGlobalVector("_CapturedShadeAdditive", new Vector4(0f, 0f, 0f, 1f));
-                Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
-                Shader.SetGlobalVector("_CapturedReflectionColor", Vector4.one);
-                Shader.SetGlobalVector("_CapturedEyeReflectionColor", Vector4.one);
-                // The PS does not dot its interpolated normal directly with
-                // CB0[153].xyz. It first forms r7 from CB0[65..67], while the
-                // frozen-pose diagnostic stores normals in the original Actor
-                // root's local basis. Combining those two rotations with the
-                // captured +94.97-degree Actor root gives the literal local
-                // direction below. An exact rim-only GPA replay closes this
-                // combined basis at corr=0.9403 for type-8 hair and corr=0.9888
-                // for type-0 costume after the same one-pixel registration. The
-                // former raw-CB direction produced corr=0.0293/0.1748 and a
-                // broad pale halo, so the combined direction is production.
-                // Retain both earlier interpretations only for controlled A/B.
-                _useLegacyRimDirection = commandLine.Contains("--legacy-rim-direction");
-                Shader.SetGlobalFloat("_UseExactViewRimBasis",
-                    _useLegacyRimDirection || transformCapturedShadingDirections ? 0f : 1f);
-                Shader.SetGlobalVector("_CapturedRimViewDirection",
-                    new Vector4(-0.29704621f, -0.27563736f, 0.91421419f, 0f));
-                Shader.SetGlobalVector("_CapturedRimDirection", transformCapturedShadingDirections
-                    ? new Vector4(0.93651113f, -0.27563763f, 0.21672747f, 0f)
-                    : _useLegacyRimDirection
-                        ? new Vector4(-0.29704621f, -0.27563736f, 0.91421419f, 0f)
-                        : new Vector4(0.29546950f, -0.17236277f, 0.93967480f, 0f));
-                Shader.SetGlobalVector("_CapturedRimParameters", new Vector4(0.7f, 0.85f, 32f, 1f));
-                Shader.SetGlobalVector("_CapturedShadowCasterDirection",
-                    new Vector4(-0.17343573f, 0.21206431f, 0.96174257f, 0f));
-                // Caster VS E82E31C9 uses these exact world-unit offsets while
-                // every captured rasterizer reports fixed/slope depth bias zero.
-                bool useCapturedCasterBias = !commandLine.Contains("--unity-shadow-bias");
-                Shader.SetGlobalVector("_CapturedShadowCasterBias", useCapturedCasterBias
-                    ? new Vector4(-0.00079697941f, -0.00019924485f, 1f, 0f)
-                    : new Vector4(0f, 0f, 0f, 0f));
-                Shader.SetGlobalVector("_CapturedSH0", new Vector4(0.00726612285f, -0.184132382f, 0.0522714779f, 0.368471146f));
-                Shader.SetGlobalVector("_CapturedSH1", new Vector4(0.00590136182f, -0.144511163f, 0.0502534062f, 0.398529291f));
-                Shader.SetGlobalVector("_CapturedSH2", new Vector4(0.00396161340f, -0.0267445855f, 0.0917166322f, 0.583782017f));
-                Shader.SetGlobalVector("_CapturedSH3", new Vector4(-0.0104490332f, -0.0136711346f, -0.0209487341f, -0.00180071173f));
-                Shader.SetGlobalVector("_CapturedSH4", new Vector4(-0.0123896031f, -0.00661265291f, -0.0159785878f, -0.00217014784f));
-                Shader.SetGlobalVector("_CapturedSH5", new Vector4(-0.0224926770f, -0.0107651427f, -0.0217662323f, 0.000522873364f));
-                Shader.SetGlobalVector("_CapturedSH6", new Vector4(-0.000540113775f, 0.00394574553f, 0.00150158303f, 1f));
-                // CB0[154].x gates the complete SH term and is exactly zero in all seven
-                // captured actor draws. Keep the coefficients archived, but honor the gate.
-                Shader.SetGlobalFloat("_CapturedAmbientScale", 0f);
-                if (ActorRenderingSelfTest.TryStart(gameObject)) { enabled = false; return; }
-                Initialize(BundleCatalog.DefaultStagingRoot);
-                if (commandLine.Contains("--hide-ui")) _showUi = false;
-                if (commandLine.Contains("--renderdoc-capture-and-quit"))
-                {
-                    StartCoroutine(CaptureRenderDocAndQuit());
-                }
-                else if (commandLine.Contains("--capture-story-and-quit"))
-                {
-                    StartCoroutine(CaptureStoryAndQuit());
-                }
-                else if (commandLine.Contains("--capture-gpa-camera-and-quit"))
-                {
-                    StartCoroutine(CaptureGpaCameraAndQuit());
-                }
-                else if (commandLine.Contains("--capture-gpa-camera-sweep-and-quit"))
-                {
-                    StartCoroutine(CaptureGpaCameraSweepAndQuit());
-                }
-                else if (commandLine.Contains("--capture-gpa-camera-mask-sweep-and-quit"))
-                {
-                    StartCoroutine(CaptureGpaCameraMaskSweepAndQuit());
-                }
-                else if (commandLine.Contains("--capture-actor-cube-transform-sweep-and-quit"))
-                {
-                    StartCoroutine(CaptureActorCubeTransformSweepAndQuit());
-                }
-                else if (commandLine.Contains("--capture-dynamics-and-quit"))
-                {
-                    StartCoroutine(CaptureDynamicsAndQuit());
-                }
-                else if (commandLine.Contains("--capture-expression-and-quit"))
-                {
-                    StartCoroutine(CaptureExpressionAndQuit());
-                }
-                else if (commandLine.Contains("--capture-and-quit"))
-                {
-                    StartCoroutine(CaptureAndQuit());
-                }
-            }
-        }
-
-        public void Initialize(string stagingRoot)
+        protected void InitializeRuntime(string stagingRoot)
         {
             if (_initialized)
             {
@@ -528,41 +180,8 @@ namespace GakumasPhotoMode
             }
             _initialized = true;
             _stagingRoot = stagingRoot;
-            Application.targetFrameRate = _ambientWallpaperDemo ? 30 : 60;
-            Application.runInBackground = true;
-            QualitySettings.antiAliasing = 8;
-            // Respect each texture's sampling contract. ForceEnable upgrades
-            // bilinear base maps to anisotropic samplers, changing thin details
-            // even when their pixels, UVs and authored filter settings match.
-            QualitySettings.anisotropicFiltering = AnisotropicFiltering.Enable;
-            string[] qualityCommandLine = Environment.GetCommandLineArgs();
-            QualitySettings.shadowDistance = qualityCommandLine.Contains("--shadow-distance-6") ? 6f :
-                                             qualityCommandLine.Contains("--shadow-distance-8") ? 8f :
-                                             qualityCommandLine.Contains("--shadow-distance-12") ? 12f : 20f;
-            QualitySettings.shadowProjection = qualityCommandLine.Contains("--close-fit-shadows")
-                ? UnityEngine.ShadowProjection.CloseFit
-                : UnityEngine.ShadowProjection.StableFit;
-            QualitySettings.shadowResolution = UnityEngine.ShadowResolution.VeryHigh;
-            // Local RenderDoc pass83 proved Unity was replaying the exact five
-            // reconstructed caster submeshes three times into a 4096² atlas—one
-            // set per active cascade. The original GPA pass contains the same
-            // five index counts only once and its receiver VS carries one direct
-            // orthographic world-to-shadow matrix, so production must be a
-            // single-cascade shadow rather than Unity's generic cascade stack.
-            QualitySettings.shadowCascades = 1;
-            // Unity applies -screen-width/-screen-height before this component
-            // initializes.  Do not overwrite an explicit capture aspect with
-            // the interactive 1440x900 floor: Screen.SetResolution is deferred,
-            // so the old code produced one correctly-sized frame and then
-            // silently switched a portrait capture back to landscape while an
-            // additive ADV scene was loading.
-            bool explicitScreenSize = qualityCommandLine.Contains("-screen-width") ||
-                                      qualityCommandLine.Contains("-screen-height");
-            if (Application.isPlaying && !explicitScreenSize)
-            {
-                Screen.fullScreenMode = FullScreenMode.Windowed;
-                if (Screen.width < 1200 || Screen.height < 720) Screen.SetResolution(1440, 900, false);
-            }
+            ConfigureApplication();
+            string[] qualityCommandLine = RuntimeArguments;
             _catalog = new BundleCatalog();
             _catalog.Load(stagingRoot);
             _faceMotionLibrary = new FaceMotionLibrary();
@@ -618,7 +237,7 @@ namespace GakumasPhotoMode
             string requestedExpression = CommandLineValue("--photo-expression-motion");
             if (string.IsNullOrEmpty(requestedExpression) || !SelectExpressionMotion(requestedExpression))
                 SelectExpression(0);
-            if (!Environment.GetCommandLineArgs().Contains("--unity-shadow-map"))
+            if (!RuntimeArguments.Contains("--unity-shadow-map"))
             {
                 _capturedActorShadowMap = PreviewCamera.gameObject.AddComponent<CapturedActorShadowMap>();
                 _capturedActorShadowMap.Initialize(_characterRoot);
@@ -628,27 +247,27 @@ namespace GakumasPhotoMode
                 Debug.Log("[PhotoMode] Enabled captured actor-fitted 4096 self-shadow map");
             }
             _storyPlayer = gameObject.AddComponent<StoryTimelinePlayer>();
-            bool openInPhotoMode = Environment.GetCommandLineArgs().Contains("--photo-mode") ||
+            bool openInPhotoMode = RuntimeArguments.Contains("--photo-mode") ||
                 _ambientWallpaperDemo;
             if (_storyPlayer.Initialize(this, stagingRoot) && Application.isPlaying && !openInPhotoMode)
             {
                 _storyPlayer.StartStory(8.45f);
             }
             _useAdvPhotoBackground = openInPhotoMode &&
-                (Environment.GetCommandLineArgs().Contains("--photo-adv-background") ||
+                (RuntimeArguments.Contains("--photo-adv-background") ||
                  _ambientWallpaperDemo);
             _useRiverbedBackground = openInPhotoMode &&
                 _riverbedEnvironment != null && _riverbedEnvironment.IsLoaded &&
-                !Environment.GetCommandLineArgs().Contains("--legacy-studio-background") &&
+                !RuntimeArguments.Contains("--legacy-studio-background") &&
                 !_useAdvPhotoBackground;
             if (openInPhotoMode) ApplyPhotoBackgroundPreference();
             if (_ambientWallpaperDemo) ConfigureAmbientWallpaperDemo();
             _status = "Ready";
         }
 
-        private static string CommandLineValue(string option)
+        protected string CommandLineValue(string option)
         {
-            string[] arguments = Environment.GetCommandLineArgs();
+            string[] arguments = RuntimeArguments;
             for (int index = 0; index + 1 < arguments.Length; index++)
             {
                 if (string.Equals(arguments[index], option, StringComparison.OrdinalIgnoreCase))
@@ -659,47 +278,7 @@ namespace GakumasPhotoMode
             return null;
         }
 
-        private void ConfigureAmbientWallpaperDemo()
-        {
-            _showUi = false;
-            if (_orbit != null)
-            {
-                // A quiet, asymmetric desktop composition. Camera controls remain live;
-                // this is intentionally still a normal window rather than a WorkerW host.
-                _orbit.ConfigureDefaultPose(
-                    new Vector3(0.18f, 0.96f, 0f),
-                    3.18f,
-                    180f,
-                    1.5f,
-                    31f);
-            }
-            if (_hairDynamics != null)
-            {
-                _hairDynamics.strength = 0.92f;
-                _hairDynamics.windStrength = 0f;
-                _hairDynamics.gravityStrength = 1.0f;
-            }
-            if (_skirtDynamics != null) _skirtDynamics.strength = 1.0f;
-            if (_garmentDynamics != null) _garmentDynamics.strength = 1.0f;
-            if (_bodySoftTissueDynamics != null) _bodySoftTissueDynamics.strength = 1.0f;
-            if (_faceExpression != null)
-            {
-                // Original photography layouts explicitly serialize
-                // EnableLookAtFlag=0.  The first raw demo instead aimed both eyes
-                // at an off-centre camera target, producing the obvious sideways
-                // stare. Keep the idle/reaction face motion, but leave eye bones at
-                // their authored neutral direction in this photo-derived mode.
-                _faceExpression.SetStoryGazeMode(true);
-                _faceExpression.SetStoryGaze(0f, 0f);
-            }
-            SelectMotionByLabel("photo-idle-001");
-            _ambientReactionActive = false;
-            _ambientNextReactionAt = Time.unscaledTime +
-                (Environment.GetCommandLineArgs().Contains("--capture-and-quit") ? 0.75f : 8f);
-            Debug.Log("[AmbientDemo] Ready: 30 fps, ADV backdrop, idle/reaction loop, UI hidden");
-        }
-
-        private void BuildEnvironment()
+        protected void BuildEnvironment()
         {
             _photoStudioRoot = new GameObject("PhotoStudioEnvironment");
             Camera camera = new GameObject("PhotoCamera").AddComponent<Camera>();
@@ -715,8 +294,8 @@ namespace GakumasPhotoMode
             if (!OriginalShaderUrpBootstrap.IsRequested)
             {
                 camera.gameObject.AddComponent<OriginalStyleRenderPipeline>();
-                _actorRenderControls = camera.gameObject.AddComponent<ActorRenderControls>();
-                ActorRenderingValidation.AttachIfRequested(camera.gameObject);
+                _actorRenderControls = CreateRenderControls(camera);
+                AttachApplicationCameraComponents(camera);
             }
             else
             {
@@ -756,7 +335,7 @@ namespace GakumasPhotoMode
             // shadow coverage even though the shader equation was otherwise
             // correct.
             _keyLight.shadowStrength = 1.0f;
-            bool useUnityShadowBias = Environment.GetCommandLineArgs().Contains("--unity-shadow-bias");
+            bool useUnityShadowBias = RuntimeArguments.Contains("--unity-shadow-bias");
             _keyLight.shadowBias = useUnityShadowBias ? 0.025f : 0f;
             _keyLight.shadowNormalBias = useUnityShadowBias ? 0.30f : 0f;
 
@@ -789,7 +368,7 @@ namespace GakumasPhotoMode
             Shader backdropShader = Resources.Load<Shader>("StudioBackdrop");
             Renderer backdropRenderer = backdrop.GetComponent<Renderer>();
             backdropRenderer.sharedMaterial = new Material(backdropShader);
-            if (!Environment.GetCommandLineArgs().Contains("--legacy-bright-studio"))
+            if (!RuntimeArguments.Contains("--legacy-bright-studio"))
             {
                 // The captured final pass uses max(sharp, low-res blur). The original
                 // Actor is surrounded by broad dark mountain/foliage regions, while
@@ -830,7 +409,7 @@ namespace GakumasPhotoMode
             // production viewer on its known-good studio path unless the exact
             // environment is explicitly requested; otherwise Unity can load the
             // serialized hierarchy but fail every streamed mesh/texture block.
-            if (Environment.GetCommandLineArgs().Contains("--original-riverbed"))
+            if (RuntimeArguments.Contains("--original-riverbed"))
             {
                 _riverbedEnvironment = new OriginalRiverbedEnvironment();
                 if (_riverbedEnvironment.TryLoad())
@@ -863,7 +442,7 @@ namespace GakumasPhotoMode
             // the production default; the opt-out is retained for performance
             // diagnosis on weaker hardware.
             if (!OriginalShaderUrpBootstrap.IsRequested &&
-                !Environment.GetCommandLineArgs().Contains("--native-render-resolution"))
+                !RuntimeArguments.Contains("--native-render-resolution"))
             {
                 Camera presenterCamera = new GameObject("SupersamplePresenterCamera").AddComponent<Camera>();
                 _supersamplePresenter = presenterCamera.gameObject.AddComponent<SupersamplePresenter>();
@@ -874,7 +453,7 @@ namespace GakumasPhotoMode
             _audioSource.spatialBlend = 0f;
         }
 
-        private void BuildActorEnvironmentCube(bool useCapturedRiverbedProfile)
+        protected void BuildActorEnvironmentCube(bool useCapturedRiverbedProfile)
         {
             if (_actorEnvironmentCube != null) DestroyImmediate(_actorEnvironmentCube);
             if (_actorEyeEnvironmentCube != null && _actorEyeEnvironmentCube != _actorEnvironmentCube)
@@ -901,7 +480,7 @@ namespace GakumasPhotoMode
             // the regression default and expose an explicit coherent studio
             // profile for presentation/non-matching environments.
             if (useCapturedRiverbedProfile &&
-                !Environment.GetCommandLineArgs().Contains("--legacy-actor-env") &&
+                !RuntimeArguments.Contains("--legacy-actor-env") &&
                 TryBuildCapturedActorEnvironmentCube())
             {
                 Shader.SetGlobalFloat("_UseCapturedEnvironmentBasis", 1f);
@@ -919,7 +498,7 @@ namespace GakumasPhotoMode
                     // PS9700 pre-modulation specular to 0.9912x mean. Keep the
                     // older Unity Cubemap path available only as a diagnostic.
                     Shader.SetGlobalFloat("_UseCapturedType1ActorEnvironmentArray",
-                        Environment.GetCommandLineArgs().Contains("--legacy-unity-type1-cube")
+                        RuntimeArguments.Contains("--legacy-unity-type1-cube")
                             ? 0f : 1f);
                 }
                 if (TryBuildCapturedEnvironmentArray(
@@ -951,9 +530,9 @@ namespace GakumasPhotoMode
             Shader.SetGlobalFloat("_ActorEnvironmentIntensity", ActorEnvironmentIntensity(0.72f));
         }
 
-        private void ApplyRenderContextProfile(bool force = false)
+        protected void ApplyRenderContextProfile(bool force = false)
         {
-            string[] commandLine = Environment.GetCommandLineArgs();
+            string[] commandLine = RuntimeArguments;
             bool fixedGpaRegression =
                 commandLine.Contains("--capture-gpa-camera-and-quit") ||
                 commandLine.Contains("--capture-gpa-camera-sweep-and-quit") ||
@@ -999,22 +578,22 @@ namespace GakumasPhotoMode
                     : "local-studio"));
         }
 
-        private static float ActorEnvironmentIntensity(float productionValue)
+        protected float ActorEnvironmentIntensity(float productionValue)
         {
-            string[] commandLine = Environment.GetCommandLineArgs();
+            string[] commandLine = RuntimeArguments;
             if (commandLine.Contains("--actor-env-zero")) return 0f;
             if (commandLine.Contains("--actor-env-half")) return productionValue * 0.5f;
             if (commandLine.Contains("--actor-env-double")) return productionValue * 2f;
             return productionValue;
         }
 
-        private bool TryBuildCapturedActorEnvironmentCube()
+        protected bool TryBuildCapturedActorEnvironmentCube()
         {
             return TryBuildCapturedEnvironmentCube(
                 "CapturedActorEnvironment", "CapturedActorEnvironmentCube", out _actorEnvironmentCube);
         }
 
-        private bool TryBuildCapturedEnvironmentCube(string resourceName, string cubeName, out Cubemap result)
+        protected bool TryBuildCapturedEnvironmentCube(string resourceName, string cubeName, out Cubemap result)
         {
             // GPA replay of the active type-9 face draw exposed the exact t3
             // reflection probe: 64x64, seven mips, six faces in D3D cube order,
@@ -1097,7 +676,7 @@ namespace GakumasPhotoMode
             return true;
         }
 
-        private bool TryBuildCapturedEnvironmentArray(
+        protected bool TryBuildCapturedEnvironmentArray(
             string resourceName, string arrayName, out Texture2DArray result)
         {
             // Preserve the six captured D3D faces as independent 2D slices.
@@ -1164,14 +743,14 @@ namespace GakumasPhotoMode
             return true;
         }
 
-        private static void SetCubeFace(Cubemap cube, CubemapFace face, Color color)
+        protected static void SetCubeFace(Cubemap cube, CubemapFace face, Color color)
         {
             Color[] pixels = new Color[cube.width * cube.height];
             for (int index = 0; index < pixels.Length; index++) pixels[index] = color;
             cube.SetPixels(pixels, face);
         }
 
-        private void BuildStudioRibbon(Vector3 position, Vector3 scale, float rotation, Color color)
+        protected void BuildStudioRibbon(Vector3 position, Vector3 scale, float rotation, Color color)
         {
             GameObject ribbon = GameObject.CreatePrimitive(PrimitiveType.Cube);
             ribbon.name = "StudioAccent";
@@ -1188,14 +767,14 @@ namespace GakumasPhotoMode
             ribbon.GetComponent<Collider>().enabled = false;
         }
 
-        private static void SetLayerRecursively(GameObject root, int layer)
+        protected static void SetLayerRecursively(GameObject root, int layer)
         {
             if (root == null) return;
             root.layer = layer;
             foreach (Transform child in root.transform) SetLayerRecursively(child.gameObject, layer);
         }
 
-        private void BuildCharacter()
+        protected void BuildCharacter()
         {
             _characterRoot = new GameObject(_characterId);
             BundleRecord faceRecord = FaceForCharacter(_characterId);
@@ -1274,7 +853,7 @@ namespace GakumasPhotoMode
                 " / outfit body: " + CurrentOutfitOwner.ToUpperInvariant();
         }
 
-        private BundleRecord FaceForCharacter(string characterId)
+        protected BundleRecord FaceForCharacter(string characterId)
         {
             BundleRecord face = _faces.FirstOrDefault(value =>
                 string.Equals(RecordOwnerId(value.name), characterId, StringComparison.OrdinalIgnoreCase) &&
@@ -1286,7 +865,7 @@ namespace GakumasPhotoMode
             return face;
         }
 
-        private GameObject InstantiatePart(string bundleName, string displayName)
+        protected GameObject InstantiatePart(string bundleName, string displayName)
         {
             GameObject prefab = _catalog.LoadPrefab(bundleName);
             GameObject instance = Instantiate(prefab, _characterRoot.transform);
@@ -1297,7 +876,7 @@ namespace GakumasPhotoMode
             return instance;
         }
 
-        private static Animator EnsureAnimator(GameObject target)
+        protected static Animator EnsureAnimator(GameObject target)
         {
             Animator animator = target.GetComponent<Animator>();
             return animator != null ? animator : target.AddComponent<Animator>();
@@ -1461,7 +1040,7 @@ namespace GakumasPhotoMode
                 outfitOwnerId.ToUpperInvariant() + " SOLO1";
         }
 
-        private BundleRecord HairForCostume(BundleRecord costume)
+        protected BundleRecord HairForCostume(BundleRecord costume)
         {
             // Body asset ownership and actor identity are intentionally separate.
             // A cross-character outfit keeps the recipient's face/hair identity,
@@ -1491,7 +1070,7 @@ namespace GakumasPhotoMode
             throw new InvalidDataException("No hair bundle for character: " + _characterId);
         }
 
-        private static string RecordOwnerId(string bundleName)
+        protected static string RecordOwnerId(string bundleName)
         {
             const string prefix = "mdl_chr_";
             if (string.IsNullOrEmpty(bundleName) || !bundleName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -1502,7 +1081,7 @@ namespace GakumasPhotoMode
                 : bundleName.Substring(prefix.Length, separator - prefix.Length);
         }
 
-        private static string PartVariantId(string bundleName)
+        protected static string PartVariantId(string bundleName)
         {
             string owner = RecordOwnerId(bundleName);
             if (string.IsNullOrEmpty(owner)) return string.Empty;
@@ -1556,7 +1135,7 @@ namespace GakumasPhotoMode
             _status = "Motion: " + (_motions[_motionIndex].label ?? _motions[_motionIndex].name);
         }
 
-        private void ApplyMotionDynamicsContract(
+        protected void ApplyMotionDynamicsContract(
             string motionName,
             bool enableSeatedDynamicCorrection)
         {
@@ -1573,7 +1152,7 @@ namespace GakumasPhotoMode
                 motionName, enableSeatedDynamicCorrection));
         }
 
-        private bool SelectMotionByLabel(string label)
+        protected bool SelectMotionByLabel(string label)
         {
             if (_motions == null || _motions.Count == 0) return false;
             int index = _motions.FindIndex(value =>
@@ -1657,7 +1236,7 @@ namespace GakumasPhotoMode
             _status = "Story: adv_dear_fktn_001";
         }
 
-        private void ApplyPhotoBackgroundPreference()
+        protected void ApplyPhotoBackgroundPreference()
         {
             if (_useAdvPhotoBackground)
             {
@@ -1677,7 +1256,7 @@ namespace GakumasPhotoMode
             ApplyRenderContextProfile();
         }
 
-        private void TogglePhotoBackground()
+        protected void TogglePhotoBackground()
         {
             if (StoryActive) return;
             _useAdvPhotoBackground = false;
@@ -1745,7 +1324,7 @@ namespace GakumasPhotoMode
             _motionGraph.Evaluate(0f);
         }
 
-        private void ConfigureStoryBodyGraph(string previousMotion, string currentMotion)
+        protected void ConfigureStoryBodyGraph(string previousMotion, string currentMotion)
         {
             if (_motionGraph.IsValid()) _motionGraph.Destroy();
             _storyPreviousMotion = previousMotion;
@@ -1780,7 +1359,7 @@ namespace GakumasPhotoMode
             Debug.Log(string.Format("[Story] Body {0} <- {1}", currentMotion, previousMotion ?? "-") );
         }
 
-        private AnimationClip LoadStoryBodyClip(string motionName)
+        protected AnimationClip LoadStoryBodyClip(string motionName)
         {
             AnimationClip result;
             if (_storyBodyClips.TryGetValue(motionName, out result)) return result;
@@ -1851,7 +1430,7 @@ namespace GakumasPhotoMode
                 _capturedLookAt.ClearStoryLookTarget();
                 return;
             }
-            if (Environment.GetCommandLineArgs().Contains("--story-lookat-off"))
+            if (RuntimeArguments.Contains("--story-lookat-off"))
             {
                 _capturedLookAt.ClearStoryLookTarget();
                 return;
@@ -1931,7 +1510,7 @@ namespace GakumasPhotoMode
                 settingWeight * setting.bodyWeight);
         }
 
-        private float StoryLookTargetWeight(StoryLookTargetSetting setting)
+        protected float StoryLookTargetWeight(StoryLookTargetSetting setting)
         {
             if (setting == null) return 0f;
             if (setting.type == 2 &&
@@ -1941,7 +1520,7 @@ namespace GakumasPhotoMode
             return setting.weight;
         }
 
-        private bool TryResolveStoryLookTarget(
+        protected bool TryResolveStoryLookTarget(
             StoryLookTargetSetting setting,
             out Vector3 position)
         {
@@ -1977,7 +1556,7 @@ namespace GakumasPhotoMode
             }
         }
 
-        private static float StoryInCirc(float value)
+        protected static float StoryInCirc(float value)
         {
             float t = Mathf.Clamp01(value);
             return 1f - Mathf.Sqrt(Mathf.Max(0f, 1f - t * t));
@@ -2022,14 +1601,14 @@ namespace GakumasPhotoMode
             }
         }
 
-        private static Color ParseStoryColor(string value, Color fallback)
+        protected static Color ParseStoryColor(string value, Color fallback)
         {
             if (string.IsNullOrEmpty(value)) return fallback;
             Color parsed;
             return ColorUtility.TryParseHtmlString(value, out parsed) ? parsed : fallback;
         }
 
-        private void EnsureStoryOverlay()
+        protected void EnsureStoryOverlay()
         {
             if (_storyOverlayRuntime == null && _catalog != null)
                 _storyOverlayRuntime = new AdvStoryOverlayRuntime(_catalog);
@@ -2095,7 +1674,7 @@ namespace GakumasPhotoMode
                 ProfileVector(profile.rimAngle, new Vector2(10f, 5f))));
         }
 
-        private void ResetStoryActorRenderProfile()
+        protected void ResetStoryActorRenderProfile()
         {
             _storyActorRenderProfile = null;
             _storyActorRenderProfileActive = false;
@@ -2103,7 +1682,7 @@ namespace GakumasPhotoMode
             ResetCapturedActorRenderGlobals();
         }
 
-        private void ResetCapturedActorRenderGlobals()
+        protected void ResetCapturedActorRenderGlobals()
         {
             Shader.SetGlobalVector("_ActorMatcapParameters", new Vector4(0.3f, 1f, 1f, 0f));
             Shader.SetGlobalVector("_ActorLightingScales", new Vector4(0f, 1f, 1f, 0f));
@@ -2137,7 +1716,7 @@ namespace GakumasPhotoMode
             Shader.SetGlobalVector("_CapturedRimParameters", new Vector4(0.7f, 0.85f, 32f, 1f));
         }
 
-        private void UpdateStoryActorRenderProfileGlobals()
+        protected void UpdateStoryActorRenderProfileGlobals()
         {
             StoryActorRenderProfile profile = _storyActorRenderProfile;
             if (!_storyActorRenderProfileActive || profile == null) return;
@@ -2232,24 +1811,24 @@ namespace GakumasPhotoMode
                 ProfileFloat(profile.rimPower, 32f), saturation);
         }
 
-        private static float ProfileFloat(StoryFloatParameter parameter, float fallback)
+        protected static float ProfileFloat(StoryFloatParameter parameter, float fallback)
         {
             return parameter == null ? fallback : parameter.value;
         }
 
-        private static int ProfileInt(StoryIntParameter parameter, int fallback)
+        protected static int ProfileInt(StoryIntParameter parameter, int fallback)
         {
             return parameter == null ? fallback : parameter.value;
         }
 
-        private static Vector2 ProfileVector(
+        protected static Vector2 ProfileVector(
             StoryVector2Parameter parameter, Vector2 fallback)
         {
             return parameter == null || parameter.value == null
                 ? fallback : parameter.value.ToVector2();
         }
 
-        private static Color ProfileColor(
+        protected static Color ProfileColor(
             StoryColorParameter parameter, Color fallback)
         {
             return parameter == null || parameter.value == null
@@ -2317,7 +1896,7 @@ namespace GakumasPhotoMode
             if (setting != null) ApplyCameraSetting(setting, setting, 1f);
         }
 
-        private void ApplyCameraSetting(StoryCameraSetting from, StoryCameraSetting to, float t)
+        protected void ApplyCameraSetting(StoryCameraSetting from, StoryCameraSetting to, float t)
         {
             if (from == null || to == null || from.transform == null || to.transform == null) return;
             Vector3 position = Vector3.Lerp(from.transform.position.ToVector3(), to.transform.position.ToVector3(), t);
@@ -2336,7 +1915,7 @@ namespace GakumasPhotoMode
             // 607x1080 replay against the source portrait instead matches the
             // ordinary 24 mm sensor-height conversion.  Preserve the former
             // interpretation only as an explicit diagnostic control.
-            bool physicalProbe = Environment.GetCommandLineArgs().Contains(
+            bool physicalProbe = RuntimeArguments.Contains(
                 "--story-camera-physical");
             PreviewCamera.usePhysicalProperties = physicalProbe;
             PreviewCamera.focalLength = focalLength;
@@ -2402,7 +1981,7 @@ namespace GakumasPhotoMode
             pipeline.SetStoryPostProcessProfile(profile);
         }
 
-        private void ResetStoryPostProcessProfile()
+        protected void ResetStoryPostProcessProfile()
         {
             OriginalStyleRenderPipeline pipeline = PreviewCamera == null
                 ? null
@@ -2410,7 +1989,7 @@ namespace GakumasPhotoMode
             if (pipeline != null) pipeline.ResetStoryPostProcessProfile();
         }
 
-        private void ResetStoryDepthOfField()
+        protected void ResetStoryDepthOfField()
         {
             _storyCameraDofActive = false;
             _storyCameraDofFocalPoint = 4f;
@@ -2423,7 +2002,7 @@ namespace GakumasPhotoMode
                 pipeline.SetDepthOfField(false, 3, 4f, 4f, 1.5f, 0f, true, 0.5f, 1f, 5, 1f, 0f);
         }
 
-        private void UpdateStoryDepthOfField()
+        protected void UpdateStoryDepthOfField()
         {
             OriginalStyleRenderPipeline pipeline = PreviewCamera == null
                 ? null : PreviewCamera.GetComponent<OriginalStyleRenderPipeline>();
@@ -2467,7 +2046,7 @@ namespace GakumasPhotoMode
                 bladeCount, bladeCurvature, bladeRotation);
         }
 
-        private void SetupStoryBackground()
+        protected void SetupStoryBackground()
         {
             if (_storyBackgroundRuntime == null && _catalog != null && PreviewCamera != null)
                 _storyBackgroundRuntime = new AdvStoryBackgroundRuntime(_catalog, PreviewCamera);
@@ -2479,7 +2058,7 @@ namespace GakumasPhotoMode
             UpdateStoryBackgroundScale();
         }
 
-        private void UpdateStoryBackgroundScale()
+        protected void UpdateStoryBackgroundScale()
         {
             if (_storyBackgroundRuntime != null) _storyBackgroundRuntime.UpdateCameraGeometry();
         }
@@ -2497,7 +2076,7 @@ namespace GakumasPhotoMode
             RebuildStoryActorParts();
         }
 
-        private void RebuildStoryActorParts()
+        protected void RebuildStoryActorParts()
         {
             foreach (GameObject value in _storyActorExtras.Values)
             {
@@ -2542,7 +2121,7 @@ namespace GakumasPhotoMode
                 _capturedActorShadowMap.Initialize(_characterRoot);
         }
 
-        private static string StoryActorPartRootName(string bundleName)
+        protected static string StoryActorPartRootName(string bundleName)
         {
             if (bundleName.IndexOf("smartphone", StringComparison.OrdinalIgnoreCase) >= 0)
                 return "Root_Smartphone";
@@ -2574,7 +2153,7 @@ namespace GakumasPhotoMode
             }
         }
 
-        private void ApplyStoryPropConstraintContract(
+        protected void ApplyStoryPropConstraintContract(
             string motionName, VL.PropConstraintData[] contracts)
         {
             foreach (GameObject root in _storyActorExtras.Values)
@@ -2720,7 +2299,7 @@ namespace GakumasPhotoMode
                 ? Vector3.one : transform.scale.ToVector3();
         }
 
-        private void SetStoryRuntimeObjectsEnabled(bool enabled)
+        protected void SetStoryRuntimeObjectsEnabled(bool enabled)
         {
             foreach (GameObject value in _storyActorExtras.Values)
             {
@@ -2808,7 +2387,7 @@ namespace GakumasPhotoMode
             StartCoroutine(LoadAndPlayStoryVoice(record, offset, _storyVoiceRequest));
         }
 
-        private IEnumerator LoadAndPlayStoryVoice(VoiceRecord record, float offset, int requestId)
+        protected IEnumerator LoadAndPlayStoryVoice(VoiceRecord record, float offset, int requestId)
         {
             AudioClip clip;
             if (!_voiceCache.TryGetValue(record.label, out clip))
@@ -2856,7 +2435,7 @@ namespace GakumasPhotoMode
                 .ToArray();
         }
 
-        private static string MeshSummary(Renderer renderer)
+        protected static string MeshSummary(Renderer renderer)
         {
             SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
             if (skinned != null)
@@ -2869,7 +2448,7 @@ namespace GakumasPhotoMode
                 : MeshDetails(filter.sharedMesh);
         }
 
-        private static string MeshDetails(Mesh mesh)
+        protected static string MeshDetails(Mesh mesh)
         {
             if (mesh == null) return " mesh=null";
             string indexCounts = string.Join(",", Enumerable.Range(0, mesh.subMeshCount)
@@ -2879,12 +2458,12 @@ namespace GakumasPhotoMode
                    " submeshIndices=[" + indexCounts + "]";
         }
 
-        private static Transform FindDescendant(Transform root, string name)
+        protected static Transform FindDescendant(Transform root, string name)
         {
             return root.GetComponentsInChildren<Transform>(true).FirstOrDefault(transform => transform.name == name);
         }
 
-        private static void AlignAndParent(GameObject part, string anchorName, Transform target)
+        protected static void AlignAndParent(GameObject part, string anchorName, Transform target)
         {
             if (part == null || target == null) return;
             Transform anchor = FindDescendant(part.transform, anchorName);
@@ -2895,7 +2474,7 @@ namespace GakumasPhotoMode
             part.transform.SetParent(target, true);
         }
 
-        private void ResetPart(GameObject part)
+        protected void ResetPart(GameObject part)
         {
             if (part == null) return;
             part.transform.SetParent(_characterRoot.transform, false);
@@ -2904,7 +2483,7 @@ namespace GakumasPhotoMode
             part.transform.localScale = Vector3.one;
         }
 
-        private void RestoreFaceHeadToPrefab()
+        protected void RestoreFaceHeadToPrefab()
         {
             if (_faceHead == null || _faceHeadPrefabParent == null) return;
             _faceHead.SetParent(_faceHeadPrefabParent, false);
@@ -2913,7 +2492,7 @@ namespace GakumasPhotoMode
             _faceHead.localScale = _faceHeadPrefabLocalScale;
         }
 
-        private void AttachFaceHeadToBody(Transform bodyHead)
+        protected void AttachFaceHeadToBody(Transform bodyHead)
         {
             if (_faceHead == null || bodyHead == null) return;
             // ActorDescriptor/VL compose the face mesh at Actor root (its
@@ -2928,7 +2507,7 @@ namespace GakumasPhotoMode
             _faceHead.localScale = Vector3.one;
         }
 
-        private static Avatar BuildHumanoidAvatar(GameObject body)
+        protected static Avatar BuildHumanoidAvatar(GameObject body)
         {
             Dictionary<string, string> map = new Dictionary<string, string>
             {
@@ -2996,7 +2575,7 @@ namespace GakumasPhotoMode
             return avatar;
         }
 
-        private static string TransformPath(Transform transform, Transform stop)
+        protected static string TransformPath(Transform transform, Transform stop)
         {
             List<string> parts = new List<string>();
             while (transform != null && transform != stop)
@@ -3008,7 +2587,7 @@ namespace GakumasPhotoMode
             return string.Join("/", parts);
         }
 
-        private void Update()
+        protected void Update()
         {
             if (!_initialized)
             {
@@ -3020,26 +2599,7 @@ namespace GakumasPhotoMode
                 Shader.SetGlobalVector("_CapturedCameraUp",
                     new Vector4(cameraUp.x, cameraUp.y, cameraUp.z, 0f));
             }
-            if (!StoryActive && Input.GetKeyDown(KeyCode.A)) SelectMotion(_motionIndex - 1);
-            if (!StoryActive && Input.GetKeyDown(KeyCode.D)) SelectMotion(_motionIndex + 1);
-            if (!StoryActive && Input.GetKeyDown(KeyCode.W)) SelectCostume(_costumeIndex - 1);
-            if (!StoryActive && Input.GetKeyDown(KeyCode.S)) SelectCostume(_costumeIndex + 1);
-            if (!StoryActive && Input.GetKeyDown(KeyCode.Q))
-                SelectCharacter(_characterIds.FindIndex(value => string.Equals(value, _characterId, StringComparison.OrdinalIgnoreCase)) - 1);
-            if (!StoryActive && Input.GetKeyDown(KeyCode.E))
-                SelectCharacter(_characterIds.FindIndex(value => string.Equals(value, _characterId, StringComparison.OrdinalIgnoreCase)) + 1);
-            if (!StoryActive && Input.GetKeyDown(KeyCode.B)) TogglePhotoBackground();
-            if (!StoryActive && Input.GetKeyDown(KeyCode.L) && _capturedLookAt != null)
-                _capturedLookAt.CycleMode();
-            if (_ambientWallpaperDemo) UpdateAmbientWallpaperDemo();
-            if (Input.GetKeyDown(KeyCode.Space)) TogglePause();
-            if (Input.GetKeyDown(KeyCode.P)) SaveScreenshot();
-            if (Input.GetKeyDown(KeyCode.F1) || Input.GetKeyDown(KeyCode.Tab)) _showUi = !_showUi;
-            if (Input.GetKeyDown(KeyCode.R))
-            {
-                if (StoryActive) _orbit.ResetStoryOffsets();
-                else _orbit.ResetPose();
-            }
+            ProcessApplicationInput();
             if (StoryActive) return;
             LoopPlayable(_bodyPlayable);
             LoopPlayable(_facePlayable);
@@ -3048,38 +2608,7 @@ namespace GakumasPhotoMode
             SamplePhotoMaterialEffects(_facePlayable.IsValid() ? _facePlayable.GetTime() : PhotoMotionTime);
         }
 
-        private void UpdateAmbientWallpaperDemo()
-        {
-            if (StoryActive || _paused) return;
-            float now = Time.unscaledTime;
-            if (_ambientReactionActive)
-            {
-                if (now < _ambientReturnToIdleAt) return;
-                SelectMotionByLabel((_ambientReactionSequence & 1) == 0
-                    ? "photo-idle-001"
-                    : "photo-idle-002");
-                _ambientReactionActive = false;
-                _ambientNextReactionAt = now + 11f;
-                return;
-            }
-
-            bool clicked = Input.GetMouseButtonDown(0);
-            if (!clicked && now < _ambientNextReactionAt) return;
-            string reaction = (_ambientReactionSequence++ & 1) == 0
-                ? "photo-react-a"
-                : "photo-react-b";
-            if (!SelectMotionByLabel(reaction))
-            {
-                _ambientNextReactionAt = now + 11f;
-                return;
-            }
-            float duration = CurrentBodyClip == null ? 3f : CurrentBodyClip.length;
-            _ambientReactionActive = true;
-            _ambientReturnToIdleAt = now + Mathf.Clamp(duration, 1.5f, 8f);
-            if (clicked && VoiceCount > 0) PlayVoice(_ambientReactionSequence % VoiceCount);
-        }
-
-        private void LateUpdate()
+        protected void LateUpdate()
         {
             if (!_initialized || PreviewCamera == null) return;
             Vector3 cameraUp = PreviewCamera.transform.up;
@@ -3098,7 +2627,7 @@ namespace GakumasPhotoMode
             }
         }
 
-        private static void LoopPlayable(AnimationClipPlayable playable)
+        protected static void LoopPlayable(AnimationClipPlayable playable)
         {
             if (!playable.IsValid()) return;
             AnimationClip clip = playable.GetAnimationClip();
@@ -3150,7 +2679,7 @@ namespace GakumasPhotoMode
             return true;
         }
 
-        private void ApplySelectedPhotoExpression()
+        protected void ApplySelectedPhotoExpression()
         {
             if (_faceExpression == null || _faceMotionLibrary == null) return;
             // All user-facing entries now come from PhotoFacialMotionGroup.
@@ -3165,7 +2694,7 @@ namespace GakumasPhotoMode
             SamplePhotoMaterialEffects(_facePlayable.IsValid() ? _facePlayable.GetTime() : PhotoMotionTime);
         }
 
-        private void SamplePhotoMaterialEffects(double seconds)
+        protected void SamplePhotoMaterialEffects(double seconds)
         {
             if (_faceMaterialEffects != null && _faceMotionLibrary != null)
                 _faceMaterialEffects.Sample(_faceMotionLibrary.SelectedPhotoMotion, seconds, true);
@@ -3194,7 +2723,7 @@ namespace GakumasPhotoMode
             StartCoroutine(LoadAndPlayVoice(_catalog.Manifest.voices[_voiceIndex]));
         }
 
-        private IEnumerator LoadAndPlayVoice(VoiceRecord record)
+        protected IEnumerator LoadAndPlayVoice(VoiceRecord record)
         {
             string path = _catalog.ResolveVoicePath(record);
             using (UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(new Uri(path).AbsoluteUri, AudioType.WAV))
@@ -3212,789 +2741,6 @@ namespace GakumasPhotoMode
             }
         }
 
-        private IEnumerator CaptureAndQuit()
-        {
-            Debug.Log("[PhotoMode] Automated capture requested");
-            PlayVoice(0);
-            yield return new WaitForSecondsRealtime(2f);
-            if (Environment.GetCommandLineArgs().Contains("--dump-face-diagnostics"))
-                DumpFaceDiagnostics("normal");
-            string path;
-            if (Environment.GetCommandLineArgs().Contains("--capture-presented-window"))
-            {
-                // SaveScreenshot renders a fresh off-screen 1920x1080 frame. That
-                // changes the temporal target size and correctly invalidates history,
-                // but it cannot tell us what the settled window actually presents.
-                // Keep this diagnostic on the ordinary player frames long enough for
-                // the captured temporal resolve to converge, then read the backbuffer.
-                for (int frame = 0; frame < 32; frame++) yield return null;
-                if (Environment.GetCommandLineArgs().Contains("--dump-post-inputs"))
-                {
-                    string directory = Path.Combine(
-                        _stagingRoot ?? BundleCatalog.DefaultStagingRoot, "captures");
-                    string prefix = Path.Combine(directory,
-                        "fktn-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + "-presented-post");
-                    OriginalStyleRenderPipeline.RequestPostInputDump(prefix);
-                }
-                yield return new WaitForEndOfFrame();
-                path = SavePresentedFrameScreenshot();
-            }
-            else
-            {
-                path = SaveScreenshot();
-            }
-            Debug.Log("[PhotoMode] Automated capture saved: " + path);
-            yield return new WaitForSecondsRealtime(1f);
-            Application.Quit(0);
-        }
-
-        private IEnumerator CaptureRenderDocAndQuit()
-        {
-            _showUi = false;
-            Debug.Log("[RenderDoc] Automated local shader capture requested");
-            yield return new WaitForSecondsRealtime(2.0f);
-            bool triggered = RenderDocCaptureBridge.TriggerCapture();
-            yield return new WaitForSecondsRealtime(triggered ? 2.0f : 0.25f);
-            Debug.Log("[RenderDoc] Automated local shader capture finished; triggered=" + triggered);
-            Application.Quit(triggered ? 0 : 2);
-        }
-
-        private IEnumerator CaptureDynamicsAndQuit()
-        {
-            Debug.Log("[PhotoMode] Automated dynamics capture requested");
-            _showUi = false;
-            bool capturePresented = Environment.GetCommandLineArgs().Contains("--capture-presented-window");
-            if (_storyPlayer != null && _storyPlayer.IsActive) _storyPlayer.StopStory();
-            yield return null;
-            string requestedMotion = CommandLineValue("--motion-label");
-            if (string.IsNullOrEmpty(requestedMotion))
-            {
-                int action = _motions.FindIndex(value => string.Equals(value.label, "photo-react-b", StringComparison.OrdinalIgnoreCase));
-                SelectMotion(action >= 0 ? action : Mathf.Min(1, _motions.Count - 1));
-            }
-            _orbit.target = new Vector3(0f, 0.94f, 0f);
-            _orbit.distance = 4.15f;
-            _orbit.fov = 30f;
-            _orbit.ApplyPose();
-            yield return new WaitForSecondsRealtime(0.65f);
-            if (Environment.GetCommandLineArgs().Contains("--dump-captured-shadow-map"))
-            {
-                string prefix = Path.Combine(
-                    _stagingRoot ?? BundleCatalog.DefaultStagingRoot,
-                    "research", "render-diagnostics", "pass256-dynamics-shadow",
-                    CaptureFilePrefix() + "-full-body");
-                CapturedActorShadowMap.RequestShadowMapDump(prefix);
-            }
-            if (capturePresented) yield return new WaitForEndOfFrame();
-            string first = capturePresented ? SavePresentedFrameScreenshot() : SaveScreenshot();
-            if (_quartzGarmentDeformation != null)
-                _quartzGarmentDeformation.LogCurrentState("capture-action-a");
-            yield return new WaitForSecondsRealtime(0.30f);
-            if (capturePresented) yield return new WaitForEndOfFrame();
-            string second = capturePresented ? SavePresentedFrameScreenshot() : SaveScreenshot();
-            if (_quartzGarmentDeformation != null)
-                _quartzGarmentDeformation.LogCurrentState("capture-action-b");
-            if (!_paused) TogglePause();
-            Transform captureHead = FindDescendant(_body.transform, "Head");
-            _orbit.target = captureHead == null ? new Vector3(0f, 1.47f, 0f) : captureHead.position;
-            _orbit.distance = 1.32f;
-            _orbit.yaw = 166f;
-            _orbit.pitch = 1f;
-            _orbit.fov = 29f;
-            _orbit.ApplyPose();
-            if (_faceExpression != null)
-            {
-                _faceExpression.ForceBlink();
-                // The original 95 ms wall-clock guess often reached the
-                // reopening tail after a long first frame. Synchronize the
-                // evidence capture to the serialized curve's plateau instead.
-                float blinkDeadline = Time.realtimeSinceStartup + 0.30f;
-                while (_faceExpression.BlinkWeight < 0.99f &&
-                       Time.realtimeSinceStartup < blinkDeadline)
-                    yield return null;
-            }
-            if (capturePresented) yield return new WaitForEndOfFrame();
-            string third = capturePresented ? SavePresentedFrameScreenshot() : SaveScreenshot();
-            _orbit.yaw = 204f;
-            _orbit.ApplyPose();
-            yield return new WaitForSecondsRealtime(0.38f);
-            if (capturePresented) yield return new WaitForEndOfFrame();
-            string fourth = capturePresented ? SavePresentedFrameScreenshot() : SaveScreenshot();
-            if (_hairDynamics != null) _hairDynamics.LogCurrentState("capture-final");
-            if (_breastDynamics != null)
-                _breastDynamics.LogCurrentState("capture-final-breast");
-            if (_bodySoftTissueDynamics != null)
-                _bodySoftTissueDynamics.LogCurrentState("capture-final-soft-tissue");
-            if (_garmentDynamics != null)
-                _garmentDynamics.LogCurrentState("capture-final-garment");
-            if (_quartzArmDeformation != null)
-                _quartzArmDeformation.LogCurrentState("capture-final-quartz-arm");
-            if (_quartzLegRotationDeformation != null)
-                _quartzLegRotationDeformation.LogCurrentState("capture-final-quartz-leg-rotation");
-            if (_quartzGarmentDeformation != null)
-                _quartzGarmentDeformation.LogCurrentState("capture-final-quartz-garment");
-            if (_skirtDynamics != null)
-                _skirtDynamics.LogCurrentState("capture-final-skirt");
-            Debug.Log(string.Format("[PhotoMode] Dynamics captures saved: {0}, {1}, {2}, {3}; hair mean={4:0.00} max={5:0.00} braid={6:0.00} max={7:0.00} variation={8:0.00}; skirt entries={9} edges={10} terminals={11} colliders={12} quartz={13} chainLayers={14} chainCorrections={15} peakChainCorrections={16} mean={17:0.00} max={18:0.00}; blink={19:0.00} gaze={20}; face active={21} max={22:0.000}",
-                first, second, third, fourth,
-                _hairDynamics == null ? 0f : _hairDynamics.MeanAngularOffset,
-                _hairDynamics == null ? 0f : _hairDynamics.MaxAngularOffset,
-                _hairDynamics == null ? 0f : _hairDynamics.BraidMeanAngularOffset,
-                _hairDynamics == null ? 0f : _hairDynamics.BraidMaxAngularOffset,
-                _hairDynamics == null ? 0f : _hairDynamics.BraidAngularVariation,
-                _skirtDynamics == null ? 0 : _skirtDynamics.DynamicEntryCount,
-                _skirtDynamics == null ? 0 : _skirtDynamics.SimulatedBoneCount,
-                _skirtDynamics == null ? 0 : _skirtDynamics.TerminalEntryCount,
-                _skirtDynamics == null ? 0 : _skirtDynamics.StaticColliderCount,
-                _skirtDynamics == null ? 0 : _skirtDynamics.QuartzDriverCount,
-                _skirtDynamics == null ? 0 : _skirtDynamics.ChainLayerCount,
-                _skirtDynamics == null ? 0 : _skirtDynamics.ChainCollisionCorrections,
-                _skirtDynamics == null ? 0 : _skirtDynamics.PeakChainCollisionCorrections,
-                _skirtDynamics == null ? 0f : _skirtDynamics.MeanAngularOffset,
-                _skirtDynamics == null ? 0f : _skirtDynamics.MaxAngularOffset,
-                _faceExpression == null ? 0f : _faceExpression.BlinkWeight,
-                _faceExpression == null ? Vector2.zero : _faceExpression.GazeAngles,
-                _faceExpression == null ? 0 : _faceExpression.ActiveWeightCount,
-                _faceExpression == null ? 0f : _faceExpression.MaximumWeight));
-            if (_garmentDynamics != null)
-            {
-                Debug.Log(string.Format(
-                    "[PhotoMode] Garment ActorSwing capture: entries={0} edges={1} terminals={2} chainLayers={3} chainCorrections={4} peakChainCorrections={5} mean={6:0.000} max={7:0.000}",
-                    _garmentDynamics.DynamicEntryCount,
-                    _garmentDynamics.SimulatedBoneCount,
-                    _garmentDynamics.TerminalEntryCount,
-                    _garmentDynamics.ChainLayerCount,
-                    _garmentDynamics.ChainCollisionCorrections,
-                    _garmentDynamics.PeakChainCollisionCorrections,
-                    _garmentDynamics.MeanAngularOffset,
-                    _garmentDynamics.MaxAngularOffset));
-            }
-            yield return new WaitForSecondsRealtime(0.25f);
-            Application.Quit(0);
-        }
-
-        private IEnumerator CaptureExpressionAndQuit()
-        {
-            Debug.Log("[PhotoMode] Automated original photo-expression capture requested");
-            _showUi = false;
-            if (_storyPlayer != null && _storyPlayer.IsActive) _storyPlayer.StopStory();
-            yield return null;
-            int idle = _motions.FindIndex(value =>
-                string.Equals(value.label, "photo-idle-001", StringComparison.OrdinalIgnoreCase));
-            SelectMotion(idle >= 0 ? idle : 0);
-            ApplySelectedPhotoExpression();
-            Transform captureHead = FindDescendant(_body.transform, "Head");
-            _orbit.target = captureHead == null ? new Vector3(0f, 1.47f, 0f) : captureHead.position;
-            _orbit.distance = 1.30f;
-            _orbit.yaw = 180f;
-            _orbit.pitch = 1f;
-            _orbit.fov = 29f;
-            _orbit.ApplyPose();
-            yield return new WaitForSecondsRealtime(0.75f);
-            bool capturePresented = Environment.GetCommandLineArgs().Contains("--capture-presented-window");
-            if (capturePresented) yield return new WaitForEndOfFrame();
-            string path = capturePresented ? SavePresentedFrameScreenshot() : SaveScreenshot();
-            Debug.Log(string.Format(
-                "[PhotoMode] Original photo expression captured: path={0}; label={1}; motion={2}; disableAutoBlink={3}; faceActive={4}; faceMax={5:0.000}",
-                path,
-                _faceMotionLibrary == null ? "unavailable" : _faceMotionLibrary.CurrentPhotoExpressionLabel,
-                _faceMotionLibrary == null ? "unavailable" : _faceMotionLibrary.CurrentPhotoExpressionMotion,
-                _faceMotionLibrary != null && _faceMotionLibrary.CurrentPhotoExpressionDisablesAutoBlink,
-                _faceExpression == null ? 0 : _faceExpression.ActiveWeightCount,
-                _faceExpression == null ? 0f : _faceExpression.MaximumWeight));
-            if (_faceExpression != null)
-                Debug.Log("[PhotoMode] Original photo expression face diagnostic: " +
-                    _faceExpression.DiagnosticJson());
-            yield return new WaitForSecondsRealtime(0.25f);
-            Application.Quit(0);
-        }
-
-        private IEnumerator CaptureGpaCameraAndQuit()
-        {
-            _showUi = false;
-            Debug.Log("[PhotoMode] Automated GPA-camera capture requested");
-            if (_storyPlayer != null && _storyPlayer.IsActive) _storyPlayer.StopStory();
-            yield return null;
-            int idle = _motions.FindIndex(value =>
-                string.Equals(value.label, "photo-idle-002", StringComparison.OrdinalIgnoreCase));
-            SelectMotion(idle >= 0 ? idle : 0);
-            // The 120-frame ActorData sweep ranked this phase highest against
-            // the captured GPA silhouette/category mask: Actor IoU 0.883925,
-            // face IoU 0.661020.  This is a diagnostic pose, not a production
-            // animation override.
-            if (!_paused) TogglePause();
-            EvaluateMotion(27.43889f);
-            // Face clips are sampled on the shared character root and some source
-            // clips key that root.  The archived IA/camera streams were explicitly
-            // converted into captured Actor-local coordinates, so lock the diagnostic
-            // root before applying either contract.  Production/story transforms are
-            // untouched because this path exists only for the automated GPA capture.
-            if (_characterRoot != null)
-            {
-                _characterRoot.transform.position = Vector3.zero;
-                _characterRoot.transform.rotation = Quaternion.identity;
-                _characterRoot.transform.localScale = Vector3.one;
-            }
-            ApplyCapturedGpaCamera();
-            string[] captureArgs = Environment.GetCommandLineArgs();
-            bool diagnosticGaze = captureArgs.Contains("--diagnostic-gaze-right") ||
-                captureArgs.Contains("--diagnostic-gaze-left") ||
-                captureArgs.Contains("--diagnostic-gaze-right-soft") ||
-                captureArgs.Contains("--diagnostic-gaze-left-soft") ||
-                captureArgs.Contains("--diagnostic-gaze-up") ||
-                captureArgs.Contains("--diagnostic-gaze-down");
-            if (_faceExpression != null && diagnosticGaze)
-            {
-                float gazeYaw = captureArgs.Contains("--diagnostic-gaze-right") ? 9f :
-                    captureArgs.Contains("--diagnostic-gaze-left") ? -9f :
-                    captureArgs.Contains("--diagnostic-gaze-right-soft") ? 4.5f :
-                    captureArgs.Contains("--diagnostic-gaze-left-soft") ? -4.5f : 0f;
-                float gazePitch = captureArgs.Contains("--diagnostic-gaze-up") ? -5.5f :
-                    captureArgs.Contains("--diagnostic-gaze-down") ? 5.5f : 0f;
-                _faceExpression.SetStoryGaze(gazeYaw, gazePitch);
-            }
-            for (int frame = 0; frame < (diagnosticGaze ? 40 : 1); frame++) yield return null;
-            HashSet<Renderer> capturedRenderers = null;
-            if (Environment.GetCommandLineArgs().Contains("--use-captured-posed-geometry"))
-                capturedRenderers = ApplyCapturedPosedGeometry();
-            CapturedCameraState.Session capturedCamera = null;
-            if (_capturedCameraPath != null)
-            {
-                string error = null;
-                if (capturedRenderers == null || capturedRenderers.Count == 0 ||
-                    !CapturedCameraState.TryLoad(_capturedCameraPath, out capturedCamera, out error))
-                {
-                    Debug.LogError("[PhotoMode] Captured camera rejected: " + (error ?? "No captured geometry was loaded."));
-                    Application.Quit(3);
-                    yield break;
-                }
-                try
-                {
-                    capturedCamera.Apply(PreviewCamera);
-                    // This process is a fixed capture, not interactive photography.
-                    // Prevent the legacy orbit pose from rewriting camera-position globals.
-                    _orbit.enabled = false;
-                }
-                catch (Exception exception)
-                {
-                    Debug.LogError("[PhotoMode] Captured camera rejected: " + exception.Message);
-                    Application.Quit(3);
-                    yield break;
-                }
-            }
-            CapturedMaterialUvState.Session capturedUv = null;
-            if (_capturedMaterialUvPath != null)
-            {
-                string error;
-                if (!CapturedMaterialUvState.TryLoad(_characterRoot, _capturedMaterialUvPath, capturedRenderers, out capturedUv, out error))
-                {
-                    Debug.LogError("[PhotoMode] Captured material UV rejected: " + error);
-                    Application.Quit(3);
-                    yield break;
-                }
-            }
-            if (Environment.GetCommandLineArgs().Contains("--dump-captured-shadow-map"))
-            {
-                string dumpPass = Environment.GetCommandLineArgs().Contains("--use-captured-posed-geometry")
-                    ? "gpa-camera-shadow-exact-pose-pass110"
-                    : "gpa-camera-shadow-pass98";
-                string prefix = Path.Combine(
-                    _stagingRoot ?? BundleCatalog.DefaultStagingRoot,
-                    "research", "render-diagnostics", dumpPass,
-                    "local-captured-actor-shadow");
-                CapturedActorShadowMap.RequestShadowMapDump(prefix);
-            }
-            if (Environment.GetCommandLineArgs().Contains("--dump-local-posed-meshes"))
-            {
-                string poseDumpPass = Environment.GetCommandLineArgs().Contains("--use-captured-posed-geometry")
-                    ? "gpa-camera-pose-exact-pass129"
-                    : "gpa-camera-pose-pass100";
-                DumpBakedActorMeshes(Path.Combine(
-                    _stagingRoot ?? BundleCatalog.DefaultStagingRoot,
-                    "research", "render-diagnostics", poseDumpPass,
-                    "local-sample55"));
-            }
-            if (Environment.GetCommandLineArgs().Contains("--dump-face-diagnostics"))
-                DumpFaceDiagnostics("gpa-camera");
-            string path;
-            if (Environment.GetCommandLineArgs().Contains("--capture-presented-window"))
-            {
-                for (int frame = 0; frame < 32; frame++) yield return null;
-                if (capturedUv != null && !WriteCapturedMaterialUvReport(capturedUv))
-                { Application.Quit(3); yield break; }
-                if (captureArgs.Contains("--capture-actor-rendering-pass"))
-                {
-                    if (!RenderDocCaptureBridge.TriggerCapture()) { Application.Quit(2); yield break; }
-                    yield return null;
-                    yield return null;
-                }
-                if (Environment.GetCommandLineArgs().Contains("--dump-post-inputs"))
-                {
-                    string directory = Path.Combine(
-                        _stagingRoot ?? BundleCatalog.DefaultStagingRoot, "captures");
-                    string prefix = Path.Combine(directory,
-                        "fktn-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + "-presented-post");
-                    OriginalStyleRenderPipeline.RequestPostInputDump(prefix);
-                }
-                yield return new WaitForEndOfFrame();
-                if (capturedCamera != null && !WriteCapturedCameraReport(capturedCamera))
-                { Application.Quit(3); yield break; }
-                path = SavePresentedFrameScreenshot();
-            }
-            else
-            {
-                if (capturedUv != null && !WriteCapturedMaterialUvReport(capturedUv))
-                { Application.Quit(3); yield break; }
-                path = SaveScreenshot();
-            }
-            Debug.Log(string.Format(
-                "[PhotoMode] GPA-camera capture saved: {0}; position={1}; forward={2}; up={3}; fov={4:0.000000}; blink={5:0.000}",
-                path, PreviewCamera.transform.position, PreviewCamera.transform.forward,
-                PreviewCamera.transform.up, PreviewCamera.fieldOfView,
-                _faceExpression == null ? 0f : _faceExpression.BlinkWeight));
-            if (_actorRenderControls != null)
-                Debug.Log("[ActorRendering] GPA-camera submitted passes: outline=" +
-                    _actorRenderControls.OutlineDrawCount + "; hairCover=" + _actorRenderControls.HairCoverDrawCount);
-            yield return new WaitForSecondsRealtime(0.25f);
-            Application.Quit(0);
-        }
-
-        private IEnumerator CaptureGpaCameraSweepAndQuit()
-        {
-            _showUi = false;
-            Debug.Log("[PhotoMode] Automated GPA-camera idle sweep requested");
-            if (_storyPlayer != null && _storyPlayer.IsActive) _storyPlayer.StopStory();
-            yield return null;
-            ApplyCapturedGpaCamera();
-            if (_faceExpression != null) _faceExpression.SetStoryGaze(0f, 0f);
-
-            string[] labels = { "photo-idle-001", "photo-idle-002" };
-            const int sampleCount = 12;
-            foreach (string label in labels)
-            {
-                int motion = _motions.FindIndex(value =>
-                    string.Equals(value.label, label, StringComparison.OrdinalIgnoreCase));
-                if (motion < 0) continue;
-                SelectMotion(motion);
-                if (!_paused) TogglePause();
-                AnimationClip clip = CurrentBodyClip;
-                float duration = clip == null ? 1f : clip.length;
-                for (int sample = 0; sample < sampleCount; sample++)
-                {
-                    float time = duration * sample / sampleCount;
-                    EvaluateMotion(time);
-                    yield return null;
-                    string path = SaveScreenshot();
-                    Debug.Log(string.Format(
-                        "[PhotoMode] GPA-camera sweep sample: motion={0} sample={1}/{2} time={3:0.000000} duration={4:0.000000} path={5}",
-                        label, sample, sampleCount, time, duration, path));
-                }
-            }
-            yield return new WaitForSecondsRealtime(0.25f);
-            Application.Quit(0);
-        }
-
-        private IEnumerator CaptureActorCubeTransformSweepAndQuit()
-        {
-            _showUi = false;
-            Debug.Log("[PhotoMode] Automated Actor cube transform sweep requested");
-            if (_storyPlayer != null && _storyPlayer.IsActive) _storyPlayer.StopStory();
-            yield return null;
-            int idle = _motions.FindIndex(value =>
-                string.Equals(value.label, "photo-idle-002", StringComparison.OrdinalIgnoreCase));
-            SelectMotion(idle >= 0 ? idle : 0);
-            if (!_paused) TogglePause();
-            EvaluateMotion(27.43889f);
-            if (_characterRoot != null)
-            {
-                _characterRoot.transform.position = Vector3.zero;
-                _characterRoot.transform.rotation = Quaternion.identity;
-                _characterRoot.transform.localScale = Vector3.one;
-            }
-            ApplyCapturedGpaCamera();
-            yield return null;
-            ApplyCapturedPosedGeometry();
-            for (int frame = 0; frame < 8; frame++) yield return null;
-
-            string directory = Path.Combine(
-                _stagingRoot ?? BundleCatalog.DefaultStagingRoot,
-                "research", "gpa", "actor-cube-transform-basis-pass246", "sweep-1x");
-            Directory.CreateDirectory(directory);
-            for (int mode = 0; mode < 48; mode++)
-            {
-                Shader.SetGlobalFloat("_CapturedActorCubeTransformMode", mode);
-                yield return null;
-                string prefix = Path.Combine(directory,
-                    string.Format("environment-mode-{0:D2}", mode));
-                OriginalStyleRenderPipeline.RequestCurrentHdrDump(prefix);
-                yield return new WaitForEndOfFrame();
-                Debug.Log(string.Format(
-                    "[PhotoMode] Actor cube transform sweep sample: mode={0}; prefix={1}",
-                    mode, prefix));
-            }
-            yield return new WaitForSecondsRealtime(0.25f);
-            Application.Quit(0);
-        }
-
-        private IEnumerator CaptureGpaCameraMaskSweepAndQuit()
-        {
-            _showUi = false;
-            Debug.Log("[PhotoMode] Automated GPA-camera ActorData mask sweep requested");
-            if (_storyPlayer != null && _storyPlayer.IsActive) _storyPlayer.StopStory();
-            yield return null;
-            ApplyCapturedGpaCamera();
-            if (_faceExpression != null) _faceExpression.SetStoryGaze(0f, 0f);
-
-            string directory = Path.Combine(
-                _stagingRoot ?? BundleCatalog.DefaultStagingRoot,
-                "research", "render-diagnostics", "gpa-camera-mask-sweep-pass94");
-            Directory.CreateDirectory(directory);
-            string[] labels = { "photo-idle-001", "photo-idle-002" };
-            const int sampleCount = 60;
-            foreach (string label in labels)
-            {
-                int motion = _motions.FindIndex(value =>
-                    string.Equals(value.label, label, StringComparison.OrdinalIgnoreCase));
-                if (motion < 0) continue;
-                SelectMotion(motion);
-                if (!_paused) TogglePause();
-                AnimationClip clip = CurrentBodyClip;
-                float duration = clip == null ? 1f : clip.length;
-                for (int sample = 0; sample < sampleCount; sample++)
-                {
-                    float time = duration * sample / sampleCount;
-                    EvaluateMotion(time);
-                    yield return null;
-                    string prefix = Path.Combine(directory, string.Format(
-                        "{0}-sample-{1:D3}-time-{2:000.000000}", label, sample, time));
-                    RenderTexture target = new RenderTexture(1920, 1080, 24, RenderTextureFormat.ARGB32)
-                    {
-                        antiAliasing = 1
-                    };
-                    RenderTexture previousTarget = PreviewCamera.targetTexture;
-                    OriginalStyleRenderPipeline.RequestActorDataPngDump(prefix);
-                    PreviewCamera.targetTexture = target;
-                    PreviewCamera.Render();
-                    PreviewCamera.targetTexture = previousTarget;
-                    DestroyImmediate(target);
-                    Debug.Log(string.Format(
-                        "[PhotoMode] GPA-camera mask sweep sample: motion={0} sample={1}/{2} time={3:0.000000} duration={4:0.000000} prefix={5}",
-                        label, sample, sampleCount, time, duration, prefix));
-                }
-            }
-            yield return new WaitForSecondsRealtime(0.25f);
-            Application.Quit(0);
-        }
-
-        private void ApplyCapturedGpaCamera()
-        {
-            // VS 54E7B147BC883DC9 writes SV_POSITION from CB0[77..80].
-            // Legacy pass91 approximation: its basis-transpose inverse loses the
-            // captured projection offset. Use --captured-camera-state for an explicit
-            // independently recovered input contract; retain the old fallback for
-            // compatibility rather than silently changing older capture baselines.
-            Vector3 actorLocalPosition = new Vector3(-0.003873869f, 1.50305927f, 1.44595370f);
-            Vector3 actorLocalForward = new Vector3(0.000462058f, -0.12805113f, -0.99176746f);
-            Vector3 actorLocalUp = new Vector3(0.000059637f, 0.99177005f, -0.12803192f);
-            // Story playback enables Unity's physical camera. Its sensor gate then
-            // changes the effective projection when SaveScreenshot switches from the
-            // 1440x900 window to a 1920x1080 target, despite fieldOfView reporting the
-            // same number. The GPA matrix factorization is a plain vertical-FOV
-            // perspective contract, so disable the physical gate explicitly.
-            PreviewCamera.usePhysicalProperties = false;
-            // The recovered camera is relative to the captured Actor root (CB1's
-            // world_from_actor), not the animated body prefab root.  Some idle clips
-            // key the body root by roughly 18 degrees; following that transform made
-            // the diagnostic camera nondeterministic across imported clip evaluation
-            // and invalidated same-camera pixel comparisons.
-            Transform actorRoot = _characterRoot == null ? null : _characterRoot.transform;
-            Vector3 position = actorRoot == null
-                ? actorLocalPosition
-                : actorRoot.TransformPoint(actorLocalPosition);
-            Vector3 forward = actorRoot == null
-                ? actorLocalForward
-                : actorRoot.TransformDirection(actorLocalForward);
-            Vector3 up = actorRoot == null
-                ? actorLocalUp
-                : actorRoot.TransformDirection(actorLocalUp);
-            _orbit.SetStoryPose(
-                position, Quaternion.LookRotation(forward.normalized, up.normalized), 29.862842f);
-        }
-
-        private IEnumerator CaptureStoryAndQuit()
-        {
-            Debug.Log("[Story] Automated timeline capture requested");
-            _showUi = false;
-            if (_storyPlayer == null)
-            {
-                Debug.LogError("[Story] Timeline player unavailable");
-                Application.Quit(2);
-                yield break;
-            }
-
-            if (!_storyPlayer.IsPaused) _storyPlayer.TogglePause();
-            bool capturePresented = Environment.GetCommandLineArgs().Contains("--capture-presented-window");
-            bool traceFace = Environment.GetCommandLineArgs().Contains("--trace-story-face");
-            bool traceFaceTransition = Environment.GetCommandLineArgs().Contains("--trace-story-face-transition");
-            bool traceFaceOverride = Environment.GetCommandLineArgs().Contains("--trace-story-face-override");
-            bool traceFaceOverrideSingle = Environment.GetCommandLineArgs().Contains("--trace-story-face-override-single");
-            bool traceLookAt = Environment.GetCommandLineArgs().Contains("--trace-story-lookat");
-            bool traceBackground = Environment.GetCommandLineArgs().Contains("--trace-story-background");
-            bool traceActorColor = Environment.GetCommandLineArgs().Contains("--trace-story-actor-color");
-            bool traceOverlay = Environment.GetCommandLineArgs().Contains("--trace-story-overlay");
-            bool traceShake = Environment.GetCommandLineArgs().Contains("--trace-story-shake");
-            bool traceDof = Environment.GetCommandLineArgs().Contains("--trace-story-dof");
-            bool traceProps = Environment.GetCommandLineArgs().Contains("--trace-story-props");
-            bool traceParaffin = Environment.GetCommandLineArgs().Contains("--trace-story-paraffin");
-            bool classroomOnly = Environment.GetCommandLineArgs().Contains(
-                "--capture-story-classroom-only");
-            bool dumpClassroomPost = Environment.GetCommandLineArgs().Contains(
-                "--dump-story-classroom-post");
-            float classroomCaptureTime = 184.50f;
-            foreach (string argument in Environment.GetCommandLineArgs())
-            {
-                const string prefix = "--story-capture-time=";
-                if (!argument.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                    continue;
-                float parsed;
-                if (float.TryParse(argument.Substring(prefix.Length),
-                        NumberStyles.Float, CultureInfo.InvariantCulture, out parsed))
-                    classroomCaptureTime = Mathf.Max(0f, parsed);
-            }
-
-            float[] checkpoints = classroomOnly
-                ? new[] { classroomCaptureTime }
-                : traceFaceOverrideSingle
-                ? new[] { 71.056895f }
-                : traceFaceOverride
-                ? new[]
-                {
-                    70.756895f, 70.831895f, 70.906895f, 70.981895f, 71.056895f,
-                    107.115000f, 107.190000f, 107.265000f, 107.340000f, 107.415000f,
-                    179.847667f, 179.877667f, 179.907667f, 179.937667f, 179.967667f,
-                    179.981000f, 180.005167f, 180.029333f, 180.053500f, 180.077667f,
-                }
-                : traceFaceTransition
-                ? new[] { 31.101333f, 31.156333f, 31.211333f, 31.266333f, 31.321333f }
-                : traceLookAt
-                ? new[]
-                {
-                    27.468000f, 27.668000f, 27.868000f,
-                     28.068000f, 28.268000f, 34.375191f,
-                 }
-                : traceBackground
-                ? new[]
-                {
-                    5.10f, 5.30f, 8.30f, 11.70f, 13.40f, 14.20f,
-                    19.90f, 26.70f, 26.80f, 31.20f, 33.20f, 40.80f,
-                    183.60f, 183.80f, 184.50f,
-                }
-                : traceActorColor
-                ? new[] { 5.30f, 8.30f, 10.95f, 10.99f, 11.03f, 11.07f, 11.11f, 11.70f }
-                : traceShake
-                ? new[]
-                {
-                    40.727861f, 40.772861f, 40.817861f, 40.907861f,
-                    40.932861f, 40.957861f, 41.002861f, 41.047861f,
-                    41.137861f, 41.187861f, 41.277861f, 41.417861f,
-                }
-                : traceDof
-                ? new[]
-                {
-                    13.95f, 14.20f, 19.80f, 19.90f, 26.70f, 26.80f,
-                    183.70f, 183.80f, 184.50f, 185.10f,
-                }
-                : traceProps
-                ? new[]
-                {
-                    10.95f, 19.90f, 26.70f, 26.80f,
-                    86.30f, 86.38f, 99.50f, 99.58f,
-                    103.28f, 103.36f, 156.72f, 156.80f,
-                    169.72f, 169.80f, 183.58f, 183.68f,
-                }
-                : traceParaffin
-                ? new[]
-                {
-                    86.30f, 86.38f, 99.50f, 99.58f,
-                    103.28f, 103.36f, 156.72f, 156.80f,
-                    169.72f, 169.80f, 183.58f, 183.68f,
-                }
-                : traceOverlay
-                ? new[]
-                {
-                    0.00f, 0.40f, 0.82f, 4.40f, 4.67f, 4.94f,
-                    5.08f, 5.21f, 5.34f, 5.58f, 6.35f, 7.10f,
-                    7.34f, 7.58f, 7.84f,
-                }
-                : new[] { 11.9f, 27.35f, 28.10f, 44.45f, 77.52f, 88.20f, 181.10f };
-            foreach (float checkpoint in checkpoints)
-            {
-                _storyPlayer.Seek(checkpoint, false);
-                if ((traceBackground || traceParaffin) && _storyBackgroundRuntime != null)
-                {
-                    float deadline = Time.realtimeSinceStartup + 8f;
-                    while (!_storyBackgroundRuntime.IsReady && Time.realtimeSinceStartup < deadline)
-                        yield return null;
-                    if (!_storyBackgroundRuntime.IsReady)
-                        Debug.LogWarning(string.Format(
-                            CultureInfo.InvariantCulture,
-                            "[Story] Background load timed out at t={0:R}: id={1} source={2}",
-                            checkpoint,
-                            _storyBackgroundRuntime.ActiveId,
-                            _storyBackgroundRuntime.ActiveSource));
-                }
-                yield return new WaitForSecondsRealtime(0.65f);
-                if (dumpClassroomPost && Mathf.Abs(checkpoint - 184.50f) < 0.01f)
-                {
-                    string directory = Path.Combine(
-                        _stagingRoot ?? BundleCatalog.DefaultStagingRoot, "captures");
-                    OriginalStyleRenderPipeline.RequestPostInputDump(Path.Combine(
-                        directory, "story-classroom-" +
-                        DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + "-post"));
-                    yield return null;
-                }
-                if (capturePresented) yield return new WaitForEndOfFrame();
-                string path = capturePresented ? SavePresentedFrameScreenshot() : SaveScreenshot();
-                Debug.Log(string.Format(
-                    "[Story] Capture t={0:0.00} path={1} body={2} face={3} hairMean={4:0.00} hairMax={5:0.00} braidMean={6:0.00} braidMax={7:0.00} braidVariation={8:0.00} skirtMean={9:0.00} skirtMax={10:0.00} skirtChainCollisions={11} skirtChainLayers={12} skirtColliders={13} blink={14:0.00} gaze={15} faceActive={16} faceMax={17:0.000}",
-                    checkpoint, path, StoryMotion, StoryFaceMotion,
-                    _hairDynamics == null ? 0f : _hairDynamics.MeanAngularOffset,
-                    _hairDynamics == null ? 0f : _hairDynamics.MaxAngularOffset,
-                    _hairDynamics == null ? 0f : _hairDynamics.BraidMeanAngularOffset,
-                    _hairDynamics == null ? 0f : _hairDynamics.BraidMaxAngularOffset,
-                    _hairDynamics == null ? 0f : _hairDynamics.BraidAngularVariation,
-                    _skirtDynamics == null ? 0f : _skirtDynamics.MeanAngularOffset,
-                    _skirtDynamics == null ? 0f : _skirtDynamics.MaxAngularOffset,
-                    _skirtDynamics == null ? 0 : _skirtDynamics.ChainCollisionCorrections,
-                    _skirtDynamics == null ? 0 : _skirtDynamics.ChainLayerCount,
-                    _skirtDynamics == null ? 0 : _skirtDynamics.StaticColliderCount,
-                    _faceExpression == null ? 0f : _faceExpression.BlinkWeight,
-                    _faceExpression == null ? Vector2.zero : _faceExpression.GazeAngles,
-                    FaceActiveWeightCount, FaceMaximumWeight));
-                if (traceFace && _faceExpression != null)
-                    Debug.Log(string.Format(
-                        "[Story] Face diagnostic t={0:0.00}: {1}",
-                        checkpoint, _faceExpression.DiagnosticJson()));
-                if (traceFaceTransition)
-                    Debug.Log(string.Format(
-                        CultureInfo.InvariantCulture,
-                        "[Story] Face transition driver t={0:R} weights={1}",
-                        checkpoint, FaceDriverWeightsJson()));
-                if (traceFaceOverride || traceFaceOverrideSingle)
-                    Debug.Log(string.Format(
-                        CultureInfo.InvariantCulture,
-                        "[Story] Face override runtime t={0:R} decals={1} weights={2}",
-                        checkpoint,
-                        _faceDecals == null ? "{}" : _faceDecals.DiagnosticJson(),
-                        FaceDriverWeightsJson()));
-                if (traceLookAt)
-                    Debug.Log(string.Format(
-                        CultureInfo.InvariantCulture,
-                        "[Story] LookTarget runtime t={0:R} contract={1}",
-                        checkpoint,
-                        _capturedLookAt == null
-                            ? "{\"active\":false,\"reason\":\"unavailable\"}"
-                            : _capturedLookAt.StoryDiagnosticJson()));
-                if (traceBackground)
-                {
-                    OriginalStyleRenderPipeline postPipeline = PreviewCamera == null
-                        ? null
-                        : PreviewCamera.GetComponent<OriginalStyleRenderPipeline>();
-                    Debug.Log(string.Format(
-                        CultureInfo.InvariantCulture,
-                        "[Story] Background runtime t={0:R} id={1} source={2} clipping={3} actorProfile={4} postProfile={5}",
-                        checkpoint,
-                        _storyBackgroundRuntime == null ? "" : _storyBackgroundRuntime.ActiveId,
-                        _storyBackgroundRuntime == null ? "" : _storyBackgroundRuntime.ActiveSource,
-                        _storyBackgroundRuntime == null
-                            ? "{\"exact\":false,\"reason\":\"runtime-unavailable\"}"
-                            : _storyBackgroundRuntime.ClippingDiagnosticJson(),
-                        StoryActorRenderProfileDiagnosticJson(),
-                        postPipeline == null
-                            ? "{\"active\":false,\"reason\":\"pipeline-unavailable\"}"
-                            : postPipeline.StoryPostProcessProfileDiagnosticJson()));
-                }
-                if (traceActorColor)
-                    Debug.Log(string.Format(
-                        CultureInfo.InvariantCulture,
-                        "[Story] ActorColor runtime t={0:R} rgba=({1:R},{2:R},{3:R},{4:R})",
-                        checkpoint,
-                        _storyActorColor.r, _storyActorColor.g,
-                        _storyActorColor.b, _storyActorColor.a));
-                if (traceOverlay)
-                    Debug.Log(string.Format(
-                        CultureInfo.InvariantCulture,
-                        "[Story] Overlay runtime t={0:R} content={1:R} main={2:R} foreground={3:R} source={4} layout={5}",
-                        checkpoint,
-                        _storyOverlayRuntime == null ? 0f : _storyOverlayRuntime.ContentAlpha,
-                        _storyOverlayRuntime == null ? 0f : _storyOverlayRuntime.MainAlpha,
-                        _storyOverlayRuntime == null ? 0f : _storyOverlayRuntime.ForegroundAlpha,
-                        _storyOverlayRuntime == null ? "" : _storyOverlayRuntime.ForegroundSource,
-                        _storyOverlayRuntime == null
-                            ? "{\"mode\":\"runtime-unavailable\"}"
-                            : _storyOverlayRuntime.LayoutDiagnosticJson()));
-                if (traceShake)
-                    Debug.Log(string.Format(
-                        CultureInfo.InvariantCulture,
-                        "[Story] Shake runtime t={0:R} position=({1:R},{2:R}) radius={3:R}",
-                        checkpoint,
-                        _storyShakePosition.x, _storyShakePosition.y,
-                        _storyShakePosition.magnitude));
-                if (traceDof)
-                {
-                    OriginalStyleRenderPipeline pipeline = PreviewCamera == null
-                        ? null : PreviewCamera.GetComponent<OriginalStyleRenderPipeline>();
-                    Debug.Log(string.Format(
-                        CultureInfo.InvariantCulture,
-                        "[Story] DOF runtime t={0:R} focalLength={1:R} contract={2}",
-                        checkpoint,
-                        PreviewCamera == null ? 0f : PreviewCamera.focalLength,
-                        pipeline == null
-                            ? "{\"active\":false,\"reason\":\"pipeline-unavailable\"}"
-                            : pipeline.DepthOfFieldDiagnosticJson()));
-                }
-                if (traceProps)
-                    Debug.Log(string.Format(
-                        CultureInfo.InvariantCulture,
-                        "[Story] Prop runtime t={0:R} contract={1}",
-                        checkpoint, StoryPropDiagnosticJson()));
-                if (traceParaffin)
-                {
-                    OriginalStyleRenderPipeline pipeline = PreviewCamera == null
-                        ? null : PreviewCamera.GetComponent<OriginalStyleRenderPipeline>();
-                    Debug.Log(string.Format(
-                        CultureInfo.InvariantCulture,
-                        "[Story] Paraffin runtime t={0:R} background={1} contract={2}",
-                        checkpoint,
-                        _storyBackgroundRuntime == null ? "" : _storyBackgroundRuntime.ActiveSource,
-                        pipeline == null
-                            ? "{\"active\":false,\"reason\":\"pipeline-unavailable\"}"
-                            : pipeline.ParaffinDiagnosticJson()));
-                }
-            }
-            yield return new WaitForSecondsRealtime(0.25f);
-            Application.Quit(0);
-        }
-
-        private string FaceDriverWeightsJson()
-        {
-            if (_faceDriver == null) return "{}";
-            System.Text.StringBuilder builder = new System.Text.StringBuilder(512);
-            builder.Append('{');
-            bool first = true;
-            for (int index = 0; index < 192; index++)
-            {
-                float value = _faceDriver.GetWeight(index);
-                if (Mathf.Abs(value) <= 0.0000001f) continue;
-                if (!first) builder.Append(',');
-                first = false;
-                builder.Append('"').Append(index).Append("\":");
-                builder.Append(value.ToString("R", CultureInfo.InvariantCulture));
-            }
-            builder.Append('}');
-            return builder.ToString();
-        }
-
         public string SaveScreenshot()
         {
             string directory = Path.Combine(_stagingRoot ?? BundleCatalog.DefaultStagingRoot, "captures");
@@ -4003,7 +2749,7 @@ namespace GakumasPhotoMode
             RenderTexture texture = new RenderTexture(1920, 1080, 24, RenderTextureFormat.ARGB32) { antiAliasing = 8 };
             RenderTexture previousActive = RenderTexture.active;
             RenderTexture previousTarget = PreviewCamera.targetTexture;
-            if (Environment.GetCommandLineArgs().Contains("--dump-post-inputs"))
+            if (RuntimeArguments.Contains("--dump-post-inputs"))
             {
                 OriginalStyleRenderPipeline.RequestPostInputDump(Path.Combine(
                     directory, Path.GetFileNameWithoutExtension(path) + "-post"));
@@ -4023,7 +2769,7 @@ namespace GakumasPhotoMode
             return path;
         }
 
-        private string SavePresentedFrameScreenshot()
+        protected string SavePresentedFrameScreenshot()
         {
             string directory = Path.Combine(_stagingRoot ?? BundleCatalog.DefaultStagingRoot, "captures");
             Directory.CreateDirectory(directory);
@@ -4043,532 +2789,9 @@ namespace GakumasPhotoMode
             return path;
         }
 
-        private string CaptureFilePrefix()
+        protected string CaptureFilePrefix()
         {
             return (_characterId ?? "actor") + "-wearing-" + (CurrentOutfitOwner ?? "unknown");
-        }
-
-        private void DumpBakedActorMeshes(string directory)
-        {
-            if (_characterRoot == null) return;
-            Directory.CreateDirectory(directory);
-            Transform actor = _characterRoot.transform;
-            Renderer[] renderers = _characterRoot.GetComponentsInChildren<Renderer>(true);
-            List<string> records = new List<string>();
-            int sequence = 0;
-            foreach (Renderer renderer in renderers)
-            {
-                if (renderer == null) continue;
-                Mesh mesh = null;
-                bool ownsMesh = false;
-                SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
-                if (skinned != null && skinned.sharedMesh != null)
-                {
-                    mesh = new Mesh { name = renderer.name + "-baked-pass100" };
-                    skinned.BakeMesh(mesh);
-                    ownsMesh = true;
-                }
-                else
-                {
-                    MeshFilter filter = renderer.GetComponent<MeshFilter>();
-                    if (filter != null) mesh = filter.sharedMesh;
-                }
-                if (mesh == null) continue;
-                Vector3[] vertices = mesh.vertices;
-                string safeName = new string(renderer.name.Select(character =>
-                    char.IsLetterOrDigit(character) || character == '-' || character == '_'
-                        ? character : '_').ToArray());
-                string fileName = string.Format("mesh-{0:D2}-{1}-{2}-vertices-f32.bin",
-                    sequence, safeName, vertices.Length);
-                using (BinaryWriter writer = new BinaryWriter(File.Open(
-                    Path.Combine(directory, fileName), FileMode.Create, FileAccess.Write, FileShare.Read)))
-                {
-                    foreach (Vector3 vertex in vertices)
-                    {
-                        Vector3 actorLocal = actor.InverseTransformPoint(renderer.transform.TransformPoint(vertex));
-                        writer.Write(actorLocal.x);
-                        writer.Write(actorLocal.y);
-                        writer.Write(actorLocal.z);
-                    }
-                }
-                Vector4[] tangents = mesh.tangents;
-                Vector2[] uv0 = mesh.uv;
-                Vector2[] uv1 = mesh.uv2;
-                Color[] colors = mesh.colors;
-                string attributeFileName = string.Format(
-                    "mesh-{0:D2}-{1}-{2}-attributes-f32.bin", sequence, safeName, vertices.Length);
-                using (BinaryWriter writer = new BinaryWriter(File.Open(
-                    Path.Combine(directory, attributeFileName), FileMode.Create, FileAccess.Write, FileShare.Read)))
-                {
-                    for (int vertexIndex = 0; vertexIndex < vertices.Length; vertexIndex++)
-                    {
-                        Vector4 tangent = vertexIndex < tangents.Length ? tangents[vertexIndex] : new Vector4(1f, 0f, 0f, 1f);
-                        Vector3 actorTangent = actor.InverseTransformDirection(
-                            renderer.transform.TransformDirection(new Vector3(tangent.x, tangent.y, tangent.z))).normalized;
-                        Vector2 texcoord0 = vertexIndex < uv0.Length ? uv0[vertexIndex] : Vector2.zero;
-                        Vector2 texcoord1 = vertexIndex < uv1.Length ? uv1[vertexIndex] : Vector2.zero;
-                        Color color = vertexIndex < colors.Length ? colors[vertexIndex] : Color.white;
-                        writer.Write(actorTangent.x); writer.Write(actorTangent.y); writer.Write(actorTangent.z); writer.Write(tangent.w);
-                        writer.Write(texcoord0.x); writer.Write(texcoord0.y);
-                        writer.Write(texcoord1.x); writer.Write(texcoord1.y);
-                        writer.Write(color.r); writer.Write(color.g); writer.Write(color.b); writer.Write(color.a);
-                    }
-                }
-                records.Add(string.Format(
-                    "{{\"sequence\":{0},\"renderer\":\"{1}\",\"file\":\"{2}\",\"attribute_file\":\"{3}\",\"attribute_layout\":\"float32 actor_tangent.xyzw, uv0.xy, uv1.xy, color.rgba; 48 bytes/vertex\",\"vertex_count\":{4},\"submesh_count\":{5},\"shared_mesh\":\"{6}\"}}",
-                    sequence, renderer.name.Replace("\\", "\\\\").Replace("\"", "\\\""), fileName, attributeFileName,
-                    vertices.Length, mesh.subMeshCount,
-                    mesh.name.Replace("\\", "\\\\").Replace("\"", "\\\"")));
-                if (ownsMesh) DestroyImmediate(mesh);
-                sequence++;
-            }
-            string manifest = "{\"schema\":\"digital-kotone.local-baked-actor-pose.v1\",\"coordinate_space\":\"character-root-local\",\"motion\":\"photo-idle-002\",\"time_seconds\":27.43889,\"meshes\":[" +
-                string.Join(",", records.ToArray()) + "]}\n";
-            File.WriteAllText(Path.Combine(directory, "manifest.json"), manifest);
-            Debug.Log(string.Format("[PhotoMode] Baked Actor pose dumped: {0}; renderers={1}", directory, records.Count));
-        }
-
-        private void DumpFaceDiagnostics(string label)
-        {
-            string diagnosticPass = Environment.GetCommandLineArgs().Contains("--face-skinning-diagnostic")
-                ? "face-skinning-pass175" : "chin-pass174";
-            string directory = Path.Combine(
-                _stagingRoot ?? BundleCatalog.DefaultStagingRoot,
-                "research", "render-diagnostics", diagnosticPass,
-                label + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"));
-            DumpBakedActorMeshes(directory);
-            if (_faceExpression != null)
-                File.WriteAllText(Path.Combine(directory, "face-runtime-diagnostic.json"),
-                    _faceExpression.DiagnosticJson() + "\n");
-            Debug.Log("[PhotoMode] Face diagnostic dumped: " + directory);
-        }
-
-        private bool WriteCapturedCameraReport(CapturedCameraState.Session session)
-        {
-            try
-            {
-                string directory = Path.Combine(_stagingRoot ?? BundleCatalog.DefaultStagingRoot, "captures");
-                Directory.CreateDirectory(directory);
-                string path = Path.Combine(directory, "camera-state-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + ".json");
-                File.WriteAllText(path, session.VerifiedJson());
-                Debug.Log("[PhotoMode] Verified captured camera: " + path);
-                return true;
-            }
-            catch (Exception exception)
-            {
-                Debug.LogError("[PhotoMode] Captured camera rejected before capture: " + exception.Message);
-                return false;
-            }
-        }
-
-        private bool WriteCapturedMaterialUvReport(CapturedMaterialUvState.Session session)
-        {
-            try
-            {
-                string json = session.VerifiedJson();
-                string directory = Path.Combine(_stagingRoot ?? BundleCatalog.DefaultStagingRoot, "captures");
-                Directory.CreateDirectory(directory);
-                string path = Path.Combine(directory, "material-uv-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + ".json");
-                File.WriteAllText(path, json + "\n");
-                Debug.Log("[PhotoMode] Captured material UV verified: " + path);
-                return true;
-            }
-            catch (Exception error)
-            {
-                Debug.LogError("[PhotoMode] Captured material UV verification failed: " + error.Message);
-                return false;
-            }
-        }
-
-        private HashSet<Renderer> ApplyCapturedPosedGeometry()
-        {
-            var capturedRenderers = new HashSet<Renderer>();
-            if (_characterRoot == null) return capturedRenderers;
-            string streamDirectory = Path.Combine(
-                _stagingRoot ?? BundleCatalog.DefaultStagingRoot,
-                "research", "gpa", "actor-input-assembler-pass99d", "analysis",
-                "captured-actor-local-streams");
-            Transform actor = _characterRoot.transform;
-            Renderer[] renderers = _characterRoot.GetComponentsInChildren<Renderer>(true);
-            int replaced = 0;
-            foreach (Renderer renderer in renderers)
-            {
-                if (renderer == null || renderer.gameObject.name.EndsWith("__captured-pose")) continue;
-                Mesh source = null;
-                bool wasSkinned = false;
-                SkinnedMeshRenderer skinned = renderer as SkinnedMeshRenderer;
-                if (skinned != null && skinned.sharedMesh != null)
-                {
-                    source = new Mesh { name = skinned.sharedMesh.name + "__captured-pose" };
-                    skinned.BakeMesh(source);
-                    wasSkinned = true;
-                }
-                else
-                {
-                    MeshFilter existingFilter = renderer.GetComponent<MeshFilter>();
-                    if (existingFilter != null && existingFilter.sharedMesh != null)
-                    {
-                        source = Instantiate(existingFilter.sharedMesh);
-                        source.name = existingFilter.sharedMesh.name + "__captured-pose";
-                    }
-                }
-                if (source == null) continue;
-
-                int vertexCount = source.vertexCount;
-                string streamPath = Path.Combine(streamDirectory,
-                    string.Format("captured-pose-{0}-attributes-v2-f32.bin", vertexCount));
-                if (!File.Exists(streamPath))
-                {
-                    DestroyImmediate(source);
-                    continue;
-                }
-                Vector3[] positions = new Vector3[vertexCount];
-                Vector3[] normals = new Vector3[vertexCount];
-                Vector4[] tangents = new Vector4[vertexCount];
-                Color[] colors = new Color[vertexCount];
-                using (BinaryReader reader = new BinaryReader(File.Open(
-                    streamPath, FileMode.Open, FileAccess.Read, FileShare.Read)))
-                {
-                    for (int index = 0; index < vertexCount; index++)
-                    {
-                        Vector3 actorPosition = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-                        Vector3 actorNormal = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-                        Vector4 actorTangent = new Vector4(
-                            reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-                        positions[index] = renderer.transform.InverseTransformPoint(actor.TransformPoint(actorPosition));
-                        normals[index] = renderer.transform.InverseTransformDirection(actor.TransformDirection(actorNormal)).normalized;
-                        Vector3 tangentDirection = renderer.transform.InverseTransformDirection(
-                            actor.TransformDirection(new Vector3(actorTangent.x, actorTangent.y, actorTangent.z))).normalized;
-                        tangents[index] = new Vector4(
-                            tangentDirection.x, tangentDirection.y, tangentDirection.z, actorTangent.w);
-                        // The D3D IA stream records backend texture coordinates. Unity's
-                        // imported mesh/texture pair carries the matching platform origin
-                        // conversion already; assigning these values back through Mesh.uv
-                        // applies that conversion twice and exposes normally transparent
-                        // hair-card margins. Consume them for stream alignment but retain
-                        // the source mesh UVs until the backend convention is decoded.
-                        reader.ReadSingle(); reader.ReadSingle();
-                        reader.ReadSingle(); reader.ReadSingle();
-                        colors[index] = new Color(
-                            reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-                    }
-                }
-                source.vertices = positions;
-                if (!Environment.GetCommandLineArgs().Contains("--captured-pose-source-normals"))
-                    source.normals = normals;
-                source.tangents = tangents;
-                source.colors = colors;
-                source.RecalculateBounds();
-
-                if (wasSkinned)
-                {
-                    GameObject target = renderer.gameObject;
-                    MeshFilter filter = target.GetComponent<MeshFilter>();
-                    if (filter == null) filter = target.AddComponent<MeshFilter>();
-                    filter.sharedMesh = source;
-                    MeshRenderer staticRenderer = target.AddComponent<MeshRenderer>();
-                    staticRenderer.sharedMaterials = renderer.sharedMaterials;
-                    staticRenderer.shadowCastingMode = renderer.shadowCastingMode;
-                    staticRenderer.receiveShadows = renderer.receiveShadows;
-                    staticRenderer.lightProbeUsage = renderer.lightProbeUsage;
-                    staticRenderer.reflectionProbeUsage = renderer.reflectionProbeUsage;
-                    staticRenderer.probeAnchor = renderer.probeAnchor;
-                    staticRenderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
-                    renderer.enabled = false;
-                    capturedRenderers.Add(staticRenderer);
-                }
-                else
-                {
-                    MeshFilter filter = renderer.GetComponent<MeshFilter>();
-                    filter.sharedMesh = source;
-                    if (_faceExpression != null) _faceExpression.enabled = false;
-                    capturedRenderers.Add(renderer);
-                }
-                replaced++;
-            }
-            // The diagnostic swaps skinned renderers for static ones. Explicit
-            // outline/hair commands must bind those replacements as well.
-            if (_actorRenderControls != null) _actorRenderControls.RefreshRenderers();
-            Debug.Log(string.Format(
-                "[PhotoMode] Exact captured posed geometry + tangent/color attributes applied (Unity-import UVs retained): renderers={0}; source={1}",
-                replaced, streamDirectory));
-            return capturedRenderers;
-        }
-
-        private void DrawLegacyGUI()
-        {
-            if (!_initialized) return;
-            GUILayout.BeginArea(new Rect(16, 16, 330, 520), GUI.skin.box);
-            GUILayout.Label("GAKUMAS PHOTO MODE — fktn");
-            GUILayout.Label(_status);
-            GUILayout.Space(8);
-            GUILayout.Label("Costume");
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("<", GUILayout.Width(42))) SelectCostume(_costumeIndex - 1);
-            GUILayout.Label(_costumes[_costumeIndex].label ?? _costumes[_costumeIndex].name);
-            if (GUILayout.Button(">", GUILayout.Width(42))) SelectCostume(_costumeIndex + 1);
-            GUILayout.EndHorizontal();
-            GUILayout.Label("Motion");
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("<", GUILayout.Width(42))) SelectMotion(_motionIndex - 1);
-            GUILayout.Label(_motions[_motionIndex].label ?? _motions[_motionIndex].name);
-            if (GUILayout.Button(">", GUILayout.Width(42))) SelectMotion(_motionIndex + 1);
-            GUILayout.EndHorizontal();
-            if (GUILayout.Button(_paused ? "Resume" : "Pause")) TogglePause();
-            GUILayout.Space(8);
-            GUILayout.Label("Voice");
-            if (_catalog.Manifest.voices != null)
-            {
-                foreach (VoiceRecord voice in _catalog.Manifest.voices)
-                {
-                    int index = Array.IndexOf(_catalog.Manifest.voices, voice);
-                    if (GUILayout.Button(voice.label)) PlayVoice(index);
-                }
-            }
-            GUILayout.Space(8);
-            GUILayout.Label("Camera FOV: " + _orbit.fov.ToString("0"));
-            _orbit.fov = GUILayout.HorizontalSlider(_orbit.fov, 15f, 70f);
-            GUILayout.Label("Key light: " + _keyLight.intensity.ToString("0.00"));
-            _keyLight.intensity = GUILayout.HorizontalSlider(_keyLight.intensity, 0f, 3f);
-            if (GUILayout.Button("Save screenshot (P)")) SaveScreenshot();
-            GUILayout.Space(8);
-            GUILayout.Label("RMB orbit · MMB pan · wheel zoom");
-            GUILayout.Label("A/D motion · W/S costume · Space pause");
-            GUILayout.Label(string.Format("Renderers: {0} · repaired materials: {1}", RendererCount, ErrorMaterialCount));
-            GUILayout.EndArea();
-        }
-
-        private void OnGUI()
-        {
-            if (!_initialized || !_showUi) return;
-            EnsureGuiStyles();
-            float scale = Mathf.Clamp(Screen.height / 900f, 0.82f, 1.22f);
-            GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
-            GUILayout.BeginArea(new Rect(22, 22, 310, 824), _panelStyle);
-            GUILayout.Label("GAKUMAS PHOTO STUDIO", _titleStyle);
-            GUILayout.Label(_characterId.ToUpperInvariant() + "  /  BODY " +
-                (CurrentOutfitOwner ?? "-").ToUpperInvariant(), _captionStyle);
-            GUILayout.Label(CurrentRenderContext, _captionStyle);
-            GUILayout.Space(10);
-            GUILayout.Label(_status, _captionStyle);
-            GUILayout.Space(12);
-            if (StoryActive)
-            {
-                DrawStoryGUI();
-                GUILayout.EndArea();
-                GUI.matrix = Matrix4x4.identity;
-                return;
-            }
-            GUILayout.Label("CHARACTER", _sectionStyle);
-            GUILayout.BeginHorizontal();
-            int characterIndex = _characterIds.FindIndex(value => string.Equals(value, _characterId, StringComparison.OrdinalIgnoreCase));
-            if (GUILayout.Button("<", _buttonStyle, GUILayout.Width(42), GUILayout.Height(30))) SelectCharacter(characterIndex - 1);
-            GUILayout.Label(_characterId.ToUpperInvariant(), _captionStyle, GUILayout.ExpandWidth(true));
-            if (GUILayout.Button(">", _buttonStyle, GUILayout.Width(42), GUILayout.Height(30))) SelectCharacter(characterIndex + 1);
-            GUILayout.EndHorizontal();
-            GUILayout.Space(9);
-            GUILayout.Label("OUTFIT BODY  /  OWNER", _sectionStyle);
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("<", _buttonStyle, GUILayout.Width(42), GUILayout.Height(30))) SelectCostume(_costumeIndex - 1);
-            GUILayout.Label((_costumes[_costumeIndex].label ?? _costumes[_costumeIndex].name) +
-                " / " + (CurrentOutfitOwner ?? "-").ToUpperInvariant(), _captionStyle, GUILayout.ExpandWidth(true));
-            if (GUILayout.Button(">", _buttonStyle, GUILayout.Width(42), GUILayout.Height(30))) SelectCostume(_costumeIndex + 1);
-            GUILayout.EndHorizontal();
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("FKTN <- HMSZ SOLO1", _buttonStyle, GUILayout.Height(28)))
-                SelectSolo1Swap("fktn", "hmsz");
-            if (GUILayout.Button("HMSZ <- FKTN SOLO1", _buttonStyle, GUILayout.Height(28)))
-                SelectSolo1Swap("hmsz", "fktn");
-            GUILayout.EndHorizontal();
-            GUILayout.Space(9);
-            GUILayout.Label("MOTION", _sectionStyle);
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("<", _buttonStyle, GUILayout.Width(42), GUILayout.Height(30))) SelectMotion(_motionIndex - 1);
-            GUILayout.Label(_motions[_motionIndex].label ?? _motions[_motionIndex].name, _captionStyle, GUILayout.ExpandWidth(true));
-            if (GUILayout.Button(">", _buttonStyle, GUILayout.Width(42), GUILayout.Height(30))) SelectMotion(_motionIndex + 1);
-            GUILayout.EndHorizontal();
-            if (GUILayout.Button(_paused ? "RESUME" : "PAUSE", _buttonStyle, GUILayout.Height(30))) TogglePause();
-            GUILayout.Space(9);
-            GUILayout.Label("EXPRESSION", _sectionStyle);
-            if (_faceExpression != null)
-            {
-                GUILayout.BeginHorizontal();
-                if (GUILayout.Button("<", _buttonStyle, GUILayout.Width(42), GUILayout.Height(30))) SelectExpression(_expressionIndex - 1);
-                GUILayout.Label(CurrentExpression, _captionStyle, GUILayout.ExpandWidth(true));
-                if (GUILayout.Button(">", _buttonStyle, GUILayout.Width(42), GUILayout.Height(30))) SelectExpression(_expressionIndex + 1);
-                GUILayout.EndHorizontal();
-            }
-            GUILayout.Space(9);
-            GUILayout.Label("LOOK AT", _sectionStyle);
-            if (_capturedLookAt != null)
-            {
-                GUILayout.BeginHorizontal();
-                if (GUILayout.Button("NATURAL", _buttonStyle, GUILayout.Height(28)))
-                    _capturedLookAt.SetMode(CapturedLookAtMode.Natural);
-                if (GUILayout.Button("GAZE", _buttonStyle, GUILayout.Height(28)))
-                    _capturedLookAt.SetMode(CapturedLookAtMode.Gaze);
-                if (GUILayout.Button("COCCHI", _buttonStyle, GUILayout.Height(28)))
-                    _capturedLookAt.SetMode(CapturedLookAtMode.Cocchi);
-                GUILayout.EndHorizontal();
-                GUILayout.Label(string.Format(
-                    CultureInfo.InvariantCulture,
-                    "{0}  EYE {1:0.00}  ANGLE {2:0.0}",
-                    _capturedLookAt.Mode,
-                    _capturedLookAt.ControllerEyeWeight,
-                    _capturedLookAt.VirtualAngle), _captionStyle);
-            }
-            GUILayout.Space(9);
-            GUILayout.Label("VOICE", _sectionStyle);
-            if (_catalog.Manifest.voices != null)
-            {
-                foreach (VoiceRecord voice in _catalog.Manifest.voices)
-                {
-                    int index = Array.IndexOf(_catalog.Manifest.voices, voice);
-                    if (GUILayout.Button(voice.label, _buttonStyle, GUILayout.Height(27))) PlayVoice(index);
-                }
-            }
-            GUILayout.Space(10);
-            GUILayout.Label("LENS  " + _orbit.fov.ToString("0") + " mm", _sectionStyle);
-            _orbit.fov = GUILayout.HorizontalSlider(_orbit.fov, 15f, 70f);
-            GUILayout.Label("KEY LIGHT  " + _keyLight.intensity.ToString("0.00"), _sectionStyle);
-            _keyLight.intensity = GUILayout.HorizontalSlider(_keyLight.intensity, 0.25f, 1.5f);
-            if (_hairDynamics != null)
-            {
-                GUILayout.Label("HAIR DYNAMICS  " + _hairDynamics.strength.ToString("0.00"), _sectionStyle);
-                _hairDynamics.strength = GUILayout.HorizontalSlider(_hairDynamics.strength, 0f, 1.5f);
-                GUILayout.Label("HAIR WIND  " + _hairDynamics.windStrength.ToString("0.00"), _sectionStyle);
-                _hairDynamics.windStrength = GUILayout.HorizontalSlider(_hairDynamics.windStrength, 0f, 1.2f);
-            }
-            if (_skirtDynamics != null)
-            {
-                GUILayout.Label("SKIRT DYNAMICS  " + _skirtDynamics.strength.ToString("0.00"), _sectionStyle);
-                _skirtDynamics.strength = GUILayout.HorizontalSlider(_skirtDynamics.strength, 0f, 1.5f);
-            }
-            if (_garmentDynamics != null && _garmentDynamics.SimulatedBoneCount > 0)
-            {
-                GUILayout.Label("GARMENT SWING  " + _garmentDynamics.strength.ToString("0.00"), _sectionStyle);
-                _garmentDynamics.strength = GUILayout.HorizontalSlider(_garmentDynamics.strength, 0f, 1.0f);
-            }
-            if (_bodySoftTissueDynamics != null && _bodySoftTissueDynamics.SimulatedBoneCount > 0)
-            {
-                GUILayout.Label("BODY SOFT TISSUE  " + _bodySoftTissueDynamics.strength.ToString("0.00"), _sectionStyle);
-                _bodySoftTissueDynamics.strength = GUILayout.HorizontalSlider(_bodySoftTissueDynamics.strength, 0f, 1.5f);
-                GUILayout.Label(string.Format("{0} chains / {1:0.00} mm / rms {2:0.00}",
-                    _bodySoftTissueDynamics.SimulatedBoneCount,
-                    _bodySoftTissueDynamics.MeanDisplacementMillimeters,
-                    _bodySoftTissueDynamics.ObservedRmsDisplacementMillimeters), _captionStyle);
-            }
-            GUILayout.Space(10);
-            if (GUILayout.Button("CAPTURE  [ P ]", _buttonStyle, GUILayout.Height(36))) SaveScreenshot();
-            if (GUILayout.Button("RESET CAMERA  [ R ]", _buttonStyle, GUILayout.Height(28))) _orbit.ResetPose();
-            string backgroundLabel = _useAdvPhotoBackground ? "ADV CITY" :
-                _useRiverbedBackground ? "ORIGINAL RIVERBED" : "STUDIO";
-            if (GUILayout.Button("BACKGROUND: " + backgroundLabel + "  [ B ]",
-                    _buttonStyle, GUILayout.Height(28))) TogglePhotoBackground();
-            GUILayout.Space(10);
-            GUILayout.Label("RMB orbit   MMB pan   Wheel zoom", _captionStyle);
-            GUILayout.Label("A/D motion   W/S outfit   Space pause", _captionStyle);
-            GUILayout.Label(_riverbedEnvironment != null && _riverbedEnvironment.IsLoaded
-                ? "B toggle original riverbed / studio background"
-                : "B background toggle (original riverbed unavailable)", _captionStyle);
-            GUILayout.Label("F1 / Tab hide controls", _captionStyle);
-            GUILayout.Label(string.Format("{0} renderers / {1} mats / {2} hair / {3} face",
-                RendererCount, ErrorMaterialCount, HairDynamicBoneCount, FaceShapeCount), _captionStyle);
-            GUILayout.EndArea();
-            GUI.matrix = Matrix4x4.identity;
-        }
-
-        private void DrawStoryGUI()
-        {
-            GUILayout.Label("ORIGINAL STORY", _sectionStyle);
-            GUILayout.Label(string.Format("adv_dear_fktn_001   {0:0.00} / {1:0.00}s", StoryTime, StoryDuration), _captionStyle);
-            float seek = GUILayout.HorizontalSlider(StoryTime, 0f, Mathf.Max(0.01f, StoryDuration));
-            if (Mathf.Abs(seek - StoryTime) > 0.08f) _storyPlayer.Seek(seek, false);
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button(_storyPlayer.IsPaused ? "RESUME" : "PAUSE", _buttonStyle, GUILayout.Height(30))) TogglePause();
-            if (GUILayout.Button("RESTART", _buttonStyle, GUILayout.Height(30))) _storyPlayer.Seek(0f, false);
-            GUILayout.EndHorizontal();
-            GUILayout.Space(10);
-            GUILayout.Label("BODY MOTION", _sectionStyle);
-            GUILayout.Label(ShortAssetName(StoryMotion), _captionStyle);
-            GUILayout.Label("FACIAL MOTION", _sectionStyle);
-            GUILayout.Label(ShortAssetName(StoryFaceMotion), _captionStyle);
-            GUILayout.Space(8);
-            GUILayout.Label("DIALOGUE", _sectionStyle);
-            GUIStyle messageStyle = new GUIStyle(_captionStyle) { wordWrap = true };
-            GUILayout.Label(string.IsNullOrEmpty(StoryMessage) ? "..." : StoryMessage, messageStyle, GUILayout.MinHeight(64));
-            GUILayout.Space(8);
-            if (_hairDynamics != null)
-            {
-                GUILayout.Label("HAIR DYNAMICS  " + _hairDynamics.strength.ToString("0.00"), _sectionStyle);
-                _hairDynamics.strength = GUILayout.HorizontalSlider(_hairDynamics.strength, 0f, 1.5f);
-                GUILayout.Label(string.Format("all {0:0.00}° / braid {1:0.00}° ±{2:0.00}°",
-                    _hairDynamics.MeanAngularOffset, _hairDynamics.BraidMeanAngularOffset, _hairDynamics.BraidAngularVariation), _captionStyle);
-                GUILayout.Label("HAIR WIND  " + _hairDynamics.windStrength.ToString("0.00"), _sectionStyle);
-                _hairDynamics.windStrength = GUILayout.HorizontalSlider(_hairDynamics.windStrength, 0f, 1.2f);
-            }
-            if (_skirtDynamics != null)
-            {
-                GUILayout.Label("SKIRT DYNAMICS  " + _skirtDynamics.strength.ToString("0.00"), _sectionStyle);
-                _skirtDynamics.strength = GUILayout.HorizontalSlider(_skirtDynamics.strength, 0f, 1.5f);
-                GUILayout.Label(string.Format("{0} edges / {1} colliders / {2:0.00} deg / {3} chain hits",
-                    _skirtDynamics.SimulatedBoneCount, _skirtDynamics.StaticColliderCount,
-                    _skirtDynamics.MeanAngularOffset, _skirtDynamics.ChainCollisionCorrections), _captionStyle);
-            }
-            GUILayout.Space(12);
-            if (GUILayout.Button("CAPTURE  [ P ]", _buttonStyle, GUILayout.Height(36))) SaveScreenshot();
-            if (GUILayout.Button("RESET VIEW  [ R ]", _buttonStyle, GUILayout.Height(28))) _orbit.ResetStoryOffsets();
-            if (GUILayout.Button("PHOTO MODE", _buttonStyle, GUILayout.Height(28))) _storyPlayer.StopStory();
-            GUILayout.Space(10);
-            GUILayout.Label("Timeline drives body / face / voice / camera", _captionStyle);
-            GUILayout.Label("RMB orbit   MMB pan   Wheel zoom", _captionStyle);
-            GUILayout.Label("R reset view   Space pause", _captionStyle);
-            GUILayout.Label(string.Format("{0} hair / {1} skirt / {2} face shapes / {3} active", HairDynamicBoneCount, ClothDynamicBoneCount, FaceShapeCount, FaceActiveWeightCount), _captionStyle);
-        }
-
-        private static string ShortAssetName(string value)
-        {
-            if (string.IsNullOrEmpty(value)) return "waiting for event";
-            return value.Length <= 38 ? value : "..." + value.Substring(value.Length - 35);
-        }
-
-        private void EnsureGuiStyles()
-        {
-            if (_panelStyle != null) return;
-            _panelTexture = SolidTexture(new Color(0.045f, 0.055f, 0.10f, 0.91f));
-            _buttonTexture = SolidTexture(new Color(0.16f, 0.20f, 0.32f, 0.95f));
-            _panelStyle = new GUIStyle(GUI.skin.box);
-            _panelStyle.padding = new RectOffset(18, 18, 17, 17);
-            _panelStyle.normal.background = _panelTexture;
-            _titleStyle = new GUIStyle(GUI.skin.label);
-            _titleStyle.fontSize = 20;
-            _titleStyle.fontStyle = FontStyle.Bold;
-            _titleStyle.alignment = TextAnchor.MiddleLeft;
-            _titleStyle.normal.textColor = new Color(0.98f, 0.91f, 0.52f);
-            _sectionStyle = new GUIStyle(GUI.skin.label);
-            _sectionStyle.fontSize = 11;
-            _sectionStyle.fontStyle = FontStyle.Bold;
-            _sectionStyle.normal.textColor = new Color(0.54f, 0.90f, 0.96f);
-            _captionStyle = new GUIStyle(GUI.skin.label);
-            _captionStyle.fontSize = 11;
-            _captionStyle.alignment = TextAnchor.MiddleLeft;
-            _captionStyle.wordWrap = false;
-            _captionStyle.normal.textColor = new Color(0.84f, 0.86f, 0.94f);
-            _buttonStyle = new GUIStyle(GUI.skin.button);
-            _buttonStyle.fontSize = 11;
-            _buttonStyle.fontStyle = FontStyle.Bold;
-            _buttonStyle.normal.background = _buttonTexture;
-            _buttonStyle.normal.textColor = Color.white;
-            _buttonStyle.hover.textColor = new Color(0.98f, 0.91f, 0.52f);
-            _buttonStyle.active.textColor = new Color(0.54f, 0.90f, 0.96f);
-        }
-
-        private static Texture2D SolidTexture(Color color)
-        {
-            Texture2D texture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-            texture.SetPixel(0, 0, color);
-            texture.Apply();
-            return texture;
         }
 
         public void Shutdown()
@@ -4624,9 +2847,292 @@ namespace GakumasPhotoMode
             _initialized = false;
         }
 
-        private void OnDestroy()
+        protected void OnDestroy()
         {
             Shutdown();
+        }
+        protected string[] RuntimeArguments = Array.Empty<string>();
+
+        protected virtual void ConfigureApplication() { }
+        protected virtual void ConfigureAmbientWallpaperDemo() { }
+        protected virtual void ProcessApplicationInput() { }
+        protected virtual void AttachApplicationCameraComponents(Camera camera) { }
+        protected virtual ActorRenderControls CreateRenderControls(Camera camera)
+        {
+            return camera.gameObject.AddComponent<ActorRenderControls>();
+        }
+
+        protected void ConfigureRendererFromArguments(string[] commandLine)
+        {
+            _disableStoryActorProfile = commandLine.Contains("--disable-story-actor-profile");
+            float faceDebugMode = commandLine.Contains("--face-debug-base") ? 1f :
+                                  commandLine.Contains("--face-debug-shade") ? 2f :
+                                  commandLine.Contains("--face-debug-layer") ? 3f :
+                                  commandLine.Contains("--face-debug-normal") ? 4f :
+                                  commandLine.Contains("--actor-debug-skin") ? 5f :
+                                  commandLine.Contains("--actor-debug-neck") ? 6f :
+                                  commandLine.Contains("--actor-debug-base") ? 7f :
+                                  commandLine.Contains("--actor-debug-shade") ? 8f :
+                                  commandLine.Contains("--actor-debug-type") ? 9f :
+                                  commandLine.Contains("--actor-debug-ramp-alpha") ? 10f :
+                                  commandLine.Contains("--actor-debug-shade-alpha") ? 11f :
+                                  commandLine.Contains("--actor-debug-shadow") ? 12f :
+                                  commandLine.Contains("--actor-debug-definition") ? 13f :
+                                  commandLine.Contains("--actor-debug-raw-base") ? 14f :
+                                  commandLine.Contains("--actor-debug-raw-shade") ? 15f :
+                                  commandLine.Contains("--actor-debug-captured-diffuse") ? 16f :
+                                  commandLine.Contains("--actor-debug-ramp-coordinate") ? 17f :
+                                  commandLine.Contains("--actor-debug-ramp-add") ? 18f :
+                                  commandLine.Contains("--actor-debug-direct-diffuse") ? 19f :
+                                  commandLine.Contains("--actor-debug-specular") ? 20f :
+                                  commandLine.Contains("--actor-debug-brdf") ? 21f :
+                                  commandLine.Contains("--actor-debug-rim") ? 22f :
+                                  commandLine.Contains("--actor-debug-prelight") ? 23f :
+                                  commandLine.Contains("--actor-debug-ramp-rgb") ? 24f :
+                                  commandLine.Contains("--actor-debug-ramp-a") ? 25f :
+                                  commandLine.Contains("--actor-debug-shade-a") ? 26f :
+                                  commandLine.Contains("--actor-debug-base-a") ? 27f :
+                                  commandLine.Contains("--actor-debug-ramp-add-a") ? 28f :
+                                  commandLine.Contains("--actor-debug-receiver-normal") ? 29f :
+                                  commandLine.Contains("--actor-debug-receiver-ndl") ? 30f : 0f;
+            Shader.SetGlobalFloat("_FaceDebugMode", faceDebugMode);
+            // The captured Base/Shade/Ramp equation is the production path for every
+            // active Actor material. Type 9 additionally consumes the animated
+            // head-basis normal emitted through VS TEXCOORD4 for its ramp coordinate.
+            float capturedDiffuseBlend = commandLine.Contains("--actor-legacy-diffuse") ? 0f :
+                                         commandLine.Contains("--actor-captured-diffuse") ? 1f : 1f;
+            Shader.SetGlobalFloat("_CapturedDiffuseBlend", capturedDiffuseBlend);
+            float capturedDirectScale = commandLine.Contains("--captured-direct-055") ? 0.55f :
+                                        commandLine.Contains("--captured-direct-082") ? 0.82f : 1.0f;
+            Shader.SetGlobalFloat("_CapturedDirectScale", capturedDirectScale);
+            // Bound Actor PS variants sample Base/Shade/Definition/Highlight
+            // with CB0[5].x - 1. CB0[5].x is zero in the archived frame.
+            // Keep the old unbiased path only for a controlled A/B.
+            float capturedActorTextureLodBias = commandLine.Contains("--actor-lod-bias-zero") ? 0f :
+                                                commandLine.Contains("--actor-lod-bias-minus-two") ? -2f : -1f;
+            Shader.SetGlobalFloat("_CapturedActorTextureLodBias", capturedActorTextureLodBias);
+            // Surface color precedes scene fog and target quantization.
+            // The former .97 fit mixed those stages into material shading.
+            // Keep it only as an explicit historical regression control;
+            // --actor-output-literal remains a compatible no-op.
+            Shader.SetGlobalFloat("_CapturedActorOutputScale",
+                commandLine.Contains("--legacy-actor-output-scale") ? 0.97f : 1f);
+            Shader.SetGlobalFloat("_CapturedType4DebugStage",
+                commandLine.Contains("--type4-debug-diffuse") ? 1f :
+                commandLine.Contains("--type4-debug-direct-diffuse") ? 2f :
+                commandLine.Contains("--type4-debug-ramp-coordinate") ? 3f :
+                commandLine.Contains("--type4-debug-visibility") ? 4f :
+                commandLine.Contains("--type4-debug-shadowed-ramp") ? 5f :
+                commandLine.Contains("--type4-debug-raw-base") ? 6f :
+                commandLine.Contains("--type4-debug-raw-shade") ? 7f :
+                commandLine.Contains("--type4-debug-raw-definition") ? 8f :
+                commandLine.Contains("--type4-debug-raw-ramp") ? 9f :
+                commandLine.Contains("--type4-debug-light-source") ? 10f :
+                commandLine.Contains("--type4-debug-rim-source") ? 11f :
+                commandLine.Contains("--type4-debug-environment") ? 12f :
+                commandLine.Contains("--type4-debug-environment-brdf") ? 13f :
+                commandLine.Contains("--type4-debug-direct-specular") ? 14f :
+                commandLine.Contains("--type4-debug-specular") ? 15f :
+                commandLine.Contains("--type4-debug-receiver-normal") ? 16f :
+                commandLine.Contains("--type4-debug-definition-alpha") ? 17f : 0f);
+            Shader.SetGlobalFloat("_CapturedType4RampFlip",
+                commandLine.Contains("--type4-unflipped-ramp") ? 0f : 1f);
+            Shader.SetGlobalFloat("_CapturedType4DiffuseF0",
+                commandLine.Contains("--type4-legacy-dielectric-f0") ? 0f : 1f);
+            // exactdefinitiona4 and exactvisibility4 are numerically the
+            // same field for the captured type-4 draw (r10.w -> r4.z).
+            // The local shadow lookup is therefore not a visibility input
+            // for this branch; keep it only as an explicit counterexample.
+            Shader.SetGlobalFloat("_CapturedType4DefinitionVisibility",
+                commandLine.Contains("--type4-shadowed-visibility") ? 0f : 1f);
+            // Exhaustive 6-permutation × 8-sign replay comparison selects
+            // mode 43: local cube direction (-Z,-Y,+X).  Keep all 48 modes
+            // available for counterexample captures.
+            int eyeCubeTransformMode = 43;
+            const string eyeCubeTransformPrefix = "--eye-cube-transform-";
+            foreach (string argument in commandLine)
+            {
+                if (!argument.StartsWith(eyeCubeTransformPrefix, StringComparison.Ordinal)) continue;
+                int parsed;
+                if (int.TryParse(argument.Substring(eyeCubeTransformPrefix.Length), out parsed))
+                    eyeCubeTransformMode = Mathf.Clamp(parsed, 0, 47);
+            }
+            Shader.SetGlobalFloat("_CapturedEyeCubeTransformMode", eyeCubeTransformMode);
+            int actorCubeTransformMode = 0;
+            const string actorCubeTransformPrefix = "--actor-cube-transform-";
+            foreach (string argument in RuntimeArguments)
+            {
+                if (!argument.StartsWith(actorCubeTransformPrefix, StringComparison.Ordinal)) continue;
+                int parsed;
+                if (int.TryParse(argument.Substring(actorCubeTransformPrefix.Length), out parsed))
+                    actorCubeTransformMode = Mathf.Clamp(parsed, 0, 47);
+            }
+            Shader.SetGlobalFloat("_CapturedActorCubeTransformMode", actorCubeTransformMode);
+            Shader.SetGlobalFloat("_UseCapturedEyeEnvironmentArray",
+                commandLine.Contains("--explicit-d3d-eye-array") ? 1f : 0f);
+            Shader.SetGlobalFloat("_UseCapturedActorEnvironmentArray",
+                commandLine.Contains("--explicit-d3d-actor-array") ? 1f : 0f);
+            // Type-1 production selects the explicit D3D face array only
+            // after the captured payload is loaded. Other Actor variants
+            // retain their already-validated Unity-cube path.
+            Shader.SetGlobalFloat("_UseCapturedType1ActorEnvironmentArray", 0f);
+            // Type 4 is a premultiplied One/OneMinusSrcAlpha eye draw.  The
+            // shader zeros both RGB and alpha for this paired diagnostic so
+            // it is equivalent to suppressing the original 9132-byte draw.
+            Shader.SetGlobalFloat("_CapturedType4OutputScale",
+                commandLine.Contains("--discard-type4-color") ? 0f : 1f);
+            // Paired with the GPA discardtype1 replay. Type 1 is opaque
+            // One/Zero in the captured frame, so MaterialRepairer switches
+            // only this diagnostic to destination-preserving additive blend.
+            Shader.SetGlobalFloat("_CapturedType1OutputScale",
+                commandLine.Contains("--discard-type1-color") ? 0f : 1f);
+            Shader.SetGlobalFloat("_CapturedType1BodyOutputScale",
+                commandLine.Contains("--discard-type1-body-color") ? 0f : 1f);
+            Shader.SetGlobalFloat("_CapturedType1HairOutputScale",
+                commandLine.Contains("--discard-type1-hair-color") ? 0f : 1f);
+            bool debugType1Body =
+                commandLine.Contains("--type1-debug-body-diffuse") ||
+                commandLine.Contains("--type1-debug-body-direct-diffuse") ||
+                commandLine.Contains("--type1-debug-body-light-source") ||
+                commandLine.Contains("--type1-debug-body-rim-source") ||
+                commandLine.Contains("--type1-debug-body-view-normal") ||
+                commandLine.Contains("--type1-debug-body-world-normal") ||
+                commandLine.Contains("--type1-debug-body-rim-mask") ||
+                commandLine.Contains("--type1-debug-body-rim-factor") ||
+                commandLine.Contains("--type1-debug-body-specular") ||
+                commandLine.Contains("--type1-debug-body-brdf") ||
+                commandLine.Contains("--type1-debug-body-environment") ||
+                commandLine.Contains("--type1-debug-body-env-brdf") ||
+                commandLine.Contains("--type1-debug-body-direct-specular") ||
+                commandLine.Contains("--type1-debug-body-specular-visibility") ||
+                commandLine.Contains("--type1-debug-body-premod-specular") ||
+                commandLine.Contains("--type1-debug-body-reflection-direction") ||
+                commandLine.Contains("--type1-debug-body-reflection-lod") ||
+                commandLine.Contains("--type1-debug-body-view-direction") ||
+                commandLine.Contains("--type1-debug-body-geometric-normal") ||
+                commandLine.Contains("--type1-debug-body-raw-view-vector");
+            bool debugType1Hair =
+                commandLine.Contains("--type1-debug-hair-diffuse") ||
+                commandLine.Contains("--type1-debug-hair-direct-diffuse") ||
+                commandLine.Contains("--type1-debug-hair-light-source") ||
+                commandLine.Contains("--type1-debug-hair-rim-source") ||
+                commandLine.Contains("--type1-debug-hair-view-normal") ||
+                commandLine.Contains("--type1-debug-hair-world-normal") ||
+                commandLine.Contains("--type1-debug-hair-rim-mask") ||
+                commandLine.Contains("--type1-debug-hair-rim-factor") ||
+                commandLine.Contains("--type1-debug-hair-specular") ||
+                commandLine.Contains("--type1-debug-hair-brdf");
+            Shader.SetGlobalFloat("_CapturedType1DebugVariant",
+                debugType1Body ? 1f : debugType1Hair ? 2f : 0f);
+            Shader.SetGlobalFloat("_CapturedType1DebugStage",
+                commandLine.Contains("--type1-debug-body-diffuse") ||
+                commandLine.Contains("--type1-debug-hair-diffuse") ? 1f :
+                commandLine.Contains("--type1-debug-body-direct-diffuse") ||
+                commandLine.Contains("--type1-debug-hair-direct-diffuse") ? 2f :
+                commandLine.Contains("--type1-debug-body-light-source") ||
+                commandLine.Contains("--type1-debug-hair-light-source") ? 3f :
+                commandLine.Contains("--type1-debug-body-rim-source") ||
+                commandLine.Contains("--type1-debug-hair-rim-source") ? 4f :
+                commandLine.Contains("--type1-debug-body-view-normal") ||
+                commandLine.Contains("--type1-debug-hair-view-normal") ? 5f :
+                commandLine.Contains("--type1-debug-body-world-normal") ||
+                commandLine.Contains("--type1-debug-hair-world-normal") ? 6f :
+                commandLine.Contains("--type1-debug-body-rim-mask") ||
+                commandLine.Contains("--type1-debug-hair-rim-mask") ? 7f :
+                commandLine.Contains("--type1-debug-body-rim-factor") ||
+                commandLine.Contains("--type1-debug-hair-rim-factor") ? 8f :
+                commandLine.Contains("--type1-debug-body-specular") ||
+                commandLine.Contains("--type1-debug-hair-specular") ? 9f :
+                commandLine.Contains("--type1-debug-body-brdf") ||
+                commandLine.Contains("--type1-debug-hair-brdf") ? 10f :
+                commandLine.Contains("--type1-debug-body-environment") ? 11f :
+                commandLine.Contains("--type1-debug-body-env-brdf") ? 12f :
+                commandLine.Contains("--type1-debug-body-direct-specular") ? 13f :
+                commandLine.Contains("--type1-debug-body-specular-visibility") ? 14f :
+                commandLine.Contains("--type1-debug-body-premod-specular") ? 15f :
+                commandLine.Contains("--type1-debug-body-reflection-direction") ? 16f :
+                commandLine.Contains("--type1-debug-body-reflection-lod") ? 17f :
+                commandLine.Contains("--type1-debug-body-view-direction") ? 18f :
+                commandLine.Contains("--type1-debug-body-geometric-normal") ? 19f :
+                commandLine.Contains("--type1-debug-body-raw-view-vector") ? 20f : 0f);
+            // Offline GPA replay can now suppress only the captured
+            // 7496-byte type-5 colour draw. Mirror that probe without
+            // changing local raster/depth/ActorData so paired HDR dumps
+            // isolate the reconstructed additive eye-highlight energy.
+            Shader.SetGlobalFloat("_CapturedType5OutputScale",
+                commandLine.Contains("--discard-type5-color") ? 0f : 1f);
+            // Bound Actor PS 5C07/717B/7372 evaluates ramp and direct BRDF
+            // in its camera-facing receiver basis (r6), not directly in the
+            // interpolated world-normal basis.  Exact-pose pass151/152 closed
+            // that contract against the replay, so it is now the production
+            // default.  Keep the former world-normal path only for A/B.
+            Shader.SetGlobalFloat("_UseCapturedReceiverNormal",
+                commandLine.Contains("--legacy-world-receiver-normal") ? 0f : 1f);
+            // Literal GGX denominator and visibility gate from active
+            // Actor PS 5C07/717B/7372.  The former reconstruction used
+            // smoothness where DXBC uses roughness^4-1 and gated the lobe
+            // with world N.L instead of receiver-basis N.L.  Keep that
+            // compensating approximation only for a controlled A/B.
+            Shader.SetGlobalFloat("_UseCapturedDirectSpecular",
+                commandLine.Contains("--legacy-direct-specular") ? 0f : 1f);
+            // Exact values recovered from the active actor draws through a signed GPA
+            // replay layer. CB0 is identical across all seven type 9/8/3 draws.
+            // Pass80 tested both the literal CB0 directions and an inverse-root
+            // transform derived from VS CB1. The literal constants converge much
+            // better (Actor HDR luma 1.0089x vs 1.1489x), which shows the authored
+            // BRDF/rim vectors are already in the receiver convention expected by
+            // the extracted model. Keep the transformed path only as a diagnostic.
+            bool transformCapturedShadingDirections = commandLine.Contains("--actor-local-shading-direction");
+            _useRootOnlyRimDirection = transformCapturedShadingDirections;
+            Shader.SetGlobalVector("_CapturedLightDirection", transformCapturedShadingDirections
+                ? new Vector4(0.78512269f, 0.42261863f, -0.45274259f, 0f)
+                : new Vector4(0.38302225f, 0.42261827f, 0.82139379f, 0f));
+            Shader.SetGlobalVector("_CapturedShadeTint", new Vector4(0.85849059f, 0.76552117f, 0.74105555f, 1f));
+            Shader.SetGlobalVector("_CapturedLightColor", Vector4.one);
+            Shader.SetGlobalVector("_CapturedShadeAdditive", new Vector4(0f, 0f, 0f, 1f));
+            Shader.SetGlobalFloat("_CapturedSkinSaturation", 0f);
+            Shader.SetGlobalVector("_CapturedReflectionColor", Vector4.one);
+            Shader.SetGlobalVector("_CapturedEyeReflectionColor", Vector4.one);
+            // The PS does not dot its interpolated normal directly with
+            // CB0[153].xyz. It first forms r7 from CB0[65..67], while the
+            // frozen-pose diagnostic stores normals in the original Actor
+            // root's local basis. Combining those two rotations with the
+            // captured +94.97-degree Actor root gives the literal local
+            // direction below. An exact rim-only GPA replay closes this
+            // combined basis at corr=0.9403 for type-8 hair and corr=0.9888
+            // for type-0 costume after the same one-pixel registration. The
+            // former raw-CB direction produced corr=0.0293/0.1748 and a
+            // broad pale halo, so the combined direction is production.
+            // Retain both earlier interpretations only for controlled A/B.
+            _useLegacyRimDirection = commandLine.Contains("--legacy-rim-direction");
+            Shader.SetGlobalFloat("_UseExactViewRimBasis",
+                _useLegacyRimDirection || transformCapturedShadingDirections ? 0f : 1f);
+            Shader.SetGlobalVector("_CapturedRimViewDirection",
+                new Vector4(-0.29704621f, -0.27563736f, 0.91421419f, 0f));
+            Shader.SetGlobalVector("_CapturedRimDirection", transformCapturedShadingDirections
+                ? new Vector4(0.93651113f, -0.27563763f, 0.21672747f, 0f)
+                : _useLegacyRimDirection
+                    ? new Vector4(-0.29704621f, -0.27563736f, 0.91421419f, 0f)
+                    : new Vector4(0.29546950f, -0.17236277f, 0.93967480f, 0f));
+            Shader.SetGlobalVector("_CapturedRimParameters", new Vector4(0.7f, 0.85f, 32f, 1f));
+            Shader.SetGlobalVector("_CapturedShadowCasterDirection",
+                new Vector4(-0.17343573f, 0.21206431f, 0.96174257f, 0f));
+            // Caster VS E82E31C9 uses these exact world-unit offsets while
+            // every captured rasterizer reports fixed/slope depth bias zero.
+            bool useCapturedCasterBias = !commandLine.Contains("--unity-shadow-bias");
+            Shader.SetGlobalVector("_CapturedShadowCasterBias", useCapturedCasterBias
+                ? new Vector4(-0.00079697941f, -0.00019924485f, 1f, 0f)
+                : new Vector4(0f, 0f, 0f, 0f));
+            Shader.SetGlobalVector("_CapturedSH0", new Vector4(0.00726612285f, -0.184132382f, 0.0522714779f, 0.368471146f));
+            Shader.SetGlobalVector("_CapturedSH1", new Vector4(0.00590136182f, -0.144511163f, 0.0502534062f, 0.398529291f));
+            Shader.SetGlobalVector("_CapturedSH2", new Vector4(0.00396161340f, -0.0267445855f, 0.0917166322f, 0.583782017f));
+            Shader.SetGlobalVector("_CapturedSH3", new Vector4(-0.0104490332f, -0.0136711346f, -0.0209487341f, -0.00180071173f));
+            Shader.SetGlobalVector("_CapturedSH4", new Vector4(-0.0123896031f, -0.00661265291f, -0.0159785878f, -0.00217014784f));
+            Shader.SetGlobalVector("_CapturedSH5", new Vector4(-0.0224926770f, -0.0107651427f, -0.0217662323f, 0.000522873364f));
+            Shader.SetGlobalVector("_CapturedSH6", new Vector4(-0.000540113775f, 0.00394574553f, 0.00150158303f, 1f));
+            // CB0[154].x gates the complete SH term and is exactly zero in all seven
+            // captured actor draws. Keep the coefficients archived, but honor the gate.
+            Shader.SetGlobalFloat("_CapturedAmbientScale", 0f);
         }
     }
 }

@@ -128,13 +128,16 @@ def collect(root: Path, tracked: bool = False) -> tuple[dict, dict[str, bytes]]:
     revisions = json.loads(revision_path.read_text(encoding='utf-8')) if revision_path.exists() else None
     reviewed, revision_findings = _baseline_module.resolve_expected(baseline, revisions)
     findings.extend(revision_findings)
+    historical_names = {destination: original for original, destination in
+                        (revisions or {}).get('relocations', {}).items()}
 
     def inspect(name: str, data: bytes) -> list[dict]:
         issues = audit_content(name, data)
         actual = hashlib.sha256(data.replace(b'\r\n', b'\n')).hexdigest()
         # Two archived defaults are non-personal project paths, not secrets.
         # Exempt only the path rule AND only an exactly frozen source file.
-        if name in baseline.get('nonpersonal_legacy_path_files', []) and actual == frozen.get(name):
+        historical_name = historical_names.get(name, name)
+        if historical_name in baseline.get('nonpersonal_legacy_path_files', []) and actual == frozen.get(historical_name):
             issues = [issue for issue in issues if issue['rule'] != 'windows_absolute_path']
         if name in reviewed and actual != reviewed[name]:
             issues.append({'file': name, 'rule': 'baseline_mismatch'})
@@ -152,7 +155,7 @@ def collect(root: Path, tracked: bool = False) -> tuple[dict, dict[str, bytes]]:
                 raise ValueError('Orphaned metadata')
             if name in SOURCE_PROJECT_ASSETS and name not in reviewed:
                 raise ValueError('Authored scene/settings require a frozen content hash')
-            if (baseline and name.startswith('unity/') and
+            if (baseline and name.startswith(('unity/', 'packages/com.digital-kotone.toolkit/')) and
                     PurePosixPath(name).suffix in {'.cs', '.shader', '.cginc', '.hlsl', '.asmdef'} and name not in reviewed):
                 raise ValueError('New Unity source requires an explicit baseline review')
             findings.extend(inspect(name, data))
@@ -194,8 +197,9 @@ def collect(root: Path, tracked: bool = False) -> tuple[dict, dict[str, bytes]]:
         findings.append({'file': '.gitignore', 'rule': 'stale_default_deny_ignore'})
     return ({'schema': 'photo-studio.source-audit.v1', 'accepted': not findings,
              'files': len(payloads), 'bytes': sum(map(len, payloads.values())),
-             'reviewed_legacy_path_files': [name for name in baseline.get('nonpersonal_legacy_path_files', [])
-                 if name in payloads and hashlib.sha256(payloads[name].replace(b'\r\n', b'\n')).hexdigest() == frozen.get(name)],
+             'reviewed_legacy_path_files': [name for name in payloads
+                 if historical_names.get(name, name) in baseline.get('nonpersonal_legacy_path_files', [])
+                 and hashlib.sha256(payloads[name].replace(b'\r\n', b'\n')).hexdigest() == frozen.get(historical_names.get(name, name))],
              'findings': findings}, payloads)
 
 

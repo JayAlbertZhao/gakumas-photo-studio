@@ -32,6 +32,14 @@ def resolve_expected(baseline: dict, revisions: dict | None = None) -> tuple[dic
                 findings.append({'file': name, 'rule': 'revision_addition_already_exists'})
             else:
                 expected_files[name] = expected
+        # A move retains its reviewed content hash and historical source name.
+        # No path can silently replace another reviewed file.
+        relocations = revisions.get('relocations', {})
+        for original, destination in relocations.items():
+            if original not in expected_files or destination in expected_files or destination in relocations:
+                findings.append({'file': original, 'rule': 'invalid_revision_relocation'})
+                continue
+            expected_files[destination] = expected_files.pop(original)
     return expected_files, findings
 
 
@@ -42,7 +50,8 @@ def verify(root: Path = ROOT) -> dict:
     expected_files, findings = resolve_expected(baseline, revisions)
     for name, expected in expected_files.items():
         # The lock is data, not permission to read outside the repository.
-        if not name.startswith('unity/') or '..' in Path(name).parts or ':' in name or '\\' in name:
+        if (not name.startswith(('unity/', 'packages/com.digital-kotone.toolkit/'))
+                or '..' in Path(name).parts or ':' in name or '\\' in name):
             findings.append({'file': name, 'rule': 'unsafe_revision_path'})
             continue
         path = root / name
@@ -50,11 +59,12 @@ def verify(root: Path = ROOT) -> dict:
             findings.append({'file': name, 'rule': 'missing_baseline_file'})
         elif digest(path.read_bytes()) != expected:
             findings.append({'file': name, 'rule': 'baseline_mismatch'})
-    for path in (root / 'unity/Assets').rglob('*'):
-        if path.suffix in {'.cs', '.shader', '.cginc', '.hlsl', '.asmdef'}:
-            name = path.relative_to(root).as_posix()
-            if name not in expected_files:
-                findings.append({'file': name, 'rule': 'unexpected_unity_source'})
+    for source_root in (root / 'unity/Assets', root / 'packages/com.digital-kotone.toolkit'):
+        for path in source_root.rglob('*'):
+            if path.suffix in {'.cs', '.shader', '.cginc', '.hlsl', '.asmdef'}:
+                name = path.relative_to(root).as_posix()
+                if name not in expected_files:
+                    findings.append({'file': name, 'rule': 'unexpected_unity_source'})
     return {'schema': 'photo-studio.baseline-check.v1', 'accepted': not findings,
             'files': len(expected_files), 'historical_files': len(baseline['files']), 'findings': findings}
 

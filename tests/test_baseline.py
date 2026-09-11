@@ -72,6 +72,39 @@ class FrozenSourceTests(unittest.TestCase):
                 'base_archive_sha256': 'archive', 'additions': {'unity/../../outside': 'hash'}}), encoding='utf-8')
             self.assertEqual(baseline.verify(root)['findings'][0]['rule'], 'unsafe_revision_path')
 
+    def test_relocation_preserves_hash_and_rejects_collisions_chains_and_missing_source(self):
+        old = {'archive_sha256': 'base', 'files': {'unity/a.cs': 'a', 'unity/b.cs': 'b'}}
+        revision = {'base_archive_sha256': 'base', 'relocations': {
+            'unity/a.cs': 'packages/com.digital-kotone.toolkit/Runtime/a.cs'}}
+        expected, findings = baseline.resolve_expected(old, revision)
+        self.assertEqual(findings, [])
+        self.assertEqual(expected, {'packages/com.digital-kotone.toolkit/Runtime/a.cs': 'a', 'unity/b.cs': 'b'})
+        for moves in ({'unity/a.cs': 'unity/b.cs'}, {'unity/missing.cs': 'unity/c.cs'},
+                      {'unity/a.cs': 'unity/c.cs', 'unity/c.cs': 'unity/d.cs'},
+                      {'unity/a.cs': 'unity/c.cs', 'unity/b.cs': 'unity/c.cs'}):
+            with self.subTest(relocations=moves):
+                _, findings = baseline.resolve_expected(old, dict(revision, relocations=moves))
+                self.assertIn('invalid_revision_relocation', {f['rule'] for f in findings})
+
+    def test_relocated_package_is_scanned_and_cannot_escape_repository(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'config').mkdir()
+            target = 'packages/com.digital-kotone.toolkit/Runtime/a.cs'
+            (root / target).parent.mkdir(parents=True)
+            (root / target).write_bytes(b'original')
+            (root / 'config/source-baseline.json').write_text(json.dumps({
+                'archive_sha256': 'base', 'files': {'unity/a.cs': baseline.digest(b'original')}}), encoding='utf-8')
+            revision = {'base_archive_sha256': 'base', 'relocations': {'unity/a.cs': target}}
+            path = root / 'config/runtime-revisions.json'
+            path.write_text(json.dumps(revision), encoding='utf-8')
+            self.assertTrue(baseline.verify(root)['accepted'])
+            (root / target).with_name('unreviewed.cginc').write_text('new', encoding='utf-8')
+            self.assertIn('unexpected_unity_source', {f['rule'] for f in baseline.verify(root)['findings']})
+            revision['relocations']['unity/a.cs'] = 'packages/com.digital-kotone.toolkit/../../outside'
+            path.write_text(json.dumps(revision), encoding='utf-8')
+            self.assertIn('unsafe_revision_path', {f['rule'] for f in baseline.verify(root)['findings']})
+
 
 class TimelineFormatTests(unittest.TestCase):
     def test_original_examples_use_existing_timeline_event_fields(self):

@@ -1,0 +1,13 @@
+{
+  "name": "Gakumas.Toolkit",
+  "rootNamespace": "GakumasPhotoMode",
+  "references": [
+    "ActorAnimation.Runtime",
+    "campus-submodule.Runtime",
+    "vl-unity.Runtime",
+    "Unity.Mathematics",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime"
+  ],
+  "autoReferenced": true
+}

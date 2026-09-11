@@ -8,7 +8,7 @@ namespace GakumasPhotoMode
 {
     public sealed class StoryTimelinePlayer : MonoBehaviour
     {
-        private PhotoModeApp _app;
+        private CharacterSceneRuntime _app;
         private StoryTimeline _timeline;
         private int _lastVoiceIndex = -1;
 
@@ -21,7 +21,7 @@ namespace GakumasPhotoMode
         public string CurrentMotion { get; private set; }
         public string CurrentFaceMotion { get; private set; }
 
-        public bool Initialize(PhotoModeApp app, string stagingRoot)
+        public bool Initialize(CharacterSceneRuntime app, string stagingRoot)
         {
             _app = app;
             string path = Path.Combine(stagingRoot, "story-timeline.json");
