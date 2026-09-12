@@ -31,6 +31,7 @@
 | 相机 / 角色 / 渲染状态 | `PreviewCamera`、`CharacterRoot`、`DefaultEnvironmentRoot`、`RenderControls` |
 | 可选局部球形雾 | 相机的 `OriginalStyleRenderPipeline.sphereFog`；每相机一个 `SphereFogSettings`，默认关闭 |
 | 可选场景几何与 Hi-Z 输入 | `SceneDepthData`；显式登记表面，读取相机自己的法线／SSR mask／线性深度及最小深度层级，见 [输入契约](scene-depth-data.md) |
+| 可选场景 SSR | `ScreenSpaceReflection`；绑定到 HDR 管线，使用不含角色的场景颜色／深度历史，见 [SSR 接入](screen-space-reflection.md) |
 
 字符串选择接口找不到 ID/label 时返回 false；索引接口沿用已有行为。需先初始化，部分清单在初始化前为空引用。`CharacterSceneOptions.StartStory` 默认 false；true 沿用旧自动剧情起播点 **8.45 秒**。若要从头播放，初始化后显式调用 `Timeline.StartStory(0f)`。
 

@@ -176,7 +176,7 @@ namespace GakumasPhotoMode
             return null;
         }
 
-        private static bool ValidSurface(Surface s)
+        internal static bool ValidSurface(Surface s)
         {
             if (s == null || s.renderer == null || s.materialIndex < 0 ||
                 s.materialIndex >= s.renderer.sharedMaterials.Length || !Unit(s.alphaCutoff) || !Unit(s.smoothness) ||

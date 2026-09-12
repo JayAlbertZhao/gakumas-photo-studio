@@ -136,6 +136,7 @@ namespace GakumasPhotoMode
                 VerifyTemporalClassification(report);
                 VerifyActorVertexEncoding(report);
                 VerifySceneDepthData(report);
+                VerifyScreenSpaceReflection(report);
                 report.accepted = report.checks.TrueForAll(check => check.accepted);
             }
             catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); }

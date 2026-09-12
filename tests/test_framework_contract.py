@@ -76,6 +76,30 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertIn('result = min(result', source)
         self.assertIn('_MainTex ("Depth reduction input", 2D)', source)
 
+    def test_ssr_has_actor_free_history_and_owned_visibility_depth(self):
+        source = (RUNTIME / 'ScreenSpaceReflection.cs').read_text(encoding='utf-8')
+        for forbidden in ('BundleCatalog', 'PhotoModeApp', 'FindObjectsOfType', 'Shader.SetGlobal', 'BuiltinRenderTextureType.Depth)'):
+            self.assertNotIn(forbidden, source)
+        for required in ('public bool reflectionsEnabled;', 'BuiltinRenderTextureType.CurrentActive',
+                         'Graphics.Blit(_sceneColor, _historyColor)', 'Graphics.Blit(_frame.linearDepth, _historyDepth)',
+                         'camera != _camera', '_consumedSequence == _renderSequence', 'RemoveCommandBuffer'):
+            self.assertIn(required, source)
+        self.assertNotIn('Graphics.Blit(source, _historyColor)', source)
+
+    def test_ssr_is_explicitly_bound_before_fog_and_temporal(self):
+        source = (RUNTIME / 'OriginalStyleRenderPipeline.cs').read_text(encoding='utf-8')
+        body = source.split('private void OnRenderImage', 1)[1]
+        self.assertLess(body.index('screenSpaceReflection.TryComposite'), body.index('ApplySceneDistanceFog(current'))
+        self.assertNotIn('AddComponent<ScreenSpaceReflection>', (RUNTIME / 'CharacterSceneRuntime.cs').read_text(encoding='utf-8'))
+
+    def test_ssr_uses_explicit_projection_conventions_and_depth_rejection(self):
+        source = (RUNTIME / 'Resources/ScreenSpaceReflection.shader').read_text(encoding='utf-8')
+        self.assertIn('UNITY_UV_STARTS_AT_TOP', source)
+        self.assertIn('TextureUv(previousClip)', source)
+        self.assertIn('abs(previousDepth - expectedDepth) > _SsrHistory.y', source)
+        self.assertIn('sceneDepth - _SsrTrace.y', source)
+        self.assertIn('if (level > 0) { level--; continue; }', source)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -71,6 +71,8 @@ pipeline.sphereFog = new SphereFogSettings {
 
 ## 边界
 
+`ScreenSpaceReflection` 可独立用于 Built-in Forward 场景，默认关闭。它捕获不含角色的背景颜色和深度，用 Hi-Z 追踪与历史深度检查产生反射；通过 `OriginalStyleRenderPipeline.screenSpaceReflection` 或自己的 HDR 回调接入。当前提供显式加法合成，统一的 SSR／Planar／Probe 混合与移动优化尚未完成。详见 [SSR 接入与限制](../../docs/screen-space-reflection.md)。
+
 场景消费者可单独接入 `SceneDepthData`，获得不含 normal map 的世界网格法线、显式 SSR 资格、独立线性深度和可选最小深度层级。宿主登记 opaque／cutout 表面与排除层，不自动扫描角色或改变主画面；这是反射等效果的输入模块，还没有 SSR trace／合成。相机所有权、调用时机与平台限制见 [SceneDepthData 接入](../../docs/scene-depth-data.md)。
 
 这是从现有应用抽出的第一版 Unity 包，仍含单主角/单场景协调器、全局 shader / RenderSettings 状态和少量既有诊断环境变量/进程参数。尚不保证同进程多实例隔离，不是纯 C# 或引擎无关 SDK。宿主若已有相机/环境，需要自行安排场景；初版不提供通用世界管理器。

@@ -46,7 +46,7 @@ if (geometry.TryGetFrame(camera, targetWidth, targetHeight, out var frame)) {
 
 空白像素的 normalMask 为全零，不能解码成表面法线。SSR 资格为零的真实表面仍有深度和法线。RGBA8 法线有量化误差，需要解码后归一化。这里的 alpha 与 ActorData 材质判别码、TAA 分类位没有任何复用关系。
 
-层级使用独立纹理，不是硬件 mip 链；例如 5×3 → 3×2 → 2×1 → 1×1，保留奇数边缘。`buildDepthHierarchy = false` 时只提供基础深度和法线。层级还不是 SSR：历史颜色、射线遍历、命中失败回退与反射合成尚未接入。
+层级使用独立纹理，不是硬件 mip 链；例如 5×3 → 3×2 → 2×1 → 1×1，保留奇数边缘。`buildDepthHierarchy = false` 时只提供基础深度和法线。本组件仅生成输入；[ScreenSpaceReflection](screen-space-reflection.md) 是单独的可选消费者，负责匹配的场景颜色历史、射线遍历、重投影与反射接入。
 
 ## 表面与平台限制
 

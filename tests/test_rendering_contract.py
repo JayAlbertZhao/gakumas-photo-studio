@@ -10,7 +10,10 @@ class ActorRenderingWiringTests(unittest.TestCase):
     def test_scene_fog_routes_before_temporal_without_leaking_capture_profile(self):
         pipeline = (ROOT / 'packages/com.digital-kotone.toolkit/Runtime/OriginalStyleRenderPipeline.cs').read_text(encoding='utf-8')
         render = pipeline.split('private void OnRenderImage(', 1)[1].split('public bool TryGetSceneDistanceFog(', 1)[0]
-        self.assertLess(render.index('ApplySceneDistanceFog(source, temporaries)'),
+        self.assertIn('RenderTexture current = source;', render)
+        self.assertLess(render.index('screenSpaceReflection.TryComposite('),
+                        render.index('current = ApplySceneDistanceFog(current, temporaries)'))
+        self.assertLess(render.index('current = ApplySceneDistanceFog(current, temporaries)'),
                         render.index('Graphics.Blit(current, temporal, _postMaterial, 7)'))
         fog = pipeline.split('public bool TryGetSceneDistanceFog(', 1)[1].split('private RenderTexture ApplyDepthOfField(', 1)[0]
         for contract in ('!overrideSceneDistanceFog && _presentationContext != PresentationContext.CapturedRiverbed',

@@ -53,6 +53,7 @@ namespace GakumasPhotoMode
         // Opt-in and owned by this camera; no scene search or global registry.
         public SphereFogSettings sphereFog = new SphereFogSettings();
         public TemporalClassification temporalClassification;
+        public ScreenSpaceReflection screenSpaceReflection;
 
         private Camera _sourceCamera;
         private Camera _actorCamera;
@@ -302,7 +303,10 @@ namespace GakumasPhotoMode
             // no full-resolution skin-only blur here. Bypass the former identity blit in
             // production so it cannot add an extra resample/format round-trip. Retain the
             // old face blur only behind an explicit diagnostic switch.
-            RenderTexture current = ApplySceneDistanceFog(source, temporaries);
+            RenderTexture current = source;
+            if (screenSpaceReflection != null &&
+                screenSpaceReflection.TryComposite(_sourceCamera, source, out RenderTexture reflected)) current = reflected;
+            current = ApplySceneDistanceFog(current, temporaries);
             current = ApplySphereFog(current, temporaries);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "--legacy-diffusion") >= 0)
             {
