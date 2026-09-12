@@ -128,6 +128,34 @@ class FrameworkContractTests(unittest.TestCase):
         for forbidden in ('ForwardAdd', 'ShadowCaster', '_WorldSpaceLightPos0', '_LightColor0'):
             self.assertNotIn(forbidden, shader)
 
+    def test_unified_reflection_requires_indirect_source_contract(self):
+        source = (RUNTIME / 'SceneReflectionResolve.cs').read_text(encoding='utf-8')
+        for forbidden in ('FindObjectsOfType', 'Shader.SetGlobal', '.sharedMaterial =', 'PhotoModeApp', 'OnRenderImage'):
+            self.assertNotIn(forbidden, source)
+        for required in ('public bool inputExcludesIndirectSpecular;', 'if (!inputExcludesIndirectSpecular)',
+                         'BuiltinRenderTextureType.CurrentActive', 'screenSpaceReflection.TryTrace(',
+                         '_consumed == _sequence', 'camera == _camera', 'RemoveCommandBuffer'):
+            self.assertIn(required, source)
+        self.assertNotIn('screenSpaceReflection.TryComposite', source)
+
+    def test_unified_reflection_has_planar_priority_and_geometry_trace(self):
+        ssr = (RUNTIME / 'Resources/ScreenSpaceReflection.shader').read_text(encoding='utf-8')
+        self.assertLess(ssr.index('_SsrPlanarCoverage.Load'), ssr.index('float4 packed ='))
+        resolve = (RUNTIME / 'Resources/SceneReflectionResolve.shader').read_text(encoding='utf-8')
+        self.assertLess(resolve.index('if (planar.a > 1e-5)'), resolve.index('float4 ssr ='))
+        for required in ('lerp(probe, planar.rgb', 'lerp(probe, ssr.rgb',
+                         'tex2D(_ResolveOffset, uv).z - data.z', 'shading - geometric',
+                         'determinant((float3x3)unity_ObjectToWorld)'):
+            self.assertIn(required, resolve)
+        self.assertNotIn('v.tangent.w * unity_WorldTransformParams.w', resolve)
+
+    def test_unified_reflection_pipeline_does_not_double_consume_ssr(self):
+        source = (RUNTIME / 'OriginalStyleRenderPipeline.cs').read_text(encoding='utf-8')
+        render = source.split('private void OnRenderImage', 1)[1]
+        self.assertLess(render.index('sceneReflectionResolve.TryComposite'), render.index('screenSpaceReflection.TryComposite'))
+        self.assertIn('else if (screenSpaceReflection != null', render)
+        self.assertNotIn('AddComponent<SceneReflectionResolve>', (RUNTIME / 'CharacterSceneRuntime.cs').read_text(encoding='utf-8'))
+
 
 if __name__ == '__main__':
     unittest.main()

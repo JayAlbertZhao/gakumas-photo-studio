@@ -2,7 +2,7 @@
 
 `ScreenSpaceReflection` 在工具包内提供桌面 Built-in Forward 的 SSR 路径。它使用 [SceneDepthData](scene-depth-data.md) 的几何法线／最小深度层级，沿反射方向查找当前场景交点，把交点投回上一批场景颜色，检查历史深度后输出 HDR 反射与置信度。
 
-本实现采用 PDF 第 37–43 页描述的屏幕空间反射、Hi-Z 和角色排除思路。当前后端采用 pixel shader 追踪与 raster 最小深度层级；原文的 Compute／RandomWrite 后端、移动端性能和完整间接反射合成尚待后续阶段，不能仅凭 SSR 有画面就记为全部完成。
+本实现采用 PDF 第 37–43 页描述的屏幕空间反射、Hi-Z 和角色排除思路。当前后端采用 pixel shader 追踪与 raster 最小深度层级；Compute／RandomWrite 后端、粗糙度过滤和移动端性能尚待后续阶段。Planar／SSR／Probe 的可选统一消费者见 [SceneReflectionResolve](scene-reflection-resolve.md)，不能仅凭 SSR 有画面就记为全部完成。
 
 ## Photo Studio 管线接入
 
@@ -37,7 +37,9 @@ camera.GetComponent<OriginalStyleRenderPipeline>().screenSpaceReflection = ssr;
 
 首次捕获、显式 `ResetHistory()`、切镜、投影大幅变化、场景层／登记集合改变、尺寸变化或渲染中断时不使用旧颜色，保持源图并重新建立历史。正常命中会投影到上次 view/projection，用历史深度拒绝遮挡变化、离屏交点和不可信颜色。颜色来自前一次背景捕获，不使用主图、已含反射的结果或 TAA 历史，因此不会形成 SSR 自反馈。
 
-无命中或历史失效时反射贡献为零，已有材质结果保留。当前内置合成为 `source.rgb + reflection.rgb × confidence × intensity`，保留 alpha。这是显式的加法接入方式，不会自动扣掉材质里已存在的 Reflection Probe 项，也不代表完整 PBR 间接光混合；Planar／SSR／Probe 的统一合成属于后续阶段。
+无命中或历史失效时反射贡献为零，已有材质结果保留。`TryComposite` 内置合成为 `source.rgb + reflection.rgb × confidence × intensity`，保留 alpha。这是显式的加法接入方式，不会自动扣掉材质里已存在的 Reflection Probe 项，也不代表完整 PBR 间接光混合。
+
+`TryTrace(camera, source, planarCoverage, out reflection)` 只生成辐射／置信度并推进同源历史，不产生加法合成。可选 planarCoverage 必须是同尺寸 2D 纹理；A>1e-5 的区域在追踪前被跳过。冷历史生成零置信度，统一消费者此时使用 Probe；输入／生命周期检查失败才返回 false、输出 null。非零 intensity 不作为此输出的辐射倍率，0 仍禁用 SSR。`TryTrace` 与 `TryComposite` 共用每次渲染只能消费一次的限制。[统一反射模块](scene-reflection-resolve.md) 使用此入口按接收面材质合成，并明确要求主输入已去掉旧间接镜面项。
 
 ## 参数
 

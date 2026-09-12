@@ -135,8 +135,21 @@ namespace GakumasPhotoMode
 
         /// <summary>Borrowed HDR result; call once per render from the owning camera's image effect.</summary>
         public bool TryComposite(Camera camera, RenderTexture source, out RenderTexture result)
+            => TryRender(camera, source, null, true, out result);
+
+        /// <summary>Trace without additive composition. Planar coverage skips covered pixels; either path consumes this render.</summary>
+        public bool TryTrace(Camera camera, RenderTexture source, Texture planarCoverage, out RenderTexture reflection)
+        {
+            reflection = null;
+            if (!TryRender(camera, source, planarCoverage, false, out _)) return false;
+            reflection = _reflection; return true;
+        }
+
+        private bool TryRender(Camera camera, RenderTexture source, Texture planarCoverage, bool composite, out RenderTexture result)
         {
             result = source;
+            if (planarCoverage != null && (source == null || planarCoverage.dimension != TextureDimension.Tex2D ||
+                planarCoverage.width != source.width || planarCoverage.height != source.height)) return false;
             if (!isActiveAndEnabled || !reflectionsEnabled || camera != _camera || source == null ||
                 _preparedFrame != Time.frameCount || _renderedFrame != Time.frameCount ||
                 _consumedSequence == _renderSequence || _sceneColor == null ||
@@ -153,6 +166,8 @@ namespace GakumasPhotoMode
                 MatrixDistance(_historyProjection, _frame.gpuProjection) < .1f;
             _material.SetTexture("_SsrNormalMask", _frame.normalMask);
             _material.SetTexture("_SsrVisibility", _visibility);
+            _material.SetTexture("_SsrPlanarCoverage", planarCoverage != null ? planarCoverage : Texture2D.blackTexture);
+            _material.SetFloat("_SsrPlanarAvailable", planarCoverage != null ? 1 : 0);
             for (int level = 0; level < 15; level++)
                 _material.SetTexture("_SsrDepth" + level, _frame.GetDepthLevel(Mathf.Min(level, _frame.DepthLevelCount - 1)));
             _material.SetTexture("_SsrHistoryColor", _historyColor);
@@ -169,7 +184,7 @@ namespace GakumasPhotoMode
             _material.SetVector("_SsrHistory", new Vector4(continuous ? 1 : 0, historyDepthTolerance, edgeFade, intensity));
             Graphics.Blit(source, _reflection, _material, 1);
             _material.SetTexture("_SsrReflection", _reflection);
-            if (continuous) Graphics.Blit(source, _composite, _material, 2);
+            if (continuous && composite) Graphics.Blit(source, _composite, _material, 2);
             // Copy only the actor-free auxiliary capture, never the composited
             // main frame. This also prevents recursive reflection feedback.
             Graphics.Blit(_sceneColor, _historyColor);
@@ -179,7 +194,7 @@ namespace GakumasPhotoMode
             _historyOrthographic = camera.orthographic;
             _historyLayers = _sceneCamera.cullingMask; _historySurfaceSignature = _surfaceSignature;
             _historyFrame = Time.frameCount; HistoryAvailable = true;
-            result = continuous ? _composite : source;
+            result = continuous && composite ? _composite : source;
             return true;
         }
 

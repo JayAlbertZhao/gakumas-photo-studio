@@ -138,6 +138,7 @@ namespace GakumasPhotoMode
                 VerifySceneDepthData(report);
                 VerifyScreenSpaceReflection(report);
                 VerifyPlanarReflection(report);
+                VerifySceneReflectionResolve(report);
                 report.accepted = report.checks.TrueForAll(check => check.accepted);
             }
             catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); }

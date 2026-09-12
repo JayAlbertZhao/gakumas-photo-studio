@@ -6,6 +6,7 @@ Shader "Hidden/GakumasPhotoMode/ScreenSpaceReflection"
         [HideInInspector] _MainTex ("HDR source", 2D) = "black" {}
         [HideInInspector] _SsrNormalMask ("Scene normal mask", 2D) = "black" {}
         [HideInInspector] _SsrVisibility ("Visible receivers", 2D) = "black" {}
+        [HideInInspector] _SsrPlanarCoverage ("Planar priority regions", 2D) = "black" {}
         [HideInInspector] _SsrHistoryColor ("Actor free history color", 2D) = "black" {}
         [HideInInspector] _SsrHistoryDepth ("Actor free history depth", 2D) = "black" {}
         [HideInInspector] _SsrReflection ("Radiance and confidence", 2D) = "black" {}
@@ -30,6 +31,8 @@ Shader "Hidden/GakumasPhotoMode/ScreenSpaceReflection"
         CGINCLUDE
         #include "UnityCG.cginc"
         Texture2D<float4> _SsrNormalMask, _SsrVisibility, _SsrHistoryColor;
+        Texture2D<float4> _SsrPlanarCoverage;
+        float _SsrPlanarAvailable;
         Texture2D<float> _SsrHistoryDepth;
         Texture2D<float> _SsrDepth0;
         Texture2D<float> _SsrDepth1;
@@ -130,6 +133,7 @@ Shader "Hidden/GakumasPhotoMode/ScreenSpaceReflection"
             {
                 if (_SsrHistory.x < .5) return 0;
                 int2 originPixel = min((int2)(i.uv * _SsrSize.xy), (int2)_SsrSize.xy - 1);
+                if (_SsrPlanarAvailable > .5 && _SsrPlanarCoverage.Load(int3(originPixel, 0)).a > 1e-5) return 0;
                 float4 packed = _SsrNormalMask.Load(int3(originPixel, 0));
                 float originDepth = DepthAt(0, originPixel);
                 if (packed.a < .5 || _SsrVisibility.Load(int3(originPixel, 0)).r < .5 || originDepth >= _SsrFrame.x) return 0;

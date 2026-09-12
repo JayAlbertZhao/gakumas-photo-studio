@@ -36,6 +36,8 @@ planar.reflectionsEnabled = true;
 
 RGB 是线性 HDR 反射颜色，A 是反射覆盖与 Receiver.strength；它不是透明材质的 opacity，也不包含 Fresnel 或镜面反射率。宿主应将此纹理与 SSR、Probe 的独立间接光项组合，再按自身材质响应合成。直接把 RGB 加到已经包含 Probe 的主颜色可能重复计算间接光，因此本组件不自动接入 Photo Studio 的加法 SSR 入口。
 
+包内 [SceneReflectionResolve](scene-reflection-resolve.md) 提供显式统一消费者：优先 Planar、跳过其覆盖区域的 SSR、失败回退 Probe，并以全分辨率法线差分扭曲屏幕反射。宿主须登记相同接收面并保证其主材质已去掉旧间接镜面项；捕获组件本身仍不改主材质。
+
 ## 捕获绘制契约
 
 - 每个 Draw 显式指定 renderer、materialIndex、材质和一个 pass。只绘制注册项且位于 reflectedLayers 内的对象，不受主相机可见范围限制。允许生成的 SkinnedMeshRenderer；画外蒙皮更新策略由宿主设置。

@@ -54,6 +54,7 @@ namespace GakumasPhotoMode
         public SphereFogSettings sphereFog = new SphereFogSettings();
         public TemporalClassification temporalClassification;
         public ScreenSpaceReflection screenSpaceReflection;
+        public SceneReflectionResolve sceneReflectionResolve;
 
         private Camera _sourceCamera;
         private Camera _actorCamera;
@@ -304,7 +305,9 @@ namespace GakumasPhotoMode
             // production so it cannot add an extra resample/format round-trip. Retain the
             // old face blur only behind an explicit diagnostic switch.
             RenderTexture current = source;
-            if (screenSpaceReflection != null &&
+            if (sceneReflectionResolve != null &&
+                sceneReflectionResolve.TryComposite(_sourceCamera, source, out RenderTexture resolved)) current = resolved;
+            else if (screenSpaceReflection != null &&
                 screenSpaceReflection.TryComposite(_sourceCamera, source, out RenderTexture reflected)) current = reflected;
             current = ApplySceneDistanceFog(current, temporaries);
             current = ApplySphereFog(current, temporaries);
