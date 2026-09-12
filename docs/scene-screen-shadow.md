@@ -1,6 +1,6 @@
 # ScreenShadow 与 Capsule AO
 
-`SceneDeferredCamera.screenShadow` 提供默认关闭的屏幕主灯可见性和胶囊环境可见性。对应 PDF15／17／19 的光源深度、几何深度法线、ScreenShadow／CapsuleAO 数据流。公式为独立实现；没有引入原版 shader／素材或第三方 AO 插件。GTAO 仍待实现，不把胶囊近似几何的环境遮蔽称作 GTAO。
+`SceneDeferredCamera.screenShadow` 提供默认关闭的屏幕主灯可见性和环境可见性。对应 PDF15／17／19 的光源深度、几何深度法线、ScreenShadow／CapsuleAO 数据流。公式为独立实现；没有引入原版 shader／素材或第三方 AO 插件。胶囊与新增的可选 [GTAO](scene-gtao.md) 分别计算，再合并进 G 通道。
 
 ```csharp
 scene.mainLightShadow.enabled = true; // 仍需配置光源范围及显式 caster
@@ -23,11 +23,11 @@ scene.screenShadow = new SceneScreenShadowSettings {
 
 ## 实际调度与附件
 
-开启且存在有效主灯阴影或非零 Capsule AO 时，模块按以下顺序执行：
+开启且存在有效主灯阴影、非零 Capsule AO 或非零 GTAO 时，模块按以下顺序执行：
 
 1. 主方向光、Point／Spot 的实际光源深度。
 2. 登记场景表面的几何预通道。
-3. 主灯阴影与胶囊 AO 的屏幕 resolve。
+3. 主灯阴影、胶囊 AO 与可选 GTAO 的屏幕 resolve。
 4. 原场景材质 GBuffer、贴花、附加灯和最终 HDR／深度 resolve。
 
 预通道复用登记表面的 renderer／submesh、vertexScale、cull、albedoMap alpha、uvST、alpha 和 cutoff，具有自己的最近深度附件。只保存平滑网格世界法线和正视空间深度；不采 normalMap、材质贴花、GI 或 Forward 角色。宿主相机深度不作为场景预通道，caster 也不会自动成为接收器。
@@ -37,7 +37,7 @@ scene.screenShadow = new SceneScreenShadowSettings {
 | 附件 | 格式及通道 | 清屏／采样 |
 | --- | --- | --- |
 | `Frame.screenGeometry` | RGBAFloat：RGB=世界网格法线，A=正视空间深度；另有 24 位请求的硬件深度附件 | 清 0，A≤0 为背景；Point 采样 |
-| `Frame.shadowOcclusion` | **R8G8_UNorm**：R=主灯可见性，G=胶囊环境可见性 | 两通道 1 表示完全可见；背景写 1；Point 采样 |
+| `Frame.shadowOcclusion` | **R8G8_UNorm**：R=主灯可见性，G=胶囊与可选 GTAO 的环境可见性 | 两通道 1 表示完全可见；背景写 1；Point 采样 |
 
 两张图与宿主目标同分辨率，不做缩放、双线性插值、时域滤波或深度引导上采样。8 位可见性会量化中间强度／PCF 结果；不保证与直接深度比较路径逐字节相同。颜色附件额外占 18 字节/像素，再加预通道硬件深度及驱动开销。没有 Memoryless／subpass 复用，不能把本桌面实现的附件布局当成移动端性能完成。
 
@@ -60,7 +60,7 @@ R 由现有主方向光的真实深度图和 Hard／PCF／strength／bias 产生
 
 ## 所有权、失败与验证范围
 
-纹理和材质归宿主相机独占。Frame 中两张纹理均为借用数据，必须检查 `Frame.IsCurrent`；渲染、尺寸变化、目标丢失和禁用会使旧帧失效。禁止调用方释放借用纹理。关闭后不增加预通道、屏幕 resolve 或附件；无有效主灯阴影且无非零胶囊效果时同样不分配。启用但非法的配置先拒绝，不靠零贡献掩盖错误；关闭时不校验未使用配置。
+纹理和材质归宿主相机独占。Frame 中两张纹理均为借用数据，必须检查 `Frame.IsCurrent`；渲染、尺寸变化、目标丢失和禁用会使旧帧失效。禁止调用方释放借用纹理。关闭后不增加预通道、屏幕 resolve 或附件；无有效主灯阴影且胶囊／GTAO 均无非零效果时同样不分配。启用但非法的配置先拒绝，不靠零贡献掩盖错误；关闭时不校验未使用配置。
 
 对 RG8 的渲染／采样支持进行 [IsFormatSupported](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/SystemInfo.IsFormatSupported.html) 检查，不支持或分配后格式改变时拒绝场景帧，不暗中换成更宽格式。当前实际验收设备为本机 t15／D3D11；其他 GPU／API 的拒绝或兼容行为仍需实测。
 
@@ -68,4 +68,4 @@ R 由现有主方向光的真实深度图和 Hard／PCF／strength／bias 产生
 
 资产无关 Player 自检覆盖独立平面深度／法线、主光射线、双精度胶囊半球相交、四档采样、端点顺序／退化球、并集与重复、裁切／法线贴图、主灯／GI／附加灯／emission 分量求和、蒙皮／静态参考、Forward 排除及多相机／目标生命周期。`GAKUMAS_SELFTEST_CAPTURE_SCREEN_SHADOW=1` 请求原生截帧，检查光源深度→预通道→RG8→材质→灯光的实际顺序和绑定；不要与其他捕获开关混用。
 
-尚未完成 GTAO、烘焙 ShadowMask 打包、Actor 自阴影／完整角色接收、Forward+、低分辨率／时域稳定 AO、与 SSR 共 RenderPass、移动附件和实机成本。详见 [完整技术清单](framework-techniques.md)。
+GTAO 可通过 `screenShadow.gtao` 独立启用，采样与合并限制见 [GTAO 契约](scene-gtao.md)。尚未完成烘焙 ShadowMask 打包、Actor 自阴影／完整角色接收、Forward+、低分辨率／时域稳定 AO、与 SSR 共 RenderPass、移动附件和实机成本。详见 [完整技术清单](framework-techniques.md)。

@@ -39,7 +39,7 @@
 | P02 | Bokeh DOF 范围、分辨率无关散景、30 次采样；PPT 127–128 | 可控 DOF 已有，现为 43 次采样 | 先核对版本／质量档，再做 30 次采样质量与成本对照 |
 | P03 | Bloom、Diffusion、Paraffin、色调／颜色处理；PPT 126 | 已有部分复现和配置 | 更广配置、无私有 LUT 时的自主制作流程与完整阶段一致性 |
 | P04 | Motion Blur；PPT 126、PDF 15 | 未接入完整阶段 | 相机／物体运动、暂停、切镜与遮挡边界 |
-| P05 | GTAO、脚部 Capsule AO；PDF 19 | 新增显式世界胶囊与真实射线半球积分，RG8 G 通道仅作用于间接漫反射；非 GTAO，见 [Capsule AO](scene-screen-shadow.md) | GTAO、自动脚部拟合／全角色接触、低分辨率／时域稳定、薄面与移动成本仍待完成 |
+| P05 | GTAO、脚部 Capsule AO；PDF 19、PPT126 | 显式世界胶囊射线积分与新增视轴 GTAO horizon／余弦角积分，实际 RG8 G 通道合并，仅调制间接漫反射；见 [GTAO](scene-gtao.md) 与 [Capsule AO](scene-screen-shadow.md) | 自动脚部拟合／全角色接触、低分辨率／时域稳定、薄面启发式的复杂场景质量与移动成本仍待完成 |
 | P06 | 距离雾／球形雾；PPT 130、PDF 29 | 已有距离雾、单球独立模型 | 多球、双雾组合、透明层与原版参数仍未验收 |
 | P07 | 体积光及动态 DepthShadow；PPT 131 | 未接入 | 光体积积分、动态遮挡与质量档；不附带第三方插件 |
 | P08 | Flare／Ghost；PPT 129 | 未覆盖讲演列举的完整能力 | 可替换实现、可见性与遮挡、动画配置 |

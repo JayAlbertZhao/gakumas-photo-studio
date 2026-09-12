@@ -451,6 +451,28 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertNotIn('mappedNormal(', prepass)
         self.assertIn('tex2D(_AlbedoMap, input.uv).a * _Alpha - _Cutoff', prepass)
 
+    def test_gtao_uses_view_axis_horizons_and_keeps_legacy_variant(self):
+        settings = (RUNTIME / 'SceneGtaoSettings.cs').read_text(encoding='utf-8')
+        for token in ('public bool enabled;', 'slices = 4', 'stepsPerSide = 8', 'SceneAmbientCombination', 'normalBias', 'thicknessBlend'):
+            self.assertIn(token, settings)
+        source = (RUNTIME / 'SceneScreenShadowRenderer.cs').read_text(encoding='utf-8')
+        self.assertIn('!hasMain && CapsuleCount == 0 && !_usesGtao', source)
+        self.assertLess(source.index('Invalid GTAO configuration'), source.index('_usesGtao = g.strength > 0'))
+        self.assertIn('_material.DisableKeyword("SCENE_GTAO")', source)
+        shader = (RUNTIME / 'Resources/SceneScreenShadow.shader').read_text(encoding='utf-8')
+        self.assertIn('#pragma multi_compile_local __ SCENE_GTAO', shader)
+        self.assertIn('min(ambient, gtao) : ambient * gtao', shader)
+        gtao = (RUNTIME / 'Resources/SceneGtao.hlsl').read_text(encoding='utf-8')
+        for token in ('GtaoPrimitive(', 'GtaoArc(', 'GtaoHorizon(', 'abs(sin(theta))',
+                      'World(sampleUv, depth)', 'sampleUv < 1', 'transverse > 0',
+                      'blocked / _GtaoQuality.x', 'tangentClip.w', 'distance < _GtaoParameters.x', 'dot(delta, normal) > 0'):
+            self.assertIn(token, gtao)
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Gtao.cs').read_text(encoding='utf-8')
+        for token in ('numerical-slice-oracle', 'Math.Sin(theta)', 'thin-decay-reduces-overocclusion',
+                      'world-unit-radius-scale-invariance', 'direct-and-emission-not-ao-darkened',
+                      'GAKUMAS_SELFTEST_CAPTURE_GTAO', 'invalid-before-zero-strength-pruning'):
+            self.assertIn(token, fixture)
+
     def test_main_shadow_is_explicit_orthographic_and_owned_before_scene_geometry(self):
         settings = (RUNTIME / 'SceneDirectionalShadowSettings.cs').read_text(encoding='utf-8')
         for token in ('public bool enabled;', 'public Vector3 origin', 'public Vector3 up',

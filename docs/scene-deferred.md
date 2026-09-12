@@ -86,7 +86,7 @@ aoOut = lerp(aoIn, decalAO, aoWeight)
 
 直接光使用显式世界表面朝光方向 `lightDirection` 和线性 `lightRadiance`。`ambientIrradiance` 是宿主输入的统一间接漫反射照度；可选 [场景 GI](scene-gi.md) 使用显式 Lightmap／SH 输入，AO 只作用于间接漫反射。可选 [贴花灯](scene-decal-lights.md) 在 float32 目标累加实际直接光；主方向光及 Spot／Point 可使用 [光源阴影](scene-light-shadows.md)，不自动读取 Unity 全局灯光。输出在场景照明完成后只写入一次，然后允许宿主 Forward 几何进行正常深度测试。
 
-可选 `screenShadow` 在材质 GBuffer 之前增加实际几何预通道和 RG8 resolve。只保存网格法线与正视空间深度，R 供主灯直接光、G 供间接漫反射；后者由显式世界胶囊的射线半球积分产生。主灯／Spot／Point 源深度在该预通道之前提交，附加灯不重复绘制阴影。两张借用目标通过 `Frame.screenGeometry`／`Frame.shadowOcclusion` 暴露，跟随相机生命周期。关闭时保留原来的主灯深度直接采样与调度。几何选择、量化、内存和未完成 GTAO 的边界见 [ScreenShadow](scene-screen-shadow.md)。
+可选 `screenShadow` 在材质 GBuffer 之前增加实际几何预通道和 RG8 resolve。只保存网格法线与正视空间深度，R 供主灯直接光、G 供间接漫反射；后者由显式世界胶囊射线积分与可选 [GTAO](scene-gtao.md) 合并产生。主灯／Spot／Point 源深度在该预通道之前提交，附加灯不重复绘制阴影。两张借用目标通过 `Frame.screenGeometry`／`Frame.shadowOcclusion` 暴露，跟随相机生命周期。关闭时保留原来的主灯深度直接采样与调度。几何选择、量化、内存和时域／移动边界见 [ScreenShadow](scene-screen-shadow.md)。
 
 仅支持 Built-in Forward、完整视口、非 XR/MSAA/动态分辨率、带深度的固定线性 ARGBHalf/ARGBFloat 2D 目标。暂不支持直接 backbuffer、相机叠加保留旧深度或 SRP。`TryGetFrame` 应在 `Camera.Render` 之后或 `OnRenderImage` 中读取。附件为借用对象，不得写入、Release 或保存跨渲染的使用权，`IsCurrent` 检查帧序和目标生命周期。尺寸变动、目标丢失会重建；禁用或无效输入释放私有资源，不释放宿主目标。
 

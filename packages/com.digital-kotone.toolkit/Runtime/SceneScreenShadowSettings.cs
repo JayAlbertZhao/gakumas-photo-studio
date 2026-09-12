@@ -17,6 +17,7 @@ namespace GakumasPhotoMode
     public sealed class SceneScreenShadowSettings
     {
         public bool enabled;
+        public SceneGtaoSettings gtao = new SceneGtaoSettings();
         public SceneCapsuleOccluder[] capsules = Array.Empty<SceneCapsuleOccluder>();
         // Cosine-weighted deterministic hemisphere samples: 8,16,32,64.
         public int capsuleSamples = 32;
