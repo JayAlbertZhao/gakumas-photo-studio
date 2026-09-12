@@ -294,6 +294,8 @@
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneCompute.cs.meta",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneDepth.cs",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneDepth.cs.meta",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Spot.cs",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Spot.cs.meta",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Ssr.cs",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Ssr.cs.meta",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SsrRoughness.cs",

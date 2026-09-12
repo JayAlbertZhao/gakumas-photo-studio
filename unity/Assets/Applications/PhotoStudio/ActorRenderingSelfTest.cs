@@ -147,6 +147,7 @@ namespace GakumasPhotoMode
                 VerifySceneDeferred(report);
                 VerifySceneDecalLights(report);
                 VerifySceneGi(report);
+                VerifySceneSpotLights(report);
                 report.accepted = report.checks.TrueForAll(check => check.accepted);
             }
             catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); }

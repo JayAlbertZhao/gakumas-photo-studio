@@ -26,7 +26,7 @@
 | A09 | 辅助骨、链、碰撞、参考角度、滑动、跨轴力；PPT 75–78、90–93 | 已有多个求解模块 | 全服装范围、极端动作、坐姿边界与动态对照 |
 | A10 | 自然风、阵风和停歇；PPT 94 | 新增 NaturalWindSettings 及角色接入 | 见下方接口；原版资产参数映射和全动作视觉一致性未验收 |
 | E01 | 背景 PBR 及其 Def 通道；PPT 108 | 已有背景 fallback | 特殊材质、更多场景输入与 shader 变体 |
-| E02 | 线性灯光衰减、可调镜面、GI 乘色、背向补光；PPT 110–112 | 独立 Lightmap／SH GI 缓冲、方向光及贴花灯 GI 乘色、基础 GI 压暗和漫反射背光；Editor 场景副本白光烘焙 | 桌面真实 Lightmapping、UV2/ST、45 探针空间插值与移动单骨网格 GI 已验收；全角色／场景、动态光源遮挡及原生 Spot 仍待完成，见 [GI 契约](scene-gi.md) |
+| E02 | 线性灯光衰减、可调镜面、GI 乘色、背向补光；PPT 110–112 | 独立 Lightmap／SH GI 缓冲、方向光及场景灯 GI 乘色、基础 GI 压暗和漫反射背光；白光烘焙；新增 Spot 内／外锥与共享实例化 | 桌面真实烘焙、探针／单骨蒙皮 GI 和 Spot 整图 CPU／原生实例输入已验收；全角色／场景、动态光源遮挡仍待完成，见 [GI](scene-gi.md) 与 [Spot](scene-decal-lights.md#spot-聚光灯) |
 | E03 | DepthID 几何法线及 SSR mask；PDF 17 | 独立 SceneDepthData：世界网格法线、smoothness 资格、线性深度；min hierarchy 可选 raster／Compute | 显式 opaque／cutout 表面与角色层排除已验证；奇数边缘及 CPU／GPU 缩减一致；不猜读原版 MaterialID，不复用 ActorData／TAA 位，见 [数据契约](scene-depth-data.md) |
 | E04 | 背景 Deferred／透明 Forward+／Actor Forward；PDF 13、22–29 | 新增可选 SceneDeferredCamera：场景材质 GBuffer、贴花、HDR 光照／深度在宿主 Forward 之前提交 | 默认不启用；完整 Forward+、阴影／GI／反射整合与移动附件复用仍待完成，见 [场景后端](scene-deferred.md) |
 | E05 | Hi-Z SSR、排除角色；PDF 37–43 | 已有可选 Hi-Z trace、角色排除历史、重投影拒绝、统一间接光消费／Planar skip、Compute／RandomWrite；新增接收面感知的粗糙度辐射过滤 | 桌面 GPU／回退／生命周期及独立 CPU 过滤对照已验收，默认关闭过滤保留旧结果；物理 GGX、复杂场景画质与移动性能仍待完成，见 [过滤契约](ssr-roughness.md)、[计算后端](scene-compute-backend.md) 和 [统一反射](scene-reflection-resolve.md) |

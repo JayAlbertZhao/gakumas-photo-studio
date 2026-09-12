@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace GakumasPhotoMode
 {
-    public enum SceneDecalLightShape { Point, Capsule, Area }
+    public enum SceneDecalLightShape { Point, Capsule, Area, Spot }
     public enum SceneDecalLightBackend { Auto, Scalar, Instanced }
 
     /// <summary>Independent direct-light volume, not a copy of the source game's light ABI.</summary>
@@ -19,6 +19,9 @@ namespace GakumasPhotoMode
         [Min(0)] public float halfLength = .5f;
         public Vector2 halfSize = Vector2.one * .5f;
         public Vector2 areaSpread = Vector2.zero;
+        // Spot emits toward local +Z. Full cone angles in degrees, not half-angles.
+        [Range(0, 179)] public float spotInnerAngle = 30;
+        [Range(.1f, 179)] public float spotOuterAngle = 60;
         public Vector3 radiance = Vector3.one;
         // Point: zw; capsule: zw + t*xy; area: zw + planeUV*xy.
         public Vector4 monitorUV = new Vector4(1, 1, 0, 0);

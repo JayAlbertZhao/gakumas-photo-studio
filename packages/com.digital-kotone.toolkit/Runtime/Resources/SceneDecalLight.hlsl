@@ -92,7 +92,7 @@ float4 LightFrag(LightVarying input) : SV_Target
         float t = light.axisXLength.w > 1e-6 ? along / (2 * light.axisXLength.w) + .5 : .5;
         atlasUv += light.uv.xy * t;
     }
-    else
+    else if (light.radianceShape.w < 2.5)
     {
         float z = dot(delta, light.axisZHeight.xyz); if (z <= 0 || z >= light.positionRange.w) discard;
         float2 nearHalf = float2(light.axisYWidth.w, light.axisZHeight.w);
@@ -102,7 +102,18 @@ float4 LightFrag(LightVarying input) : SV_Target
         source += light.axisXLength.xyz * (projected.x * nearHalf.x) + light.axisYWidth.xyz * (projected.y * nearHalf.y);
         atlasUv += (projected * .5 + .5) * light.uv.xy; distanceToSource = z;
     }
+    else distanceToSource = length(delta);
     float attenuation = pow(saturate(1 - distanceToSource / light.positionRange.w), light.parameters.w);
+    if (light.radianceShape.w > 2.5)
+    {
+        // Fixed atlas sample, like Point. The cone is angular attenuation, not a cookie.
+        if (distanceToSource <= 1e-6) discard;
+        float cosine = dot(delta / distanceToSource, light.axisZHeight.xyz);
+        float inner = light.parameters.x, outer = light.parameters.y;
+        if (cosine < outer) discard;
+        // Equal angles define a hard cone; do not widen tiny cones with an epsilon.
+        attenuation *= inner > outer ? saturate((cosine - outer) / (inner - outer)) : 1;
+    }
     float3 direction = LightNormal(source - world), n = LightNormal(normal.xyz);
     float3 view = LightNormal(lerp(_LightCameraPosition - world, -_LightCameraForward, _LightOrthographic));
     float3 atlas = clamp(tex2Dlod(_LightAtlas, float4(atlasUv, 0, 0)).rgb, 0, 65504);

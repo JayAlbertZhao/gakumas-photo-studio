@@ -53,12 +53,23 @@ namespace GakumasPhotoMode
                     light.halfSize.y + light.range * light.areaSpread.y, light.range * .5f) :
                     new Vector3(light.range + (light.shape == SceneDecalLightShape.Capsule ? light.halfLength : 0), light.range, light.range);
                 Vector3 center = light.position + (light.shape == SceneDecalLightShape.Area ? z * light.range * .5f : Vector3.zero);
+                bool spot = light.shape == SceneDecalLightShape.Spot;
+                if (spot)
+                {
+                    // Cone clipped by a radial sphere. This oriented box contains the
+                    // entire spherical sector, including the tip and grazing rays.
+                    float radius = light.range * Mathf.Sin(light.spotOuterAngle * Mathf.Deg2Rad * .5f);
+                    size = new Vector3(radius, radius, light.range * .5f); center = light.position + z * light.range * .5f;
+                }
                 if (!ClipRectangle(center, x, y, z, size, vp, out var rect)) { CulledLights++; continue; }
                 _data.Add(new LightData {
                     positionRange = new Vector4(light.position.x, light.position.y, light.position.z, light.range),
                     axisXLength = new Vector4(x.x, x.y, x.z, light.halfLength), axisYWidth = new Vector4(y.x, y.y, y.z, light.halfSize.x),
                     axisZHeight = new Vector4(z.x, z.y, z.z, light.halfSize.y), radianceShape = new Vector4(light.radiance.x, light.radiance.y, light.radiance.z, (int)light.shape),
-                    uv = light.monitorUV, parameters = new Vector4(light.areaSpread.x, light.areaSpread.y, light.receiverGroup, light.falloffExponent),
+                    uv = light.monitorUV, parameters = new Vector4(
+                        spot ? Mathf.Cos(light.spotInnerAngle * Mathf.Deg2Rad * .5f) : light.areaSpread.x,
+                        spot ? Mathf.Cos(light.spotOuterAngle * Mathf.Deg2Rad * .5f) : light.areaSpread.y,
+                        light.receiverGroup, light.falloffExponent),
                     response = new Vector4(light.diffuseScale, light.specularScale, light.giWeight, light.backlightScale), clipRect = rect
                 });
             }
@@ -162,10 +173,12 @@ namespace GakumasPhotoMode
         private static bool Range(float x, float low, float high) => Finite(x) && x >= low && x <= high;
         private static bool Valid(SceneDecalLight light)
         {
-            if ((int)light.shape < 0 || (int)light.shape > 2 || !Range(light.range, .001f, 10000) || !Range(light.halfLength, 0, 10000) ||
+            if ((int)light.shape < 0 || (int)light.shape > 3 || !Range(light.range, .001f, 10000) || !Range(light.halfLength, 0, 10000) ||
                 !Range(light.halfSize.x, .001f, 10000) || !Range(light.halfSize.y, .001f, 10000) || !Range(light.areaSpread.x, 0, 10) || !Range(light.areaSpread.y, 0, 10) ||
                 !Range(light.falloffExponent, 1, 8) || !Range(light.diffuseScale, 0, 4) || !Range(light.specularScale, 0, 4) || light.receiverGroup < 0 || light.receiverGroup > 255) return false;
             if (!Range(light.giWeight, 0, 1) || !Range(light.backlightScale, 0, 4)) return false;
+            if (light.shape == SceneDecalLightShape.Spot && (!Range(light.spotOuterAngle, .1f, 179) ||
+                !Range(light.spotInnerAngle, 0, light.spotOuterAngle))) return false;
             for (int i = 0; i < 3; i++) if (!Range(light.position[i], -1e6f, 1e6f) || !Range(light.radiance[i], 0, 65504)) return false;
             for (int i = 0; i < 4; i++) if (!Finite(light.rotation[i]) || !Finite(light.monitorUV[i])) return false;
             float norm = Quaternion.Dot(light.rotation, light.rotation); return Finite(norm) && norm > 1e-8f;

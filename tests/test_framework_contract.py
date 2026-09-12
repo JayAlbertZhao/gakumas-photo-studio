@@ -354,5 +354,30 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertNotIn('LightmapSettings.lightmaps =', fixture)
 
 
+    def test_spot_is_a_new_shape_without_changing_existing_instance_stride(self):
+        settings = (RUNTIME / 'SceneDecalLightSettings.cs').read_text(encoding='utf-8')
+        self.assertIn('SceneDecalLightShape { Point, Capsule, Area, Spot }', settings)
+        self.assertIn('spotInnerAngle = 30', settings)
+        self.assertIn('spotOuterAngle = 60', settings)
+        renderer = (RUNTIME / 'SceneDecalLightRenderer.cs').read_text(encoding='utf-8')
+        struct = renderer[renderer.index('private struct LightData'):renderer.index('private readonly List<LightData>')]
+        self.assertEqual(struct.count('Vector4'), 2)
+        self.assertIn('parameters, response, clipRect', struct)
+        self.assertIn('light.shape == SceneDecalLightShape.Spot', renderer)
+        self.assertIn('light.spotOuterAngle * Mathf.Deg2Rad * .5f', renderer)
+        self.assertIn('!Range(light.spotInnerAngle, 0, light.spotOuterAngle)', renderer)
+        self.assertNotIn('AddComponent<Light>', renderer)
+
+    def test_spot_uses_radial_range_and_shared_cone_attenuation(self):
+        shader = (RUNTIME / 'Resources/SceneDecalLight.hlsl').read_text(encoding='utf-8')
+        for token in ('else if (light.radianceShape.w < 2.5)', 'else distanceToSource = length(delta)',
+                      'dot(delta / distanceToSource, light.axisZHeight.xyz)', 'if (cosine < outer) discard',
+                      'inner > outer ? saturate((cosine - outer) / (inner - outer)) : 1'):
+            self.assertIn(token, shader)
+        self.assertLess(shader.index('if (light.radianceShape.w > 2.5)'), shader.index('float3 response = LightBrdf'))
+        for name in ('SceneDecalLightScalar.shader', 'SceneDecalLightInstanced.shader'):
+            self.assertIn('#include "SceneDecalLight.hlsl"', (RUNTIME / 'Resources' / name).read_text(encoding='utf-8'))
+
+
 if __name__ == '__main__':
     unittest.main()
