@@ -188,5 +188,28 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertNotIn('autoGenerateMips = true', runtime)
 
 
+    def test_ssr_roughness_is_opt_in_and_returns_filtered_result_to_all_hosts(self):
+        settings = (RUNTIME / 'SsrRoughnessSettings.cs').read_text(encoding='utf-8')
+        self.assertIn('public bool enabled;', settings)
+        self.assertIn('enabled && maximumRadiusPixels > 0', settings)
+        source = (RUNTIME / 'ScreenSpaceReflection.cs').read_text(encoding='utf-8')
+        self.assertIn('reflection = OutputReflection;', source)
+        self.assertIn('SetTexture("_SsrReflection", OutputReflection)', source)
+        self.assertIn('TryGetRawReflection', source)
+        self.assertIn('surfaces.Length > 1024', source)
+        self.assertIn('Release(ref _filterHorizontal); Release(ref _filtered)', source)
+        self.assertNotIn('AddComponent<ScreenSpaceReflection>', (RUNTIME / 'CharacterSceneRuntime.cs').read_text(encoding='utf-8'))
+
+    def test_ssr_roughness_preserves_confidence_and_geometry_boundaries(self):
+        source = (RUNTIME / 'Resources/ScreenSpaceReflectionFilter.hlsl').read_text(encoding='utf-8')
+        for contract in ('center.a <= 1e-5', 'abs(other.b - receiver.b)', 'dot(normal, otherNormal)',
+                         'dot(delta, normal)', 'dot(delta, otherNormal)', 'min(center.a, trustedWeight / totalWeight)',
+                         'sum / trustedWeight', '_SsrPlanarCoverage.Load'):
+            self.assertIn(contract, source)
+        for suffix in ('shader', 'compute'):
+            self.assertIn('#include "ScreenSpaceReflectionFilter.hlsl"',
+                          (RUNTIME / ('Resources/ScreenSpaceReflection.' + suffix)).read_text(encoding='utf-8'))
+
+
 if __name__ == '__main__':
     unittest.main()

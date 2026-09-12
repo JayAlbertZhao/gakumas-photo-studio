@@ -71,7 +71,7 @@ pipeline.sphereFog = new SphereFogSettings {
 
 ## 边界
 
-`ScreenSpaceReflection` 可独立用于 Built-in Forward 场景，默认关闭。它捕获不含角色的背景颜色和深度，用 Hi-Z 追踪与历史深度检查产生反射；通过 `OriginalStyleRenderPipeline.screenSpaceReflection` 或自己的 HDR 回调接入。保留旧显式加法入口，另有无加法 TryTrace 供统一消费者使用；SSR 粗糙度过滤与移动优化未完成。详见 [SSR 接入与限制](../../docs/screen-space-reflection.md)。
+`ScreenSpaceReflection` 可独立用于 Built-in Forward 场景，默认关闭。它捕获不含角色的背景颜色和深度，用 Hi-Z 追踪与历史深度检查产生反射；通过 `OriginalStyleRenderPipeline.screenSpaceReflection` 或自己的 HDR 回调接入。保留旧显式加法入口，另有无加法 TryTrace 供统一消费者使用。可选 [粗糙度过滤](../../docs/ssr-roughness.md) 按接收面扩散辐射并保留 miss／confidence 语义；物理 GGX 与移动优化仍未完成。详见 [SSR 接入与限制](../../docs/screen-space-reflection.md)。
 
 SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBackend.Compute`，使用相机私有 kernel 实例进行追踪／最小深度 RandomWrite。默认 Raster，支持显式能力降级与严格模式；桌面同输入结果有实际 GPU 对照，尚未证明性能提升。见 [计算后端](../../docs/scene-compute-backend.md)。
 

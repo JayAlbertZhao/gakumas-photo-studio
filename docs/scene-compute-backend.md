@@ -39,6 +39,6 @@ geometry.allowComputeFallback = false; // 严格要求计算后端
 
 ## 当前限制
 
-当前执行验收限定 t15／D3D11／Built-in Forward，沿用非 MSAA／XR、完整视口、固定尺寸限制。本文不宣称移动性能改善、Vulkan／Metal 已测、HDRP 原算法等价、粗糙度过滤或全角色画面追平。SSR 粗糙度与移动端预算仍是独立开项。
+当前执行验收限定 t15／D3D11／Built-in Forward，沿用非 MSAA／XR、完整视口、固定尺寸限制。可选 [粗糙度过滤](ssr-roughness.md) 另加两次同源 HLSL dispatch，并要求过滤 kernel 可用。本文不宣称移动性能改善、Vulkan／Metal 已测、HDRP 原算法等价或全角色画面追平；物理 GGX 质量与移动端预算仍是独立开项。
 
 实际运行记录与保留失败见 [渲染记录](rendering.md)。API 依据见 Unity [Compute Shader 平台与资源约束](https://docs.unity3d.com/2022.3/Documentation/Manual/class-ComputeShader.html)、[kernel 支持检查](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/ComputeShader.IsSupported.html)；输入契约见 [场景深度](scene-depth-data.md)、[SSR](screen-space-reflection.md) 与 [统一反射](scene-reflection-resolve.md)。

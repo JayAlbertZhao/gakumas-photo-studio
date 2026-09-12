@@ -29,6 +29,7 @@ namespace GakumasPhotoMode
         public bool useHierarchy = true;
         public SceneShaderBackend backend = SceneShaderBackend.Raster;
         public bool allowComputeFallback = true;
+        public SsrRoughnessSettings roughness = new SsrRoughnessSettings();
         public SceneShaderBackend ActiveBackend { get; private set; }
         public SceneShaderBackend ActiveHierarchyBackend => _geometry != null ? _geometry.ActiveHierarchyBackend : SceneShaderBackend.Raster;
         public string ComputeFallbackReason { get; private set; }
@@ -42,10 +43,15 @@ namespace GakumasPhotoMode
         private Shader _shader;
         private Material _material;
         private ComputeShader _computeAsset, _compute;
-        private int _computeKernel;
+        private int _computeKernel, _filterKernel;
+        private bool _filterPrepared, _filterApplied;
+        private Vector4 _filterOptions;
         private readonly List<Material> _visibilityMaterials = new List<Material>();
         private CommandBuffer _visibilityCommands;
         private RenderTexture _sceneColor, _historyColor, _historyDepth, _visibility, _reflection, _composite;
+        private RenderTexture _filterHorizontal, _filtered;
+        private bool FilterRequested => roughness != null && roughness.IsActive;
+        private RenderTexture OutputReflection => _filterApplied ? _filtered : _reflection;
         private RenderTexture _sourceTarget;
         private Matrix4x4 _historyView, _historyProjection;
         private Vector3 _historyPosition;
@@ -67,6 +73,8 @@ namespace GakumasPhotoMode
         private void OnPreCull()
         {
             _preparedFrame = _renderedFrame = -1;
+            _filterApplied = false;
+            _filterPrepared = FilterRequested;
             ComputeDispatchCount = 0; ComputeFallbackReason = null;
             _visibilityCommands.Clear();
             UnavailableReason = Validate();
@@ -75,9 +83,18 @@ namespace GakumasPhotoMode
                 out var selected, out _computeKernel, out var fallback, out var error))
             { UnavailableReason = error; ReleaseResources(); return; }
             ActiveBackend = selected; ComputeFallbackReason = fallback;
+            if (_filterPrepared && ActiveBackend == SceneShaderBackend.Compute)
+            {
+                if (!SceneComputeSupport.Select(backend, allowComputeFallback, _computeAsset, "FilterRoughness", RenderTextureFormat.ARGBHalf,
+                    out selected, out _filterKernel, out fallback, out error))
+                { UnavailableReason = error; ReleaseResources(); return; }
+                ActiveBackend = selected; ComputeFallbackReason = fallback;
+            }
             int width = _camera.targetTexture != null ? _camera.targetTexture.width : _camera.pixelWidth;
             int height = _camera.targetTexture != null ? _camera.targetTexture.height : _camera.pixelHeight;
             if (width < 1 || height < 1) { UnavailableReason = "Empty target"; ReleaseResources(); return; }
+            if (_filterPrepared) _filterOptions = new Vector4(roughness.RadiusAtHeight(height),
+                roughness.planeTolerance, roughness.normalThreshold, roughness.smoothnessTolerance);
             if (!EnsureResources(width, height))
             {
                 if (ActiveBackend == SceneShaderBackend.Compute && allowComputeFallback)
@@ -146,6 +163,8 @@ namespace GakumasPhotoMode
                 material.SetVector("_SsrSmoothnessST", surface.smoothnessMapST);
                 material.SetFloat("_SsrSmoothness", surface.smoothness);
                 material.SetFloat("_SsrSmoothnessThreshold", smoothnessThreshold);
+                material.SetFloat("_SsrFilterMetadata", _filterPrepared ? 1 : 0);
+                material.SetFloat("_SsrReceiverId", submitted);
                 _visibilityCommands.DrawRenderer(renderer, material, surface.materialIndex, 0);
             }
             _sourceTarget = _camera.targetTexture; _preparedFrame = Time.frameCount;
@@ -167,7 +186,7 @@ namespace GakumasPhotoMode
         {
             reflection = null;
             if (!TryRender(camera, source, planarCoverage, false, out _)) return false;
-            reflection = _reflection; return true;
+            reflection = OutputReflection; return true;
         }
 
         private bool TryRender(Camera camera, RenderTexture source, Texture planarCoverage, bool composite, out RenderTexture result)
@@ -179,6 +198,7 @@ namespace GakumasPhotoMode
                 _preparedFrame != Time.frameCount || _renderedFrame != Time.frameCount ||
                 _consumedSequence == _renderSequence || _sceneColor == null ||
                 _sourceTarget != _camera.targetTexture || _reflection == null || !_reflection.IsCreated() ||
+                (_filterPrepared && (_filterHorizontal == null || !_filterHorizontal.IsCreated() || _filtered == null || !_filtered.IsCreated())) ||
                 source.width != _sceneColor.width || source.height != _sceneColor.height) return false;
             _consumedSequence = _renderSequence;
             Matrix4x4 inverseView = _frame.worldToCamera.inverse;
@@ -210,7 +230,14 @@ namespace GakumasPhotoMode
             _material.SetVector("_SsrHistory", new Vector4(continuous ? 1 : 0, historyDepthTolerance, edgeFade, intensity));
             if (ActiveBackend == SceneShaderBackend.Compute) DispatchTrace();
             else Graphics.Blit(source, _reflection, _material, 1);
-            _material.SetTexture("_SsrReflection", _reflection);
+            if (_filterPrepared)
+            {
+                _material.SetVector("_SsrFilterOptions", _filterOptions);
+                FilterPass(_reflection, _filterHorizontal, new Vector4(1, 0, 0, 0));
+                FilterPass(_filterHorizontal, _filtered, new Vector4(0, 1, 0, 0));
+                _filterApplied = true;
+            }
+            _material.SetTexture("_SsrReflection", OutputReflection);
             if (continuous && composite) Graphics.Blit(source, _composite, _material, 2);
             // Copy only the actor-free auxiliary capture, never the composited
             // main frame. This also prevents recursive reflection feedback.
@@ -226,12 +253,20 @@ namespace GakumasPhotoMode
         }
 
         public bool TryGetReflection(Camera camera, out Texture texture)
+            => TryGetResult(camera, false, out texture);
+
+        /// <summary>Borrowed unfiltered trace for diagnostics; it has the same lifetime as TryGetReflection.</summary>
+        public bool TryGetRawReflection(Camera camera, out Texture texture)
+            => TryGetResult(camera, true, out texture);
+
+        private bool TryGetResult(Camera camera, bool raw, out Texture texture)
         {
             texture = null;
+            RenderTexture output = raw ? _reflection : OutputReflection;
             if (!isActiveAndEnabled || !reflectionsEnabled || camera != _camera || _renderedFrame != Time.frameCount ||
                 _sourceTarget != _camera.targetTexture || _consumedSequence != _renderSequence ||
-                _reflection == null || !_reflection.IsCreated()) return false;
-            texture = _reflection; return true;
+                output == null || !output.IsCreated()) return false;
+            texture = output; return true;
         }
 
         public void ResetHistory() { HistoryAvailable = false; _historyFrame = -1; _renderedFrame = -1; }
@@ -254,6 +289,24 @@ namespace GakumasPhotoMode
         private static readonly string[] TraceMatrices = { "_SsrInverseProjection", "_SsrProjection", "_SsrView", "_SsrInverseView", "_SsrHistoryView", "_SsrHistoryViewProjection" };
         private static readonly string[] TraceVectors = { "_SsrSize", "_SsrTrace", "_SsrFrame", "_SsrHistory" };
 
+        private void FilterPass(RenderTexture source, RenderTexture destination, Vector4 axis)
+        {
+            _material.SetTexture("_SsrFilterInput", source);
+            _material.SetVector("_SsrFilterAxis", axis);
+            if (ActiveBackend == SceneShaderBackend.Raster) { Graphics.Blit(source, destination, _material, 3); return; }
+            foreach (string name in FilterTextures) _compute.SetTexture(_filterKernel, name, _material.GetTexture(name));
+            _compute.SetMatrix("_SsrInverseProjection", _frame.gpuProjection.inverse);
+            _compute.SetMatrix("_SsrView", _frame.worldToCamera);
+            _compute.SetVector("_SsrSize", _material.GetVector("_SsrSize"));
+            _compute.SetVector("_SsrFilterOptions", _material.GetVector("_SsrFilterOptions"));
+            _compute.SetVector("_SsrFilterAxis", axis);
+            _compute.SetFloat("_SsrPlanarAvailable", _material.GetFloat("_SsrPlanarAvailable"));
+            _compute.SetTexture(_filterKernel, "_SsrOutput", destination);
+            _compute.Dispatch(_filterKernel, (destination.width + 7) / 8, (destination.height + 7) / 8, 1);
+            ComputeDispatchCount++;
+        }
+        private static readonly string[] FilterTextures = { "_SsrFilterInput", "_SsrVisibility", "_SsrNormalMask", "_SsrDepth0", "_SsrPlanarCoverage" };
+
         private string Validate()
         {
             if (!reflectionsEnabled || intensity == 0 || sceneLayers.value == 0 || surfaces == null || surfaces.Length == 0)
@@ -272,6 +325,8 @@ namespace GakumasPhotoMode
                 !Range(thickness, .001f, 100) || !Range(normalBias, .001f, 10) || maximumSteps < 8 || maximumSteps > 512 ||
                 !Range(edgeFade, 0, .25f) || !Range(historyDepthTolerance, .001f, 100) ||
                 !Range(cameraCutDistance, .01f, 10000) || !Range(cameraCutAngle, 1, 180)) return "Invalid SSR settings";
+            if (roughness != null && !roughness.IsValid) return "Invalid SSR roughness settings";
+            if (FilterRequested && surfaces.Length > 1024) return "Roughness filtering supports at most 1024 surface entries";
             return null;
         }
 
@@ -288,7 +343,7 @@ namespace GakumasPhotoMode
             if (_sceneColor != null && (_sceneColor.width != width || _sceneColor.height != height ||
                 _reflection.enableRandomWrite != (ActiveBackend == SceneShaderBackend.Compute) ||
                 !_sceneColor.IsCreated() || !_historyColor.IsCreated() || !_historyDepth.IsCreated() ||
-                !_visibility.IsCreated() || !_reflection.IsCreated() || !_composite.IsCreated())) ReleaseResources();
+                !_reflection.IsCreated() || !_composite.IsCreated())) ReleaseResources();
             if (_sceneCamera == null)
             {
                 var host = new GameObject("Toolkit SSR scene capture") { hideFlags = HideFlags.HideAndDontSave };
@@ -302,13 +357,27 @@ namespace GakumasPhotoMode
                 _sceneColor = Target(width, height, 24, RenderTextureFormat.ARGBHalf, "SSR actor-free current color");
                 _historyColor = Target(width, height, 0, RenderTextureFormat.ARGBHalf, "SSR actor-free history color");
                 _historyDepth = Target(width, height, 0, RenderTextureFormat.RFloat, "SSR history depth");
-                _visibility = Target(width, height, 0, SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.R8)
-                    ? RenderTextureFormat.R8 : RenderTextureFormat.ARGB32, "SSR visible receivers");
                 _reflection = Target(width, height, 0, RenderTextureFormat.ARGBHalf, "SSR radiance and confidence", ActiveBackend == SceneShaderBackend.Compute);
                 _composite = Target(width, height, 0, RenderTextureFormat.ARGBHalf, "SSR HDR composite");
             }
+            // Receiver metadata/filter toggles must not invalidate actor-free history.
+            RenderTextureFormat visibilityFormat = _filterPrepared ? RenderTextureFormat.ARGBHalf :
+                (SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.R8) ? RenderTextureFormat.R8 : RenderTextureFormat.ARGB32);
+            if (_visibility != null && (_visibility.format != visibilityFormat || !_visibility.IsCreated())) Release(ref _visibility);
+            if (_visibility == null) _visibility = Target(width, height, 0, visibilityFormat, "SSR visible receivers");
+            if (!_filterPrepared) { Release(ref _filterHorizontal); Release(ref _filtered); }
+            else
+            {
+                if (_filterHorizontal != null && !_filterHorizontal.IsCreated()) Release(ref _filterHorizontal);
+                if (_filtered != null && !_filtered.IsCreated()) Release(ref _filtered);
+                if (_filterHorizontal == null) _filterHorizontal = Target(width, height, 0, RenderTextureFormat.ARGBHalf,
+                    "SSR horizontal roughness", ActiveBackend == SceneShaderBackend.Compute);
+                if (_filtered == null) _filtered = Target(width, height, 0, RenderTextureFormat.ARGBHalf,
+                    "SSR filtered radiance and confidence", ActiveBackend == SceneShaderBackend.Compute);
+            }
             return _sceneColor.IsCreated() && _historyColor.IsCreated() && _historyDepth.IsCreated() &&
-                _visibility.IsCreated() && _reflection.IsCreated() && _composite.IsCreated();
+                _visibility.IsCreated() && _reflection.IsCreated() && _composite.IsCreated() &&
+                (!_filterPrepared || (_filterHorizontal.IsCreated() && _filtered.IsCreated()));
         }
 
         private static RenderTexture Target(int width, int height, int depth, RenderTextureFormat format, string name, bool randomWrite = false)
@@ -331,6 +400,7 @@ namespace GakumasPhotoMode
             }
             Release(ref _sceneColor); Release(ref _historyColor); Release(ref _historyDepth);
             Release(ref _visibility); Release(ref _reflection); Release(ref _composite);
+            Release(ref _filterHorizontal); Release(ref _filtered); _filterApplied = false;
             if (_material != null) { Destroy(_material); _material = null; }
             if (_compute != null) { Destroy(_compute); _compute = null; }
             ComputeDispatchCount = 0;

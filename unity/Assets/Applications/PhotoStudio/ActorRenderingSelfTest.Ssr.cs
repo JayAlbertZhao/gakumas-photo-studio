@@ -11,9 +11,16 @@ namespace GakumasPhotoMode
         public ScreenSpaceReflection reflection;
         public bool consumed;
         public Action beforeConsume;
+        public bool traceOnly;
+        public RenderTexture traceResult;
         private void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
             beforeConsume?.Invoke();
+            if (traceOnly)
+            {
+                consumed = reflection.TryTrace(GetComponent<Camera>(), source, null, out traceResult);
+                Graphics.Blit(source, destination); return;
+            }
             consumed = reflection.TryComposite(GetComponent<Camera>(), source, out RenderTexture result);
             Graphics.Blit(consumed ? result : source, destination);
         }
@@ -241,6 +248,8 @@ namespace GakumasPhotoMode
             camera.Render(); camera.Render();
             Check(report, "ssr-production-hdr-pipeline-consumes", ssr.TryGetReflection(camera, out _) && !ssr.TryComposite(camera, resized, out _) && SsrHitCount(SsrPixels(ssr, camera)) > 10);
             if (backend == SceneShaderBackend.Compute) VerifySsrComputeLifecycle(report, ssr, camera, resized);
+            pipeline.enabled = false; hook.enabled = true;
+            VerifySsrRoughnessHost(report, ssr, camera, hook);
             ssr.enabled = false; pipeline.enabled = false;
             camera.targetTexture = null; resized.Release(); target.Release();
             foreach (var go in new[] { host, floor, wallLeft, wallRight, actor }) go.SetActive(false);

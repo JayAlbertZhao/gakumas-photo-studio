@@ -35,6 +35,7 @@
 | 可选平面反射输入 | `PlanarReflection`；显式简化 Forward 绘制、画外网格、区域覆盖和粗糙度 mip，主相机读取独立反射纹理，见 [Planar 接入](planar-reflection.md) |
 | 可选统一间接反射 | `SceneReflectionResolve`；Planar 优先、SSR 失败回退 Probe、全分辨率法线扭曲和材质响应；宿主须去除接收面原间接镜面项，见 [输入与合成契约](scene-reflection-resolve.md) |
 | 可选反射计算后端 | `SceneShaderBackend.Compute`；SSR trace 与 Hi-Z RandomWrite，独立深度组件也可使用，能力回退与状态见 [计算后端](scene-compute-backend.md) |
+| 可选 SSR 粗糙度 | `SsrRoughnessSettings`；接收面感知的两遍辐射过滤，默认无额外目标，保留 Planar 优先与 Probe 置信度回退，见 [过滤契约](ssr-roughness.md) |
 
 字符串选择接口找不到 ID/label 时返回 false；索引接口沿用已有行为。需先初始化，部分清单在初始化前为空引用。`CharacterSceneOptions.StartStory` 默认 false；true 沿用旧自动剧情起播点 **8.45 秒**。若要从头播放，初始化后显式调用 `Timeline.StartStory(0f)`。
 

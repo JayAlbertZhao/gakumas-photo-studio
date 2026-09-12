@@ -181,6 +181,22 @@ namespace GakumasPhotoMode
             for (int i = 0; i < computeMask.Length; i++) if (computeMask[i].a > 1e-5f)
             { coveredPixels++; if (computeSsr[i].a > 0) invalidTrace++; }
             FrameworkCheck(report, "ssr-compute-unified-real-planar-skip", coveredPixels > 20 && invalidTrace == 0, invalidTrace);
+            ssr.surfaces[0].smoothness = .55f; ssr.roughness.enabled = true;
+            ssr.roughness.maximumRadiusPixels = 12; ssr.roughness.referenceHeight = resized.height;
+            camera.Render(); camera.Render();
+            resolve.TryGetRadiance(camera, out var roughComputed); var roughComputePixels = ReadSceneTarget(roughComputed);
+            var roughComputeSsr = SsrPixels(ssr, camera);
+            var roughMask = ReadSceneTarget(PlanarField<RenderTexture>(planar, "_reflection"));
+            int roughCovered = 0, roughInvalid = 0;
+            for (int i = 0; i < roughMask.Length; i++) if (roughMask[i].a > 1e-5f)
+            { roughCovered++; if (roughComputeSsr[i].a > 0) roughInvalid++; }
+            FrameworkCheck(report, "ssr-roughness-unified-planar-priority-preserved", roughCovered > 20 && roughInvalid == 0 &&
+                ssr.ComputeDispatchCount == 3 && SsrHitCount(roughComputeSsr) > 10);
+            ssr.backend = SceneShaderBackend.Raster; camera.Render(); camera.Render();
+            resolve.TryGetRadiance(camera, out var roughRaster);
+            float roughBackendError = Mathf.Max(PixelError(roughComputePixels, ReadSceneTarget(roughRaster)), PixelError(roughComputeSsr, SsrPixels(ssr, camera)));
+            FrameworkCheck(report, "ssr-roughness-unified-filtered-backend-equivalence", roughBackendError < .001f, roughBackendError);
+            FrameworkCheck(report, "ssr-roughness-unified-consumes-filtered-not-raw", ResolveField<Material>(resolve, "_resolve").GetTexture("_ResolveSsr") == SsrField<RenderTexture>(ssr, "_filtered"));
             pipeline.enabled = false; resolve.enabled = false; ssr.enabled = false; planar.enabled = false;
             camera.targetTexture = null; target.Release(); resized.Release();
         }

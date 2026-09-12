@@ -29,7 +29,7 @@
 | E02 | 线性灯光衰减、可调镜面、GI 乘色、背向补光；PPT 110–112 | 背景光照部分已有 | 各功能独立可控、遮蔽与多灯组合对照 |
 | E03 | DepthID 几何法线及 SSR mask；PDF 17 | 独立 SceneDepthData：世界网格法线、smoothness 资格、线性深度；min hierarchy 可选 raster／Compute | 显式 opaque／cutout 表面与角色层排除已验证；奇数边缘及 CPU／GPU 缩减一致；不猜读原版 MaterialID，不复用 ActorData／TAA 位，见 [数据契约](scene-depth-data.md) |
 | E04 | 背景 Deferred／透明 Forward+／Actor Forward；PDF 13、22–29 | 默认 Built-in 复现 | 独立可选后端及 buffer 生命周期，不能直接替换默认管线 |
-| E05 | Hi-Z SSR、排除角色；PDF 37–43 | 已有可选 Hi-Z trace、角色排除历史、重投影拒绝、统一间接光消费／Planar skip；新增 Compute／RandomWrite 追踪与最小深度缩减 | 桌面 GPU／回退／生命周期已验收，三种尺寸至 1025×769 的同输入 raster／Compute 输出相同；SSR 粗糙度过滤与移动性能仍待完成，见 [计算后端](scene-compute-backend.md) 和 [统一反射](scene-reflection-resolve.md) |
+| E05 | Hi-Z SSR、排除角色；PDF 37–43 | 已有可选 Hi-Z trace、角色排除历史、重投影拒绝、统一间接光消费／Planar skip、Compute／RandomWrite；新增接收面感知的粗糙度辐射过滤 | 桌面 GPU／回退／生命周期及独立 CPU 过滤对照已验收，默认关闭过滤保留旧结果；物理 GGX、复杂场景画质与移动性能仍待完成，见 [过滤契约](ssr-roughness.md)、[计算后端](scene-compute-backend.md) 和 [统一反射](scene-reflection-resolve.md) |
 | E06 | Planar 角色／发光网格及区域 mask；PDF 44–51、PPT 114 | 已有单 pass 捕获、镜像／裁剪、独立覆盖、接收面深度和 smoothness mip；新增全分辨率法线差分扭曲与 Planar／SSR／Probe 统一合成 | 40 项 Planar 检查及后续 52 项统一合成 GPU／生命周期检查成立；完整真实角色廉价材质适配、GGX 过滤、多 Probe 调度和移动性能仍待完成，见 [Planar](planar-reflection.md) 与 [统一反射](scene-reflection-resolve.md) |
 | E07 | PBR GBuffer 贴花、MAOS／法线／高度遮蔽／水面贴花；PPT 116–120、PDF 24–25 | 未接入完整场景链 | 分通道混合、投影遮挡、无贴花零额外工作 |
 | E08 | HDR Monitor 与发光网格；PDF 56–58 | 有部分背景输入读取 | 通用相机／纹理输出模块、动画与更新调度 |

@@ -10,6 +10,7 @@ Shader "Hidden/GakumasPhotoMode/ScreenSpaceReflection"
         [HideInInspector] _SsrHistoryColor ("Actor free history color", 2D) = "black" {}
         [HideInInspector] _SsrHistoryDepth ("Actor free history depth", 2D) = "black" {}
         [HideInInspector] _SsrReflection ("Radiance and confidence", 2D) = "black" {}
+        [HideInInspector] _SsrFilterInput ("Roughness filter input", 2D) = "black" {}
         [HideInInspector] _SsrDepth0 ("Scene depth level 0", 2D) = "black" {}
         [HideInInspector] _SsrDepth1 ("Scene depth level 1", 2D) = "black" {}
         [HideInInspector] _SsrDepth2 ("Scene depth level 2", 2D) = "black" {}
@@ -31,11 +32,12 @@ Shader "Hidden/GakumasPhotoMode/ScreenSpaceReflection"
         CGINCLUDE
         #include "UnityCG.cginc"
         #include "ScreenSpaceReflectionTrace.hlsl"
+        #include "ScreenSpaceReflectionFilter.hlsl"
         ENDCG
         Pass
         {
             Name "VISIBLE_RECEIVER"
-            Cull [_Cull] ZWrite Off ZTest LEqual Blend Off ColorMask R
+            Cull [_Cull] ZWrite Off ZTest LEqual Blend Off
             CGPROGRAM
             #pragma target 4.5
             #pragma vertex vert
@@ -44,6 +46,7 @@ Shader "Hidden/GakumasPhotoMode/ScreenSpaceReflection"
             float4 _SsrAlphaST, _SsrSmoothnessST;
             float3 _SsrVertexScale;
             float _SsrAlphaCutoff, _SsrSmoothness, _SsrSmoothnessThreshold;
+            float _SsrFilterMetadata, _SsrReceiverId;
             struct input { float4 vertex : POSITION; float2 uv : TEXCOORD0; };
             struct varying { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
             varying vert(input v)
@@ -55,6 +58,7 @@ Shader "Hidden/GakumasPhotoMode/ScreenSpaceReflection"
             {
                 clip(tex2D(_SsrAlphaMask, i.uv * _SsrAlphaST.xy + _SsrAlphaST.zw).a - _SsrAlphaCutoff);
                 float smoothness = _SsrSmoothness * tex2D(_SsrSmoothnessMap, i.uv * _SsrSmoothnessST.xy + _SsrSmoothnessST.zw).r;
+                if (_SsrFilterMetadata > .5) return float4(step(_SsrSmoothnessThreshold, smoothness), saturate(smoothness), _SsrReceiverId, 0);
                 return float4(step(_SsrSmoothnessThreshold, smoothness), 0, 0, 0);
             }
             ENDCG
@@ -86,6 +90,18 @@ Shader "Hidden/GakumasPhotoMode/ScreenSpaceReflection"
                 color.rgb += reflected.rgb * reflected.a * _SsrHistory.w;
                 return color;
             }
+            ENDCG
+        }
+        Pass
+        {
+            Name "RECEIVER_ROUGHNESS_FILTER"
+            Cull Off ZWrite Off ZTest Always Blend Off
+            CGPROGRAM
+            #pragma target 4.5
+            #pragma vertex vert_img
+            #pragma fragment frag
+            float4 frag(v2f_img i) : SV_Target
+            { return FilterSceneReflection(min((int2)(i.uv * _SsrSize.xy), (int2)_SsrSize.xy - 1)); }
             ENDCG
         }
     }

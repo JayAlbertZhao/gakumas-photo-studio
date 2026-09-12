@@ -1,6 +1,8 @@
 #pragma kernel TraceReflections
+#pragma kernel FilterRoughness
 #include "UnityCG.cginc"
 #include "ScreenSpaceReflectionTrace.hlsl"
+#include "ScreenSpaceReflectionFilter.hlsl"
 
 RWTexture2D<float4> _SsrOutput;
 
@@ -12,4 +14,11 @@ void TraceReflections(uint3 id : SV_DispatchThreadID)
     // implicit camera globals. Every output texel is written, including misses.
     float2 uv = (float2(id.xy) + .5) * _SsrSize.zw;
     _SsrOutput[id.xy] = TraceSceneReflection(uv);
+}
+
+[numthreads(8, 8, 1)]
+void FilterRoughness(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= (uint2)_SsrSize.xy)) return;
+    _SsrOutput[id.xy] = FilterSceneReflection((int2)id.xy);
 }

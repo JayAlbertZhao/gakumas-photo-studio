@@ -141,6 +141,7 @@ namespace GakumasPhotoMode
                 VerifySceneReflectionResolve(report);
                 VerifyComputeDepthOracle(report);
                 VerifyScreenSpaceReflection(report, SceneShaderBackend.Compute);
+                VerifySsrRoughnessOracle(report);
                 report.accepted = report.checks.TrueForAll(check => check.accepted);
             }
             catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); }
