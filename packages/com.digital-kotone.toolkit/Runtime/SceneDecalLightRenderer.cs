@@ -59,7 +59,7 @@ namespace GakumasPhotoMode
                     axisXLength = new Vector4(x.x, x.y, x.z, light.halfLength), axisYWidth = new Vector4(y.x, y.y, y.z, light.halfSize.x),
                     axisZHeight = new Vector4(z.x, z.y, z.z, light.halfSize.y), radianceShape = new Vector4(light.radiance.x, light.radiance.y, light.radiance.z, (int)light.shape),
                     uv = light.monitorUV, parameters = new Vector4(light.areaSpread.x, light.areaSpread.y, light.receiverGroup, light.falloffExponent),
-                    response = new Vector4(light.diffuseScale, light.specularScale, 0, 0), clipRect = rect
+                    response = new Vector4(light.diffuseScale, light.specularScale, light.giWeight, light.backlightScale), clipRect = rect
                 });
             }
             if (_data.Count == 0) { ReleaseGpu(); return true; }
@@ -103,7 +103,7 @@ namespace GakumasPhotoMode
             return true;
         }
 
-        public void Record(CommandBuffer commands, RenderTexture[] buffers, Camera camera, Mesh quad)
+        public void Record(CommandBuffer commands, RenderTexture[] buffers, Camera camera, Mesh quad, RenderTexture gi)
         {
             if (_data.Count == 0 || _material == null) return;
             commands.SetRenderTarget(Accumulation); commands.ClearRenderTarget(false, true, Color.clear);
@@ -113,6 +113,8 @@ namespace GakumasPhotoMode
             _material.SetVector("_LightCameraPosition", view.inverse.MultiplyPoint(Vector3.zero));
             _material.SetVector("_LightCameraForward", view.inverse.MultiplyVector(Vector3.back).normalized);
             _material.SetFloat("_LightOrthographic", camera.orthographic ? 1 : 0); _material.SetTexture("_LightAtlas", _atlas);
+            _material.SetTexture("_LightGi", gi != null ? (Texture)gi : Texture2D.blackTexture);
+            _material.SetFloat("_LightHasGi", gi != null ? 1 : 0);
             commands.BeginSample("Toolkit decal light volumes " + Backend);
             if (Backend == SceneDecalLightBackend.Instanced)
             {
@@ -163,6 +165,7 @@ namespace GakumasPhotoMode
             if ((int)light.shape < 0 || (int)light.shape > 2 || !Range(light.range, .001f, 10000) || !Range(light.halfLength, 0, 10000) ||
                 !Range(light.halfSize.x, .001f, 10000) || !Range(light.halfSize.y, .001f, 10000) || !Range(light.areaSpread.x, 0, 10) || !Range(light.areaSpread.y, 0, 10) ||
                 !Range(light.falloffExponent, 1, 8) || !Range(light.diffuseScale, 0, 4) || !Range(light.specularScale, 0, 4) || light.receiverGroup < 0 || light.receiverGroup > 255) return false;
+            if (!Range(light.giWeight, 0, 1) || !Range(light.backlightScale, 0, 4)) return false;
             for (int i = 0; i < 3; i++) if (!Range(light.position[i], -1e6f, 1e6f) || !Range(light.radiance[i], 0, 65504)) return false;
             for (int i = 0; i < 4; i++) if (!Finite(light.rotation[i]) || !Finite(light.monitorUV[i])) return false;
             float norm = Quaternion.Dot(light.rotation, light.rotation); return Finite(norm) && norm > 1e-8f;

@@ -4,10 +4,10 @@ struct SceneLightData
     float4 positionRange, axisXLength, axisYWidth, axisZHeight;
     float4 radianceShape, uv, parameters, response, clipRect;
 };
-sampler2D _G0, _G1, _G2, _LightAtlas;
+sampler2D _G0, _G1, _G2, _LightAtlas, _LightGi;
 float4x4 _LightInverseViewProjection, _LightView;
 float3 _LightCameraPosition, _LightCameraForward;
-float _LightOrthographic;
+float _LightOrthographic, _LightHasGi;
 #if defined(SCENE_LIGHT_INSTANCED)
 StructuredBuffer<SceneLightData> _SceneLights;
 uint _SceneLightOffset;
@@ -58,7 +58,7 @@ float3 LightWorld(float2 uv, float depth)
     float da = -mul(_LightView, a).z, db = -mul(_LightView, b).z;
     return lerp(a.xyz, b.xyz, (depth - da) / (db - da));
 }
-float3 LightBrdf(float3 albedo, float3 mos, float3 n, float3 v, float3 l, float2 response)
+float3 LightBrdf(float3 albedo, float3 mos, float3 n, float3 v, float3 l, float4 response)
 {
     float3 h = LightNormal(v + l);
     float nl = saturate(dot(n, l)), nv = saturate(dot(n, v)), nh = saturate(dot(n, h)), vh = saturate(dot(v, h));
@@ -67,7 +67,9 @@ float3 LightBrdf(float3 albedo, float3 mos, float3 n, float3 v, float3 l, float2
     float distribution = a2 / max(UNITY_PI * denominator * denominator, 1e-8);
     float visibility = .5 / max(nl * sqrt(nv * nv * (1 - a2) + a2) + nv * sqrt(nl * nl * (1 - a2) + a2), 1e-6);
     float3 f0 = lerp(.04, albedo, mos.r), f = f0 + (1 - f0) * pow(1 - vh, 5);
-    return ((1 - f) * albedo * ((1 - mos.r) / UNITY_PI) * response.x + distribution * visibility * f * response.y) * nl;
+    float3 result = ((1 - f) * albedo * ((1 - mos.r) / UNITY_PI) * response.x + distribution * visibility * f * response.y) * nl;
+    if (response.w > 0) result += (1 - f0) * albedo * ((1 - mos.r) / UNITY_PI) * response.x * response.w * saturate(-dot(n, l));
+    return result;
 }
 float4 LightFrag(LightVarying input) : SV_Target
 {
@@ -105,5 +107,10 @@ float4 LightFrag(LightVarying input) : SV_Target
     float3 view = LightNormal(lerp(_LightCameraPosition - world, -_LightCameraForward, _LightOrthographic));
     float3 atlas = clamp(tex2Dlod(_LightAtlas, float4(atlasUv, 0, 0)).rgb, 0, 65504);
     // Float32 accumulation, then the host clamps once after adding all lighting and emission.
-    return float4(LightBrdf(albedo.rgb, mos.rgb, n, view, direction, light.response.xy) * atlas * light.radianceShape.rgb * attenuation, 0);
+    float3 response = LightBrdf(albedo.rgb, mos.rgb, n, view, direction, light.response);
+    if (_LightHasGi > .5 && light.response.z > 0)
+    {
+        float4 gi = tex2D(_LightGi, input.uv); if (gi.a > .5) response *= lerp(1, gi.rgb, light.response.z);
+    }
+    return float4(response * atlas * light.radianceShape.rgb * attenuation, 0);
 }

@@ -6,6 +6,18 @@
 
 以下按阶段逆序记录；旧阶段中的开项以较新的实现记录和 [技术清单](framework-techniques.md) 为准。
 
+### 预计算 GI 消费、动态乘色与漫反射背光
+
+按 PPT 110–112 原图／备注和 PDF 22–23 数据流加入 `SceneGiInput`：Lightmap UV2/ST 与明确解码、Renderer 的场景绑定、显式 SH 及场景 Probe 入口，几何阶段可选输出独立第五 MRT。基础 GI 与旧 incident ambient 的单位分开处理，动态方向光／贴花灯可乘色并添加无镜面的反向漫反射。默认 None 保留旧路径。接口、公式和仍待完成的烘焙生产见 [GI 契约](scene-gi.md)。
+
+完整 t15／D3D11 v3 构建无 C#／shader 错误。无窗口 Player 完成 2481 项渲染／状态检查，新增 65 项 GI 检查：UV2 不跟随材质 UV、Renderer 索引/ST 实际更新、RGBM／dLDR／线性和方向图、四个法线的 SH CPU 对照、基础 GI 缩放／方向光与三种贴花灯乘色／背向漫反射数值、黑色／白色／缺失 GI 区分、Monitor 专用相机内容更新、110 灯 Scalar／Instanced 全图及分批偏移、材质贴花后一次着色、默认还原和相机资源生命周期。场景探针缺失拒绝已执行；真实烘焙探针插值的正向测试尚未完成。
+
+独立 RenderDoc 离屏截帧完成 2482 项检查（含显式截帧请求）。原生几何 draw 的第五 MRT 为 GI 目标，110 灯 draw 实际绑定同一纹理；中心 RGBA 为 `(2,1,0.5,1)`，未覆盖处全零。实例数据中 110 条均带 GI 权重及背光系数，实际一个 DrawInstanced 的 float32 累加中心 RGB 约为 `(0.272671,0.286374,0.019336)`。没有把 CPU 统计计数作为原生 draw 的替代证据。
+
+前版 2416 项完整 JSON 和 1307 张 PNG 均逐项／逐像素相同。三张新增预览与普通 1920×1080 摄影已查看，实际角色 Planar 的 17 项离屏检查重跑并接受。保留 v1 首次 UPM 导入 CS0246，未将该构建计为干净构建；v1 原套件接受，额外的无 GI 资源标志来自代码检查，未虚构该处曾有运行失败。v2 为较窄的 2473 项中间验证。
+
+这一阶段验证已有预计算数据的运行时消费，没有执行白光 Lightmapping 烘焙、真实 SceneProbe 空间插值或蒙皮 GI 画质验收。五 MRT 能力拒绝、Memoryless/subpass、移动带宽与 Vulkan／Metal 帧时也尚未在对应设备测量。光源阴影、Spot、完整场景反射桥接和全部 A/E/P/O/C 目标继续保持未完成。
+
 ### 点／胶囊／面贴花灯与 Monitor 驱动照明
 
 按 PDF 59–62 的实际图示与 PPT 119 的舞台／UV 说明新增可选 `SceneDecalLightSettings`。三种光源分别取 Monitor 的点、线、面，读取材质贴花后的表面缓冲并产生实际直接光。线性衰减、最近线段点和梯形投影是独立模型；输入／近似与无光源阴影边界见 [贴花灯](scene-decal-lights.md)。不改默认 Photo Studio，不把 material emission 增亮当作其他表面受光。

@@ -25,6 +25,8 @@ namespace GakumasPhotoMode
         [Range(0, 255)] public int receiverGroup;
         [Range(1, 8)] public float falloffExponent = 1;
         [Range(0, 4)] public float diffuseScale = 1, specularScale = 1;
+        [Range(0, 1)] public float giWeight;
+        [Range(0, 4)] public float backlightScale;
     }
 
     [Serializable]

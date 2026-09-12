@@ -96,3 +96,5 @@ SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBack
 `SceneDecalLightSettings` 在该场景后端中提供点／胶囊／面状直接照明，读取 Monitor 的点／线／面 atlas 内容并通过 PBR 材质影响其他表面。支持实际 GPU procedural instancing、Scalar 对照／能力回退、显式接收组和 float32 HDR 累加；默认关闭。当前不包含光源阴影、GI 烘焙或移动性能保证。见 [贴花灯接入](../../docs/scene-decal-lights.md)。
 
 来源与许可边界见 [NOTICE](NOTICE.md)。包的技术可接入性不表示整个项目已获得统一开源再许可授权。
+
+`SceneGiInput` 给登记表面提供 Lightmap／SH 预计算漫反射响应，支持 UV2/ST、显式解码与 Renderer 场景绑定。可独立压低基础 GI，让方向光或贴花灯乘 GI，并添加漫反射背光。默认 None，不改旧摄影；运行时消费不等于完成白光烘焙生产或移动管线。见 [场景 GI](../../docs/scene-gi.md)。

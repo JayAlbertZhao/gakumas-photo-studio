@@ -6,6 +6,8 @@
 
 ## 宿主接入
 
+表面可选 `SceneGiInput` 将预计算 Lightmap／SH 输出到独立第五 MRT，再控制基础 GI、动态乘色和背向补光。默认不增加该目标；完整输入与单位见 [GI 接入](scene-gi.md)，烘焙生产仍需独立准备。
+
 ```csharp
 using GakumasPhotoMode;
 using UnityEngine;

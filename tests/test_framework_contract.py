@@ -306,5 +306,25 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertNotIn('atlas.a', source)
 
 
+    def test_scene_gi_explicit_inputs_do_not_mutate_shared_lighting(self):
+        source = (RUNTIME / 'SceneGiInput.cs').read_text(encoding='utf-8')
+        for token in ('VertexAttribute.TexCoord1', 'renderer.lightmapIndex', 'renderer.lightmapScaleOffset',
+                      'LightmapSettings.lightmaps', 'LightProbes.GetInterpolatedProbe',
+                      'CopySHCoefficientArraysFrom', 'material.SetVector("_SceneGiSH"', 'no ambient fallback'):
+            self.assertIn(token, source)
+        for forbidden in ('Shader.SetGlobal', 'renderer.SetPropertyBlock', 'LightmapSettings.lightmaps ='):
+            self.assertNotIn(forbidden, source)
+
+    def test_scene_gi_has_independent_geometry_output_and_diffuse_only_backlight(self):
+        scene = (RUNTIME / 'Resources/SceneDeferred.shader').read_text(encoding='utf-8')
+        for token in ('SCENE_GI_OUTPUT', 'float4 gi : SV_Target4', 'SceneGi(i.uv2, n)',
+                      'data.albedo.rgb * (1 - metallic) * gi.rgb * _GiBaseScale * ao',
+                      'saturate(-dot(n, l))', '_HasBakedGi > .5'):
+            self.assertIn(token, scene)
+        lights = (RUNTIME / 'Resources/SceneDecalLight.hlsl').read_text(encoding='utf-8')
+        self.assertIn('response.x * response.w * saturate(-dot(n, l))', lights)
+        self.assertIn('response *= lerp(1, gi.rgb, light.response.z)', lights)
+
+
 if __name__ == '__main__':
     unittest.main()

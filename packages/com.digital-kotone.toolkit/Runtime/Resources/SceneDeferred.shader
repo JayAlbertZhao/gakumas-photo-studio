@@ -5,10 +5,14 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
     {
         CGINCLUDE
         #include "UnityCG.cginc"
+        #include "SceneGi.hlsl"
         sampler2D _AlbedoMap, _NormalMap, _MosMap, _EmissionMap, _HeightMap;
         sampler2D _G0, _G1, _G2, _G3;
         sampler2D _DecalLightAccumulation;
         float _HasDecalLights;
+        sampler2D _BakedDiffuseGi;
+        float4 _DirectionalResponse;
+        float _GiBaseScale, _HasBakedGi;
         float4 _UvST, _Weights, _HeightParameters;
         float3 _Albedo, _Mos, _Emission, _VertexScale, _MosWeight;
         float _Alpha, _HasNormal, _Cutoff, _ReceiverGroup;
@@ -16,7 +20,12 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
         float3 _DecalTangent, _DecalBitangent, _DecalFacing;
         float3 _CameraPosition, _CameraForward, _LightDirection, _LightRadiance, _AmbientIrradiance;
         float _Orthographic;
-        struct buffers { float4 albedo : SV_Target0; float4 normal : SV_Target1; float4 mos : SV_Target2; float4 emission : SV_Target3; };
+        struct buffers {
+            float4 albedo : SV_Target0; float4 normal : SV_Target1; float4 mos : SV_Target2; float4 emission : SV_Target3;
+            #if defined(SCENE_GI_OUTPUT)
+            float4 gi : SV_Target4;
+            #endif
+        };
         struct screen { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
         screen fullscreen(float4 vertex : POSITION)
         {
@@ -47,7 +56,11 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
         buffers readBuffers(float2 uv)
         {
             buffers o; o.albedo = tex2D(_G0, uv); o.normal = tex2D(_G1, uv);
-            o.mos = tex2D(_G2, uv); o.emission = tex2D(_G3, uv); return o;
+            o.mos = tex2D(_G2, uv); o.emission = tex2D(_G3, uv);
+            #if defined(SCENE_GI_OUTPUT)
+            o.gi = 0;
+            #endif
+            return o;
         }
         ENDCG
         Pass
@@ -58,16 +71,19 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
             #pragma target 4.0
             #pragma vertex geometry
             #pragma fragment materialData
-            struct vertex { float4 pos : POSITION; float3 normal : NORMAL; float4 tangent : TANGENT; float2 uv : TEXCOORD0; };
+            #pragma multi_compile_local _ SCENE_GI_OUTPUT
+            struct vertex { float4 pos : POSITION; float3 normal : NORMAL; float4 tangent : TANGENT; float2 uv : TEXCOORD0; float2 uv2 : TEXCOORD1; };
             struct geometryOut {
                 float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float3 normal : TEXCOORD1;
                 float3 tangent : TEXCOORD2; float sign : TEXCOORD3; float depth : TEXCOORD4;
+                float2 uv2 : TEXCOORD5;
             };
             geometryOut geometry(vertex v)
             {
                 geometryOut o; v.pos.xyz *= _VertexScale;
                 float4 world = mul(unity_ObjectToWorld, v.pos); o.pos = mul(_ViewProjection, world);
                 o.depth = -mul(_View, world).z; o.uv = v.uv * _UvST.xy + _UvST.zw;
+                o.uv2 = v.uv2;
                 o.normal = UnityObjectToWorldNormal(v.normal / _VertexScale);
                 o.tangent = mul((float3x3)unity_ObjectToWorld, v.tangent.xyz * _VertexScale);
                 o.sign = v.tangent.w * sign(determinant((float3x3)unity_ObjectToWorld)) * sign(_VertexScale.x * _VertexScale.y * _VertexScale.z);
@@ -81,7 +97,11 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
                 n = safeNormal(map.x * t + map.y * cross(n, t) * i.sign + map.z * n);
                 buffers o; o.albedo = float4(saturate(base.rgb * _Albedo), 1);
                 o.normal = float4(n, _ReceiverGroup); o.mos = float4(saturate(tex2D(_MosMap, i.uv).rgb * _Mos), i.depth);
-                o.emission = float4(clamp(tex2D(_EmissionMap, i.uv).rgb * _Emission, 0, 65504), 0); return o;
+                o.emission = float4(clamp(tex2D(_EmissionMap, i.uv).rgb * _Emission, 0, 65504), 0);
+                #if defined(SCENE_GI_OUTPUT)
+                o.gi = SceneGi(i.uv2, n);
+                #endif
+                return o;
             }
             ENDCG
         }
@@ -151,8 +171,15 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
                 float3 f0 = lerp(.04, data.albedo.rgb, metallic), f = f0 + (1 - f0) * pow(1 - vh, 5);
                 float3 diffuse = data.albedo.rgb * (1 - metallic) / UNITY_PI;
                 // AO affects indirect diffuse only. Emission never receives lighting a second time.
-                float3 direct = ((1 - f) * diffuse + distribution * visibility * f) * _LightRadiance * nl;
+                float3 direct = ((1 - f) * diffuse * _DirectionalResponse.x + distribution * visibility * f * _DirectionalResponse.y) * _LightRadiance * nl;
+                // Art-directed inverse-vector diffuse only; not a second specular light or a bounce solver.
+                if (_DirectionalResponse.w > 0)
+                    direct += (1 - f0) * diffuse * _DirectionalResponse.x * _DirectionalResponse.w * _LightRadiance * saturate(-dot(n, l));
+                float4 gi = tex2D(_BakedDiffuseGi, i.uv);
+                if (_HasBakedGi > .5 && gi.a > .5) direct *= lerp(1, gi.rgb, _DirectionalResponse.z);
                 float3 indirect = diffuse * _AmbientIrradiance * ao;
+                // Baked response already includes Lambert integration, unlike legacy incident ambientIrradiance.
+                if (_HasBakedGi > .5 && gi.a > .5) indirect = data.albedo.rgb * (1 - metallic) * gi.rgb * _GiBaseScale * ao;
                 if (_HasDecalLights > .5) direct += tex2D(_DecalLightAccumulation, i.uv).rgb;
                 litOutput o; o.color = float4(clamp(direct + indirect + data.emission.rgb, 0, 65504), 1);
                 float4 clipPosition = mul(_ViewProjection, float4(world, 1)); o.depth = clipPosition.z / clipPosition.w;

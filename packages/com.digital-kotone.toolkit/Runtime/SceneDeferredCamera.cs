@@ -30,6 +30,7 @@ namespace GakumasPhotoMode
             public Vector3 vertexScale = Vector3.one;
             public MaterialInputs inputs = new MaterialInputs();
             [Range(0, 1)] public float alphaCutoff;
+            public SceneGiInput gi = new SceneGiInput();
             // 0 = no decals; otherwise exact projector receiver group 1..255.
             [Range(0, 255)] public int receiverGroup = 1;
         }
@@ -60,6 +61,10 @@ namespace GakumasPhotoMode
         public Vector3 lightDirection = new Vector3(0, 0, -1);
         public Vector3 lightRadiance = Vector3.one;
         public Vector3 ambientIrradiance = new Vector3(.1f, .1f, .1f);
+        [Range(0, 4)] public float giBaseScale = 1;
+        [Range(0, 1)] public float directionalGiWeight;
+        [Range(0, 4)] public float directionalDiffuseScale = 1, directionalSpecularScale = 1, directionalBacklight;
+        public int GiTargetCount => _gi != null ? 1 : 0;
         public SceneDecalLightSettings decalLighting = new SceneDecalLightSettings();
         private SceneDecalLightRenderer _decalLights;
         public int SubmittedLights => _decalLights == null ? 0 : _decalLights.SubmittedLights;
@@ -78,6 +83,7 @@ namespace GakumasPhotoMode
         public readonly struct Frame
         {
             public readonly RenderTexture albedoCoverage, normalGroup, mosDepth, emission;
+            public readonly RenderTexture bakedDiffuseGi;
             private readonly SceneDeferredCamera _owner;
             private readonly uint _sequence;
             internal Frame(SceneDeferredCamera owner)
@@ -85,6 +91,7 @@ namespace GakumasPhotoMode
                 _owner = owner; _sequence = owner.RenderSequence;
                 var data = owner._output;
                 albedoCoverage = data[0]; normalGroup = data[1]; mosDepth = data[2]; emission = data[3];
+                bakedDiffuseGi = owner._gi;
             }
             public bool IsCurrent => _owner != null && _owner.Current && _sequence == _owner.RenderSequence &&
                 albedoCoverage != null && albedoCoverage.IsCreated();
@@ -97,10 +104,12 @@ namespace GakumasPhotoMode
         private readonly List<Material> _materials = new List<Material>();
         private RenderTexture[] _gbuffer, _scratch, _output;
         private RenderTexture _target;
+        private RenderTexture _gi;
+        private bool _usesGi;
         private int _prepared = -1, _rendered = -1, _materialCount;
         private bool Current => isActiveAndEnabled && sceneEnabled && _prepared == Time.frameCount &&
             _rendered == Time.frameCount && _output != null && _camera.targetTexture == _target && _target != null && _target.IsCreated() &&
-            Created(_output) && _output[0].width == _target.width && _output[0].height == _target.height;
+            Created(_output) && (!_usesGi || (_gi != null && _gi.IsCreated())) && _output[0].width == _target.width && _output[0].height == _target.height;
         public bool TryGetFrame(out Frame frame)
         { frame = default; if (!Current) return false; frame = new Frame(this); return true; }
 
@@ -130,7 +139,8 @@ namespace GakumasPhotoMode
             var projection = GL.GetGPUProjectionMatrix(_camera.projectionMatrix, true);
             var vp = projection * view;
             foreach (var rt in _gbuffer) { _commands.SetRenderTarget(rt); _commands.ClearRenderTarget(rt == _gbuffer[0], true, Color.clear); }
-            SetTargets(_gbuffer);
+            if (_gi != null) { _commands.SetRenderTarget(_gi); _commands.ClearRenderTarget(false, true, Color.clear); }
+            SetTargets(_gbuffer, _usesGi);
             foreach (var surface in surfaces)
             {
                 var renderer = surface.renderer;
@@ -139,6 +149,10 @@ namespace GakumasPhotoMode
                 material.SetMatrix("_ViewProjection", vp); material.SetMatrix("_View", view);
                 material.SetVector("_VertexScale", surface.vertexScale); material.SetFloat("_Cull", (int)surface.cull);
                 material.SetFloat("_Cutoff", surface.alphaCutoff); material.SetFloat("_ReceiverGroup", surface.receiverGroup);
+                if (_usesGi) material.EnableKeyword("SCENE_GI_OUTPUT"); else material.DisableKeyword("SCENE_GI_OUTPUT");
+                if (_usesGi && surface.gi != null && !surface.gi.Bind(material, renderer, out var giError))
+                { _commands.Clear(); UnavailableReason = giError; ReleaseResources(); return; }
+                if (surface.gi == null) material.SetFloat("_SceneGiMode", 0);
                 _commands.DrawRenderer(renderer, material, surface.materialIndex, 0); SubmittedSurfaces++;
             }
             _output = _gbuffer;
@@ -166,7 +180,11 @@ namespace GakumasPhotoMode
             lighting.SetVector("_CameraForward", view.inverse.MultiplyVector(Vector3.back).normalized); lighting.SetFloat("_Orthographic", _camera.orthographic ? 1 : 0);
             lighting.SetVector("_LightDirection", lightDirection.normalized); lighting.SetVector("_LightRadiance", lightRadiance);
             lighting.SetVector("_AmbientIrradiance", ambientIrradiance);
-            _decalLights?.Record(_commands, _output, _camera, Quad());
+            lighting.SetTexture("_BakedDiffuseGi", _gi != null ? (Texture)_gi : Texture2D.blackTexture);
+            lighting.SetFloat("_HasBakedGi", _gi != null ? 1 : 0);
+            lighting.SetVector("_DirectionalResponse", new Vector4(directionalDiffuseScale, directionalSpecularScale, directionalGiWeight, directionalBacklight));
+            lighting.SetFloat("_GiBaseScale", giBaseScale);
+            _decalLights?.Record(_commands, _output, _camera, Quad(), _gi);
             lighting.SetFloat("_HasDecalLights", _decalLights?.Accumulation != null ? 1 : 0);
             lighting.SetTexture("_DecalLightAccumulation", _decalLights?.Accumulation != null ? (Texture)_decalLights.Accumulation : Texture2D.blackTexture);
             // Resolve replaces scene radiance once AND writes scene depth before host Forward actors.
@@ -181,6 +199,7 @@ namespace GakumasPhotoMode
 
         private string Validate()
         {
+            _usesGi = false;
             if (!sceneEnabled) return "Disabled";
             if (GraphicsSettings.currentRenderPipeline != null || _camera.actualRenderingPath != RenderingPath.Forward)
                 return "Requires Built-in Forward host";
@@ -222,7 +241,18 @@ namespace GakumasPhotoMode
                     r.HasPropertyBlock() || !mesh.HasVertexAttribute(VertexAttribute.Normal) ||
                     (surface.inputs.normalMap != null && !mesh.HasVertexAttribute(VertexAttribute.Tangent)))
                     return "Invalid, duplicate, or unowned surface geometry";
+                if (surface.gi != null)
+                {
+                    if (!surface.gi.Validate(r, mesh, out var giError)) return giError;
+                    _usesGi |= surface.gi.source != SceneGiSource.None;
+                }
             }
+            if ((_usesGi && SystemInfo.supportedRenderTargetCount < 5) || !Unit(directionalGiWeight) ||
+                !Finite(giBaseScale) || giBaseScale < 0 || giBaseScale > 4 ||
+                !Finite(directionalBacklight) || directionalBacklight < 0 || directionalBacklight > 4 ||
+                !Finite(directionalDiffuseScale) || directionalDiffuseScale < 0 || directionalDiffuseScale > 4 ||
+                !Finite(directionalSpecularScale) || directionalSpecularScale < 0 || directionalSpecularScale > 4)
+                return "Invalid scene GI/light response or fewer than five MRTs";
             foreach (var d in decals)
             {
                 if (d == null || !d.enabled || !HasWeight(d)) continue;
@@ -265,11 +295,12 @@ namespace GakumasPhotoMode
         private Material NextMaterial()
         {
             while (_materials.Count <= _materialCount) _materials.Add(new Material(_shader) { hideFlags = HideFlags.HideAndDontSave });
-            return _materials[_materialCount++];
+            var material = _materials[_materialCount++]; material.DisableKeyword("SCENE_GI_OUTPUT"); return material;
         }
-        private void SetTargets(RenderTexture[] buffers)
+        private void SetTargets(RenderTexture[] buffers, bool gi = false)
         {
-            var targets = new RenderTargetIdentifier[4]; for (int i = 0; i < 4; i++) targets[i] = buffers[i];
+            var targets = new RenderTargetIdentifier[gi ? 5 : 4]; for (int i = 0; i < 4; i++) targets[i] = buffers[i];
+            if (gi) targets[4] = _gi;
             _commands.SetRenderTarget(targets, buffers[0]);
         }
         private Mesh Quad()
@@ -285,6 +316,14 @@ namespace GakumasPhotoMode
             if (!Created(_gbuffer) || _gbuffer[0].width != t.width || _gbuffer[0].height != t.height) { ReleaseTargets(ref _gbuffer); ReleaseTargets(ref _scratch); _gbuffer = Allocate(t); }
             if (scratch && !Created(_scratch)) { ReleaseTargets(ref _scratch); _scratch = Allocate(t); }
             if (!scratch) ReleaseTargets(ref _scratch);
+            if (!_usesGi) ReleaseGi();
+            else if (_gi == null || !_gi.IsCreated() || _gi.width != t.width || _gi.height != t.height)
+            {
+                ReleaseGi(); _gi = new RenderTexture(t.width, t.height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear) {
+                    name = "Toolkit scene baked diffuse GI", hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp
+                };
+                if (!_gi.Create()) return false;
+            }
             return Created(_gbuffer) && (!scratch || Created(_scratch));
         }
         private static RenderTexture[] Allocate(RenderTexture target)
@@ -305,6 +344,7 @@ namespace GakumasPhotoMode
         { if (array != null) foreach (var rt in array) if (rt != null) { rt.Release(); Destroy(rt); } array = null; }
         private void ReleaseResources()
         {
+            ReleaseGi();
             _decalLights?.Dispose(); _decalLights = null;
             _output = null; ReleaseTargets(ref _gbuffer); ReleaseTargets(ref _scratch);
             foreach (var m in _materials) if (m != null) Destroy(m); _materials.Clear();
@@ -316,5 +356,6 @@ namespace GakumasPhotoMode
             if (_commands != null) { if (_camera != null) _camera.RemoveCommandBuffer(CameraEvent.BeforeForwardOpaque, _commands); _commands.Release(); _commands = null; }
             ReleaseResources(); SubmittedSurfaces = SubmittedDecals = 0;
         }
+        private void ReleaseGi() { if (_gi != null) { _gi.Release(); Destroy(_gi); } _gi = null; }
     }
 }

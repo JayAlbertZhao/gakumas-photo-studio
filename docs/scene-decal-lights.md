@@ -49,7 +49,7 @@ camera.Render();
 
 `position`、`range`、`halfLength`、`halfSize` 使用世界单位，`rotation` 会归一化；不从任意 GameObject 继承缩放。宿主需要在自己的动画采样后更新这些字段。Area 的 `areaSpread` 是每单位深度增加的半宽，零值产生直棱柱，背面、超出深度或横向边界时无贡献。它是投影式灯光，未进行面光源面积积分、LTC 或软阴影。
 
-衰减为 `pow(saturate(1-distance/range), falloffExponent)`。Point/Capsule 使用到点／线段的距离，Area 使用沿 +Z 的深度。最终直接光为共享的 GGX/Smith/Schlick 与 Lambert 响应乘 atlas RGB、`radiance`、衰减。`diffuseScale` 和 `specularScale` 可独立调节，背向法线不受光。光源正好位于接收点时方向取零并输出零，避免除零。AO 不重复乘到直接光，间接 GI 输入仍由原场景模块管理。
+衰减为 `pow(saturate(1-distance/range), falloffExponent)`。Point/Capsule 使用到点／线段的距离，Area 使用沿 +Z 的深度。最终直接光为共享的 GGX/Smith/Schlick 与 Lambert 响应乘 atlas RGB、`radiance`、衰减。`diffuseScale` 和 `specularScale` 可独立调节；默认背向法线不受光，可用 `backlightScale` 添加反向漫反射。`giWeight` 控制各灯乘上预计算响应，两个新值均默认零，完整公式及边界见 [场景 GI](scene-gi.md)。光源正好位于接收点时方向取零并输出零，避免除零。AO 不重复乘到直接光。
 
 `receiverGroup=0` 照亮所有登记场景表面，包括不接受材质贴花的 group 0；1–255 仅匹配相同组。它不照亮未登记的 Forward 角色或透明物体。主 Forward 前景遮挡和背景深度仍保留，但**没有光源视角阴影**：即使接收面在相机中可见，灯和它之间的另一块墙也不会自动挡住此光。
 
