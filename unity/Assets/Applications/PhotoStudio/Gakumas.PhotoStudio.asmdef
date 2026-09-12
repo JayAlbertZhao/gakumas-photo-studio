@@ -3,6 +3,7 @@
   "rootNamespace": "GakumasPhotoMode",
   "references": [
     "Gakumas.Toolkit",
+    "Unity.ugui",
     "ActorAnimation.Runtime",
     "campus-submodule.Runtime",
     "vl-unity.Runtime",

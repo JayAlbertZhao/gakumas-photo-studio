@@ -48,6 +48,7 @@
 !/docs/baseline.md
 !/docs/code-map.md
 !/docs/framework-techniques.md
+!/docs/hdr-monitor.md
 !/docs/planar-reflection.md
 !/docs/release.md
 !/docs/rendering.md
@@ -151,10 +152,14 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Gakumas.Toolkit.asmdef.meta
 !/packages/com.digital-kotone.toolkit/Runtime/HairDynamicsSystem.cs
 !/packages/com.digital-kotone.toolkit/Runtime/HairDynamicsSystem.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/HdrMonitor.cs
+!/packages/com.digital-kotone.toolkit/Runtime/HdrMonitor.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/HumanMuscleResolver.cs
 !/packages/com.digital-kotone.toolkit/Runtime/HumanMuscleResolver.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/MaterialRepairer.cs
 !/packages/com.digital-kotone.toolkit/Runtime/MaterialRepairer.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/MonitorEmissionMaterial.cs
+!/packages/com.digital-kotone.toolkit/Runtime/MonitorEmissionMaterial.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/NaturalWindSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/NaturalWindSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/OrbitPhotoCamera.cs
@@ -199,6 +204,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/AdvParaffin.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/CapturedActorShadow.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/CapturedActorShadow.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorCanvas.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorCanvas.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorEmission.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorEmission.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/OriginalStylePost.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/OriginalStylePost.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/PhotoColorGrade.shader
@@ -272,6 +281,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorPlanar.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Monitor.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Monitor.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Planar.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Planar.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ReflectionResolve.cs

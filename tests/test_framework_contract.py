@@ -237,6 +237,30 @@ class FrameworkContractTests(unittest.TestCase):
             self.assertIn('#include "ScreenSpaceReflectionFilter.hlsl"',
                           (RUNTIME / ('Resources/ScreenSpaceReflection.' + suffix)).read_text(encoding='utf-8'))
 
+    def test_monitor_is_explicit_owned_and_restores_camera_state(self):
+        source = (RUNTIME / 'HdrMonitor.cs').read_text(encoding='utf-8')
+        for forbidden in ('PhotoModeApp', 'BundleCatalog', 'UnityEngine.UI', 'Shader.SetGlobal',
+                          'void Update(', 'void LateUpdate('):
+            self.assertNotIn(forbidden, source)
+        self.assertNotRegex(source, r'_camera\.(?:enabled|projectionMatrix|aspect)\s*=(?!=)')
+        for required in ('public bool monitorEnabled;', 'public event Action<double> PrepareCapture',
+                         'Camera.current != null', '_camera.targetTexture = oldTarget', 'GL.sRGBWrite = oldSrgb',
+                         'Graphics.Blit(_capture, _output)', 'seconds < _observedTime', 'Release(ref _capture); Release(ref _output)'):
+            self.assertIn(required, source)
+
+    def test_monitor_material_reads_radiance_without_second_opacity(self):
+        source = (RUNTIME / 'MonitorEmissionMaterial.cs').read_text(encoding='utf-8')
+        self.assertIn('!frame.IsCurrent', source)
+        self.assertIn('public void Unbind()', source)
+        self.assertNotIn('.sharedMaterial', source)
+        shader = (RUNTIME / 'Resources/MonitorEmission.shader').read_text(encoding='utf-8')
+        self.assertIn('tex2D(_MonitorTex, i.uv).rgb', shader)
+        self.assertIn('float2 uv3:TEXCOORD3', shader)
+        self.assertNotIn('radiance * sample.a', shader)
+        canvas = (RUNTIME / 'Resources/MonitorCanvas.shader').read_text(encoding='utf-8')
+        self.assertIn('Blend SrcAlpha OneMinusSrcAlpha, One OneMinusSrcAlpha', canvas)
+        self.assertIn('UnityGet2DClipping', canvas)
+
 
 if __name__ == '__main__':
     unittest.main()

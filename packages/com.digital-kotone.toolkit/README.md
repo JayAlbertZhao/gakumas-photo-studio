@@ -71,6 +71,8 @@ pipeline.sphereFog = new SphereFogSettings {
 
 ## 边界
 
+`HdrMonitor` 用专用 disabled Camera 生产线性 HDR UI／场景纹理，提供内容版本、显式请求和限频调度；`MonitorCanvas` 支持 HDR UI，`MonitorEmissionMaterial` 按 UV 区域／LED 图案采样到自己拥有的发光材质。均需显式驱动，不自动开启剧情场景的原相机或更换主材质。接入、生命周期和成本见 [HDR Monitor](../../docs/hdr-monitor.md)。
+
 `ScreenSpaceReflection` 可独立用于 Built-in Forward 场景，默认关闭。它捕获不含角色的背景颜色和深度，用 Hi-Z 追踪与历史深度检查产生反射；通过 `OriginalStyleRenderPipeline.screenSpaceReflection` 或自己的 HDR 回调接入。保留旧显式加法入口，另有无加法 TryTrace 供统一消费者使用。可选 [粗糙度过滤](../../docs/ssr-roughness.md) 按接收面扩散辐射并保留 miss／confidence 语义；物理 GGX 与移动优化仍未完成。详见 [SSR 接入与限制](../../docs/screen-space-reflection.md)。
 
 SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBackend.Compute`，使用相机私有 kernel 实例进行追踪／最小深度 RandomWrite。默认 Raster，支持显式能力降级与严格模式；桌面同输入结果有实际 GPU 对照，尚未证明性能提升。见 [计算后端](../../docs/scene-compute-backend.md)。

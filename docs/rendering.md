@@ -6,6 +6,18 @@
 
 以下按阶段逆序记录；旧阶段中的开项以较新的实现记录和 [技术清单](framework-techniques.md) 为准。
 
+### HDR Monitor 与发光网格
+
+按 PDF 56–58 的专用 UI 相机／HDR 纹理／UV 发光网格链路新增 `HdrMonitor`、`MonitorCanvas` 和 `MonitorEmissionMaterial`。模块使用独立 capture／published 目标、显式内容版本和 WhenDirty／FixedRate／EveryCall 调度；动画／Canvas 布局只在实际捕获前执行。网格可选择 UV0–UV3、atlas 区域、线性染色和 LED 重复图案，透明 UI 不被重复乘 alpha。相机 target／HDR／MSAA／renderingPath 和临时图形状态在 finally 恢复；不自动开启剧情相机或改默认主材质。接入与资源成本见 [Monitor 说明](hdr-monitor.md)。
+
+完整 t15／D3D11 v7 构建及独立 Player 合成套件完成：全部 2268 项接受，新增 78 项 Monitor 检查。77 项检查覆盖实际 World／Screen Space Camera UGUI、HDR 4→8 的 UI 亮度传到指定网格而其他 atlas 区域不变、sRGB／线性纹理、透明合成、RectMask2D／stencil Mask、四通道 UV、LED 空间重复、前景深度、稳定发布纹理的 2→1 逐次反馈、调度／倒退时间／显式请求、双相机隔离、隐式投影仍随相机参数更新、无效输入与释放。另 1 项记录本机动态分辨率请求未生效，不把它计为已启用动态分辨率下的拒绝验证。
+
+前版 2190 项完整 JSON 记录及合成套件的 1298 张既有 PNG 逐项／逐像素相同。新 HDR atlas／发光网格预览和普通 1920×1080 摄影已查看；实际角色简化 Planar 的 17 项离屏检查也用新 Player 重跑并接受。PNG 只能展示裁切后的颜色，不用于证明 HDR；HDR／alpha 断言读取浮点目标。
+
+保留 v1 首次导入 CS0103、v3 Color／Vector 类型错误构建记录，以及 v4 的动态分辨率测试失败。独立诊断确认在该 D3D11 环境中把 allowDynamicResolution 设 true 后立即读回 false，因此最终用明确命名的“请求未生效”观察记录，生产代码仍拒绝真正开启的标志，未撤掉边界检查。修正了源码测试误把 `==` 识别为矩阵赋值的模式；没有为此更改渲染逻辑。
+
+尚未验收支持硬件上的 active dynamic resolution 拒绝、移动／Vulkan／Metal 与 GPU 帧时、原版完整舞台和视频解码。发光网格不会自动照亮周围物体，Monitor 驱动的贴花灯／GI 以及图中完整 PBR 材质链仍属后续场景阶段。本轮未打开可见 Player 窗口。
+
 ### 真实角色简化 Planar 捕获
 
 新增可选 `ActorPlanarCaptureSet` 和显式线性 `ActorPlanarLighting`，读取自身 ActorToon 的 Base／Shade／Def／Ramp、Layer、材质 Ramp、头发高光、眼部、图集和 property block。仅创建 owned 捕获材质，不改主材质／主光全局或默认摄影路径。按 PDF 44–45 的简化 Forward／区域 alpha 和 PPT 35–49 的材质输入实现；省去完整镜面 BRDF、阴影、附加光、normal map、描边等昂贵路径，公式为独立近似。接口和限制见 [角色捕获说明](actor-planar-capture.md)。

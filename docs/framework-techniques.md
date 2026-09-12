@@ -32,7 +32,7 @@
 | E05 | Hi-Z SSR、排除角色；PDF 37–43 | 已有可选 Hi-Z trace、角色排除历史、重投影拒绝、统一间接光消费／Planar skip、Compute／RandomWrite；新增接收面感知的粗糙度辐射过滤 | 桌面 GPU／回退／生命周期及独立 CPU 过滤对照已验收，默认关闭过滤保留旧结果；物理 GGX、复杂场景画质与移动性能仍待完成，见 [过滤契约](ssr-roughness.md)、[计算后端](scene-compute-backend.md) 和 [统一反射](scene-reflection-resolve.md) |
 | E06 | Planar 角色／发光网格及区域 mask；PDF 44–51、PPT 114 | 已有镜像／裁剪、区域覆盖、smoothness mip、法线差分扭曲与统一合成；新增 ActorToon 简化材质快照与眼部／头发匹配覆盖 | 合成材质 GPU 和一个真实角色／服装四方向、蒙皮跳转成立；全角色画质、GGX 过滤、多 Probe 调度和移动性能仍待完成，见 [角色适配](actor-planar-capture.md)、[Planar](planar-reflection.md) 与 [统一反射](scene-reflection-resolve.md) |
 | E07 | PBR GBuffer 贴花、MAOS／法线／高度遮蔽／水面贴花；PPT 116–120、PDF 24–25 | 未接入完整场景链 | 分通道混合、投影遮挡、无贴花零额外工作 |
-| E08 | HDR Monitor 与发光网格；PDF 56–58 | 有部分背景输入读取 | 通用相机／纹理输出模块、动画与更新调度 |
+| E08 | HDR Monitor 与发光网格；PDF 56–58 | 新增 HdrMonitor 专用相机生产、HDR Canvas、内容／时间更新调度、UV／LED 发光网格消费 | 自制真实 UGUI／网格链路已执行；原版整场舞台、视频编解码及移动帧时未验收，见 [Monitor 接入](hdr-monitor.md) |
 | E09 | 点／胶囊／面贴花灯及 instancing；PDF 59–62、PPT 119 | 未接入 | Monitor UV、灯体积、实例化、GI 与重叠成本 |
 | E10 | 天空、植被、水、折射、荧光棒等专用表面；PPT 109 | 未覆盖完整集合 | 资料仅列用途，需独立约定输入与验收，不能假定原版公式 |
 | P01 | 方差裁剪 TAA、ExcludeTAA、NoJitter；PDF 33 | 时域主体已有；新增显式表面分类 | 见下方接口；不自动给全部原版材质分类，不引入默认投影 jitter |
