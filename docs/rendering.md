@@ -6,6 +6,18 @@
 
 以下按阶段逆序记录；旧阶段中的开项以较新的实现记录和 [技术清单](framework-techniques.md) 为准。
 
+### 点／胶囊／面贴花灯与 Monitor 驱动照明
+
+按 PDF 59–62 的实际图示与 PPT 119 的舞台／UV 说明新增可选 `SceneDecalLightSettings`。三种光源分别取 Monitor 的点、线、面，读取材质贴花后的表面缓冲并产生实际直接光。线性衰减、最近线段点和梯形投影是独立模型；输入／近似与无光源阴影边界见 [贴花灯](scene-decal-lights.md)。不改默认 Photo Studio，不把 material emission 增亮当作其他表面受光。
+
+完整 t15／D3D11 v4 构建无 C#／shader 错误；`--self-test-actor-rendering` 在无窗口 `-batchmode` 下完成 2416 项渲染／状态检查。新增 73 项覆盖三形状的 CPU BRDF／衰减对照、单点／线／面 atlas RGB（alpha 为零仍有效）、体积／方向／接收组、漫反射与镜面独立开关、110 混合灯的 Scalar／Instanced 全图一致及 32 灯分批偏移、HDR 叠加、实际 Monitor 4→8 更新只改变受光而保留材质 emission、材质贴花后光照、Forward 前后遮挡、双相机所有权、无效输入／禁用／尺寸变化与目标丢失。自定义投影的 near 值与相机属性不一致时仍按实际矩阵剔除，避免漏灯。
+
+另一次显式 RenderDoc 离屏截帧完成相同套件及截帧检查，共 2417 项。原生 D3D11 事件中确有一个 `DrawInstanced`：每实例 6 顶点、110 实例，VS 输入含 `SV_InstanceID`；18432 字节的结构化 buffer 中前 110 条位置各不相同，包含 37 点／37 胶囊／36 面灯。实际累加 RTV 为 `R32G32B32A32_FLOAT`，中心 RGB 为约 `(0.225463, 0.334067, 0.147522)`。这是原生提交和受光证据，未测 GPU 帧时，不能由一个 draw 推断移动端成本。
+
+前版 2343 项完整 JSON 与 1303 张已有 PNG 逐项／逐像素相同；新四张受光预览和普通 1920×1080 摄影已查看，HDR 断言直接读取浮点目标。实际角色 Planar 的 17 项离屏检查用最终 Player 重跑并接受。全程未打开可见 Player。保留首次 UPM 导入的 CS0246 构建日志，未把该构建计为干净验证；v2/v3 为较窄中间验收，v4 增加实际投影剔除回归。
+
+仍待完成预烘焙 GI 乘色、背向漫反射补光、光源阴影、完整场景／反射桥接及 Forward+、角色／透明接收器、原版整舞台和移动 Memoryless/subpass／Vulkan／Metal 成本。当前机器验证了显式 Scalar 和 Instanced，不代替实际缺少实例化能力设备上的回退验收。
+
 ### 场景 PBR GBuffer、材质贴花与 HDR 光照
 
 按 PPT 116–120、PDF 22–29 新增默认不启用的 `SceneDeferredCamera`。宿主显式排除登记场景层，组件先绘制未着色的 albedo／normal／MOS／emission，依数组顺序投影材质通道和高度 AO，再计算场景 HDR 并写回主目标深度，角色继续 Forward。输入、层所有权、独立高度公式及限制见 [场景后端](scene-deferred.md)。既有课堂 monitor 的专用 fallback 保持原样，没有自动切换原场景材质。

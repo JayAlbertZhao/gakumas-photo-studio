@@ -93,4 +93,6 @@ SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBack
 
 `SceneDeferredCamera` 是默认不启用的独立场景后端，登记自己的 PBR 输入与显式场景层，绘制材质 GBuffer、投影分通道贴花和高度 AO，再向主目标输出实际 HDR 光照与深度。宿主从普通 culling mask 排除这些层，角色仍走 Forward。Monitor 发布纹理可驱动贴花 emission。尚未包含完整 Forward+、阴影／GI／反射桥接与移动附件优化。见 [场景后端契约](../../docs/scene-deferred.md)。
 
+`SceneDecalLightSettings` 在该场景后端中提供点／胶囊／面状直接照明，读取 Monitor 的点／线／面 atlas 内容并通过 PBR 材质影响其他表面。支持实际 GPU procedural instancing、Scalar 对照／能力回退、显式接收组和 float32 HDR 累加；默认关闭。当前不包含光源阴影、GI 烘焙或移动性能保证。见 [贴花灯接入](../../docs/scene-decal-lights.md)。
+
 来源与许可边界见 [NOTICE](NOTICE.md)。包的技术可接入性不表示整个项目已获得统一开源再许可授权。

@@ -7,6 +7,8 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
         #include "UnityCG.cginc"
         sampler2D _AlbedoMap, _NormalMap, _MosMap, _EmissionMap, _HeightMap;
         sampler2D _G0, _G1, _G2, _G3;
+        sampler2D _DecalLightAccumulation;
+        float _HasDecalLights;
         float4 _UvST, _Weights, _HeightParameters;
         float3 _Albedo, _Mos, _Emission, _VertexScale, _MosWeight;
         float _Alpha, _HasNormal, _Cutoff, _ReceiverGroup;
@@ -151,6 +153,7 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
                 // AO affects indirect diffuse only. Emission never receives lighting a second time.
                 float3 direct = ((1 - f) * diffuse + distribution * visibility * f) * _LightRadiance * nl;
                 float3 indirect = diffuse * _AmbientIrradiance * ao;
+                if (_HasDecalLights > .5) direct += tex2D(_DecalLightAccumulation, i.uv).rgb;
                 litOutput o; o.color = float4(clamp(direct + indirect + data.emission.rgb, 0, 65504), 1);
                 float4 clipPosition = mul(_ViewProjection, float4(world, 1)); o.depth = clipPosition.z / clipPosition.w;
                 #if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)

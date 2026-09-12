@@ -3,6 +3,10 @@
   "reason": "Authorized independent character/rendering framework development; see docs/framework-techniques.md and docs/rendering.md. Original-shader replay remains private diagnostic work.",
   "base_archive_sha256": "597c4a95781d4a2394a81be85826a2de2a58f547d9449e04c648426f061d5cfb",
   "replacements": {
+    "unity/Assets/Scripts/RenderDocCaptureBridge.cs": {
+      "sha256": "2ce7e8353ae649c8bd84b13df9491d17dd78298011e8bf3a43067c642f4bbe3d",
+      "baseline_sha256": "f96c9e9a1289a9bc13ba883efe9b6ad1882b57b21815caaebaa90b1c8dcda497"
+    },
     "unity/Assets/Scripts/FaceExpressionRenderer.cs": {
       "sha256": "088708aa08c6621a9837ba9d75f9f213cbdbabc3bbf0b6850e7f1a8b61a6393c",
       "baseline_sha256": "d67db5da84725ba0551ea720f0045cf34c14a141491596e05e9eeea96ea5cf01"
@@ -99,7 +103,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "7e3feeb1dc39ad3d9dd0ce9ee376e8573208943f2ecfc691a709d082a116df85",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "183003864f16c0067ca6b32ad6320941e3867f2c398d72e129a8c39c9cd91a96",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "cb896abf01394027dca18415565cf0fcf13dcca80c85971b54f3c8d7439fc0d3",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
@@ -133,7 +137,7 @@
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs": "93267c4f15f0a7b3dcf3e1d3b1e07ced8258c9854d6ed1de91231a88aedce443",
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs.meta": "75aad888d4351b0776443c7e5751c3d105b6d12acf55d926068d065dfa837552",
     "packages/com.digital-kotone.toolkit/NOTICE.md": "81a4267084c7405793f975954b0b386565322e0d8b8c28a5a39ad3d49fbcc806",
-    "packages/com.digital-kotone.toolkit/README.md": "687ec93f721a1226038bb1c51f9a87e5079161581ed7065ef41c335ee42947ab",
+    "packages/com.digital-kotone.toolkit/README.md": "05c324a7e0da484d313083599ac3b85d08b95da25dc38c3b1336a930866522a3",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef": "6337904b37c3452d23c72a5c38b37d9e36a1de06dcfc262db792ddb141df3ccb",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef.meta": "b97945697274955dd36c6850061768b3522c5aa5768d95eb5401c2704ab0f013",
     "packages/com.digital-kotone.toolkit/Editor/ToolkitBuildPipeline.cs": "e0ad314e0214abf0da89cb167ed70021acebfbc5a50c8d7a13034c1dcb4793cb",
@@ -214,12 +218,24 @@
     "packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorEmission.shader.meta": "65ab960131c7f076cad499c0a7cae5caa7677360a5dcb5c388301b31cf4ba6e6",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Monitor.cs": "c3d49d5d04711322035b7228f731d0115bd9b15082bc54d0c2ea62a95d7566b4",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Monitor.cs.meta": "e0861a2399ffc3c68e3b65746faae71f84e9dfbe33c3a181982bbf71b8439842",
-    "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDeferred.shader": "c3e92c820a4fc8237ada27ed775ab219bdd0a8d2619ad46390acbea332b4cd4d",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDeferred.shader": "d65be75ffaa2644ae035bc8e156d989ee2bca5c882a0c60832588a80d39298cb",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDeferred.shader.meta": "0252e4f62b4059295d384303aa535f0556137f1479556cea7889260c88a4372b",
-    "packages/com.digital-kotone.toolkit/Runtime/SceneDeferredCamera.cs": "ea8f7fd9cb3c9e30308c6f8332182e935ddbdcce3e516449759cf6478cd97d27",
+    "packages/com.digital-kotone.toolkit/Runtime/SceneDeferredCamera.cs": "a95afd65e6b8bcdfcdade92b802b456255527c4bb932757b9a94331d44b92761",
     "packages/com.digital-kotone.toolkit/Runtime/SceneDeferredCamera.cs.meta": "8b21322ae1b28b71c5cc9b22e7c2bf57a47bf4da471a56b0c632550494bb76be",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs": "822befb8fb8ea664d07ab45f7100708180e30df7bbe46d9dea717f7bbadd9d57",
-    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs.meta": "8703e4faa97a48ec3db838bd6a3aad09d84fed2f865ec2d63458f2a9049b6228"
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs.meta": "8703e4faa97a48ec3db838bd6a3aad09d84fed2f865ec2d63458f2a9049b6228",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDecalLight.hlsl": "3dd0f94bf5b6b4ff9200a70e9793a85e4b08f153d63a31735e11a45d5e518dc8",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDecalLight.hlsl.meta": "d492f3ece2efd2ff57e449919a47869ee8689e68cfe474a4fce3d1aa31600119",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDecalLightInstanced.shader": "6bf62fd2d74ace5c334ce2c35049971eeeda109bc2f9264823a5a14539a12459",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDecalLightInstanced.shader.meta": "3b42dc866e034713c5cb05696186b240d49f435a28067afa96c2c2a7f473736a",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDecalLightScalar.shader": "310294753c88148c893e53162a87affb9a852d40c0e4f7e3ea6b979cc881aa3e",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDecalLightScalar.shader.meta": "8079930a2ae1b17c8ce4acc49ef7f2883b914ffc993c25b47210db3964b2bfbc",
+    "packages/com.digital-kotone.toolkit/Runtime/SceneDecalLightRenderer.cs": "69d98a54b8ffc3dedbcd6177122b3149373b43d6473771f902e3538a3f3e25c9",
+    "packages/com.digital-kotone.toolkit/Runtime/SceneDecalLightRenderer.cs.meta": "c6acee9eb659ff4f4140fb881627177d7e4d430172938ba8537150fb36381337",
+    "packages/com.digital-kotone.toolkit/Runtime/SceneDecalLightSettings.cs": "fe2fd9001324cd5ff6a3c60692df604ed8eae3be937caa858fac05efb3c8258c",
+    "packages/com.digital-kotone.toolkit/Runtime/SceneDecalLightSettings.cs.meta": "36f63ad8fa149971d435f48ca8968aa61928466a704a1a3514a07caa99f2853d",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Lights.cs": "feec4e53ee82ff594990525af7bc7879d98b153e956225946d7ce2050d20cc2c",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Lights.cs.meta": "2a0ed56bd8d286466e3fc49266b8c143d1f49b4c6c7f6a021b481b00d25adefd"
   },
   "relocations": {
     "unity/Assets/ActorAnimationStub/ActorAnimation.Runtime.asmdef": "packages/com.digital-kotone.toolkit/Runtime/Compatibility/ActorAnimationStub/ActorAnimation.Runtime.asmdef",

@@ -60,6 +60,15 @@ namespace GakumasPhotoMode
         public Vector3 lightDirection = new Vector3(0, 0, -1);
         public Vector3 lightRadiance = Vector3.one;
         public Vector3 ambientIrradiance = new Vector3(.1f, .1f, .1f);
+        public SceneDecalLightSettings decalLighting = new SceneDecalLightSettings();
+        private SceneDecalLightRenderer _decalLights;
+        public int SubmittedLights => _decalLights == null ? 0 : _decalLights.SubmittedLights;
+        public int CulledLights => _decalLights == null ? 0 : _decalLights.CulledLights;
+        public int LightDrawCalls => _decalLights == null ? 0 : _decalLights.DrawCalls;
+        public int LightBufferCapacity => _decalLights == null ? 0 : _decalLights.BufferCapacity;
+        public int LightTargetCount => _decalLights?.Accumulation != null ? 1 : 0;
+        public SceneDecalLightBackend ActiveLightBackend => _decalLights == null ? SceneDecalLightBackend.Scalar : _decalLights.Backend;
+        public string LightFallbackReason => _decalLights?.FallbackReason;
         public int SubmittedSurfaces { get; private set; }
         public int SubmittedDecals { get; private set; }
         public int AllocatedTargets => (_gbuffer == null ? 0 : 4) + (_scratch == null ? 0 : 4);
@@ -108,6 +117,12 @@ namespace GakumasPhotoMode
             if (_commands == null) return;
             _commands.Clear(); UnavailableReason = Validate();
             if (UnavailableReason != null) { ReleaseResources(); return; }
+            if (decalLighting != null && decalLighting.enabled)
+            {
+                if (_decalLights == null) _decalLights = new SceneDecalLightRenderer();
+                if (!_decalLights.Prepare(_camera, decalLighting, out var error)) { UnavailableReason = error; ReleaseResources(); return; }
+            }
+            else { _decalLights?.Dispose(); _decalLights = null; }
             int count = 0;
             foreach (var decal in decals) if (decal != null && decal.enabled && HasWeight(decal)) count++;
             if (!EnsureTargets(count > 0)) { UnavailableReason = "Target creation failed"; ReleaseResources(); return; }
@@ -151,6 +166,9 @@ namespace GakumasPhotoMode
             lighting.SetVector("_CameraForward", view.inverse.MultiplyVector(Vector3.back).normalized); lighting.SetFloat("_Orthographic", _camera.orthographic ? 1 : 0);
             lighting.SetVector("_LightDirection", lightDirection.normalized); lighting.SetVector("_LightRadiance", lightRadiance);
             lighting.SetVector("_AmbientIrradiance", ambientIrradiance);
+            _decalLights?.Record(_commands, _output, _camera, Quad());
+            lighting.SetFloat("_HasDecalLights", _decalLights?.Accumulation != null ? 1 : 0);
+            lighting.SetTexture("_DecalLightAccumulation", _decalLights?.Accumulation != null ? (Texture)_decalLights.Accumulation : Texture2D.blackTexture);
             // Resolve replaces scene radiance once AND writes scene depth before host Forward actors.
             _commands.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
             _commands.DrawMesh(Quad(), Matrix4x4.identity, lighting, 0, 2);
@@ -287,6 +305,7 @@ namespace GakumasPhotoMode
         { if (array != null) foreach (var rt in array) if (rt != null) { rt.Release(); Destroy(rt); } array = null; }
         private void ReleaseResources()
         {
+            _decalLights?.Dispose(); _decalLights = null;
             _output = null; ReleaseTargets(ref _gbuffer); ReleaseTargets(ref _scratch);
             foreach (var m in _materials) if (m != null) Destroy(m); _materials.Clear();
             if (_quad != null) Destroy(_quad); _quad = null;

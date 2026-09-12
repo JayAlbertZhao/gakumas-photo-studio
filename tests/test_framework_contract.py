@@ -283,5 +283,28 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertNotIn('_CameraDepthTexture', source)
 
 
+    def test_decal_lights_are_optional_instanced_owned_and_float_accumulated(self):
+        source = (RUNTIME / 'SceneDecalLightRenderer.cs').read_text(encoding='utf-8')
+        for token in ('commands.DrawProcedural', 'MeshTopology.Triangles, 6,', '_SceneLightOffset',
+                      'ComputeBufferType.Structured', 'RenderTextureFormat.ARGBFloat',
+                      'settings.monitor.TryGetFrame', 'SystemInfo.supportsInstancing', 'settings.allowInstancingFallback'):
+            self.assertIn(token, source)
+        self.assertNotIn('Shader.SetGlobal', source)
+        self.assertNotIn('AddComponent<Light>', source)
+        host = (RUNTIME / 'SceneDeferredCamera.cs').read_text(encoding='utf-8')
+        self.assertLess(host.index('_decalLights?.Record'), host.index('_commands.DrawMesh(Quad(), Matrix4x4.identity, lighting'))
+        self.assertIn('_decalLights?.Dispose()', host)
+
+    def test_decal_light_shapes_share_brdf_and_do_not_reapply_monitor_alpha(self):
+        source = (RUNTIME / 'Resources/SceneDecalLight.hlsl').read_text(encoding='utf-8')
+        for token in ('SV_InstanceID', 'StructuredBuffer<SceneLightData>', 'input.instance + _SceneLightOffset',
+                      'along / (2 * light.axisXLength.w)', 'projectedHalf', 'LightBrdf(', 'mos.a',
+                      'clamp(tex2Dlod(_LightAtlas, float4(atlasUv, 0, 0)).rgb, 0, 65504)'):
+            self.assertIn(token, source)
+        for shader in ('SceneDecalLightInstanced.shader', 'SceneDecalLightScalar.shader'):
+            self.assertIn('#include "SceneDecalLight.hlsl"', (RUNTIME / 'Resources' / shader).read_text(encoding='utf-8'))
+        self.assertNotIn('atlas.a', source)
+
+
 if __name__ == '__main__':
     unittest.main()

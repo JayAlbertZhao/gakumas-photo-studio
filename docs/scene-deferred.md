@@ -2,7 +2,7 @@
 
 `SceneDeferredCamera` 是 Built-in Forward 相机之前的显式场景绘制模块。输入自己的网格与 PBR 材质数据，先绘制 GBuffer，再按数组顺序投影贴花，最后计算 HDR 光照并写入主目标的颜色和深度。角色与透明物体继续走宿主 Forward，并接受已写入的场景深度测试。默认 Photo Studio 不挂载该组件。
 
-参考技术范围是 PPT 116–120 与 PDF 22–29。实现不包含原版 shader、Def ABI、资产或讲演图。这里的方向光 GGX/Smith/Schlick、Lambert 间接漫反射与高度密度函数是独立模型。它尚未实现源管线的完整移动 Deferred/Forward+、ShadowMask、GI 生产、反射整合、RenderPass/Memoryless 复用或贴花灯。
+参考技术范围是 PPT 116–120 与 PDF 22–29。实现不包含原版 shader、Def ABI、资产或讲演图。这里的方向光 GGX/Smith/Schlick、Lambert 间接漫反射与高度密度函数是独立模型。可选的点／胶囊／面光源见 [场景贴花灯](scene-decal-lights.md)。尚未实现源管线的完整移动 Deferred/Forward+、ShadowMask、GI 生产、反射整合或 RenderPass/Memoryless 复用。
 
 ## 宿主接入
 
@@ -82,7 +82,7 @@ aoOut = lerp(aoIn, decalAO, aoWeight)
 
 四个相机私有附件存 albedo+coverage、世界着色法线+receiver group、MOS+正眼空间深度、HDR emission。深度使用 float32 通道，其余使用 half；另有私有 24-bit 几何深度。无有效贴花时只有基础 GBuffer 和光照，不分配贴花 scratch，也不执行贴花 pass。开启贴花额外分配一组附件并 ping-pong，全屏 pass 成本随有效贴花数线性增长，尚未做体积裁剪/instancing/移动带宽优化。
 
-直接光使用显式世界表面朝光方向 `lightDirection` 和线性 `lightRadiance`。`ambientIrradiance` 是宿主输入的统一间接漫反射照度，AO 只作用于该间接项。暂不读取 Unity 全局灯光、LightProbe/Lightmap 或阴影。输出在场景照明完成后只写入一次，然后允许宿主 Forward 几何进行正常深度测试。
+直接光使用显式世界表面朝光方向 `lightDirection` 和线性 `lightRadiance`。`ambientIrradiance` 是宿主输入的统一间接漫反射照度，AO 只作用于该间接项。可选 [点／胶囊／面贴花灯](scene-decal-lights.md) 读取同一材质结果，在 float32 目标累加实际直接光，再由此处统一合并并限制到 half HDR 范围。暂不读取 Unity 全局灯光、LightProbe/Lightmap 或阴影。输出在场景照明完成后只写入一次，然后允许宿主 Forward 几何进行正常深度测试。
 
 仅支持 Built-in Forward、完整视口、非 XR/MSAA/动态分辨率、带深度的固定线性 ARGBHalf/ARGBFloat 2D 目标。暂不支持直接 backbuffer、相机叠加保留旧深度或 SRP。`TryGetFrame` 应在 `Camera.Render` 之后或 `OnRenderImage` 中读取。附件为借用对象，不得写入、Release 或保存跨渲染的使用权，`IsCurrent` 检查帧序和目标生命周期。尺寸变动、目标丢失会重建；禁用或无效输入释放私有资源，不释放宿主目标。
 
