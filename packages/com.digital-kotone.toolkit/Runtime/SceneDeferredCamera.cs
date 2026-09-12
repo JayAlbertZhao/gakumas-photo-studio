@@ -71,7 +71,8 @@ namespace GakumasPhotoMode
         public int MainShadowCasterDrawCalls => _mainShadow == null ? 0 : _mainShadow.CasterDrawCalls;
         public SceneScreenShadowSettings screenShadow = new SceneScreenShadowSettings();
         private SceneScreenShadowRenderer _screenShadow;
-        public int ScreenShadowTargetCount => _screenShadow?.Visibility != null ? 2 : 0;
+        public int ScreenShadowTargetCount => _screenShadow == null ? 0 : _screenShadow.TargetCount;
+        public int GtaoCoarseDrawCalls => _screenShadow == null ? 0 : _screenShadow.GtaoCoarseDrawCalls;
         public int ScreenShadowGeometryDrawCalls { get; private set; }
         public int ScreenShadowResolveDrawCalls => _screenShadow == null ? 0 : _screenShadow.ResolveDrawCalls;
         public int ScreenShadowCapsuleCount => _screenShadow == null ? 0 : _screenShadow.CapsuleCount;
@@ -100,6 +101,8 @@ namespace GakumasPhotoMode
             public readonly RenderTexture lightShadowAtlas;
             public readonly RenderTexture mainLightShadowDepth;
             public readonly RenderTexture screenGeometry, shadowOcclusion;
+            // Half mode: XY selected full-resolution texture pixel, Z view depth, W GTAO visibility.
+            public readonly RenderTexture gtaoCoarse;
             private readonly SceneDeferredCamera _owner;
             private readonly uint _sequence;
             internal Frame(SceneDeferredCamera owner)
@@ -111,6 +114,7 @@ namespace GakumasPhotoMode
                 lightShadowAtlas = owner._decalLights?.ShadowAtlas;
                 mainLightShadowDepth = owner._mainShadow?.Atlas;
                 screenGeometry = owner._screenShadow?.Geometry; shadowOcclusion = owner._screenShadow?.Visibility;
+                gtaoCoarse = owner._screenShadow?.GtaoCoarse;
             }
             public bool IsCurrent => _owner != null && _owner.Current && _sequence == _owner.RenderSequence &&
                 albedoCoverage != null && albedoCoverage.IsCreated();

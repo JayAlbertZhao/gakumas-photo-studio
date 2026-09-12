@@ -6,6 +6,20 @@
 
 以下按阶段逆序记录；旧阶段中的开项以较新的实现记录和 [技术清单](framework-techniques.md) 为准。
 
+### GTAO 半分辨率与几何引导空间重建
+
+按 PDF10／19 的低分辨率及环境遮蔽调度，以及 [公开 GTAO 技术报告 §4.1](https://www.iryoku.com/downloads/Practical-Realtime-Strategies-for-Accurate-Indirect-Occlusion.pdf)，新增默认不启用的 `SceneGtaoResolution.Half`。实际生产最近正深度的 2×2 粗接收点及 GTAO，随后通过 4×4 空间／双切平面／法线权重重建，无兼容样本时回退到当前点完整 GTAO。主灯 R 与世界胶囊保留全分辨率，旧默认 Full 和关闭路径不分配粗目标。接入及资源成本见 [GTAO 契约](scene-gtao.md)。
+
+最终 t15／D3D11 干净完整构建为 100915636 字节；实际 GI bundle 的完整 Player 渲染与状态套件接受 3214 项检查，其中 199 项为本阶段新增。24 组逐像素 CPU 重建对照覆盖奇偶尺寸、1×1／单行／单列、透视／偏移投影、斜面、薄边缘、裁切、移动、阈值变化和世界缩放，最大 RG8 误差 `0.002197`。一像素穿孔场景明确触发 11408 个无支持接收点的全分辨率回退；斜面负控仍完全可见。
+
+原生 GPU 捕获确认实际 65×65 RGBAFloat 粗目标、129×129 全分辨率几何／RG8、正确 shader 变体和参数，以及生产到最终光照消费的顺序与原始字节一致性。独立解析阶梯几何、双精度 horizon／胶囊积分及重建核覆盖全部像素：3844 个粗接收点、15129 个全分辨率接收点；最终 G 最大误差 `0.002188`（`0.557721` 个 UNorm 整数 ULP），没有排除边界像素。997 个像素相对 Full 的 GTAO 改变超过 0.01，确认实际进行了重建。
+
+粗浮点 AO 相对理想积分最大差 `0.000013811`。初始私有诊断的 `1e-5` 假设过严；实际 DXBC 将 acos 展开为多项式，全 horizon 域角误差约 `0.000067527`。另一个仅按当前采样点估计误差的诊断也被拒绝。最终显式采用整个角域的 `6.8e-5` 误差包络加 `1e-5` 算术余量，同时保留各失败报告与实际数值；这不是 GPU 精度的形式证明。Player 与最终 RG8 验收阈值未放宽。
+
+首轮测试还发现 CPU fixture 对离屏纹理读回重复翻转行坐标；原生粗点 XY 证明了方向约定，修正的是测试，运行时 shader 未改。此前 3015 条完整 JSON 记录和 1342 张 PNG 全部不变；旧 Full GTAO 及关闭 GTAO 的 ScreenShadow／胶囊原生几何、常量、RG8 和最终 HDR 字节全部不变。三次最终原生捕获各接受无 GI bundle、含捕获请求的 3184 项渲染／状态检查。普通 1920×1080 摄影及真实角色 Planar 的 17 项离屏检查接受，四张本阶段预览已查看。无 C#／shader 错误或运行异常，两条历史 active RenderTexture 警告不变。
+
+此阶段增加了粗纹理和一次 draw，仍保留全分辨率几何；不能声称总显存减少或实测 GPU 加速。时域抗闪烁、隐藏几何／真实厚度、全角色接触及移动平台成本仍未完成，完整 P05 和 A/E/P/O/C goal 继续推进。
+
 ### 场景 GTAO horizon／余弦积分
 
 按 PDF13／17／19 和 PPT126 的环境遮蔽位置，新增默认关闭的 `SceneGtaoSettings`，独立实现视轴切片、双向 horizon 查询与余弦角积分。使用实际场景几何预通道，支持世界半径、像素范围限制、法线 bias、远端淡出和可选薄物体 horizon 衰减；输出与 Capsule AO 按相乘或最小值合并进 RG8 G 通道。实现依据 [公开 GTAO 技术报告 §4](https://www.iryoku.com/downloads/Practical-Realtime-Strategies-for-Accurate-Indirect-Occlusion.pdf)，没有使用 Amplify 插件或原版 shader。接入、数学模型及标量合并局限见 [GTAO 契约](scene-gtao.md)。

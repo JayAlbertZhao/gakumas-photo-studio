@@ -12,6 +12,7 @@ Shader "Hidden/GakumasPhotoMode/SceneScreenShadow"
             #pragma fragment frag
             #pragma multi_compile_local __ SCENE_MAIN_LIGHT_SHADOWS
             #pragma multi_compile_local __ SCENE_GTAO
+            #pragma multi_compile_local __ SCENE_GTAO_HALF
             #include "UnityCG.cginc"
             #if defined(SCENE_MAIN_LIGHT_SHADOWS)
             #define SCENE_LIGHT_SHADOWS 1
@@ -44,6 +45,9 @@ Shader "Hidden/GakumasPhotoMode/SceneScreenShadow"
             }
             #if defined(SCENE_GTAO)
             #include "SceneGtao.hlsl"
+            #if defined(SCENE_GTAO_HALF)
+            #include "SceneGtaoReconstruction.hlsl"
+            #endif
             #endif
             float SphereHit(float3 origin, float3 ray, float3 center, float radius, float limit)
             {
@@ -109,7 +113,11 @@ Shader "Hidden/GakumasPhotoMode/SceneScreenShadow"
                 #endif
                 float ambient = AmbientVisibility(world, normal);
                 #if defined(SCENE_GTAO)
+                #if defined(SCENE_GTAO_HALF)
+                float gtao = GtaoReconstruct(input.uv, world, normal, geometry.a);
+                #else
                 float gtao = GtaoVisibility(input.uv, world, normal, geometry.a);
+                #endif
                 ambient = _GtaoMinimumAmbient > .5 ? min(ambient, gtao) : ambient * gtao;
                 #endif
                 return float2(visibility, ambient);

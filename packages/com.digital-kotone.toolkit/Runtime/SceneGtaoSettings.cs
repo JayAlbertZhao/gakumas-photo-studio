@@ -4,6 +4,7 @@ using UnityEngine;
 namespace GakumasPhotoMode
 {
     public enum SceneAmbientCombination { Multiply, Minimum }
+    public enum SceneGtaoResolution { Full, Half }
 
     /// <summary>View-axis horizon AO over registered scene geometry; no temporal history.</summary>
     [Serializable]
@@ -20,5 +21,9 @@ namespace GakumasPhotoMode
         // Optional horizon decay when farther samples expose thinner geometry.
         [Range(0, 1)] public float thicknessBlend;
         public SceneAmbientCombination combineWithCapsules = SceneAmbientCombination.Multiply;
+        public SceneGtaoResolution resolution = SceneGtaoResolution.Full;
+        // Symmetric world-space tangent-plane separation, not raw view-depth difference.
+        [Min(.000001f)] public float reconstructionDepthTolerance = .02f;
+        [Range(0, .9999f)] public float reconstructionNormalThreshold = .9f;
     }
 }

@@ -473,6 +473,31 @@ class FrameworkContractTests(unittest.TestCase):
                       'GAKUMAS_SELFTEST_CAPTURE_GTAO', 'invalid-before-zero-strength-pruning'):
             self.assertIn(token, fixture)
 
+    def test_gtao_half_produces_actual_coarse_receiver_data_and_owned_resources(self):
+        settings = (RUNTIME / 'SceneGtaoSettings.cs').read_text(encoding='utf-8')
+        self.assertIn('resolution = SceneGtaoResolution.Full', settings)
+        source = (RUNTIME / 'SceneScreenShadowRenderer.cs').read_text(encoding='utf-8')
+        for token in ('(target.width + 1) / 2', '(target.height + 1) / 2', 'GtaoCoarse.IsCreated()',
+                      'GraphicsFormat.R32G32B32A32_SFloat', 'GtaoCoarseDrawCalls++', 'else ReleaseCoarse()',
+                      'commands.DrawMesh(quad, Matrix4x4.identity, _coarseMaterial', 'FormatUsage.Sample'):
+            self.assertIn(token, source)
+        self.assertLess(source.index('Invalid GTAO configuration'), source.index('_usesHalf = _usesGtao'))
+        self.assertLess(source.index('commands.SetRenderTarget(GtaoCoarse)'), source.index('commands.SetRenderTarget(Visibility)'))
+        shader = (RUNTIME / 'Resources/SceneGtaoHalf.shader').read_text(encoding='utf-8')
+        for token in ('g.a > 0', 'g.a < selected.a', 'p < _GtaoPixelSize.zw', 'float4(pixel, selected.a, GtaoVisibility'):
+            self.assertIn(token, shader)
+
+    def test_gtao_reconstruction_rejects_incompatible_guides_and_recomputes_unsupported_receivers(self):
+        shader = (RUNTIME / 'Resources/SceneGtaoReconstruction.hlsl').read_text(encoding='utf-8')
+        for token in ('y < 4', 'x < 4', 'dot(delta,normal)', 'dot(delta,n)', 'dot(n,normal)',
+                      'weightSum <= 1e-6', 'return GtaoVisibility(uv,world,normal,depth)', 'return sum / weightSum'):
+            self.assertIn(token, shader)
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.GtaoSpatial.cs').read_text(encoding='utf-8')
+        for token in ('independent-bilateral-whole-image-oracle', 'nearest-positive-depth-and-exact-source-pixel',
+                      'perforated-disconnected-fallback', 'true-tangent-white-', 'two-camera-coarse-isolation',
+                      'validate-before-zero-strength', 'full-resolution-capsule-combination-', 'GAKUMAS_SELFTEST_CAPTURE_GTAO_SPATIAL'):
+            self.assertIn(token, fixture)
+
     def test_main_shadow_is_explicit_orthographic_and_owned_before_scene_geometry(self):
         settings = (RUNTIME / 'SceneDirectionalShadowSettings.cs').read_text(encoding='utf-8')
         for token in ('public bool enabled;', 'public Vector3 origin', 'public Vector3 up',
