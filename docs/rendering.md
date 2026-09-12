@@ -6,6 +6,20 @@
 
 以下按阶段逆序记录；旧阶段中的开项以较新的实现记录和 [技术清单](framework-techniques.md) 为准。
 
+### Point 六面径向阴影与跨面 PCF
+
+按 PPT110–112 的 Point 实时照明与 PDF15 的光源阴影数据流，补充默认关闭的 Point 阴影。每灯六个真实透视面，片元从插值后的光源相对向量计算径向深度；球壳 near／far、世界单位 bias、跨面九 tap PCF 与已有点光衰减分别定义。Point、Spot 和主方向光可同时运行，不改变默认 Photo Studio。接口、面方向、离散滤波和预算见 [Point 阴影契约](scene-light-shadows.md#point-六面阴影)。
+
+最终 t15／D3D11 v4 完整构建为 100745716 字节，无 C#／shader 错误。含真实 GI bundle 的 Player 套件接受 2866 项渲染／状态检查；新增 125 项，并删除已不适用的“Point 阴影必须拒绝”旧检查，其余 2741 条完整 JSON 记录不变。52 项独立光源射线内部区域对照覆盖六轴、十二条边、八个角落、动态 caster／源点、球壳裁剪、Cutout、GI／镜面及单骨三姿态，最大 RGB 误差约 `0.000196`。边和角落的两项跨面 PCF 完整图像对照最大误差约 `0.000204`，分别有 72／27 个像素能区分真正跨面采样与单面边界 clamp。
+
+另检查两 Point 加 Spot 与逐灯独立渲染求和、Scalar／Instanced 一致、最近深度／倒置 draw 顺序、双相机、目标丢失和 resize、16 灯／96 面预算。原生混合捕获实际提交七个视口组共 42 次 caster draw，包含一个 Spot 和 Point 的六面；主方向光另有六次 caster draw。附加灯实际以两实例一次 draw 消费 112 字节阴影参数、144 字节旧灯参数及真实深度 atlas，最终 resolve 独立消费主灯。
+
+原生逐面深度先前按理想浮点平面比较时，一面误差 `1.0381e-6` 超过 `1e-6` 门限；该失败保留。根据 [D3D11 坐标量化规范](https://microsoft.github.io/DirectX-Specs/d3d/archive/D3D11_3_FunctionalSpec.htm)，补入八位子像素量化后的实际 post-VS 坐标及透视插值，再比较逐片元径向长度，六面最大误差降至 `4.22e-8`，门限未放宽。早期 PCF 的精确接缝还暴露相机重建浮点选面不稳定，现明确使用 `1e-5` 相对同值带；完整图像检查保留全部接收像素及原阈值。
+
+重抓旧 Spot 和主方向光：Spot 阴影参数、atlas、累加以及主灯深度、Spot 深度、最终 HDR 原始数据均逐字节不变。三次原生捕获各自接受 2836 项检查（不含实际 GI bundle，含一项捕获请求）。既有 1335 张 PNG 不变，当前验证图共 1338 张。普通 1920×1080 摄影与实际角色 Planar 的 17 项离屏检查重新接受并查看预览。旧套件的两条 active RenderTexture 释放警告仍保留，不把它们写成零警告。
+
+Capsule／Area 随接收点变化的源位置可见性、ScreenShadow／烘焙 ShadowMask、完整 Forward+／角色／透明接收器、体积光及移动平台成本继续保留在技术清单中。该阶段未改变一般多骨／非均匀根缩放／剪切的未验收边界。
+
 ### 主方向光正交阴影与 Spot 共存
 
 依据 PPT110–112 的实时方向光及 PDF15／22 的光源阴影与材质数据流，新增默认关闭的 `SceneDirectionalShadowSettings`。主方向光以显式 origin／up／halfSize／near／far 确定光视图，生产自己的正交深度目标；世界轴向深度独立于恒定的 `clip.w`。共用 caster 验证、Cutout 和过滤，但主灯与 Spot 各持目标与参数。阴影只影响该主灯的直接光，基础 GI、emission 和其他灯保持独立。详见 [接入契约](scene-light-shadows.md#主方向光)。

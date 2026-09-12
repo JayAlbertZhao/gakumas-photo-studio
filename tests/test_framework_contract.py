@@ -409,6 +409,26 @@ class FrameworkContractTests(unittest.TestCase):
         light = (RUNTIME / 'Resources/SceneDecalLight.hlsl').read_text(encoding='utf-8')
         self.assertIn('attenuation *= SceneLightVisibility(world, n, shadow)', light)
 
+    def test_point_shadow_renders_six_radial_faces_without_changing_light_abi(self):
+        source = (RUNTIME / 'SceneLightShadowAtlas.cs').read_text(encoding='utf-8')
+        for token in ('light.shape != SceneDecalLightShape.Point', 'face < 6',
+                      'Matrix4x4.Translate(-light.position)', 'input.nearPlane / Mathf.Sqrt(3)',
+                      '_lightCount > settings.maxShadowedLights', '_views[tile]', 'tile += 5'):
+            self.assertIn(token, source)
+        caster = (RUNTIME / 'Resources/SceneLightShadowCaster.shader').read_text(encoding='utf-8')
+        for token in ('SCENE_SHADOW_POINT', 'float3 fromLight', 'float radial = length(input.fromLight)',
+                      'clip(radial - _ShadowPointOrigin.w)', 'return radial / _ShadowFar'):
+            self.assertIn(token, caster)
+        shader = (RUNTIME / 'Resources/SceneLightShadow.hlsl').read_text(encoding='utf-8')
+        for token in ('ScenePointFace(direction)', 'ScenePointDirection(face.xy + float2(x,y) * step',
+                      'data.options.w - 1 + face.z', '(radial - data.depth.z) / data.depth.y'):
+            self.assertIn(token, shader)
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.PointShadow.cs').read_text(encoding='utf-8')
+        for token in ('six-face-radial-depth', 'adjacent-face-taps-differ-from-border-clamp',
+                      'corner-radial-near-preserves-caster-below-axial-near', 'skin-vs-static-depth-',
+                      'GAKUMAS_SELFTEST_CAPTURE_POINT_SHADOW', 'mixed-scalar-instanced-image'):
+            self.assertIn(token, fixture)
+
     def test_main_shadow_is_explicit_orthographic_and_owned_before_scene_geometry(self):
         settings = (RUNTIME / 'SceneDirectionalShadowSettings.cs').read_text(encoding='utf-8')
         for token in ('public bool enabled;', 'public Vector3 origin', 'public Vector3 up',

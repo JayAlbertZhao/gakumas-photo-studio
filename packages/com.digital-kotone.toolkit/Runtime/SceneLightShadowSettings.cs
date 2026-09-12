@@ -6,7 +6,7 @@ namespace GakumasPhotoMode
 {
     public enum SceneShadowFilter { Hard, Pcf3x3 }
 
-    /// <summary>Opt-in Spot shadow. Biases and the axial near plane are in world units.</summary>
+    /// <summary>Opt-in Spot/Point shadow. World-unit bias and near distance (Spot axial, Point radial).</summary>
     [Serializable]
     public sealed class SceneLightShadowInput
     {
@@ -36,6 +36,7 @@ namespace GakumasPhotoMode
     {
         // Power of two, 32..2048; atlas side is also capped at 4096.
         public int tileResolution = 256;
+        // Counts light sources, not faces. A Point consumes six atlas tiles, a Spot one.
         [Range(1, 16)] public int maxShadowedLights = 16;
         public SceneShadowCaster[] casters = Array.Empty<SceneShadowCaster>();
     }

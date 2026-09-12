@@ -121,6 +121,7 @@ namespace GakumasPhotoMode
         private bool Current => isActiveAndEnabled && sceneEnabled && _prepared == Time.frameCount &&
             _rendered == Time.frameCount && _output != null && _camera.targetTexture == _target && _target != null && _target.IsCreated() &&
             Created(_output) && (!_usesGi || (_gi != null && _gi.IsCreated())) && (_mainShadow?.Atlas == null || _mainShadow.Atlas.IsCreated()) &&
+            (_decalLights?.ShadowAtlas == null || _decalLights.ShadowAtlas.IsCreated()) &&
             _output[0].width == _target.width && _output[0].height == _target.height;
         public bool TryGetFrame(out Frame frame)
         { frame = default; if (!Current) return false; frame = new Frame(this); return true; }

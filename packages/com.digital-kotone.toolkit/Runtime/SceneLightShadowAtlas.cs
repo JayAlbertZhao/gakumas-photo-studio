@@ -17,6 +17,7 @@ namespace GakumasPhotoMode
         }
         private readonly List<ShadowData> _data = new List<ShadowData>();
         private readonly List<int> _indices = new List<int>();
+        private readonly List<Matrix4x4> _views = new List<Matrix4x4>();
         private readonly List<Material> _materials = new List<Material>();
         private SceneShadowCaster[] _casters;
         private ComputeBuffer _buffer;
@@ -24,7 +25,7 @@ namespace GakumasPhotoMode
         private readonly string _name;
         private bool _orthographic;
         private Vector4 _depthPlane;
-        private int _tileSize, _grid;
+        private int _tileSize, _grid, _lightCount;
         public RenderTexture Atlas { get; private set; }
         public int MapCount => _indices.Count;
         public int CasterDrawCalls { get; private set; }
@@ -34,7 +35,8 @@ namespace GakumasPhotoMode
         {
             var input = light.shadow;
             if (input == null || !input.enabled) return null;
-            if (light.shape != SceneDecalLightShape.Spot) return "Light-source shadows currently require Spot shape";
+            if (light.shape != SceneDecalLightShape.Spot && light.shape != SceneDecalLightShape.Point)
+                return "Light-source shadows currently require Spot or Point shape";
             if (!Range(input.strength, 0, 1) || !Range(input.nearPlane, .001f, light.range) || input.nearPlane >= light.range ||
                 !Range(input.depthBias, 0, light.range) || !Range(input.normalBias, 0, light.range) || (int)input.filter < 0 || (int)input.filter > 1)
                 return "Invalid light-source shadow strength, clipping, bias or filter";
@@ -43,11 +45,16 @@ namespace GakumasPhotoMode
 
         public bool Prepare(List<SceneDecalLight> lights, SceneLightShadowSettings settings, bool instanced, out string error)
         {
-            error = null; _indices.Clear(); _data.Clear(); CasterDrawCalls = 0; _orthographic = false;
+            error = null; _indices.Clear(); _views.Clear(); _data.Clear(); _lightCount = 0; CasterDrawCalls = 0; _orthographic = false;
             for (int i = 0; i < lights.Count; i++)
             {
                 _data.Add(default);
-                if (lights[i].shadow != null && lights[i].shadow.enabled && lights[i].shadow.strength > 0) _indices.Add(i);
+                if (lights[i].shadow != null && lights[i].shadow.enabled && lights[i].shadow.strength > 0)
+                {
+                    _lightCount++;
+                    int faces = lights[i].shape == SceneDecalLightShape.Point ? 6 : 1;
+                    for (int face = 0; face < faces; face++) _indices.Add(i);
+                }
             }
             if (_indices.Count == 0) { Dispose(); return true; }
             if (!PrepareAtlas(settings, out error)) return false;
@@ -55,6 +62,27 @@ namespace GakumasPhotoMode
             for (int tile = 0; tile < _indices.Count; tile++)
             {
                 int index = _indices[tile]; var light = lights[index]; var input = light.shadow;
+                if (light.shape == SceneDecalLightShape.Point)
+                {
+                    // Point metadata keeps the 112-byte ABI. The translation matrix yields
+                    // world-aligned light-relative vectors; options.w is first tile + 1.
+                    _data[index] = new ShadowData {
+                        worldToShadow = Matrix4x4.Translate(-light.position), atlasST = new Vector4(1f / _grid, 1f / _grid, 0, 0),
+                        depth = new Vector4(input.nearPlane, light.range, input.depthBias, input.normalBias),
+                        options = new Vector4(input.strength, (int)input.filter, 1f / size, tile + 1)
+                    };
+                    // A radial near sphere needs axial near / sqrt(3) at cube corners.
+                    // The fragment shader clips the exact spherical near/far interval.
+                    var pointProjection = GL.GetGPUProjectionMatrix(Matrix4x4.Perspective(90, 1, input.nearPlane / Mathf.Sqrt(3), light.range), true);
+                    for (int face = 0; face < 6; face++)
+                    {
+                        var forward = face == 0 ? Vector3.right : face == 1 ? Vector3.left : face == 2 ? Vector3.up : face == 3 ? Vector3.down : face == 4 ? Vector3.forward : Vector3.back;
+                        var up = face == 2 || face == 3 ? Vector3.forward : Vector3.up;
+                        var pointView = Matrix4x4.Scale(new Vector3(1, 1, -1)) * Matrix4x4.TRS(light.position, Quaternion.LookRotation(forward, up), Vector3.one).inverse;
+                        _views.Add(pointProjection * pointView);
+                    }
+                    tile += 5; continue;
+                }
                 var view = Matrix4x4.Scale(new Vector3(1, 1, -1)) * Matrix4x4.TRS(light.position, light.rotation.normalized, Vector3.one).inverse;
                 var projection = GL.GetGPUProjectionMatrix(Matrix4x4.Perspective(light.spotOuterAngle, 1, input.nearPlane, light.range), true);
                 float y = (float)(tile / _grid) / _grid;
@@ -66,6 +94,7 @@ namespace GakumasPhotoMode
                     depth = new Vector4(input.nearPlane, light.range, input.depthBias, input.normalBias),
                     options = new Vector4(input.strength, (int)input.filter, 1f / size, 0)
                 };
+                _views.Add(projection * view);
             }
             FinishPrepare(instanced, lights.Count); return true;
         }
@@ -78,7 +107,7 @@ namespace GakumasPhotoMode
 
         private bool PrepareDirectionalCore(Vector3 direction, SceneDirectionalShadowSettings settings, bool hasContribution, out string error)
         {
-            error = null; _indices.Clear(); _data.Clear(); CasterDrawCalls = 0; _orthographic = true;
+            error = null; _indices.Clear(); _views.Clear(); _data.Clear(); _lightCount = 0; CasterDrawCalls = 0; _orthographic = true;
             if (settings == null || !settings.enabled) { Dispose(); return true; }
             if (!Range(direction.sqrMagnitude, 1e-8f, 1e12f) || !Range(settings.up.sqrMagnitude, 1e-8f, 1e12f) ||
                 !Range(settings.halfSize.x, .001f, 10000) || !Range(settings.halfSize.y, .001f, 10000) ||
@@ -90,7 +119,7 @@ namespace GakumasPhotoMode
             var forward = -direction.normalized; var up = settings.up.normalized;
             if (Vector3.Cross(forward, up).sqrMagnitude < 1e-6f) { error = "Main shadow up must not be parallel to the light direction"; return false; }
             // Validate a requested configuration before pruning its zero contribution.
-            _indices.Add(0); _data.Add(default);
+            _indices.Add(0); _data.Add(default); _lightCount = 1;
             var atlasSettings = new SceneLightShadowSettings { tileResolution = settings.resolution, maxShadowedLights = 1, casters = settings.casters };
             if (!ValidateAtlasSettings(atlasSettings, out error)) return false;
             if (!hasContribution || settings.strength == 0) { Dispose(); return true; }
@@ -104,6 +133,7 @@ namespace GakumasPhotoMode
             _data[0] = new ShadowData { worldToShadow = projection * view, atlasST = new Vector4(1, 1, 0, 0),
                 depth = new Vector4(settings.nearPlane, settings.farPlane, settings.depthBias, settings.normalBias),
                 options = new Vector4(settings.strength, (int)settings.filter, 1f / Atlas.width, 0) };
+            _views.Add(projection * view);
             FinishPrepare(false, 1); return true;
         }
 
@@ -111,7 +141,7 @@ namespace GakumasPhotoMode
         {
             error = null;
             if (settings == null || settings.tileResolution < 32 || settings.tileResolution > 2048 || !Mathf.IsPowerOfTwo(settings.tileResolution) ||
-                settings.maxShadowedLights < 1 || settings.maxShadowedLights > 16 || _indices.Count > settings.maxShadowedLights ||
+                settings.maxShadowedLights < 1 || settings.maxShadowedLights > 16 || _lightCount > settings.maxShadowedLights ||
                 settings.casters == null || settings.casters.Length > 1024)
             { error = "Invalid shadow atlas settings or shadow-light/caster budget exceeded"; return false; }
             foreach (var caster in settings.casters)
@@ -168,8 +198,10 @@ namespace GakumasPhotoMode
                     var material = _materials[materialIndex++]; var renderer = caster.renderer;
                     if (!renderer.enabled || renderer.forceRenderingOff || !renderer.gameObject.activeInHierarchy) continue;
                     if (_orthographic) material.EnableKeyword("SCENE_SHADOW_ORTHOGRAPHIC"); else material.DisableKeyword("SCENE_SHADOW_ORTHOGRAPHIC");
+                    if (data.options.w > 0) material.EnableKeyword("SCENE_SHADOW_POINT"); else material.DisableKeyword("SCENE_SHADOW_POINT");
+                    material.SetVector("_ShadowPointOrigin", new Vector4(-data.worldToShadow.m03, -data.worldToShadow.m13, -data.worldToShadow.m23, data.depth.x));
                     material.SetVector("_ShadowDepthPlane", _depthPlane);
-                    material.SetMatrix("_ShadowViewProjection", data.worldToShadow); material.SetFloat("_ShadowFar", data.depth.y);
+                    material.SetMatrix("_ShadowViewProjection", _views[tile]); material.SetFloat("_ShadowFar", data.depth.y);
                     material.SetVector("_ShadowVertexScale", caster.vertexScale); material.SetFloat("_Cull", (int)caster.cull);
                     material.SetTexture("_ShadowAlphaMap", caster.alphaMap != null ? caster.alphaMap : Texture2D.whiteTexture);
                     material.SetVector("_ShadowUvST", caster.uvST); material.SetFloat("_ShadowAlpha", caster.alpha); material.SetFloat("_ShadowCutoff", caster.cutoff);
@@ -225,7 +257,7 @@ namespace GakumasPhotoMode
         {
             ReleaseAtlas(); _buffer?.Dispose(); _buffer = null;
             foreach (var material in _materials) if (material != null) UnityEngine.Object.Destroy(material);
-            _materials.Clear(); _data.Clear(); _indices.Clear(); _casters = null; CasterDrawCalls = 0;
+            _materials.Clear(); _data.Clear(); _indices.Clear(); _views.Clear(); _lightCount = 0; _casters = null; CasterDrawCalls = 0;
         }
     }
 }

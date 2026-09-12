@@ -215,7 +215,7 @@ namespace GakumasPhotoMode
                 Render(); Check("atlas-resize-invalidates-borrowed-frame", !oldFrame.IsCurrent && !oldAtlas.IsCreated()); options.shadows.tileResolution = 256;
                 var lost = Render().lightShadowAtlas; lost.Release(); var recreated = Render(); Check("lost-atlas-recreated", recreated.lightShadowAtlas.IsCreated() && recreated.lightShadowAtlas != lost);
                 void Reject(string label) { camera.Render(); Check(label, !stage.TryGetFrame(out _) && stage.LightShadowMapCount == 0 && stage.LightTargetCount == 0); }
-                foreach (var shape in new[] { SceneDecalLightShape.Point, SceneDecalLightShape.Capsule, SceneDecalLightShape.Area })
+                foreach (var shape in new[] { SceneDecalLightShape.Capsule, SceneDecalLightShape.Area })
                 { light.shape = shape; Reject("unsupported-" + shape + "-shadow-fails-closed"); } light.shape = SceneDecalLightShape.Spot;
                 light.position = new Vector3(100, 0, -2); light.shadow.strength = float.NaN; Reject("invalid-shadow-rejected-before-volume-cull"); light.position = new Vector3(0, 0, -2); light.shadow.strength = 1;
                 light.shadow.nearPlane = light.range; Reject("near-equals-far-rejected"); light.shadow.nearPlane = .05f;

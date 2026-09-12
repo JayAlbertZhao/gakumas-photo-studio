@@ -303,6 +303,8 @@
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Monitor.cs.meta",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Planar.cs",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Planar.cs.meta",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.PointShadow.cs",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.PointShadow.cs.meta",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ReflectionResolve.cs",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ReflectionResolve.cs.meta",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneCompute.cs",
