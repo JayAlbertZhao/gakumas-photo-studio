@@ -41,6 +41,8 @@ namespace GakumasPhotoMode
         protected FaceDecalRuntime _faceDecals;
         protected ActorMaterialEffectRuntime _faceMaterialEffects;
         protected HairDynamicsSystem _hairDynamics;
+        private NaturalWindSettings _naturalWind;
+        private double? _naturalWindTime;
         protected HairDynamicsSystem _garmentDynamics;
         protected QuartzArmDeformationSystem _quartzArmDeformation;
         protected QuartzLegAndRotationDeformationSystem _quartzLegRotationDeformation;
@@ -1002,6 +1004,7 @@ namespace GakumasPhotoMode
             _hairDynamics = _hair.AddComponent<HairDynamicsSystem>();
             _hairDynamics.Initialize(bodyHead,
                 FindDescendant(_body.transform, "Spine2"), _body.transform);
+            BindNaturalWind();
             // Actor "others" (for example fktn's phone) are separate prefabs
             // owned by the Actor descriptor, but their motion paths are rooted
             // at the body Animator. Recreate them after every costume/body
@@ -2714,6 +2717,36 @@ namespace GakumasPhotoMode
         public void SetHairDynamics(float value)
         {
             if (_hairDynamics != null) _hairDynamics.strength = Mathf.Clamp(value, 0f, 1.5f);
+        }
+
+        /// <summary>Shared wind for this actor's hair and clothing, including subsequent outfit rebuilds.</summary>
+        public void SetNaturalWind(NaturalWindSettings settings)
+        {
+            _naturalWind = settings;
+            BindNaturalWind();
+        }
+
+        /// <summary>Null follows scaled Unity time. A value freezes/samples the wind clock, not the solver state.</summary>
+        public void SetNaturalWindTime(double? seconds)
+        {
+            if (seconds.HasValue && (double.IsNaN(seconds.Value) || double.IsInfinity(seconds.Value) || Math.Abs(seconds.Value) > 1e12))
+                throw new ArgumentOutOfRangeException(nameof(seconds));
+            _naturalWindTime = seconds;
+            BindNaturalWind();
+        }
+
+        private void BindNaturalWind()
+        {
+            BindNaturalWind(_hairDynamics);
+            BindNaturalWind(_garmentDynamics);
+            BindNaturalWind(_skirtDynamics);
+        }
+
+        private void BindNaturalWind(HairDynamicsSystem dynamics)
+        {
+            if (dynamics == null) return;
+            dynamics.naturalWind = _naturalWind;
+            dynamics.naturalWindTimeOverride = _naturalWindTime;
         }
 
         public void PlayVoice(int index)

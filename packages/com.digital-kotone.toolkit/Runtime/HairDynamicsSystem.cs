@@ -32,6 +32,9 @@ namespace GakumasPhotoMode
 
         [Range(0f, 1.5f)] public float strength = 1f;
         [Range(0f, 2f)] public float windStrength;
+        // Explicit opt-in. Null keeps the previous diagnostic wind unchanged.
+        public NaturalWindSettings naturalWind;
+        public double? naturalWindTimeOverride { get; set; }
         [Range(0f, 2f)] public float gravityStrength = 1f;
         [Range(0f, 1f)] public float collisionStrength = 1f;
 
@@ -526,6 +529,9 @@ namespace GakumasPhotoMode
             MaxRestoredChainLoopLengthError = 0f;
             float integrationScale = dt * DampFactor * Mathf.Max(0f, strength);
             float time = Time.time;
+            Vector3 naturalForce = allowWind && !prewarming && naturalWind != null
+                ? naturalWind.Sample(naturalWindTimeOverride ?? Time.timeAsDouble)
+                : Vector3.zero;
             bool useAnimatedAttachmentFrame =
                 string.Equals(_systemLabel, "Garment", StringComparison.Ordinal) ||
                 string.Equals(_systemLabel, "Skirt", StringComparison.Ordinal);
@@ -682,6 +688,10 @@ namespace GakumasPhotoMode
                         Mathf.Cos(phase * 0.83f));
                     acceleration += wind * child.setting.wind * windStrength;
                 }
+                // Child wind coefficients remain authoritative for hair, jacket
+                // and skirt. Do not add environmental wind to anatomy helpers.
+                if (!naturalForce.Equals(Vector3.zero) && child.setting.useWindGlobalForce && child.setting.wind != 0f)
+                    acceleration += naturalForce * child.setting.wind;
 
                 if (!prewarming)
                     acceleration = ApplyAxisAdd(

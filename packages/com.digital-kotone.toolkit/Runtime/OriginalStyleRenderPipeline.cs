@@ -50,6 +50,10 @@ namespace GakumasPhotoMode
         [Range(0f, 1f)] public float sceneFogMaximumOpacity = 0.3f;
         [Range(0f, 1f)] public float sceneFogSkyWeight;
 
+        // Opt-in and owned by this camera; no scene search or global registry.
+        public SphereFogSettings sphereFog = new SphereFogSettings();
+        public TemporalClassification temporalClassification;
+
         private Camera _sourceCamera;
         private Camera _actorCamera;
         private Material _postMaterial;
@@ -299,6 +303,7 @@ namespace GakumasPhotoMode
             // production so it cannot add an extra resample/format round-trip. Retain the
             // old face blur only behind an explicit diagnostic switch.
             RenderTexture current = ApplySceneDistanceFog(source, temporaries);
+            current = ApplySphereFog(current, temporaries);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "--legacy-diffusion") >= 0)
             {
                 RenderTexture legacyDiffused = GetTemporary(
@@ -321,6 +326,7 @@ namespace GakumasPhotoMode
             _postMaterial.SetTexture("_HistoryTex", _history != null ? _history : Texture2D.blackTexture);
             _postMaterial.SetFloat("_HistoryValid", continuousFrame ? 1f : 0f);
             _postMaterial.SetFloat("_TemporalBlend", temporalBlend);
+            BindTemporalClassification(source.width, source.height);
             Graphics.Blit(current, temporal, _postMaterial, 7);
             Graphics.Blit(temporal, _history);
             _historyValid = true;
@@ -530,6 +536,46 @@ namespace GakumasPhotoMode
             // introduce an unrelated resample and rounding step.
             Graphics.CopyTexture(source, 0, 0, fogged, 0, 0);
             Graphics.Blit(null, fogged, _postMaterial, 11);
+            return fogged;
+        }
+
+        private void BindTemporalClassification(int width, int height)
+        {
+            Texture mask = null;
+            bool active = temporalClassification != null &&
+                temporalClassification.TryGetMask(_sourceCamera, width, height, out mask);
+            _postMaterial.SetFloat("_TemporalMaskEnabled", active ? 1f : 0f);
+            _postMaterial.SetTexture("_TemporalFlagsTex", active ? mask : Texture2D.blackTexture);
+            _postMaterial.SetVector("_TemporalJitterUv", active ?
+                new Vector4(temporalClassification.jitterUv.x, temporalClassification.jitterUv.y, 0, 0) : Vector4.zero);
+        }
+
+        private RenderTexture ApplySphereFog(
+            RenderTexture source, ICollection<RenderTexture> temporaries)
+        {
+            if (sphereFog == null || !sphereFog.IsActive || _postMaterial == null || _sourceCamera == null)
+                return source;
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "--disable-sphere-fog") >= 0)
+                return source;
+            // Use the actual camera matrices, including lens shift/custom view.
+            // RenderTexture projection is required even for a screen presenter:
+            // this stage reads and writes offscreen targets.
+            Matrix4x4 viewProjection = GL.GetGPUProjectionMatrix(_sourceCamera.projectionMatrix, true) *
+                _sourceCamera.worldToCameraMatrix;
+            if (viewProjection.determinant == 0f) return source;
+            Matrix4x4 inverse = viewProjection.inverse;
+            for (int i = 0; i < 16; i++)
+                if (float.IsNaN(inverse[i]) || float.IsInfinity(inverse[i])) return source;
+            Color linear = sphereFog.color.linear;
+            _postMaterial.SetMatrix("_SphereFogInverseViewProjection", inverse);
+            _postMaterial.SetVector("_SphereFogCenterRadius", new Vector4(
+                sphereFog.center.x, sphereFog.center.y, sphereFog.center.z, sphereFog.radius));
+            _postMaterial.SetVector("_SphereFogParameters", new Vector4(
+                sphereFog.density, Mathf.Clamp01(sphereFog.maximumOpacity), sphereFog.affectSky ? 1f : 0f, 0f));
+            _postMaterial.SetVector("_SphereFogColor", new Vector4(linear.r, linear.g, linear.b, 0f));
+            RenderTexture fogged = GetTemporary(source.width, source.height, source.format, temporaries);
+            Graphics.CopyTexture(source, 0, 0, fogged, 0, 0);
+            Graphics.Blit(null, fogged, _postMaterial, 12);
             return fogged;
         }
 

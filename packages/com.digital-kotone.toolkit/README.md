@@ -4,6 +4,8 @@
 
 ## 接入
 
+可选框架扩展：`NaturalWindSettings`、`TemporalClassification`、`ActorVertexEncoding`。来源页码、最小调用及支持边界见 [框架技术清单](../../docs/framework-techniques.md)。风和 TAA 分类均需显式启用，不改变默认角色行为。
+
 1. 使用 Tuanjie 2022.3.62t15、Windows Player 支持；当前固定依赖 URP 14.2.0-t1、Mathematics 1.3.2。其他编辑器/平台尚未验证。默认运行路径使用 Built-in Render Pipeline；声明 URP 依赖是为保留原有可选研究路径，不要求将项目切到 URP。
 2. 在 Package Manager 选择 **Add package from disk**，选择本目录的 `package.json`。不要把 Runtime 又复制一份到 Assets；兼容程序集和类型不能重复。
 3. 将项目 Color Space 设置为 Linear。在空场景中使用下方入口；场景不需要额外相机。核心创建自身相机、光源和默认环境。
@@ -47,7 +49,29 @@ Package Manager 的 Samples 中提供相同用途的 **Minimal Character Host**�
 
 核心不自动读取 Photo Studio 的快捷键或创建摄影面板，也不设置宿主窗口、帧率、VSync 和质量策略。`EnableOrbitInput` 默认 false；启用时保留原有右键旋转、中键平移、滚轮缩放相机辅助控制。
 
+## 可选球形雾
+
+相机上的 `OriginalStyleRenderPipeline.sphereFog` 是独立的 `SphereFogSettings`，默认关闭，不需要角色、原版 shader AB 或 Volume 资产。可在 Inspector 中配置，也可在宿主完成初始化后设置：
+
+```csharp
+var pipeline = runtime.PreviewCamera.GetComponent<OriginalStyleRenderPipeline>();
+pipeline.sphereFog = new SphereFogSettings {
+    enabled = true,
+    center = new Vector3(0f, 1.5f, 4f), // 世界坐标；不随相机移动
+    radius = 3f,                       // 世界单位
+    density = 0.25f,                   // 每世界单位的中心消光系数
+    color = new Color(0.35f, 0.5f, 0.8f), // sRGB，可使用 HDR RGB
+    maximumOpacity = 0.6f,
+    affectSky = true
+};
+// 关闭并恢复既有渲染路径：pipeline.sphereFog.enabled = false;
+```
+
+这是一个相机对应一个球体的独立实现，不查询场景或写全局参数；该项隔离不代表整个协调器已支持多实例。密度向边缘按抛物线衰减，沿近裁面到最近不透明深度积分；相机在球内、正交相机和偏移投影均使用同一路径。透明物若不写深度，不会独立截断雾。半径、密度、上限等无效时跳过；关闭时不新增临时渲染目标。详见 [渲染说明](../../docs/rendering.md)。
+
 ## 边界
+
+场景消费者可单独接入 `SceneDepthData`，获得不含 normal map 的世界网格法线、显式 SSR 资格、独立线性深度和可选最小深度层级。宿主登记 opaque／cutout 表面与排除层，不自动扫描角色或改变主画面；这是反射等效果的输入模块，还没有 SSR trace／合成。相机所有权、调用时机与平台限制见 [SceneDepthData 接入](../../docs/scene-depth-data.md)。
 
 这是从现有应用抽出的第一版 Unity 包，仍含单主角/单场景协调器、全局 shader / RenderSettings 状态和少量既有诊断环境变量/进程参数。尚不保证同进程多实例隔离，不是纯 C# 或引擎无关 SDK。宿主若已有相机/环境，需要自行安排场景；初版不提供通用世界管理器。
 

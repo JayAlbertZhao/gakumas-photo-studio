@@ -8,8 +8,20 @@ using UnityEngine.Rendering;
 
 namespace GakumasPhotoMode
 {
+    // Observe inside the render callback: Unity restores camera-global depth
+    // after Camera.Render returns, so sampling it afterwards tests stale state.
+    internal sealed class SphereFogDepthProbe : MonoBehaviour
+    {
+        public Action<RenderTexture> sample;
+        private void OnRenderImage(RenderTexture source, RenderTexture destination)
+        {
+            if (sample != null) sample(source);
+            Graphics.Blit(source, destination);
+        }
+    }
+
     /// <summary>Asset-free rendering contracts using generated geometry and rigs.</summary>
-    public sealed class ActorRenderingSelfTest : MonoBehaviour
+    public sealed partial class ActorRenderingSelfTest : MonoBehaviour
     {
         [Serializable] private sealed class Check
         {
@@ -119,6 +131,11 @@ namespace GakumasPhotoMode
                 VerifyCapturedCamera(report);
                 VerifyShadowSubtexelFiltering(report);
                 VerifySceneDistanceFog(report);
+                VerifySphereFog(report);
+                VerifyNaturalWind(report);
+                VerifyTemporalClassification(report);
+                VerifyActorVertexEncoding(report);
+                VerifySceneDepthData(report);
                 report.accepted = report.checks.TrueForAll(check => check.accepted);
             }
             catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); }
@@ -3022,6 +3039,285 @@ namespace GakumasPhotoMode
                 RenderTexture.active = previous;
                 source.Release();
                 OriginalStyleRenderPipeline.SetPresentationContext(savedContext);
+            }
+        }
+
+        // Numerical quadrature is intentionally independent of the production
+        // chord/intersection formula. Test rays come from Camera, not the shader's
+        // inverse view-projection implementation.
+        private static double IntegrateSphereFog(SphereFogSettings fog, Vector3 start, Vector3 end)
+        {
+            const int steps = 2048;
+            Vector3 segment = end - start;
+            double sum = 0.0;
+            for (int i = 0; i < steps; i++)
+            {
+                Vector3 point = start + segment * ((i + 0.5f) / steps) - fog.center;
+                double squared = (double)point.x * point.x + (double)point.y * point.y + (double)point.z * point.z;
+                sum += Math.Max(0.0, 1.0 - squared / ((double)fog.radius * fog.radius));
+            }
+            return sum * segment.magnitude / steps * fog.density;
+        }
+
+        private void VerifySphereFog(Report report)
+        {
+            var host = Own(new GameObject("Self-test sphere fog camera"));
+            var camera = host.AddComponent<Camera>();
+            camera.enabled = false;
+            camera.nearClipPlane = 0.3f;
+            camera.farClipPlane = 20f;
+            camera.aspect = 4f / 3f;
+            camera.fieldOfView = 60f;
+            camera.orthographicSize = 2.4f;
+            var pipeline = host.AddComponent<OriginalStyleRenderPipeline>();
+            var material = (Material)typeof(OriginalStyleRenderPipeline).GetField(
+                "_postMaterial", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(pipeline);
+            var apply = typeof(OriginalStyleRenderPipeline).GetMethod(
+                "ApplySphereFog", BindingFlags.Instance | BindingFlags.NonPublic);
+            const int width = 32, height = 24;
+            var source = Own(new RenderTexture(width, height, 24, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear));
+            source.Create();
+            var depth = Own(new Texture2D(width, height, TextureFormat.RFloat, false, true));
+            depth.filterMode = FilterMode.Point;
+            depth.wrapMode = TextureWrapMode.Clamp;
+            var readback = Own(new Texture2D(width, height, TextureFormat.RGBAFloat, false, true));
+            var temporaries = new List<RenderTexture>();
+            RenderTexture previous = RenderTexture.active;
+            Color background = new Color(1.25f, 0.5f, 0.125f, 0.375f);
+            var fog = pipeline.sphereFog;
+            try
+            {
+                if (material == null || material.FindPass("SPHERE_FOG") != 12)
+                    throw new InvalidOperationException("Sphere fog production pass missing");
+                RenderTexture.active = source;
+                GL.Clear(true, true, background);
+                var unchanged = (RenderTexture)apply.Invoke(pipeline, new object[] { source, temporaries });
+                report.checks.Add(new Check { name = "sphere-fog-default-no-allocation",
+                    accepted = ReferenceEquals(source, unchanged) && temporaries.Count == 0 });
+                fog.enabled = true;
+                fog.center = Vector3.zero;
+                fog.radius = 2f;
+                fog.density = 0.7f;
+                float full = fog.EvaluateOpticalDepth(Vector3.back * 4f, Vector3.forward * 4f);
+                report.checks.Add(new Check { name = "sphere-fog-full-chord-optical-depth",
+                    maximumDifference = Mathf.Abs(full - 4f * fog.radius * fog.density / 3f),
+                    accepted = Mathf.Abs(full - 4f * fog.radius * fog.density / 3f) < 0.000001f });
+                report.checks.Add(new Check { name = "sphere-fog-tangent-and-zero-segment",
+                    accepted = fog.EvaluateOpticalDepth(new Vector3(2,0,-4), new Vector3(2,0,4)) == 0f &&
+                        fog.EvaluateOpticalDepth(Vector3.zero, Vector3.zero) == 0f });
+                material.SetTexture("_CameraDepthTexture", depth);
+                for (int projection = 0; projection < 3; projection++)
+                {
+                    camera.orthographic = projection == 1;
+                    camera.ResetProjectionMatrix();
+                    if (projection == 2)
+                    {
+                        Matrix4x4 shifted = camera.projectionMatrix;
+                        shifted[0, 2] = 0.22f;
+                        shifted[1, 2] = -0.31f;
+                        camera.projectionMatrix = shifted;
+                    }
+                    for (int pose = 0; pose < 2; pose++)
+                    {
+                        camera.transform.SetPositionAndRotation(pose == 0 ? Vector3.zero : new Vector3(3, 2, -4),
+                            pose == 0 ? Quaternion.identity : Quaternion.Euler(13, 37, 5));
+                        for (int setting = 0; setting < 9; setting++)
+                        {
+                            fog.center = camera.transform.TransformPoint(setting == 1 ? Vector3.zero :
+                                setting == 2 ? new Vector3(0, 0, -4) :
+                                setting == 3 ? new Vector3(10, 0, 3) : new Vector3(0.35f, 0.6f, 3f));
+                            fog.radius = setting == 7 ? 0f : 1.5f;
+                            fog.density = setting == 6 ? 0f : setting == 8 ? float.NaN : 0.7f;
+                            fog.maximumOpacity = setting == 5 ? 0.05f : 0.8f;
+                            fog.affectSky = setting != 4;
+                            var expectedPixels = new Color[width * height];
+                            double maximumCpuError = 0.0;
+                            for (int y = 0; y < height; y++) for (int x = 0; x < width; x++)
+                            {
+                                int index = (x + 3 * y) % 5;
+                                float distance = index == 0 ? 0.3f : index == 1 ? 1f : index == 2 ? 3.2f : index == 3 ? 8f : 20f;
+                                float forward = camera.orthographic ? (distance - 0.3f) / 19.7f :
+                                    (1f / 0.3f - 1f / distance) / (1f / 0.3f - 1f / 20f);
+                                if (index == 4) forward = 1f;
+                                depth.SetPixel(x, y, new Color(SystemInfo.usesReversedZBuffer ? 1f - forward : forward, 0, 0, 0));
+                                float u = (x + 0.5f) / width, v = (y + 0.5f) / height;
+                                Vector3 start = camera.ViewportToWorldPoint(new Vector3(u, v, 0.3f));
+                                Vector3 end = camera.ViewportToWorldPoint(new Vector3(u, v, distance));
+                                double integral = fog.IsActive ? IntegrateSphereFog(fog, start, end) : 0.0;
+                                maximumCpuError = Math.Max(maximumCpuError, Math.Abs(integral - fog.EvaluateOpticalDepth(start, end)));
+                                double opacity = index == 4 && !fog.affectSky ? 0.0 :
+                                    Math.Min(1.0 - Math.Exp(-integral), fog.maximumOpacity);
+                                Color expected = Color.Lerp(background, fog.color.linear, (float)opacity);
+                                expected.a = background.a;
+                                expectedPixels[y * width + x] = expected;
+                            }
+                            depth.Apply();
+                            var target = (RenderTexture)apply.Invoke(pipeline, new object[] { source, temporaries });
+                            RenderTexture.active = target;
+                            readback.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                            readback.Apply();
+                            float maximum = 0f;
+                            bool finite = true;
+                            Color worstExpected = background, worstActual = background;
+                            Color[] actualPixels = readback.GetPixels();
+                            for (int i = 0; i < actualPixels.Length; i++) for (int c = 0; c < 4; c++)
+                            {
+                                float actual = actualPixels[i][c];
+                                finite &= !float.IsNaN(actual) && !float.IsInfinity(actual);
+                                float difference = Mathf.Abs(actual - expectedPixels[i][c]);
+                                if (difference > maximum) { maximum = difference; worstExpected = expectedPixels[i]; worstActual = actualPixels[i]; }
+                            }
+                            string name = projection + "-" + pose + "-" + setting;
+                            report.checks.Add(new Check { name = "sphere-fog-gpu-quadrature-" + name,
+                                expected = worstExpected, actual = worstActual, maximumDifference = maximum,
+                                accepted = finite && maximum < 0.0001f &&
+                                    (fog.IsActive ? !ReferenceEquals(target, source) : ReferenceEquals(target, source)) });
+                            report.checks.Add(new Check { name = "sphere-fog-cpu-quadrature-" + name,
+                                maximumDifference = (float)maximumCpuError, accepted = maximumCpuError < 0.0001 });
+                            foreach (var temporary in temporaries) RenderTexture.ReleaseTemporary(temporary);
+                            temporaries.Clear();
+                        }
+                    }
+                }
+                // Real Camera.Render depth, not a supplied RFloat texture. A
+                // foreground quad must occlude a rear fog sphere; clear pixels
+                // may see the sphere. This detects Y/depth-space wiring errors.
+                var occluder = Own(new GameObject("Self-test fog occluder"));
+                occluder.layer = 30;
+                occluder.AddComponent<MeshFilter>().sharedMesh = _quad;
+                var occluderMaterial = Own(new Material(_material));
+                occluderMaterial.SetFloat("_ZWrite", 1f);
+                occluderMaterial.SetFloat("_Cull", 0f);
+                occluder.AddComponent<MeshRenderer>().sharedMaterial = occluderMaterial;
+                camera.cullingMask = 1 << 30;
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = background;
+                camera.allowMSAA = false;
+                camera.targetTexture = source;
+                var depthProbe = host.AddComponent<SphereFogDepthProbe>();
+                for (int projection = 0; projection < 3; projection++)
+                {
+                    pipeline.enabled = false;
+                    // The pass is invoked by the probe while the real camera's
+                    // depth globals are bound, without the other post effects.
+                    typeof(OriginalStyleRenderPipeline).GetMethod("EnsureResources",
+                        BindingFlags.Instance | BindingFlags.NonPublic).Invoke(pipeline, null);
+                    camera.orthographic = projection == 1;
+                    camera.ResetProjectionMatrix();
+                    if (projection == 2)
+                    {
+                        Matrix4x4 shifted = camera.projectionMatrix;
+                        shifted[0, 2] = 0.22f;
+                        shifted[1, 2] = -0.31f;
+                        camera.projectionMatrix = shifted;
+                    }
+                    // Keep edges away from exact pixel centers: top-left raster
+                    // fill rules must not be confused with fog depth failures.
+                    occluder.transform.SetPositionAndRotation(camera.transform.TransformPoint(new Vector3(0, 0.36f, 2f)), camera.transform.rotation);
+                    occluder.transform.localScale = new Vector3(0.53f, 0.82f, 1f);
+                    fog.enabled = true;
+                    fog.radius = 1.4f;
+                    fog.density = 1.2f;
+                    fog.maximumOpacity = 0.8f;
+                    fog.affectSky = true;
+                    fog.center = camera.transform.TransformPoint(new Vector3(0.35f, 0.6f, 4f));
+                    Color[] before = null, after = null;
+                    Color[] rawDepthPixels = null;
+                    float tolerance = 0.0001f;
+                    depthProbe.sample = rendered =>
+                    {
+                        RenderTexture.active = rendered;
+                        readback.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                        readback.Apply();
+                        before = readback.GetPixels();
+                        var nativeDepth = Shader.GetGlobalTexture("_CameraDepthTexture");
+                        Debug.Log("[SphereFogSelfTest] depth=" + (nativeDepth == null ? "null" : nativeDepth.name + " " + nativeDepth.width + "x" + nativeDepth.height));
+                        if (nativeDepth != null)
+                        {
+                            var depthCopy = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+                            Graphics.Blit(nativeDepth, depthCopy);
+                            RenderTexture.active = depthCopy;
+                            readback.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                            readback.Apply();
+                            rawDepthPixels = readback.GetPixels();
+                            RenderTexture.ReleaseTemporary(depthCopy);
+                        }
+                        var target = (RenderTexture)apply.Invoke(pipeline, new object[] { rendered, temporaries });
+                        tolerance = rendered.format == RenderTextureFormat.ARGBFloat ? 0.0001f : 0.002f;
+                        RenderTexture.active = target;
+                        readback.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                        readback.Apply();
+                        after = readback.GetPixels();
+                        Debug.Log("[SphereFogSelfTest] camera=" + projection + "; format=" + rendered.format);
+                    };
+                    camera.Render();
+                    if (before == null || after == null) throw new InvalidOperationException("Real fog camera callback did not execute");
+                    var preview = Own(new Texture2D(width, height, TextureFormat.RGBA32, false, true));
+                    preview.SetPixels(after);
+                    preview.Apply();
+                    File.WriteAllBytes(Path.Combine(_directory, "sphere-fog-real-depth-" + projection + ".png"), preview.EncodeToPNG());
+                    float maximum = 0f;
+                    int occluded = 0, fogged = 0;
+                    string worst = "";
+                    bool finite = true;
+                    for (int y = 0; y < height; y++) for (int x = 0; x < width; x++)
+                    {
+                        float u = (x + 0.5f) / width, v = (y + 0.5f) / height;
+                        Vector3 atPlane = camera.transform.InverseTransformPoint(camera.ViewportToWorldPoint(new Vector3(u, v, 2f)));
+                        bool hitsQuad = Mathf.Abs(atPlane.x) < 0.53f && Mathf.Abs(atPlane.y - 0.36f) < 0.82f;
+                        Vector3 start = camera.ViewportToWorldPoint(new Vector3(u, v, 0.3f));
+                        Vector3 end = camera.ViewportToWorldPoint(new Vector3(u, v, hitsQuad ? 2f : 20f));
+                        double integral = IntegrateSphereFog(fog, start, end);
+                        float opacity = (float)Math.Min(1.0 - Math.Exp(-integral), fog.maximumOpacity);
+                        int i = y * width + x;
+                        Color expected = Color.Lerp(before[i], fog.color.linear, opacity);
+                        expected.a = before[i].a;
+                        for (int c = 0; c < 4; c++)
+                        {
+                            float difference = Mathf.Abs(after[i][c] - expected[c]);
+                            finite &= !float.IsNaN(difference) && !float.IsInfinity(difference);
+                            if (difference > maximum)
+                            {
+                                maximum = difference;
+                                worst = x + "," + y + " expected=" + expected + " actual=" + after[i] + " quad=" + hitsQuad +
+                                    " depth=" + (rawDepthPixels == null ? "unavailable" : rawDepthPixels[i].r.ToString("R"));
+                            }
+                        }
+                        if (hitsQuad && opacity == 0f) occluded++;
+                        if (!hitsQuad && opacity > 0.1f && Mathf.Abs(after[i].r - before[i].r) > 0.01f) fogged++;
+                    }
+                    report.checks.Add(new Check { name = "sphere-fog-real-camera-depth-" + projection,
+                        maximumDifference = maximum, accepted = finite && maximum < tolerance && occluded > 10 && fogged > 5 });
+                    Debug.Log("[SphereFogSelfTest] worst=" + worst + "; occluded=" + occluded + "; fogged=" + fogged);
+                    foreach (var temporary in temporaries) RenderTexture.ReleaseTemporary(temporary);
+                    temporaries.Clear();
+                }
+                depthProbe.sample = null;
+                camera.targetTexture = null;
+                fog.enabled = false;
+                unchanged = (RenderTexture)apply.Invoke(pipeline, new object[] { source, temporaries });
+                pipeline.sphereFog = null;
+                var absent = (RenderTexture)apply.Invoke(pipeline, new object[] { source, temporaries });
+                report.checks.Add(new Check { name = "sphere-fog-disable-and-null-no-allocation",
+                    accepted = ReferenceEquals(source, unchanged) && ReferenceEquals(source, absent) && temporaries.Count == 0 });
+                pipeline.sphereFog = fog;
+                fog.enabled = true;
+                apply.Invoke(pipeline, new object[] { source, temporaries });
+                foreach (var temporary in temporaries) RenderTexture.ReleaseTemporary(temporary);
+                temporaries.Clear();
+                var otherHost = Own(new GameObject("Self-test independent fog camera"));
+                otherHost.AddComponent<Camera>().enabled = false;
+                var other = otherHost.AddComponent<OriginalStyleRenderPipeline>();
+                unchanged = (RenderTexture)apply.Invoke(other, new object[] { source, temporaries });
+                report.checks.Add(new Check { name = "sphere-fog-second-camera-independent",
+                    accepted = !other.sphereFog.enabled && ReferenceEquals(source, unchanged) && temporaries.Count == 0 });
+            }
+            finally
+            {
+                foreach (var temporary in temporaries) RenderTexture.ReleaseTemporary(temporary);
+                camera.targetTexture = null;
+                RenderTexture.active = previous;
+                source.Release();
             }
         }
 

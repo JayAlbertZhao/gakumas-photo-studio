@@ -332,6 +332,26 @@ namespace GakumasPhotoMode
             }
             if (name == "01-front" && (_controls.OutlineDrawCount == 0 || _controls.HairCoverDrawCount == 0))
             {
+                Camera sourceCamera = GetComponent<Camera>();
+                Debug.LogError("[ActorRenderingValidation] Camera enabled=" + sourceCamera.enabled +
+                    "; active=" + sourceCamera.gameObject.activeInHierarchy + "; mask=" + sourceCamera.cullingMask +
+                    "; controls=" + _controls.enabled + "; outline=" + _controls.OutlineDrawCount +
+                    "; cover=" + _controls.HairCoverDrawCount + "; renderPipeline=" +
+                    UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline);
+                foreach (Renderer renderer in GetActorProbeRenderers())
+                    Debug.LogError("[ActorRenderingValidation] Renderer " + renderer.name +
+                        "; enabled=" + renderer.enabled + "; active=" + renderer.gameObject.activeInHierarchy +
+                        "; forceOff=" + renderer.forceRenderingOff + "; layer=" + renderer.gameObject.layer);
+                var privateFields = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+                var commands = (UnityEngine.Rendering.CommandBuffer)typeof(ActorRenderControls).GetField("_commands", privateFields).GetValue(_controls);
+                var bound = (Renderer[])typeof(ActorRenderControls).GetField("_renderers", privateFields).GetValue(_controls);
+                var shader = (Shader)typeof(ActorRenderControls).GetField("_shader", privateFields).GetValue(_controls);
+                Debug.LogError("[ActorRenderingValidation] Command bytes=" + commands.sizeInBytes + "; boundRenderers=" + bound.Length);
+                foreach (Renderer renderer in bound)
+                    if (renderer != null) foreach (Material material in renderer.sharedMaterials)
+                        if (material != null) Debug.LogError("[ActorRenderingValidation] Bound material " + material.name +
+                            "; matchingShader=" + (material.shader == shader) + "; outlineEnabled=" + material.GetFloat("_OutlineEnabled") +
+                            "; outlinePass=" + material.GetShaderPassEnabled("ActorOutline") + "; coverPass=" + material.GetShaderPassEnabled("ActorHairCover"));
                 Destroy(image);
                 Debug.LogError("[ActorRenderingValidation] Required actor passes are missing; check shader stripping and material bindings.");
                 Application.Quit(2);
@@ -371,6 +391,13 @@ namespace GakumasPhotoMode
             });
             Destroy(image);
             Debug.Log("[ActorRenderingValidation] " + name);
+        }
+
+        private static Renderer[] GetActorProbeRenderers()
+        {
+            PhotoModeApp app = FindObjectOfType<PhotoModeApp>();
+            return app != null && app.CharacterRoot != null
+                ? app.CharacterRoot.GetComponentsInChildren<Renderer>(true) : Array.Empty<Renderer>();
         }
 
         private static string ActorPoseDigest()

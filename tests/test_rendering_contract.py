@@ -726,5 +726,42 @@ class ActorRenderingWiringTests(unittest.TestCase):
             self.assertIn(name, probe)
 
 
+    def test_sphere_fog_is_camera_local_and_before_temporal(self):
+        pipeline = (ROOT / 'packages/com.digital-kotone.toolkit/Runtime/OriginalStyleRenderPipeline.cs').read_text(encoding='utf-8')
+        settings = (ROOT / 'packages/com.digital-kotone.toolkit/Runtime/SphereFogSettings.cs').read_text(encoding='utf-8')
+        shader = (ROOT / 'packages/com.digital-kotone.toolkit/Runtime/Resources/OriginalStylePost.shader').read_text(encoding='utf-8')
+        self.assertIn('public SphereFogSettings sphereFog = new SphereFogSettings();', pipeline)
+        self.assertIn('public bool enabled;', settings)
+        self.assertNotRegex(settings, r'FindObject|Shader\.SetGlobal|Resources\.Load|AssetBundle|PhotoModeApp')
+        self.assertLess(pipeline.index('current = ApplySphereFog(current, temporaries);'),
+                        pipeline.index('Graphics.Blit(current, temporal, _postMaterial, 7);'))
+        apply = pipeline.split('private RenderTexture ApplySphereFog(', 1)[1].split('private RenderTexture ApplyDepthOfField(', 1)[0]
+        for guard in ('sphereFog == null || !sphereFog.IsActive', '"--disable-sphere-fog"', 'viewProjection.determinant == 0f'):
+            self.assertLess(apply.index(guard), apply.index('GetTemporary('))
+        self.assertIn('GL.GetGPUProjectionMatrix(_sourceCamera.projectionMatrix, true)', apply)
+        self.assertIn('_sourceCamera.worldToCameraMatrix', apply)
+        self.assertIn('Graphics.CopyTexture(source, 0, 0, fogged, 0, 0);', apply)
+        self.assertIn('Graphics.Blit(null, fogged, _postMaterial, 12);', apply)
+        fog_pass = shader.split('Name "SPHERE_FOG"', 1)[1]
+        self.assertIn('Blend One OneMinusSrcAlpha, Zero One', fog_pass)
+        for term in ('UNITY_REVERSED_Z', 'UNITY_NEAR_CLIP_VALUE', 'UNITY_UV_STARTS_AT_TOP',
+                     'clearDepth', 'nearH.xyz / nearH.w', 'endH.xyz / endH.w',
+                     'span * span / 12.0', '1.0 - exp(-opticalDepth)'):
+            self.assertIn(term, fog_pass)
+
+    def test_sphere_fog_gpu_oracle_is_not_its_own_analytic_formula(self):
+        probe = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        self.assertIn('VerifySphereFog(report);', probe)
+        oracle = probe.split('private static double IntegrateSphereFog(', 1)[1].split('private void VerifySphereFog(', 1)[0]
+        self.assertIn('const int steps = 2048;', oracle)
+        self.assertNotIn('EvaluateOpticalDepth', oracle)
+        self.assertNotIn('halfSquared', oracle)
+        for name in ('sphere-fog-default-no-allocation', 'sphere-fog-full-chord-optical-depth',
+                     'sphere-fog-tangent-and-zero-segment', 'sphere-fog-gpu-quadrature-',
+                     'sphere-fog-cpu-quadrature-', 'sphere-fog-disable-and-null-no-allocation',
+                     'sphere-fog-second-camera-independent'):
+            self.assertIn(name, probe)
+
+
 if __name__ == '__main__':
     unittest.main()

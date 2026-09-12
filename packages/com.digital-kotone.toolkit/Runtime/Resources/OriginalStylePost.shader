@@ -1,6 +1,12 @@
 Shader "Hidden/GakumasPhotoMode/OriginalStylePost"
 {
-    Properties { _MainTex ("Source", 2D) = "white" {} }
+    Properties
+    {
+        _MainTex ("Source", 2D) = "white" {}
+        [HideInInspector] _TemporalFlagsTex ("Temporal flags", 2D) = "black" {}
+        [HideInInspector] _TemporalMaskEnabled ("Temporal mask enabled", Float) = 0
+        [HideInInspector] _TemporalJitterUv ("Temporal jitter UV", Vector) = (0,0,0,0)
+    }
     SubShader
     {
         Cull Off ZWrite Off ZTest Always
@@ -359,8 +365,11 @@ Shader "Hidden/GakumasPhotoMode/OriginalStylePost"
             #pragma target 3.0
             #include "UnityCG.cginc"
             sampler2D _MainTex, _HistoryTex, _CameraMotionVectorsTexture, _CameraDepthTexture;
+            sampler2D _TemporalFlagsTex;
             float4 _MainTex_TexelSize;
             float _HistoryValid, _TemporalBlend;
+            float _TemporalMaskEnabled;
+            float2 _TemporalJitterUv;
 
             float Luma(float3 color)
             {
@@ -386,6 +395,15 @@ Shader "Hidden/GakumasPhotoMode/OriginalStylePost"
             {
                 float2 uv = input.uv;
                 float3 current = tex2D(_MainTex, uv).rgb;
+                if (_TemporalMaskEnabled > 0.5)
+                {
+                    float flags = floor(tex2D(_TemporalFlagsTex, uv).r * 255.0 + 0.5);
+                    // PDF p33: NoJitter takes precedence; excluded emissives
+                    // bypass accumulation but still undo the host's UV jitter.
+                    if (fmod(floor(flags / 4.0), 2.0) > 0.5) return float4(current, 1.0);
+                    if (fmod(floor(flags / 2.0), 2.0) > 0.5)
+                        return float4(tex2D(_MainTex, uv - _TemporalJitterUv).rgb, 1.0);
+                }
                 if (_HistoryValid < 0.5) return float4(current, 1.0);
 
                 // C5783A18 gathers the packed depth channel from two diagonally
@@ -597,6 +615,66 @@ Shader "Hidden/GakumasPhotoMode/OriginalStylePost"
                 // The uncapped distance weight also modulates fog color.
                 // Keep this separate from the capped alpha used by blending.
                 return float4(_SceneFogColor * weight * opacity, opacity);
+            }
+            ENDCG
+        }
+        Pass
+        {
+            Name "SPHERE_FOG"
+            Blend One OneMinusSrcAlpha, Zero One
+            CGPROGRAM
+            #pragma vertex vert_img
+            #pragma fragment frag
+            #pragma target 3.0
+            #include "UnityCG.cginc"
+            UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
+            float4x4 _SphereFogInverseViewProjection;
+            float4 _SphereFogCenterRadius;
+            float4 _SphereFogParameters; // extinction per unit, opacity cap, affect sky
+            float3 _SphereFogColor; // linear RGB, not pre-multiplied
+
+            float4 frag(v2f_img input):SV_Target
+            {
+                float raw = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, input.uv);
+                float2 clipXY = input.uv * 2.0 - 1.0;
+                #if UNITY_UV_STARTS_AT_TOP
+                    clipXY.y = -clipXY.y;
+                #endif
+                #if defined(UNITY_REVERSED_Z)
+                    float depth = raw;
+                    float nearDepth = 1.0;
+                    float clearDepth = raw <= 0.0;
+                #else
+                    float depth = lerp(UNITY_NEAR_CLIP_VALUE, 1.0, raw);
+                    float nearDepth = UNITY_NEAR_CLIP_VALUE;
+                    float clearDepth = raw >= 1.0;
+                #endif
+                if (clearDepth > 0.5 && _SphereFogParameters.z < 0.5) return 0.0;
+                float4 nearH = mul(_SphereFogInverseViewProjection, float4(clipXY, nearDepth, 1.0));
+                float4 endH = mul(_SphereFogInverseViewProjection, float4(clipXY, depth, 1.0));
+                if (abs(nearH.w) < 1e-8 || abs(endH.w) < 1e-8) return 0.0;
+                float3 start = nearH.xyz / nearH.w;
+                float3 segment = endH.xyz / endH.w - start;
+                float length = sqrt(dot(segment, segment));
+                if (length < 1e-6) return 0.0;
+                float3 direction = segment / length;
+                float radius = _SphereFogCenterRadius.w;
+                float3 origin = (start - _SphereFogCenterRadius.xyz) / radius;
+                float closest = -dot(origin, direction);
+                float3 perpendicular = origin + closest * direction;
+                float halfSquared = 1.0 - dot(perpendicular, perpendicular);
+                if (halfSquared <= 0.0) return 0.0;
+                float halfChord = sqrt(halfSquared);
+                float entry = max(0.0, closest - halfChord);
+                float exit = min(length / radius, closest + halfChord);
+                float span = max(0.0, exit - entry);
+                float midpoint = (entry + exit) * 0.5 - closest;
+                // Independent analytic integral of a parabolic density profile.
+                // Centered form remains stable when a sphere is far from camera.
+                float integral = span * max(0.0, halfSquared - midpoint * midpoint - span * span / 12.0);
+                float opticalDepth = integral * radius * _SphereFogParameters.x;
+                float opacity = min(saturate(1.0 - exp(-opticalDepth)), _SphereFogParameters.y);
+                return float4(_SphereFogColor * opacity, opacity);
             }
             ENDCG
         }
