@@ -43,6 +43,7 @@
 !/config/source-baseline.json
 !/config/staging-manifest.example.json
 !/config/studio.example.json
+!/docs/actor-planar-capture.md
 !/docs/assets.md
 !/docs/baseline.md
 !/docs/code-map.md
@@ -74,6 +75,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/ActorHeadLightingDriver.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/ActorMaterialEffectRuntime.cs
 !/packages/com.digital-kotone.toolkit/Runtime/ActorMaterialEffectRuntime.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/ActorPlanarCaptureSet.cs
+!/packages/com.digital-kotone.toolkit/Runtime/ActorPlanarCaptureSet.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/ActorPlanarLighting.cs
+!/packages/com.digital-kotone.toolkit/Runtime/ActorPlanarLighting.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/ActorRenderControls.cs
 !/packages/com.digital-kotone.toolkit/Runtime/ActorRenderControls.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/ActorShaderReferenceFeature.cs
@@ -176,6 +181,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorDataReplacement.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorOutline.cginc
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorOutline.cginc.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorPlanarCapture.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorPlanarCapture.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorPlanarSurface.hlsl
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorPlanarSurface.hlsl.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorSupplemental.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorSupplemental.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorSurface.cginc
@@ -259,6 +268,8 @@
 !/tools/verify_baseline.py
 !/tools/verify_local_assets.py
 !/unity/Assets/ActorAnimationStub.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorPlanar.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorPlanar.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Planar.cs
@@ -289,6 +300,8 @@
 !/unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs.meta
 !/unity/Assets/Applications/PhotoStudio/PhotoModeApp.cs
 !/unity/Assets/Applications/PhotoStudio/PhotoModeApp.cs.meta
+!/unity/Assets/Applications/PhotoStudio/PlanarCharacterValidation.cs
+!/unity/Assets/Applications/PhotoStudio/PlanarCharacterValidation.cs.meta
 !/unity/Assets/Applications/PhotoStudio/RenderDocCaptureBridge.cs
 !/unity/Assets/Applications/PhotoStudio/RenderDocCaptureBridge.cs.meta
 !/unity/Assets/CampusCommonStub.meta

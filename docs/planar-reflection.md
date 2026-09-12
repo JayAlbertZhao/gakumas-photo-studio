@@ -41,9 +41,10 @@ RGB 是线性 HDR 反射颜色，A 是反射覆盖与 Receiver.strength；它不
 ## 捕获绘制契约
 
 - 每个 Draw 显式指定 renderer、materialIndex、材质和一个 pass。只绘制注册项且位于 reflectedLayers 内的对象，不受主相机可见范围限制。允许生成的 SkinnedMeshRenderer；画外蒙皮更新策略由宿主设置。
-- 捕获相机自身 cullingMask 为 0，避免再绘制一次完整场景。注册材质必须适用于 `CommandBuffer.DrawRenderer`：显式提供光照输入，ZWrite On，opaque／cutout，并与 Surface 的顶点缩放、剔除、alphaMask／UV／cutoff 一致。不会自动执行所有 pass、附加光、阴影生成、角色材质修复或主相机的后处理。
+- 捕获相机自身 cullingMask 为 0，避免再绘制一次完整场景。注册材质必须适用于 `CommandBuffer.DrawRenderer` 并显式提供光照输入。默认 coverage 路径要求 ZWrite On、opaque／cutout，且与 Surface 的顶点缩放、剔除、alphaMask／UV／cutoff 一致。不会自动执行所有 pass、附加光、阴影生成、角色材质修复或主相机的后处理。
 - 默认并不从主材质猜测这些输入。普通依赖 Unity 自动光照参数的材质不构成该契约；可提供自己的廉价 Forward 材质。附带 `GakumasPhotoMode/PlanarCapture` 提供单方向 Lambert、环境颜色、HDR 自发光和 cutout，参数均显式绑定。这是通用简化材质，不是原版角色着色替代品。
-- alpha coverage 单独按同一几何与捕获深度重画，原材质输出 A=0 的不透明物体仍有反射覆盖。未匹配的顶点位移、stencil 或透明混合会破坏颜色／区域一致性，当前不支持。
+- alpha coverage 默认按同一几何与捕获深度重画，原材质输出 A=0 的不透明物体仍有反射覆盖。复杂材质可显式提供 `Draw.coverageMaterial`／`coverageShaderPass`，使用与颜色一致的位移、clip、ZWrite、stencil 和覆盖混合；只要存在一个自定义 mask，覆盖阶段就清 depth／stencil 并按原顺序重放全部绘制，RGB 不被清除。没有匹配 pass 的任意 stencil／透明材质仍不支持。
+- [ActorPlanarCaptureSet](actor-planar-capture.md) 为本工具包的 ActorToon 提供显式适配：Base／Shade／Def／Ramp、Layer、头发和眼部输入、动画图集与 property block 快照，配合对应 coverage pass。不修改共享主材质；需要宿主每次在动画之后、镜像渲染之前刷新。
 - 接收面只在主相机实际 framebuffer depth 可见的位置投影，前景物体无需 ShadowCaster 也能遮挡反射。`receiverPlaneTolerance` 限定顶点插值后的世界位置接近平面；不允许把同一投影贴到任意弯曲或离面网格。
 
 ## 平面、质量与资源

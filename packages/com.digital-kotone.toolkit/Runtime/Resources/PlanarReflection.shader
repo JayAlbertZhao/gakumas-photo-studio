@@ -81,5 +81,16 @@ Shader "Hidden/GakumasPhotoMode/PlanarReflection"
             }
             ENDCG
         }
+        Pass
+        {
+            Name "REPLAY_OPAQUE_COVERAGE"
+            Cull [_Cull] ZWrite On ZTest LEqual Blend Off ColorMask A
+            CGPROGRAM
+            #pragma target 3.0
+            #pragma vertex vert
+            #pragma fragment frag
+            float4 frag(varying i) : SV_Target { Cutout(i.uv); return 1; }
+            ENDCG
+        }
     }
 }

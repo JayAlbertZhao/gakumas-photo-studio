@@ -33,6 +33,7 @@
 | 可选场景几何与 Hi-Z 输入 | `SceneDepthData`；显式登记表面，读取相机自己的法线／SSR mask／线性深度及最小深度层级，见 [输入契约](scene-depth-data.md) |
 | 可选场景 SSR | `ScreenSpaceReflection`；绑定到 HDR 管线，使用不含角色的场景颜色／深度历史，见 [SSR 接入](screen-space-reflection.md) |
 | 可选平面反射输入 | `PlanarReflection`；显式简化 Forward 绘制、画外网格、区域覆盖和粗糙度 mip，主相机读取独立反射纹理，见 [Planar 接入](planar-reflection.md) |
+| 可选角色反射适配 | `ActorPlanarCaptureSet`／`ActorPlanarLighting`；独立的 ActorToon 材质快照、简化光照及匹配眼部／头发覆盖，见 [角色捕获](actor-planar-capture.md) |
 | 可选统一间接反射 | `SceneReflectionResolve`；Planar 优先、SSR 失败回退 Probe、全分辨率法线扭曲和材质响应；宿主须去除接收面原间接镜面项，见 [输入与合成契约](scene-reflection-resolve.md) |
 | 可选反射计算后端 | `SceneShaderBackend.Compute`；SSR trace 与 Hi-Z RandomWrite，独立深度组件也可使用，能力回退与状态见 [计算后端](scene-compute-backend.md) |
 | 可选 SSR 粗糙度 | `SsrRoughnessSettings`；接收面感知的两遍辐射过滤，默认无额外目标，保留 Planar 优先与 Probe 置信度回退，见 [过滤契约](ssr-roughness.md) |

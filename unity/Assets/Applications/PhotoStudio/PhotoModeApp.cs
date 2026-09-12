@@ -58,6 +58,7 @@ namespace GakumasPhotoMode
                 ConfigureRendererFromArguments(commandLine);
                 if (ActorRenderingSelfTest.TryStart(gameObject)) { enabled = false; return; }
                 Initialize(BundleCatalog.DefaultStagingRoot);
+                if (PlanarCharacterValidation.TryStart(this)) return;
                 if (commandLine.Contains("--hide-ui")) _showUi = false;
                 if (commandLine.Contains("--renderdoc-capture-and-quit"))
                 {

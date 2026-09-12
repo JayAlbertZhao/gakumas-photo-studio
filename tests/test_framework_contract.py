@@ -128,6 +128,33 @@ class FrameworkContractTests(unittest.TestCase):
         for forbidden in ('ForwardAdd', 'ShadowCaster', '_WorldSpaceLightPos0', '_LightColor0'):
             self.assertNotIn(forbidden, shader)
 
+    def test_character_planar_adapter_is_owned_explicit_and_not_a_default_app_change(self):
+        source = (RUNTIME / 'ActorPlanarCaptureSet.cs').read_text(encoding='utf-8')
+        for forbidden in ('PhotoModeApp', 'BundleCatalog', 'Shader.SetGlobal', 'Shader.GetGlobal',
+                          'FindObjectsOfType', '.sharedMaterials =', '.SetPropertyBlock('):
+            self.assertNotIn(forbidden, source)
+        for required in ('public bool TryRefresh(Renderer[]', 'public void Dispose()',
+                         'Requires this toolkit\'s ActorToon', '_materialBlock.isEmpty ? _rendererBlock',
+                         'coverageMaterial = material', 'GetShaderPassEnabled("ActorHairCover")'):
+            self.assertIn(required, source)
+        host = (RUNTIME / 'CharacterSceneRuntime.cs').read_text(encoding='utf-8')
+        self.assertNotIn('ActorPlanarCaptureSet', host)
+
+    def test_character_planar_custom_coverage_replays_matching_depth_and_stencil(self):
+        source = (RUNTIME / 'PlanarReflection.cs').read_text(encoding='utf-8')
+        for required in ('public Material coverageMaterial;', 'Invalid custom coverage pass',
+                         'ClearRenderTarget(true, false, Color.clear)', 'draw.coverageShaderPass'):
+            self.assertIn(required, source)
+        shader = (RUNTIME / 'Resources/ActorPlanarCapture.shader').read_text(encoding='utf-8')
+        self.assertEqual(shader.count('Ref [_CapStencilRef]'), 2)
+        self.assertEqual(shader.count('ZWrite [_CapZWrite]'), 2)
+        self.assertIn('Blend One OneMinusSrcAlpha', shader)
+        self.assertIn('ColorMask A', shader)
+        surface = (RUNTIME / 'Resources/ActorPlanarSurface.hlsl').read_text(encoding='utf-8')
+        self.assertIn('float4 sample = CaptureBase(i)', surface)
+        for forbidden in ('_LightColor0', '_WorldSpaceLightPos0', '_CapturedLightDirection', '_ActorDataTex'):
+            self.assertNotIn(forbidden, surface)
+
     def test_unified_reflection_requires_indirect_source_contract(self):
         source = (RUNTIME / 'SceneReflectionResolve.cs').read_text(encoding='utf-8')
         for forbidden in ('FindObjectsOfType', 'Shader.SetGlobal', '.sharedMaterial =', 'PhotoModeApp', 'OnRenderImage'):

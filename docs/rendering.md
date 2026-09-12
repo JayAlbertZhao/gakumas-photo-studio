@@ -4,6 +4,22 @@
 
 ## 框架增量与当前验收
 
+以下按阶段逆序记录；旧阶段中的开项以较新的实现记录和 [技术清单](framework-techniques.md) 为准。
+
+### 真实角色简化 Planar 捕获
+
+新增可选 `ActorPlanarCaptureSet` 和显式线性 `ActorPlanarLighting`，读取自身 ActorToon 的 Base／Shade／Def／Ramp、Layer、材质 Ramp、头发高光、眼部、图集和 property block。仅创建 owned 捕获材质，不改主材质／主光全局或默认摄影路径。按 PDF 44–45 的简化 Forward／区域 alpha 和 PPT 35–49 的材质输入实现；省去完整镜面 BRDF、阴影、附加光、normal map、描边等昂贵路径，公式为独立近似。接口和限制见 [角色捕获说明](actor-planar-capture.md)。
+
+自定义 coverage pass 清 depth／stencil 后按原颜色顺序重放，保留 RGB；眼白／眼球／头发补画因此使用匹配的裁剪、深度和 stencil。没有自定义覆盖的既有 opaque／cutout 路径保持原样。全 RGB 以外的 ColorMask、不支持的混合或材质类型显式拒绝，不伪装成成功捕获。
+
+完整 t15／D3D11 v6 构建无 C#／shader 错误。独立 Player 完成全部 2190 项合成／角色检查，其中 43 项新增检查覆盖九个原始材质类型的 HDR／coverage 数值、眼部 stencil 正负控制、头发补画及互补 stencil、cutout、fade、顶点缩放、图集／UV2、显式光照／自发光、property block 优先级与色彩空间、无效输入和资源生命周期。前版全部 2147 项完整 JSON 记录，以及合成套件产出的 1297 张已有 PNG 预览逐项／逐像素相同。
+
+另用本地一个角色／服装执行 `--photo-mode --validate-planar-character`：4 个真实 renderer、8 种实际材质类型、16 个绘制／owned 材质，在四个方向得到 26285／19186／25699／18592 个有覆盖像素。17 项离屏检查全部成立，包括主材质／主光不被写回、转回原视图逐像素恢复、0→0.7 秒蒙皮采样改变 25984 像素、回到 0 秒完全恢复；关闭 Shade／材质 Ramp／头发细节的负对照改变 19111 像素，刷新恢复。移除／重绑角色和 Dispose 也经过实际渲染。正面、后脑简化捕获与普通 1920×1080 摄影已查看；PNG 预览转换为 sRGB，验收比较原始线性 HDR，不比较被截断的预览。
+
+保留 v3 首次引擎导入 CS0103（虽有最终产物，未作干净构建）和 v5 的一项错误测试期望。后者先 SetColor 再 SetVector，忽略了 Unity 保留颜色转换标志的规则；独立诊断读取的值分别为 0.214041 和清空 block 后的 0.5。最终同时验证“继承颜色语义”和“新建字面 Vector”，没有放宽阈值或改动生产光照来让测试通过。早期预览的相机角度命名／光向与线性显示也已修正，不把它们混作同光照画质对比。
+
+此阶段证明独立材质接入、真实蒙皮捕获和区域一致性，不证明全角色／全服装、原版完整画质或性能。没有新开可见窗口呈现探针；移动端、GGX 预过滤、Probe 调度与其他技术清单开项仍需继续。
+
 ### SSR 接收面粗糙度过滤
 
 补上可选 `SsrRoughnessSettings`：按显式 smoothness 进行水平／垂直两遍 tent，几何法线、平面距离、可见性和登记接收面 ID 共同阻止串色。miss 不作为黑色辐射平均，不复活零置信度中心，输出置信度不超过中心输入；Planar 覆盖区仍跳过，统一消费者按原契约回退 Probe。PPT 113–114 与 PDF 44–51 未给出 SSR 粗糙度核，当前是独立模型，不是 GGX 原版复刻。接口、内存成本和限制见 [过滤说明](ssr-roughness.md)。

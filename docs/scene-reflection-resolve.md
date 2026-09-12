@@ -64,6 +64,6 @@ camera.GetComponent<OriginalStyleRenderPipeline>().sceneReflectionResolve = reso
 
 后端需要 Built-in Forward、三个颜色附件、ARGBHalf、固定尺寸完整视口，当前不支持 MSAA／XR／SRP／动态分辨率。五份全分辨率 HDR 目标加上 SSR 和 Planar 的独立捕获都有显著内存／带宽成本；移动端后端与 RenderPass／subpass 优化仍在技术清单中。
 
-宿主必须保持 Surface 几何、alpha cutout、UV、顶点缩放和实际主材质一致，且明确登记每个 materialIndex。任意顶点 shader、透明混合、stencil 和自动材质动画映射尚未覆盖。多个 Probe 的自动选择、box projection、探针更新调度与完整角色捕获适配也不由本组件自动处理。
+宿主必须保持接收面的 Surface 几何、alpha cutout、UV、顶点缩放和实际主材质一致，且明确登记每个 materialIndex。接收面的任意顶点 shader、透明混合、stencil 和自动材质动画映射尚未覆盖。反射源角色可显式使用 [ActorPlanarCaptureSet](actor-planar-capture.md)，其支持范围不扩展到接收面。多个 Probe 的自动选择、box projection、探针更新调度也不由本组件自动处理。
 
 Unity Probe 输入接口见 [texture](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/ReflectionProbe-texture.html) 与 [textureHDRDecodeValues](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/ReflectionProbe-textureHDRDecodeValues.html)。执行范围见 [渲染记录](rendering.md)，未完成项目见 [技术清单](framework-techniques.md)。

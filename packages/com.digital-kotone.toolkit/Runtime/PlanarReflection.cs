@@ -21,6 +21,10 @@ namespace GakumasPhotoMode
             // ZWrite On and matching geometry/alpha. No automatic Unity lights.
             public Material material;
             [Min(0)] public int shaderPass;
+            // Optional exact coverage replay for stencil/transparent draws.
+            // The pass must write only A and reproduce color depth/stencil/clip.
+            public Material coverageMaterial;
+            [Min(0)] public int coverageShaderPass;
         }
 
         [Serializable]
@@ -104,9 +108,14 @@ namespace GakumasPhotoMode
 
             _captureCommands.Clear();
             int count = 0;
+            bool replayCoverage = false;
             foreach (Draw draw in reflectedSurfaces)
             {
                 if (!ValidDraw(draw)) continue;
+                if (draw.coverageMaterial != null && (draw.coverageMaterial.shader == null || !draw.coverageMaterial.shader.isSupported ||
+                    draw.coverageShaderPass < 0 || draw.coverageShaderPass >= draw.coverageMaterial.passCount))
+                { UnavailableReason = "Invalid custom coverage pass"; ReleaseResources(); return; }
+                replayCoverage |= draw.coverageMaterial != null;
                 _captureCommands.DrawRenderer(draw.surface.renderer, draw.material, draw.surface.materialIndex, draw.shaderPass);
                 count++;
             }
@@ -115,13 +124,23 @@ namespace GakumasPhotoMode
             // independent data channel, not the material's output opacity.
             _captureCommands.Blit(Texture2D.blackTexture, BuiltinRenderTextureType.CameraTarget, _utility, 0);
             _captureCommands.SetRenderTarget(_capture);
+            // A custom actor pass can use transparent depth and eye stencil.
+            // Rebuild depth/stencil in the same order, rather than testing all
+            // masks against the final opaque depth or final stencil snapshot.
+            if (replayCoverage) _captureCommands.ClearRenderTarget(true, false, Color.clear);
             int materialIndex = 0;
             foreach (Draw draw in reflectedSurfaces)
             {
                 if (!ValidDraw(draw)) continue;
+                if (draw.coverageMaterial != null)
+                {
+                    _captureCommands.DrawRenderer(draw.surface.renderer, draw.coverageMaterial,
+                        draw.surface.materialIndex, draw.coverageShaderPass);
+                    continue;
+                }
                 Material mask = GetMaterial(_coverageMaterials, materialIndex++);
                 BindSurface(mask, draw.surface);
-                _captureCommands.DrawRenderer(draw.surface.renderer, mask, draw.surface.materialIndex, 1);
+                _captureCommands.DrawRenderer(draw.surface.renderer, mask, draw.surface.materialIndex, replayCoverage ? 3 : 1);
             }
             bool oldCulling = GL.invertCulling;
             _rendering = true;

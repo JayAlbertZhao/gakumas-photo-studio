@@ -77,7 +77,9 @@ SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBack
 
 `PlanarReflection` 提供默认关闭的镜像捕获与接收面投影，适用于角色／发光网格和镜面宿主。显式指定单 pass 材质和几何输入，输出独立的 HDR 反射与覆盖，支持画外网格、oblique 裁剪、实际深度遮挡及 smoothness mip。它不自动给已有材质增加反射。详见 [Planar 接入](../../docs/planar-reflection.md)。
 
-`SceneReflectionResolve` 将 Planar、SSR 和 Probe 组成单个间接镜面项，并提供全分辨率法线差分扭曲及显式材质响应。默认关闭；通过 `OriginalStyleRenderPipeline.sceneReflectionResolve` 或自己的 HDR 回调消费。宿主必须让已登记接收面的主材质不再输出旧间接镜面项，组件不会自动改材质或检测重复光照。完整角色捕获、GGX 过滤、多 Probe 调度和移动端优化仍未验收。详见 [统一反射输入契约](../../docs/scene-reflection-resolve.md)。
+`ActorPlanarCaptureSet` 可为本工具包的 ActorToon 创建独立简化反射材质，读取当前 Base／Shade／Def／Ramp、细节层、图集、头发／眼部状态和 property block，提供匹配的覆盖重绘。`ActorPlanarLighting` 显式接受线性光照和头部方向；宿主在动画之后刷新，结束时 Dispose。已做一个本地角色／服装的四方向和蒙皮离屏检查，全角色画质与移动成本仍未验收。见 [角色捕获契约](../../docs/actor-planar-capture.md)。
+
+`SceneReflectionResolve` 将 Planar、SSR 和 Probe 组成单个间接镜面项，并提供全分辨率法线差分扭曲及显式材质响应。默认关闭；通过 `OriginalStyleRenderPipeline.sceneReflectionResolve` 或自己的 HDR 回调消费。宿主必须让已登记接收面的主材质不再输出旧间接镜面项，组件不会自动改材质或检测重复光照。全角色捕获画质、GGX 过滤、多 Probe 调度和移动端优化仍未验收。详见 [统一反射输入契约](../../docs/scene-reflection-resolve.md)。
 
 场景消费者可单独接入 `SceneDepthData`，获得不含 normal map 的世界网格法线、显式 SSR 资格、独立线性深度和可选最小深度层级。宿主登记 opaque／cutout 表面与排除层，不自动扫描角色或改变主画面；它只负责几何输入，SSR trace／历史／合成由独立的 ScreenSpaceReflection 消费者负责。相机所有权、调用时机与平台限制见 [SceneDepthData 接入](../../docs/scene-depth-data.md)。
 
