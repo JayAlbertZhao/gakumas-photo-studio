@@ -53,6 +53,8 @@ namespace GakumasPhotoMode
         // Opt-in and owned by this camera; no scene search or global registry.
         public SphereFogSettings sphereFog = new SphereFogSettings();
         public TemporalClassification temporalClassification;
+        // Explicit alternative to the unchanged legacy temporal pass. Same camera only.
+        public SceneDeferredCamera sceneTemporalSource;
         public ScreenSpaceReflection screenSpaceReflection;
         public SceneReflectionResolve sceneReflectionResolve;
 
@@ -243,6 +245,7 @@ namespace GakumasPhotoMode
         {
             _historyValid = false;
             _historyFrame = -1;
+            sceneTemporalSource?.ResetTemporalColorHistory();
         }
 
         private void OnPreCull()
@@ -328,16 +331,26 @@ namespace GakumasPhotoMode
                 if (_actorData != null) DumpHalfSurface(_actorData, postDumpPrefix + "-actor-data");
             }
 
-            bool continuousFrame = _historyValid && _historyFrame == Time.frameCount - 1;
-            RenderTexture temporal = GetTemporary(source.width, source.height, SupersamplePresenter.SceneColorFormat, temporaries);
-            _postMaterial.SetTexture("_HistoryTex", _history != null ? _history : Texture2D.blackTexture);
-            _postMaterial.SetFloat("_HistoryValid", continuousFrame ? 1f : 0f);
-            _postMaterial.SetFloat("_TemporalBlend", temporalBlend);
-            BindTemporalClassification(source.width, source.height);
-            Graphics.Blit(current, temporal, _postMaterial, 7);
-            Graphics.Blit(temporal, _history);
-            _historyValid = true;
-            _historyFrame = Time.frameCount;
+            RenderTexture temporal;
+            if(sceneTemporalSource!=null&&sceneTemporalSource.temporalAntialiasing!=null&&sceneTemporalSource.temporalAntialiasing.enabled)
+            {
+                if(!sceneTemporalSource.TryResolveTemporalColor(_sourceCamera,current,temporalClassification,out temporal))temporal=current;
+                // A failed explicit scene resolve passes through; never silently read unrelated host motion.
+                _historyValid=false;_historyFrame=-1;
+            }
+            else
+            {
+                bool continuousFrame = _historyValid && _historyFrame == Time.frameCount - 1;
+                temporal = GetTemporary(source.width, source.height, SupersamplePresenter.SceneColorFormat, temporaries);
+                _postMaterial.SetTexture("_HistoryTex", _history != null ? _history : Texture2D.blackTexture);
+                _postMaterial.SetFloat("_HistoryValid", continuousFrame ? 1f : 0f);
+                _postMaterial.SetFloat("_TemporalBlend", temporalBlend);
+                BindTemporalClassification(source.width, source.height);
+                Graphics.Blit(current, temporal, _postMaterial, 7);
+                Graphics.Blit(temporal, _history);
+                _historyValid = true;
+                _historyFrame = Time.frameCount;
+            }
 
             // VLPostProcessPass executes DOF after temporal resolve and before
             // the later diffusion/bloom/final-color chain.  Keep temporal

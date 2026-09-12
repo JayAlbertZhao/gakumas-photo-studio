@@ -92,7 +92,7 @@ aoOut = lerp(aoIn, decalAO, aoWeight)
 
 ## 验收范围
 
-可选 `motion` 为登记表面增加实际 GPU 顶点快照与当前→上次运动／深度／法线／身份附件，默认关闭，geometry shader 后端；读取及历史有效性边界见 [场景运动契约](scene-motion.md)。另可显式启用 `screenShadow.gtao.temporal` 消费这些数据，实现 [GTAO 重投影／拒绝／累积](scene-gtao-temporal.md)。不自动接通 TAA 或 SSR。
+可选 `motion` 为登记表面增加实际 GPU 顶点快照与当前→上次运动／深度／法线／身份附件，默认关闭，geometry shader 后端；读取及历史有效性边界见 [场景运动契约](scene-motion.md)。另可显式启用 `screenShadow.gtao.temporal` 实现 [GTAO 重投影／拒绝／累积](scene-gtao-temporal.md)，或启用 `temporalAntialiasing` 接入独立 [颜色 TAA](scene-temporal-antialiasing.md)。不自动更换旧 TAA 或接通 SSR。
 
 每相机限制 1–4096 个登记表面、最多 128 个贴花及每轴 4096 像素。此限制只约束输入上界，不表示如此配置适合移动设备。现有 `SceneDepthData`／SSR／Planar／统一反射的接收器检查仍遵守旧宿主层约定，不能把其已有接口直接绑到本模块排除的场景层并宣称整合完成；需要后续明确的材质／几何数据桥接。
 

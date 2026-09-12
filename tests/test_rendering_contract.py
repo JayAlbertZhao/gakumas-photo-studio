@@ -562,11 +562,12 @@ class ActorRenderingWiringTests(unittest.TestCase):
             self.assertIn('public int ' + field + ' = -1', probe)
             self.assertIn('_report.' + field + ' == 0', probe)
         self.assertRegex(pipeline, r'public void ResetTemporalHistory\(\)\s*\{\s*'
-                                   r'_historyValid = false;\s*_historyFrame = -1;\s*\}')
+                                   r'_historyValid = false;\s*_historyFrame = -1;\s*'
+                                   r'sceneTemporalSource\?\.ResetTemporalColorHistory\(\);\s*\}')
         callers = [path.name for folder in ('packages/com.digital-kotone.toolkit/Runtime', 'unity/Assets/Applications/PhotoStudio')
                    for path in (ROOT / folder).rglob('*.cs')
                    if '.ResetTemporalHistory(' in path.read_text(encoding='utf-8')]
-        self.assertEqual(callers, ['ActorRenderingValidation.cs'])
+        self.assertCountEqual(callers, ['ActorRenderingValidation.cs', 'ActorRenderingSelfTest.SceneTaa.cs'])
 
     def test_skin_probe_checks_real_full_body_inputs_and_restores_camera(self):
         probe = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingValidation.cs').read_text(encoding='utf-8')

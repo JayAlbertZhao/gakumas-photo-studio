@@ -41,6 +41,7 @@
 | 可选 ScreenShadow／环境遮蔽 | `SceneScreenShadowSettings`；显式几何预通道、RG8 主灯／环境可见性和世界胶囊半球积分；可选 `SceneGtaoSettings` 提供视轴 horizon 积分、Half 几何引导空间重建，默认关闭且默认分辨率 Full，见 [数据流](scene-screen-shadow.md) 与 [GTAO](scene-gtao.md) |
 | 可选场景运动对应 | `SceneMotionSettings`；实际 GPU 顶点快照、运动／上次深度／法线／表面身份；默认关闭，geometry shader 后端，见 [运动契约](scene-motion.md) |
 | 可选 GTAO 历史 | `SceneGtaoTemporalSettings`；显式依赖 motion，六相采样、几何／身份拒绝、方差裁剪与累积；默认关闭，见 [时域契约](scene-gtao-temporal.md) |
+| 可选场景颜色 TAA | `SceneTemporalAntialiasingSettings`；实际 motion 与可见性 guide、HDR 方差裁剪／分类、独立颜色历史和显式后处理桥接；默认关闭，见 [接入契约](scene-temporal-antialiasing.md) |
 | 可选场景 GI | `SceneGiInput`；UV2 Lightmap／显式 SH／场景绑定、独立 GI 缓冲、逐灯乘色及背向漫反射，已有数据的消费链见 [GI 接入](scene-gi.md) |
 | 可选统一间接反射 | `SceneReflectionResolve`；Planar 优先、SSR 失败回退 Probe、全分辨率法线扭曲和材质响应；宿主须去除接收面原间接镜面项，见 [输入与合成契约](scene-reflection-resolve.md) |
 | 可选反射计算后端 | `SceneShaderBackend.Compute`；SSR trace 与 Hi-Z RandomWrite，独立深度组件也可使用，能力回退与状态见 [计算后端](scene-compute-backend.md) |

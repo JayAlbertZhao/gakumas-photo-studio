@@ -33,6 +33,7 @@ namespace GakumasPhotoMode
             public SceneGiInput gi = new SceneGiInput();
             // Increment when vertex identity is reassigned without a topology/mesh change.
             public uint motionRevision;
+            public TemporalPixelFlags temporalFlags;
             // 0 = no decals; otherwise exact projector receiver group 1..255.
             [Range(0, 255)] public int receiverGroup = 1;
         }
@@ -74,6 +75,13 @@ namespace GakumasPhotoMode
         public SceneScreenShadowSettings screenShadow = new SceneScreenShadowSettings();
         public SceneMotionSettings motion = new SceneMotionSettings();
         private SceneMotionHistory _motion;
+        public SceneTemporalAntialiasingSettings temporalAntialiasing = new SceneTemporalAntialiasingSettings();
+        private SceneTemporalAntialiasingRenderer _temporalAntialiasing;
+        private CommandBuffer _temporalVisibilityCommands;
+        public int TemporalColorTargetCount => _temporalAntialiasing==null?0:_temporalAntialiasing.TargetCount;
+        public int TemporalColorVisibilityDrawCalls => _temporalAntialiasing==null?0:_temporalAntialiasing.VisibilityDrawCalls;
+        public int TemporalColorResolveDrawCalls => _temporalAntialiasing==null?0:_temporalAntialiasing.ResolveDrawCalls;
+        public string TemporalColorUnavailableReason { get; private set; }
         public int MotionTargetCount => _motion == null ? 0 : _motion.TargetCount;
         public int MotionDrawCalls => _motion == null ? 0 : _motion.DrawCalls;
         public int MotionTrackedVertices => _motion == null ? 0 : _motion.TrackedVertices;
@@ -160,6 +168,45 @@ namespace GakumasPhotoMode
         public bool TryGetFrame(out Frame frame)
         { frame = default; if (!Current) return false; frame = new Frame(this); return true; }
 
+        public readonly struct TemporalColorFrame
+        {
+            private readonly SceneDeferredCamera _owner;
+            private readonly uint _sequence;
+            public readonly RenderTexture color,geometry,identityAgeFlagsWeight,visibleGeometry,visibleIdentityFlags;
+            internal TemporalColorFrame(SceneDeferredCamera owner)
+            {
+                _owner=owner;_sequence=owner.RenderSequence;var t=owner._temporalAntialiasing;
+                color=t.Color;geometry=t.Geometry;identityAgeFlagsWeight=t.Metadata;visibleGeometry=t.VisibleGeometry;visibleIdentityFlags=t.VisibleIdentityFlags;
+            }
+            public bool IsCurrent => _owner!=null&&_owner.Current&&_owner.RenderSequence==_sequence&&_owner._temporalAntialiasing!=null&&_owner._temporalAntialiasing.HasResult(_sequence);
+        }
+        public bool TryGetTemporalColorFrame(out TemporalColorFrame frame)
+        {
+            frame=default;if(!Current||_temporalAntialiasing==null||!_temporalAntialiasing.HasResult(RenderSequence))return false;
+            frame=new TemporalColorFrame(this);return true;
+        }
+        public bool TryResolveTemporalColor(Camera camera,RenderTexture current,TemporalClassification classification,out RenderTexture output)
+        {
+            output=null;TemporalColorUnavailableReason=null;
+            if(camera!=_camera||!Current||temporalAntialiasing==null||!temporalAntialiasing.enabled||_temporalAntialiasing==null)
+            {TemporalColorUnavailableReason="Scene TAA requires this camera's completed current scene frame";return false;}
+            Texture flags=null;
+            if(classification!=null)
+            {
+                if(!classification.TryGetMask(camera,current!=null?current.width:0,current!=null?current.height:0,out flags)||
+                    !(flags is RenderTexture mask)||!mask.IsCreated())
+                {TemporalColorUnavailableReason="Scene TAA requires a valid current classification mask when supplied";_temporalAntialiasing.ResetHistory();return false;}
+                if(classification.jitterUv!=_temporalAntialiasing.PreparedJitter)
+                {TemporalColorUnavailableReason="Scene TAA and classification jitter must agree";_temporalAntialiasing.ResetHistory();return false;}
+            }
+            try
+            {
+                bool ok=_temporalAntialiasing.Resolve(RenderSequence,current,_motion,flags,Quad(),out output,out var error);TemporalColorUnavailableReason=error;return ok;
+            }
+            catch(Exception exception){TemporalColorUnavailableReason="Scene TAA resolve failed: "+exception.GetType().Name;_temporalAntialiasing.ResetHistory();return false;}
+        }
+        public void ResetTemporalColorHistory(){_temporalAntialiasing?.ResetHistory();}
+
         private void OnEnable()
         {
             _camera = GetComponent<Camera>(); _shader = Resources.Load<Shader>("SceneDeferred");
@@ -172,6 +219,7 @@ namespace GakumasPhotoMode
             _prepared = _rendered = -1; SubmittedSurfaces = SubmittedDecals = _materialCount = ScreenShadowGeometryDrawCalls = 0;
             if (_commands == null) return;
             _commands.Clear(); UnavailableReason = Validate();
+            _temporalVisibilityCommands?.Clear();
             if (UnavailableReason != null) { ReleaseResources(); return; }
             if (decalLighting != null && decalLighting.enabled)
             {
@@ -203,6 +251,23 @@ namespace GakumasPhotoMode
             else { _motion?.Dispose(); _motion = null; }
             if(_screenShadow!=null&&!_screenShadow.PrepareTemporal(screenShadow.gtao,_camera,_motion,out var temporalError))
             {UnavailableReason=temporalError;ReleaseResources();return;}
+            if(temporalAntialiasing!=null&&temporalAntialiasing.enabled)
+            {
+                try
+                {
+                    if(_temporalAntialiasing==null)_temporalAntialiasing=new SceneTemporalAntialiasingRenderer();
+                    if(!_temporalAntialiasing.Prepare(temporalAntialiasing,_camera,_motion,surfaces,out var error))
+                    {UnavailableReason=error;ReleaseResources();return;}
+                    if(_temporalVisibilityCommands==null)
+                    {
+                        _temporalVisibilityCommands=new CommandBuffer{name="Toolkit visible scene TAA guides"};
+                        _camera.AddCommandBuffer(CameraEvent.BeforeImageEffects,_temporalVisibilityCommands);
+                    }
+                    _temporalAntialiasing.RecordVisibility(_temporalVisibilityCommands,_motion,surfaces);
+                }
+                catch(Exception exception){UnavailableReason="Scene TAA prepare failed: "+exception.GetType().Name;ReleaseResources();return;}
+            }
+            else ReleaseTemporalColor();
             int count = 0;
             foreach (var decal in decals) if (decal != null && decal.enabled && HasWeight(decal)) count++;
             if (!EnsureTargets(count > 0)) { UnavailableReason = "Target creation failed"; ReleaseResources(); return; }
@@ -447,6 +512,7 @@ namespace GakumasPhotoMode
         { if (array != null) foreach (var rt in array) if (rt != null) { rt.Release(); Destroy(rt); } array = null; }
         private void ReleaseResources()
         {
+            ReleaseTemporalColor();
             ReleaseGi();
             _decalLights?.Dispose(); _decalLights = null;
             _mainShadow?.Dispose(); _mainShadow = null;
@@ -463,5 +529,14 @@ namespace GakumasPhotoMode
             ReleaseResources(); SubmittedSurfaces = SubmittedDecals = 0;
         }
         private void ReleaseGi() { if (_gi != null) { _gi.Release(); Destroy(_gi); } _gi = null; }
+        private void ReleaseTemporalColor()
+        {
+            if(_temporalVisibilityCommands!=null)
+            {
+                if(_camera!=null)_camera.RemoveCommandBuffer(CameraEvent.BeforeImageEffects,_temporalVisibilityCommands);
+                _temporalVisibilityCommands.Release();_temporalVisibilityCommands=null;
+            }
+            _temporalAntialiasing?.Dispose();_temporalAntialiasing=null;
+        }
     }
 }

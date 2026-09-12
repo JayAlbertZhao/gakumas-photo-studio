@@ -35,7 +35,7 @@
 | E08 | HDR Monitor 与发光网格；PDF 56–58 | 新增 HdrMonitor 专用相机生产、HDR Canvas、内容／时间更新调度、UV／LED 发光网格消费 | 自制真实 UGUI／网格链路已执行；原版整场舞台、视频编解码及移动帧时未验收，见 [Monitor 接入](hdr-monitor.md) |
 | E09 | 点／胶囊／面贴花灯及 instancing；PDF 59–62、PPT 119 | SceneDecalLightSettings：Monitor、PBR、Scalar／GPU Instanced、float32 累加；Spot／Point 可选光源阴影，144 字节旧布局保留 | 桌面 Monitor／GI、Spot 与 Point 六面／跨面 PCF 已验收；胶囊／面阴影、原版整舞台参数和移动带宽仍待验收，见 [贴花灯](scene-decal-lights.md) |
 | E10 | 天空、植被、水、折射、荧光棒等专用表面；PPT 109 | 未覆盖完整集合 | 资料仅列用途，需独立约定输入与验收，不能假定原版公式 |
-| P01 | 方差裁剪 TAA、ExcludeTAA、NoJitter；PDF 33 | 时域主体与显式分类已有；新增默认关闭的场景 GPU 顶点快照及运动／上次几何数据，见 [运动对应](scene-motion.md) | 场景运动尚未接入时域主体；不自动给全部原版材质分类，不引入默认投影 jitter |
+| P01 | 方差裁剪 TAA、ExcludeTAA、NoJitter；PDF 33 | 新增可选 [场景颜色 TAA](scene-temporal-antialiasing.md)：消费实际运动／可见性，HDR 方差裁剪、Point 深度射线与显式后处理桥接；旧默认 shader 不变 | 自制桌面场景的 jitter／运动／蒙皮／生命周期已验证；完整角色分类、复杂透明层、全舞台动态画质及移动成本仍待完成，不引入默认投影 jitter |
 | P02 | Bokeh DOF 范围、分辨率无关散景、30 次采样；PPT 127–128 | 可控 DOF 已有，现为 43 次采样 | 先核对版本／质量档，再做 30 次采样质量与成本对照 |
 | P03 | Bloom、Diffusion、Paraffin、色调／颜色处理；PPT 126 | 已有部分复现和配置 | 更广配置、无私有 LUT 时的自主制作流程与完整阶段一致性 |
 | P04 | Motion Blur；PPT 126、PDF 15 | 已有独立 [场景运动对应](scene-motion.md) 数据前置，未实现完整模糊阶段 | 速度消费、暂停／切镜／遮挡边界、角色表面及平台成本 |

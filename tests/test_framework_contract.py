@@ -613,5 +613,58 @@ class FrameworkContractTests(unittest.TestCase):
                       'GAKUMAS_SELFTEST_CAPTURE_GTAO_TEMPORAL', 'disable-releases-all-history'):
             self.assertIn(token, fixture)
 
+    def test_scene_taa_is_explicit_owned_and_preserves_legacy_temporal_shader(self):
+        settings = (RUNTIME / 'SceneTemporalAntialiasingSettings.cs').read_text(encoding='utf-8')
+        for token in ('public bool enabled;', 'historyWeight = .95f', 'maximumHistory = 32',
+                      'maximumFrameGap = 1', 'public uint contentRevision', '!float.IsNaN(x)', '!float.IsInfinity(x)'):
+            self.assertIn(token, settings)
+        source = (RUNTIME / 'SceneTemporalAntialiasingRenderer.cs').read_text(encoding='utf-8')
+        for token in ('motion==null||!motion.IsCreated', 'TargetCount => VisibleGeometry==null?0:8',
+                      'SystemInfo.supportedRenderTargetCount<3', 'sequence-_lastSequence==1',
+                      'source.useDynamicScale', 'Owns(source)', 'RenderTexture.active=active',
+                      '_hasResult&&_lastSequence==sequence', 'gap<=settings.maximumFrameGap',
+                      'settings.contentRevision>>16', '(_previousProjection*_previousView).inverse'):
+            self.assertIn(token, source)
+        for token in ('Shader.SetGlobal', '_CameraMotionVectorsTexture', 'BakeMesh', 'camera.projectionMatrix='):
+            self.assertNotIn(token, source)
+
+    def test_scene_taa_visibility_and_classification_are_camera_local(self):
+        renderer = (RUNTIME / 'SceneTemporalAntialiasingRenderer.cs').read_text(encoding='utf-8')
+        self.assertIn('BuiltinRenderTextureType.CurrentActive', renderer)
+        self.assertIn('commands.ClearRenderTarget(false,true', renderer)
+        host = (RUNTIME / 'SceneDeferredCamera.cs').read_text(encoding='utf-8')
+        for token in ('CameraEvent.BeforeImageEffects', 'mask.IsCreated()',
+                      'classification.jitterUv!=_temporalAntialiasing.PreparedJitter',
+                      'TryGetTemporalColorFrame', 'ResetTemporalColorHistory',
+                      '_temporalAntialiasing.HasResult(_sequence)'):
+            self.assertIn(token, host)
+        pipeline = (RUNTIME / 'OriginalStyleRenderPipeline.cs').read_text(encoding='utf-8')
+        self.assertIn('TryResolveTemporalColor(_sourceCamera,current,temporalClassification,out temporal)', pipeline)
+        self.assertIn('Graphics.Blit(current, temporal, _postMaterial, 7)', pipeline)
+        self.assertLess(pipeline.index('TryResolveTemporalColor('), pipeline.index('ApplyDepthOfField(temporal, temporaries)'))
+
+    def test_scene_taa_point_depth_ray_and_hdr_variance_contract(self):
+        shader = (RUNTIME / 'Resources/SceneTemporalAntialiasing.shader').read_text(encoding='utf-8')
+        for token in ('ZTest LEqual ZWrite Off', 'SV_Target2', 'precise float2 currentPixel=floor(input.position.xy)',
+                      'GuideUv(currentUv)-motion.xy', 'GuideUv(tapUv-_Jitter.zw)',
+                      'meta.r!=id', 'dot(n,oldNormal)<_Rejection.y', 'Flags(currentUv)',
+                      'square/count-deltaMean*deltaMean', 'age/(age+1)',
+                      'current*wc+clipped*wh', 'max(wc+wh,1e-20)', 'clamp(c,0,65504)'):
+            self.assertIn(token, shader)
+        self.assertNotIn('_CameraMotionVectorsTexture', shader)
+        self.assertNotIn('_CameraDepthTexture', shader)
+
+    def test_scene_taa_fixture_has_nonvacuous_quality_motion_and_lifecycle_controls(self):
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneTaa.cs').read_text(encoding='utf-8')
+        for token in ('temporal-improves-over-dejitter-only-bilinear-control', 'zero-history-is-only-explicit-current-resampling',
+                      'temporal-reduces-dejittered-adjacent-frame-variation', 'sloped-jitter-history-nonvacuous-',
+                      'skin-bone-blendshape-color-history-nonvacuous-', 'newly-visible-different-identity-rejects-history',
+                      'updated-alpha-content-rejects-old-correspondence', 'jittered-flag-semantics-',
+                      'hdr-compression-does-not-cap-bright-constant', 'missed-resolve-invalidates-sequence-history',
+                      'two-camera-independent-color-history', 'released-attachment-invalidates-lease-',
+                      'actual-production-post-consumes-completed-scene', 'component-disable-releases-color-history',
+                      'GAKUMAS_SELFTEST_CAPTURE_SCENE_TAA'):
+            self.assertIn(token, fixture)
+
 if __name__ == '__main__':
     unittest.main()
