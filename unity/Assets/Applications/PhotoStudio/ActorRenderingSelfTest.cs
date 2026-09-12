@@ -137,6 +137,7 @@ namespace GakumasPhotoMode
                 VerifyActorVertexEncoding(report);
                 VerifySceneDepthData(report);
                 VerifyScreenSpaceReflection(report);
+                VerifyPlanarReflection(report);
                 report.accepted = report.checks.TrueForAll(check => check.accepted);
             }
             catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); }

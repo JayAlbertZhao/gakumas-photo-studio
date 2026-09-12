@@ -47,6 +47,7 @@
 !/docs/baseline.md
 !/docs/code-map.md
 !/docs/framework-techniques.md
+!/docs/planar-reflection.md
 !/docs/release.md
 !/docs/rendering.md
 !/docs/scene-depth-data.md
@@ -160,6 +161,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Phase1Manifest.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/PhotoColorGrade.cs
 !/packages/com.digital-kotone.toolkit/Runtime/PhotoColorGrade.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/PlanarReflection.cs
+!/packages/com.digital-kotone.toolkit/Runtime/PlanarReflection.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/QuartzArmDeformationSystem.cs
 !/packages/com.digital-kotone.toolkit/Runtime/QuartzArmDeformationSystem.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/QuartzGarmentDeformationSystem.cs
@@ -190,6 +193,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/PhotoColorGrade.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/PhotoModeFallback.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/PhotoModeFallback.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/PlanarCapture.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/PlanarCapture.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/PlanarReflection.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/PlanarReflection.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDepthData.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDepthData.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ScreenSpaceReflection.shader
@@ -235,6 +242,8 @@
 !/unity/Assets/ActorAnimationStub.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Planar.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Planar.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneDepth.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneDepth.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Ssr.cs

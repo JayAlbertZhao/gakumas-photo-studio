@@ -100,6 +100,34 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertIn('sceneDepth - _SsrTrace.y', source)
         self.assertIn('if (level > 0) { level--; continue; }', source)
 
+    def test_planar_capture_is_explicit_and_restores_culling(self):
+        source = (RUNTIME / 'PlanarReflection.cs').read_text(encoding='utf-8')
+        for forbidden in ('PhotoModeApp', 'BundleCatalog', 'FindObjectsOfType', 'Shader.SetGlobal',
+                          '.sharedMaterial =', 'OnRenderImage'):
+            self.assertNotIn(forbidden, source)
+        for required in ('public bool reflectionsEnabled;', '_captureCamera.cullingMask = 0',
+                         'draw.shaderPass < draw.material.passCount', 'CalculateObliqueMatrix(viewClip)',
+                         'finally { GL.invertCulling = oldCulling; _rendering = false; }',
+                         'reflectedView.inverse.transpose * worldClip', 'RemoveCommandBuffer'):
+            self.assertIn(required, source)
+
+    def test_planar_coverage_is_independent_and_projection_uses_real_depth(self):
+        source = (RUNTIME / 'PlanarReflection.cs').read_text(encoding='utf-8')
+        self.assertIn('BuiltinRenderTextureType.CurrentActive', source)
+        self.assertIn('_sourceTarget != _camera.targetTexture', source)
+        shader = (RUNTIME / 'Resources/PlanarReflection.shader').read_text(encoding='utf-8')
+        for required in ('Name "CLEAR_COVERAGE"', 'ZTest Equal Blend Off ColorMask A',
+                         'reflected.rgb / reflected.a', 'UNITY_UV_STARTS_AT_TOP',
+                         'abs(dot(_PlanarPlane, float4(i.world, 1)))'):
+            self.assertIn(required, shader)
+
+    def test_planar_reduced_forward_has_explicit_light_without_automatic_passes(self):
+        shader = (RUNTIME / 'Resources/PlanarCapture.shader').read_text(encoding='utf-8')
+        for required in ('_LightDirection', '_AmbientColor', '_Emission', 'ZWrite On', 'clip(color.a - _Cutoff)'):
+            self.assertIn(required, shader)
+        for forbidden in ('ForwardAdd', 'ShadowCaster', '_WorldSpaceLightPos0', '_LightColor0'):
+            self.assertNotIn(forbidden, shader)
+
 
 if __name__ == '__main__':
     unittest.main()

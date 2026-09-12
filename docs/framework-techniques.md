@@ -30,7 +30,7 @@
 | E03 | DepthID 几何法线及 SSR mask；PDF 17 | 新增独立 SceneDepthData：世界网格法线、smoothness 资格、独立线性深度 | 显式 opaque／cutout 表面与角色层排除已验证；不猜读原版 MaterialID，不复用 ActorData／TAA 位，见 [数据契约](scene-depth-data.md) |
 | E04 | 背景 Deferred／透明 Forward+／Actor Forward；PDF 13、22–29 | 默认 Built-in 复现 | 独立可选后端及 buffer 生命周期，不能直接替换默认管线 |
 | E05 | Hi-Z SSR、排除角色；PDF 37–43 | 已有可选 ScreenSpaceReflection：Hi-Z trace、同源角色排除深度／颜色历史、重投影拒绝和 HDR 加法接入 | 实际 GPU／生命周期已验收；Compute／RandomWrite、粗糙度过滤、SSR／Planar／Probe 统一间接光与移动性能仍待完成，见 [SSR 接口](screen-space-reflection.md) |
-| E06 | Planar 角色／发光网格及区域 mask；PDF 44–51、PPT 114 | 未接入 | 反射相机、裁剪、粗糙度、与 SSR／Probe 合成 |
+| E06 | Planar 角色／发光网格及区域 mask；PDF 44–51、PPT 114 | 已有可选 PlanarReflection：显式单 pass 捕获、镜像／裁剪、独立覆盖、接收面深度和 smoothness mip | 40 项生成网格／GPU／生命周期检查成立；真实完整角色捕获适配、法线差分高分辨率扭曲及 SSR／Probe 统一合成仍待完成，见 [Planar 接口](planar-reflection.md) |
 | E07 | PBR GBuffer 贴花、MAOS／法线／高度遮蔽／水面贴花；PPT 116–120、PDF 24–25 | 未接入完整场景链 | 分通道混合、投影遮挡、无贴花零额外工作 |
 | E08 | HDR Monitor 与发光网格；PDF 56–58 | 有部分背景输入读取 | 通用相机／纹理输出模块、动画与更新调度 |
 | E09 | 点／胶囊／面贴花灯及 instancing；PDF 59–62、PPT 119 | 未接入 | Monitor UV、灯体积、实例化、GI 与重叠成本 |
