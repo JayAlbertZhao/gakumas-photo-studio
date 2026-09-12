@@ -31,6 +31,8 @@ namespace GakumasPhotoMode
             public MaterialInputs inputs = new MaterialInputs();
             [Range(0, 1)] public float alphaCutoff;
             public SceneGiInput gi = new SceneGiInput();
+            // Increment when vertex identity is reassigned without a topology/mesh change.
+            public uint motionRevision;
             // 0 = no decals; otherwise exact projector receiver group 1..255.
             [Range(0, 255)] public int receiverGroup = 1;
         }
@@ -70,6 +72,15 @@ namespace GakumasPhotoMode
         public int MainShadowTargetCount => _mainShadow?.Atlas != null ? 1 : 0;
         public int MainShadowCasterDrawCalls => _mainShadow == null ? 0 : _mainShadow.CasterDrawCalls;
         public SceneScreenShadowSettings screenShadow = new SceneScreenShadowSettings();
+        public SceneMotionSettings motion = new SceneMotionSettings();
+        private SceneMotionHistory _motion;
+        public int MotionTargetCount => _motion == null ? 0 : _motion.TargetCount;
+        public int MotionDrawCalls => _motion == null ? 0 : _motion.DrawCalls;
+        public int MotionTrackedVertices => _motion == null ? 0 : _motion.TrackedVertices;
+        public int MotionSnapshotTargetCount => _motion == null ? 0 : _motion.SnapshotTargetCount;
+        public int MotionSnapshotDrawCalls => _motion == null ? 0 : _motion.SnapshotDrawCalls;
+        public bool MotionHistoryAvailable => _motion != null && _motion.HistoryAvailable;
+        public bool MotionContinuous => _motion != null && _motion.Continuous;
         private SceneScreenShadowRenderer _screenShadow;
         public int ScreenShadowTargetCount => _screenShadow == null ? 0 : _screenShadow.TargetCount;
         public int GtaoCoarseDrawCalls => _screenShadow == null ? 0 : _screenShadow.GtaoCoarseDrawCalls;
@@ -103,6 +114,7 @@ namespace GakumasPhotoMode
             public readonly RenderTexture screenGeometry, shadowOcclusion;
             // Half mode: XY selected full-resolution texture pixel, Z view depth, W GTAO visibility.
             public readonly RenderTexture gtaoCoarse;
+            public readonly RenderTexture motionVectors, previousNormalIdentity;
             private readonly SceneDeferredCamera _owner;
             private readonly uint _sequence;
             internal Frame(SceneDeferredCamera owner)
@@ -115,6 +127,7 @@ namespace GakumasPhotoMode
                 mainLightShadowDepth = owner._mainShadow?.Atlas;
                 screenGeometry = owner._screenShadow?.Geometry; shadowOcclusion = owner._screenShadow?.Visibility;
                 gtaoCoarse = owner._screenShadow?.GtaoCoarse;
+                motionVectors = owner._motion?.Motion; previousNormalIdentity = owner._motion?.PreviousNormal;
             }
             public bool IsCurrent => _owner != null && _owner.Current && _sequence == _owner.RenderSequence &&
                 albedoCoverage != null && albedoCoverage.IsCreated();
@@ -135,6 +148,7 @@ namespace GakumasPhotoMode
             Created(_output) && (!_usesGi || (_gi != null && _gi.IsCreated())) && (_mainShadow?.Atlas == null || _mainShadow.Atlas.IsCreated()) &&
             (_decalLights?.ShadowAtlas == null || _decalLights.ShadowAtlas.IsCreated()) &&
             (_screenShadow?.Visibility == null || _screenShadow.IsCreated) &&
+            (_motion?.Motion == null || _motion.IsCreated) &&
             _output[0].width == _target.width && _output[0].height == _target.height;
         public bool TryGetFrame(out Frame frame)
         { frame = default; if (!Current) return false; frame = new Frame(this); return true; }
@@ -173,6 +187,13 @@ namespace GakumasPhotoMode
                 { UnavailableReason = error; ReleaseResources(); return; }
             }
             else { _screenShadow?.Dispose(); _screenShadow = null; }
+            if (motion != null && motion.enabled)
+            {
+                if (_motion == null) _motion = new SceneMotionHistory();
+                if (!_motion.Prepare(motion, _camera, surfaces, out var error))
+                { UnavailableReason = error; ReleaseResources(); return; }
+            }
+            else { _motion?.Dispose(); _motion = null; }
             int count = 0;
             foreach (var decal in decals) if (decal != null && decal.enabled && HasWeight(decal)) count++;
             if (!EnsureTargets(count > 0)) { UnavailableReason = "Target creation failed"; ReleaseResources(); return; }
@@ -180,6 +201,7 @@ namespace GakumasPhotoMode
             var projection = GL.GetGPUProjectionMatrix(_camera.projectionMatrix, true);
             var vp = projection * view;
             _mainShadow?.Record(_commands);
+            _motion?.Record(_commands);
             bool screenResolved = _screenShadow != null && _screenShadow.IsCreated;
             if (screenResolved)
             {
@@ -257,7 +279,12 @@ namespace GakumasPhotoMode
             _target = _camera.targetTexture; _prepared = Time.frameCount;
         }
 
-        private void OnPostRender() { if (_prepared == Time.frameCount) { _rendered = Time.frameCount; RenderSequence++; } }
+        private void OnPostRender() { if (_prepared == Time.frameCount) { _motion?.Complete(); _rendered = Time.frameCount; RenderSequence++; } }
+
+        public void ResetMotionHistory()
+        {
+            _motion?.ResetHistory(); _prepared = _rendered = -1;
+        }
 
         private string Validate()
         {
@@ -410,6 +437,7 @@ namespace GakumasPhotoMode
             _decalLights?.Dispose(); _decalLights = null;
             _mainShadow?.Dispose(); _mainShadow = null;
             _screenShadow?.Dispose(); _screenShadow = null; ScreenShadowGeometryDrawCalls = 0;
+            _motion?.Dispose(); _motion = null;
             _output = null; ReleaseTargets(ref _gbuffer); ReleaseTargets(ref _scratch);
             foreach (var m in _materials) if (m != null) Destroy(m); _materials.Clear();
             if (_quad != null) Destroy(_quad); _quad = null;

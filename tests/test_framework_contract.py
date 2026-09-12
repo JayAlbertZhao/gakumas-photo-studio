@@ -526,5 +526,40 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertLess(scene.index('direct *= SceneLightVisibility'), scene.index('float3 indirect ='))
         self.assertLess(scene.index('direct *= SceneLightVisibility'), scene.index('direct += tex2D(_DecalLightAccumulation'))
 
+    def test_scene_motion_is_opt_in_owned_and_follows_completed_camera_renders(self):
+        settings = (RUNTIME / 'SceneMotionSettings.cs').read_text(encoding='utf-8')
+        self.assertIn('public bool enabled;', settings)
+        source = (RUNTIME / 'SceneMotionHistory.cs').read_text(encoding='utf-8')
+        for token in ('!SystemInfo.supportsGeometryShaders', 'FormatUsage.Sample', 'source.isReadable',
+                      'renderer.isPartOfStaticBatch', 'maximumTrackedVertices-TrackedVertices',
+                      'GetIndices(surface.materialIndex)', 'entry.reusable=Continuous&&Compatible',
+                      'entry.previousVertices=entry.currentVertices', 'ReleaseVertices(entry)',
+                      'b.alphaMap is RenderTexture&&b.cutoff>0', 'a.revision!=b.revision'):
+            self.assertIn(token, source)
+        for token in ('skin.BakeMesh(', 'AsyncGPUReadback', 'Shader.SetGlobal', 'Time.frameCount'):
+            self.assertNotIn(token, source)
+        host = (RUNTIME / 'SceneDeferredCamera.cs').read_text(encoding='utf-8')
+        self.assertLess(host.index('_motion?.Record(_commands)'), host.index('foreach (var rt in _gbuffer)'))
+        self.assertIn('_motion?.Complete()', host)
+        self.assertIn('_motion?.ResetHistory(); _prepared = _rendered = -1;', host)
+        self.assertIn('_motion?.Motion == null || _motion.IsCreated', host)
+
+    def test_scene_motion_saves_actual_renderer_vertices_and_never_accumulates_ao(self):
+        shader = (RUNTIME / 'Resources/SceneMotion.shader').read_text(encoding='utf-8')
+        for token in ('SV_VertexID', 'PointStream<Pixel>', 'maxvertexcount(6)', 'vertices[i].id*2+k',
+                      'mul(unity_ObjectToWorld,v.vertex)', 'UnityObjectToWorldNormal(v.normal/_VertexScale)',
+                      '_PreviousVertices.Load(', 'input.previousWorld.w>.9999', 'currentUv-previousUv',
+                      'clip(tex2D(_AlphaMap,input.uv).a*_Alpha-_Cutoff)'):
+            self.assertIn(token, shader)
+        self.assertNotIn('_CameraMotionVectorsTexture', shader)
+        self.assertNotIn('Gtao', shader)
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneMotion.cs').read_text(encoding='utf-8')
+        for token in ('previous-projection-and-depth-oracle', 'alpha-holes-match-actual-scene-and-clear-history',
+                      'submesh-base-vertex-correspondence', 'surface-reorder-preserves-two-visible-identities',
+                      'skin-blendshape-deformation', 'skin-parent-shear', 'skin-shader-vertex-scale',
+                      'reactivated-surface-invalid-history', 'two-camera-independent-snapshots',
+                      'reset-invalidates-borrowed-frame', 'GAKUMAS_SELFTEST_CAPTURE_SCENE_MOTION'):
+            self.assertIn(token, fixture)
+
 if __name__ == '__main__':
     unittest.main()

@@ -6,6 +6,18 @@
 
 以下按阶段逆序记录；旧阶段中的开项以较新的实现记录和 [技术清单](framework-techniques.md) 为准。
 
+### 场景 GPU 顶点快照与运动对应
+
+对照 PDF17／32–33 的运动／深度及历史消费要求，补齐显式场景层的物体运动数据前置。`SceneMotionSettings` 默认关闭；geometry shader 从实际 `DrawRenderer` 顶点流保存世界位置／法线，随后输出运动 UV、上次正视深度、有效性和稳定表面身份。上次快照按成功相机渲染交换，不依赖 Unity 游戏循环帧号；支持按需相机。契约、资源成本和桌面后端限制见 [场景运动](scene-motion.md)。尚未将这些数据接入 AO／TAA／SSR 历史或 Motion Blur，不能记为时域稳定性完成。
+
+干净 t15／D3D11 完整构建为 100958412 字节。实际 GI bundle 的完整 Player 渲染／状态套件接受 3409 项检查，其中新增 195 项运动检查。44 组独立 CPU 对应控制覆盖刚体、相机、投影、可变顶点、baseVertex 子网格、混合双骨、blendshape、非均匀根缩放／父级剪切和 shader 顶点缩放；运动／深度最大误差 `4.77e-7`，上次法线最大误差 `1.85e-7`。还核验 alpha 真孔洞与场景 coverage 一致、两表面重排身份、双相机隔离、reset／切镜、拓扑／alpha 修改、丢失目标、resize、隐藏重登及资源释放。
+
+原生 GPU 捕获包含两次完整快照→运动 MRT→场景绘制，锁定实际 shader、常量、4×2 RGBAFloat 顶点纹理与 97×97 运动 MRT，前次生产和后次读取字节完全一致。独立双精度栅格／插值核对两幅图各 9409 个像素、2750 个覆盖像素，无边界排除；运动／深度最大误差 `3.28e-7`，法线／身份最大误差 `1.48e-7`。捕获 Player 的全部 3387 项检查接受，包括捕获内两次 CPU 数值对照。
+
+早期 CPU `BakeMesh` 快照存在缩放重复应用、根骨基坐标及实际渲染更新时间不一致，已经整体替换为实际 GPU 快照。测试还修正了非均匀根下的蒙皮法线模型，以及 [D3D11 §3.4.1](https://microsoft.github.io/DirectX-Specs/d3d/archive/D3D11_3_FunctionalSpec.htm#3.4.1%20Coordinate%20Snapping) 要求的 8 位子像素坐标吸附；原来的 `5e-5` 运动、`1e-4` 法线阈值未放宽。失败构建与捕获保留为排除证据。
+
+此前 3214 条完整 JSON 记录及 1344 张 PNG 全部不变。默认关闭运动的实际 Half GTAO 捕获中，八份几何／粗接收点／常量／可见性／最终 HDR 原始数据逐字节不变；该捕获的全部 3379 项 Player 检查接受。普通 1920×1080 摄影与真实角色 Planar 的 17 项离屏检查重新接受，摄影、背面反射及两张运动预览已查看。无 C#／shader 错误或运行异常；两条历史 active RenderTexture 警告不变。
+
 ### GTAO 半分辨率与几何引导空间重建
 
 按 PDF10／19 的低分辨率及环境遮蔽调度，以及 [公开 GTAO 技术报告 §4.1](https://www.iryoku.com/downloads/Practical-Realtime-Strategies-for-Accurate-Indirect-Occlusion.pdf)，新增默认不启用的 `SceneGtaoResolution.Half`。实际生产最近正深度的 2×2 粗接收点及 GTAO，随后通过 4×4 空间／双切平面／法线权重重建，无兼容样本时回退到当前点完整 GTAO。主灯 R 与世界胶囊保留全分辨率，旧默认 Full 和关闭路径不分配粗目标。接入及资源成本见 [GTAO 契约](scene-gtao.md)。
