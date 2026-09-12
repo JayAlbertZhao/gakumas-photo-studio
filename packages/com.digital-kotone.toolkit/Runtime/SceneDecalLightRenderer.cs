@@ -121,10 +121,12 @@ namespace GakumasPhotoMode
             return _shadows.Prepare(_visible, settings.shadows, Backend == SceneDecalLightBackend.Instanced, out error);
         }
 
-        public void Record(CommandBuffer commands, RenderTexture[] buffers, Camera camera, Mesh quad, RenderTexture gi)
+        public void RecordShadows(CommandBuffer commands) => _shadows.Record(commands);
+
+        public void Record(CommandBuffer commands, RenderTexture[] buffers, Camera camera, Mesh quad, RenderTexture gi, bool recordShadows = true)
         {
             if (_data.Count == 0 || _material == null) return;
-            _shadows.Record(commands); _shadows.Bind(_material);
+            if (recordShadows) _shadows.Record(commands); _shadows.Bind(_material);
             commands.SetRenderTarget(Accumulation); commands.ClearRenderTarget(false, true, Color.clear);
             for (int i = 0; i < 4; i++) _material.SetTexture("_G" + i, buffers[i]);
             var view = camera.worldToCameraMatrix; var projection = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);

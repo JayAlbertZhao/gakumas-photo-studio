@@ -429,6 +429,28 @@ class FrameworkContractTests(unittest.TestCase):
                       'GAKUMAS_SELFTEST_CAPTURE_POINT_SHADOW', 'mixed-scalar-instanced-image'):
             self.assertIn(token, fixture)
 
+    def test_screen_shadow_has_real_prepass_rg8_and_independent_ambient_capsules(self):
+        settings = (RUNTIME / 'SceneScreenShadowSettings.cs').read_text(encoding='utf-8')
+        for token in ('public bool enabled;', 'SceneCapsuleOccluder[]', 'capsuleSamples = 32', 'capsuleNormalBias'):
+            self.assertIn(token, settings)
+        producer = (RUNTIME / 'SceneScreenShadowRenderer.cs').read_text(encoding='utf-8')
+        for token in ('GraphicsFormat.R8G8_UNorm', 'FormatUsage.Render', 'FormatUsage.Sample',
+                      's.capsules.Length > 16', 'main?.BindMain(_material)', 'commands.DrawMesh', 'ReleaseTargets()'):
+            self.assertIn(token, producer)
+        self.assertNotIn('Shader.SetGlobal', producer)
+        host = (RUNTIME / 'SceneDeferredCamera.cs').read_text(encoding='utf-8')
+        self.assertLess(host.index('_decalLights?.RecordShadows(_commands)'), host.index('_screenShadow.Record(_commands'))
+        self.assertLess(host.index('_screenShadow.Record(_commands'), host.index('foreach (var rt in _gbuffer)'))
+        self.assertIn('_screenShadow?.Visibility == null || _screenShadow.IsCreated', host)
+        shader = (RUNTIME / 'Resources/SceneScreenShadow.shader').read_text(encoding='utf-8')
+        for token in ('CapsuleHit(', 'SphereHit(', 'sqrt(1 - u) * normal', 'nearest / _CapsuleParameters.z', 'SceneLightVisibility(world, normal, data)'):
+            self.assertIn(token, shader)
+        scene = (RUNTIME / 'Resources/SceneDeferred.shader').read_text(encoding='utf-8')
+        self.assertIn('direct *= screenVisibility.r; ao *= screenVisibility.g;', scene)
+        prepass = scene[scene.index('Name "SCENE_GEOMETRY_ONLY_NORMAL_DEPTH"'):]
+        self.assertNotIn('mappedNormal(', prepass)
+        self.assertIn('tex2D(_AlbedoMap, input.uv).a * _Alpha - _Cutoff', prepass)
+
     def test_main_shadow_is_explicit_orthographic_and_owned_before_scene_geometry(self):
         settings = (RUNTIME / 'SceneDirectionalShadowSettings.cs').read_text(encoding='utf-8')
         for token in ('public bool enabled;', 'public Vector3 origin', 'public Vector3 up',

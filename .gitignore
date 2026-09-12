@@ -60,6 +60,7 @@
 !/docs/scene-gi.md
 !/docs/scene-light-shadows.md
 !/docs/scene-reflection-resolve.md
+!/docs/scene-screen-shadow.md
 !/docs/screen-space-reflection.md
 !/docs/ssr-roughness.md
 !/docs/status.md
@@ -244,6 +245,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneLightShadowCaster.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneReflectionResolve.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneReflectionResolve.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneScreenShadow.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneScreenShadow.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ScreenSpaceReflection.compute
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ScreenSpaceReflection.compute.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ScreenSpaceReflection.shader
@@ -280,6 +283,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SceneLightShadowSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneReflectionResolve.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneReflectionResolve.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SceneScreenShadowRenderer.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SceneScreenShadowRenderer.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SceneScreenShadowSettings.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SceneScreenShadowSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/ScreenSpaceReflection.cs
 !/packages/com.digital-kotone.toolkit/Runtime/ScreenSpaceReflection.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SphereFogSettings.cs
@@ -339,6 +346,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneCompute.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneDepth.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneDepth.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ScreenShadow.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ScreenShadow.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Spot.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Spot.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Ssr.cs

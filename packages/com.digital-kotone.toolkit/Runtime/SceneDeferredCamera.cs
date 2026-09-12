@@ -69,6 +69,12 @@ namespace GakumasPhotoMode
         private SceneLightShadowAtlas _mainShadow;
         public int MainShadowTargetCount => _mainShadow?.Atlas != null ? 1 : 0;
         public int MainShadowCasterDrawCalls => _mainShadow == null ? 0 : _mainShadow.CasterDrawCalls;
+        public SceneScreenShadowSettings screenShadow = new SceneScreenShadowSettings();
+        private SceneScreenShadowRenderer _screenShadow;
+        public int ScreenShadowTargetCount => _screenShadow?.Visibility != null ? 2 : 0;
+        public int ScreenShadowGeometryDrawCalls { get; private set; }
+        public int ScreenShadowResolveDrawCalls => _screenShadow == null ? 0 : _screenShadow.ResolveDrawCalls;
+        public int ScreenShadowCapsuleCount => _screenShadow == null ? 0 : _screenShadow.CapsuleCount;
         public SceneDecalLightSettings decalLighting = new SceneDecalLightSettings();
         private SceneDecalLightRenderer _decalLights;
         public int SubmittedLights => _decalLights == null ? 0 : _decalLights.SubmittedLights;
@@ -93,6 +99,7 @@ namespace GakumasPhotoMode
             // Borrowed light-view depth atlas; valid only while this frame is current.
             public readonly RenderTexture lightShadowAtlas;
             public readonly RenderTexture mainLightShadowDepth;
+            public readonly RenderTexture screenGeometry, shadowOcclusion;
             private readonly SceneDeferredCamera _owner;
             private readonly uint _sequence;
             internal Frame(SceneDeferredCamera owner)
@@ -103,6 +110,7 @@ namespace GakumasPhotoMode
                 bakedDiffuseGi = owner._gi;
                 lightShadowAtlas = owner._decalLights?.ShadowAtlas;
                 mainLightShadowDepth = owner._mainShadow?.Atlas;
+                screenGeometry = owner._screenShadow?.Geometry; shadowOcclusion = owner._screenShadow?.Visibility;
             }
             public bool IsCurrent => _owner != null && _owner.Current && _sequence == _owner.RenderSequence &&
                 albedoCoverage != null && albedoCoverage.IsCreated();
@@ -122,6 +130,7 @@ namespace GakumasPhotoMode
             _rendered == Time.frameCount && _output != null && _camera.targetTexture == _target && _target != null && _target.IsCreated() &&
             Created(_output) && (!_usesGi || (_gi != null && _gi.IsCreated())) && (_mainShadow?.Atlas == null || _mainShadow.Atlas.IsCreated()) &&
             (_decalLights?.ShadowAtlas == null || _decalLights.ShadowAtlas.IsCreated()) &&
+            (_screenShadow?.Visibility == null || _screenShadow.IsCreated) &&
             _output[0].width == _target.width && _output[0].height == _target.height;
         public bool TryGetFrame(out Frame frame)
         { frame = default; if (!Current) return false; frame = new Frame(this); return true; }
@@ -135,7 +144,7 @@ namespace GakumasPhotoMode
 
         private void OnPreCull()
         {
-            _prepared = _rendered = -1; SubmittedSurfaces = SubmittedDecals = _materialCount = 0;
+            _prepared = _rendered = -1; SubmittedSurfaces = SubmittedDecals = _materialCount = ScreenShadowGeometryDrawCalls = 0;
             if (_commands == null) return;
             _commands.Clear(); UnavailableReason = Validate();
             if (UnavailableReason != null) { ReleaseResources(); return; }
@@ -153,6 +162,13 @@ namespace GakumasPhotoMode
                 { UnavailableReason = error; ReleaseResources(); return; }
             }
             else { _mainShadow?.Dispose(); _mainShadow = null; }
+            if (screenShadow != null && screenShadow.enabled)
+            {
+                if (_screenShadow == null) _screenShadow = new SceneScreenShadowRenderer();
+                if (!_screenShadow.Prepare(screenShadow, _camera.targetTexture, _mainShadow?.Atlas != null, out var error))
+                { UnavailableReason = error; ReleaseResources(); return; }
+            }
+            else { _screenShadow?.Dispose(); _screenShadow = null; }
             int count = 0;
             foreach (var decal in decals) if (decal != null && decal.enabled && HasWeight(decal)) count++;
             if (!EnsureTargets(count > 0)) { UnavailableReason = "Target creation failed"; ReleaseResources(); return; }
@@ -160,6 +176,25 @@ namespace GakumasPhotoMode
             var projection = GL.GetGPUProjectionMatrix(_camera.projectionMatrix, true);
             var vp = projection * view;
             _mainShadow?.Record(_commands);
+            bool screenResolved = _screenShadow != null && _screenShadow.IsCreated;
+            if (screenResolved)
+            {
+                _decalLights?.RecordShadows(_commands);
+                _commands.BeginSample("Toolkit scene geometry-only prepass");
+                _commands.SetRenderTarget(_screenShadow.Geometry); _commands.ClearRenderTarget(true, true, Color.clear);
+                foreach (var surface in surfaces)
+                {
+                    var renderer = surface.renderer;
+                    if (!renderer.enabled || renderer.forceRenderingOff || !renderer.gameObject.activeInHierarchy) continue;
+                    var material = NextMaterial(); BindInputs(material, surface.inputs);
+                    material.SetMatrix("_ViewProjection", vp); material.SetMatrix("_View", view);
+                    material.SetVector("_VertexScale", surface.vertexScale); material.SetFloat("_Cull", (int)surface.cull);
+                    material.SetFloat("_Cutoff", surface.alphaCutoff);
+                    _commands.DrawRenderer(renderer, material, surface.materialIndex, 3); ScreenShadowGeometryDrawCalls++;
+                }
+                _commands.EndSample("Toolkit scene geometry-only prepass");
+                _screenShadow.Record(_commands, _mainShadow, view, projection, Quad());
+            }
             foreach (var rt in _gbuffer) { _commands.SetRenderTarget(rt); _commands.ClearRenderTarget(rt == _gbuffer[0], true, Color.clear); }
             if (_gi != null) { _commands.SetRenderTarget(_gi); _commands.ClearRenderTarget(false, true, Color.clear); }
             SetTargets(_gbuffer, _usesGi);
@@ -206,8 +241,8 @@ namespace GakumasPhotoMode
             lighting.SetFloat("_HasBakedGi", _gi != null ? 1 : 0);
             lighting.SetVector("_DirectionalResponse", new Vector4(directionalDiffuseScale, directionalSpecularScale, directionalGiWeight, directionalBacklight));
             lighting.SetFloat("_GiBaseScale", giBaseScale);
-            _mainShadow?.BindMain(lighting);
-            _decalLights?.Record(_commands, _output, _camera, Quad(), _gi);
+            if (screenResolved) _screenShadow.Bind(lighting); else _mainShadow?.BindMain(lighting);
+            _decalLights?.Record(_commands, _output, _camera, Quad(), _gi, !screenResolved);
             lighting.SetFloat("_HasDecalLights", _decalLights?.Accumulation != null ? 1 : 0);
             lighting.SetTexture("_DecalLightAccumulation", _decalLights?.Accumulation != null ? (Texture)_decalLights.Accumulation : Texture2D.blackTexture);
             // Resolve replaces scene radiance once AND writes scene depth before host Forward actors.
@@ -318,7 +353,7 @@ namespace GakumasPhotoMode
         private Material NextMaterial()
         {
             while (_materials.Count <= _materialCount) _materials.Add(new Material(_shader) { hideFlags = HideFlags.HideAndDontSave });
-            var material = _materials[_materialCount++]; material.DisableKeyword("SCENE_GI_OUTPUT"); material.DisableKeyword("SCENE_MAIN_LIGHT_SHADOWS"); return material;
+            var material = _materials[_materialCount++]; material.DisableKeyword("SCENE_GI_OUTPUT"); material.DisableKeyword("SCENE_MAIN_LIGHT_SHADOWS"); material.DisableKeyword("SCENE_SCREEN_SHADOW"); return material;
         }
         private void SetTargets(RenderTexture[] buffers, bool gi = false)
         {
@@ -370,6 +405,7 @@ namespace GakumasPhotoMode
             ReleaseGi();
             _decalLights?.Dispose(); _decalLights = null;
             _mainShadow?.Dispose(); _mainShadow = null;
+            _screenShadow?.Dispose(); _screenShadow = null; ScreenShadowGeometryDrawCalls = 0;
             _output = null; ReleaseTargets(ref _gbuffer); ReleaseTargets(ref _scratch);
             foreach (var m in _materials) if (m != null) Destroy(m); _materials.Clear();
             if (_quad != null) Destroy(_quad); _quad = null;

@@ -28,7 +28,7 @@
 | E01 | 背景 PBR 及其 Def 通道；PPT 108 | 已有背景 fallback | 特殊材质、更多场景输入与 shader 变体 |
 | E02 | 线性灯光衰减、可调镜面、GI 乘色、背向补光；PPT 110–112 | 独立 GI、基础 GI 压暗、背向漫反射、白光烘焙、Spot 与实例化；默认关闭的 Spot／Point 六面／主方向光深度阴影 | 桌面 GI、三种光源投影及移动 caster 已验收；胶囊／面阴影、完整角色／场景和一般蒙皮仍待完成，见 [GI](scene-gi.md) 与 [光源阴影](scene-light-shadows.md) |
 | E03 | DepthID 几何法线及 SSR mask；PDF 17 | 独立 SceneDepthData：世界网格法线、smoothness 资格、线性深度；min hierarchy 可选 raster／Compute | 显式 opaque／cutout 表面与角色层排除已验证；奇数边缘及 CPU／GPU 缩减一致；不猜读原版 MaterialID，不复用 ActorData／TAA 位，见 [数据契约](scene-depth-data.md) |
-| E04 | 背景 Deferred／透明 Forward+／Actor Forward；PDF 13、22–29 | 可选 SceneDeferredCamera：材质、贴花、GI、HDR 光照／深度、Spot 阴影；主方向光及 Point 六面径向深度生产与消费 | 默认不启用；胶囊／面阴影、ScreenShadow／ShadowMask 打包、完整 Forward+／反射整合与移动附件仍待完成，见 [场景后端](scene-deferred.md) 与 [阴影](scene-light-shadows.md) |
+| E04 | 背景 Deferred／透明 Forward+／Actor Forward；PDF 13、22–29 | 可选 SceneDeferredCamera：材质、贴花、GI、HDR／深度及主方向光／Spot／Point 阴影；新增几何预通道→RG8 ScreenShadow／Capsule AO→光照消费 | 默认不启用；烘焙 ShadowMask 打包、胶囊／面光源阴影、完整 Forward+／反射整合与移动附件仍待完成，见 [场景后端](scene-deferred.md)、[ScreenShadow](scene-screen-shadow.md) 与 [光源阴影](scene-light-shadows.md) |
 | E05 | Hi-Z SSR、排除角色；PDF 37–43 | 已有可选 Hi-Z trace、角色排除历史、重投影拒绝、统一间接光消费／Planar skip、Compute／RandomWrite；新增接收面感知的粗糙度辐射过滤 | 桌面 GPU／回退／生命周期及独立 CPU 过滤对照已验收，默认关闭过滤保留旧结果；物理 GGX、复杂场景画质与移动性能仍待完成，见 [过滤契约](ssr-roughness.md)、[计算后端](scene-compute-backend.md) 和 [统一反射](scene-reflection-resolve.md) |
 | E06 | Planar 角色／发光网格及区域 mask；PDF 44–51、PPT 114 | 已有镜像／裁剪、区域覆盖、smoothness mip、法线差分扭曲与统一合成；新增 ActorToon 简化材质快照与眼部／头发匹配覆盖 | 合成材质 GPU 和一个真实角色／服装四方向、蒙皮跳转成立；全角色画质、GGX 过滤、多 Probe 调度和移动性能仍待完成，见 [角色适配](actor-planar-capture.md)、[Planar](planar-reflection.md) 与 [统一反射](scene-reflection-resolve.md) |
 | E07 | PBR GBuffer 贴花、MAOS／法线／高度遮蔽／水面贴花；PPT 116–120、PDF 24–25 | 新增独立 albedo／normal／MOS／emission 分通道投影、接收组与高度 AO，结果实际进入场景光照；无有效贴花无 scratch／贴花 pass | 自制场景链已实现；原版 Def 映射、完整场景／动态水面、反射桥接与移动带宽仍待完成，见 [材质契约](scene-deferred.md) |
@@ -39,7 +39,7 @@
 | P02 | Bokeh DOF 范围、分辨率无关散景、30 次采样；PPT 127–128 | 可控 DOF 已有，现为 43 次采样 | 先核对版本／质量档，再做 30 次采样质量与成本对照 |
 | P03 | Bloom、Diffusion、Paraffin、色调／颜色处理；PPT 126 | 已有部分复现和配置 | 更广配置、无私有 LUT 时的自主制作流程与完整阶段一致性 |
 | P04 | Motion Blur；PPT 126、PDF 15 | 未接入完整阶段 | 相机／物体运动、暂停、切镜与遮挡边界 |
-| P05 | GTAO、脚部 Capsule AO；PDF 19 | 有屏幕空间遮蔽，未覆盖该完整组合 | 明确算法边界、薄面与接触区域、性能 |
+| P05 | GTAO、脚部 Capsule AO；PDF 19 | 新增显式世界胶囊与真实射线半球积分，RG8 G 通道仅作用于间接漫反射；非 GTAO，见 [Capsule AO](scene-screen-shadow.md) | GTAO、自动脚部拟合／全角色接触、低分辨率／时域稳定、薄面与移动成本仍待完成 |
 | P06 | 距离雾／球形雾；PPT 130、PDF 29 | 已有距离雾、单球独立模型 | 多球、双雾组合、透明层与原版参数仍未验收 |
 | P07 | 体积光及动态 DepthShadow；PPT 131 | 未接入 | 光体积积分、动态遮挡与质量档；不附带第三方插件 |
 | P08 | Flare／Ghost；PPT 129 | 未覆盖讲演列举的完整能力 | 可替换实现、可见性与遮挡、动画配置 |

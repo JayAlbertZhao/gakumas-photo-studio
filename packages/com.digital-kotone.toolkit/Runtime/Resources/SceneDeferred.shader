@@ -9,6 +9,7 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
         sampler2D _AlbedoMap, _NormalMap, _MosMap, _EmissionMap, _HeightMap;
         sampler2D _G0, _G1, _G2, _G3;
         sampler2D _DecalLightAccumulation;
+        sampler2D _ScreenShadowOcclusion;
         float _HasDecalLights;
         sampler2D _BakedDiffuseGi;
         float4 _DirectionalResponse;
@@ -155,7 +156,7 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
             #pragma target 4.0
             #pragma vertex fullscreen
             #pragma fragment lighting
-            #pragma multi_compile_local __ SCENE_MAIN_LIGHT_SHADOWS
+            #pragma multi_compile_local __ SCENE_MAIN_LIGHT_SHADOWS SCENE_SCREEN_SHADOW
             #if defined(SCENE_MAIN_LIGHT_SHADOWS)
             #define SCENE_LIGHT_SHADOWS 1
             #define SCENE_SHADOW_ORTHOGRAPHIC 1
@@ -183,7 +184,10 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
                     direct += (1 - f0) * diffuse * _DirectionalResponse.x * _DirectionalResponse.w * _LightRadiance * saturate(-dot(n, l));
                 float4 gi = tex2D(_BakedDiffuseGi, i.uv);
                 if (_HasBakedGi > .5 && gi.a > .5) direct *= lerp(1, gi.rgb, _DirectionalResponse.z);
-                #if defined(SCENE_MAIN_LIGHT_SHADOWS)
+                #if defined(SCENE_SCREEN_SHADOW)
+                float2 screenVisibility = tex2D(_ScreenShadowOcclusion, i.uv).rg;
+                direct *= screenVisibility.r; ao *= screenVisibility.g;
+                #elif defined(SCENE_MAIN_LIGHT_SHADOWS)
                 SceneShadowData shadow; shadow.worldToShadow = _SingleShadowMatrix; shadow.atlasST = _SingleShadowST;
                 shadow.depth = _SingleShadowDepth; shadow.options = _SingleShadowOptions;
                 direct *= SceneLightVisibility(world, n, shadow);
@@ -198,6 +202,30 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
                 o.depth = o.depth * .5 + .5;
                 #endif
                 return o;
+            }
+            ENDCG
+        }
+        Pass
+        {
+            Name "SCENE_GEOMETRY_ONLY_NORMAL_DEPTH"
+            Cull [_Cull] ZTest LEqual ZWrite On Blend Off
+            CGPROGRAM
+            #pragma target 4.0
+            #pragma vertex prepassVertex
+            #pragma fragment prepassFragment
+            struct PrepassInput { float4 position : POSITION; float3 normal : NORMAL; float2 uv : TEXCOORD0; };
+            struct PrepassOutput { float4 position : SV_POSITION; float3 normal : TEXCOORD0; float2 uv : TEXCOORD1; float depth : TEXCOORD2; };
+            PrepassOutput prepassVertex(PrepassInput input)
+            {
+                PrepassOutput o; input.position.xyz *= _VertexScale;
+                float4 world = mul(unity_ObjectToWorld, input.position); o.position = mul(_ViewProjection, world);
+                o.depth = -mul(_View, world).z; o.uv = input.uv * _UvST.xy + _UvST.zw;
+                o.normal = UnityObjectToWorldNormal(input.normal / _VertexScale); return o;
+            }
+            float4 prepassFragment(PrepassOutput input) : SV_Target
+            {
+                clip(tex2D(_AlbedoMap, input.uv).a * _Alpha - _Cutoff);
+                return float4(safeNormal(input.normal), input.depth);
             }
             ENDCG
         }
