@@ -10,8 +10,9 @@ namespace GakumasPhotoMode
         public RenderTexture Geometry { get; private set; }
         public RenderTexture Visibility { get; private set; }
         public RenderTexture GtaoCoarse { get; private set; }
+        public SceneGtaoTemporalRenderer Temporal { get; private set; }
         public bool IsCreated => Geometry != null && Geometry.IsCreated() && Visibility != null && Visibility.IsCreated() &&
-            (!_usesHalf || (GtaoCoarse != null && GtaoCoarse.IsCreated()));
+            (!_usesHalf || (GtaoCoarse != null && GtaoCoarse.IsCreated())) && (Temporal==null||Temporal.IsCreated);
         public int TargetCount => (Geometry != null ? 1 : 0) + (Visibility != null ? 1 : 0) + (GtaoCoarse != null ? 1 : 0);
         public int CapsuleCount { get; private set; }
         public int ResolveDrawCalls { get; private set; }
@@ -45,6 +46,8 @@ namespace GakumasPhotoMode
                     (g.resolution == SceneGtaoResolution.Half && (!Range(g.reconstructionDepthTolerance, .000001f, 10000) ||
                         !Range(g.reconstructionNormalThreshold, 0, .9999f))))
                 { error = "Invalid GTAO configuration"; return false; }
+                if(g.temporal!=null&&g.temporal.enabled&&!g.temporal.IsValid)
+                {error="Invalid temporal GTAO configuration";return false;}
                 _usesGtao = g.strength > 0;
                 _minimumAmbient = g.combineWithCapsules == SceneAmbientCombination.Minimum;
                 _gtaoParameters = new Vector4(g.radius, g.strength, g.normalBias, g.falloffStart);
@@ -104,7 +107,18 @@ namespace GakumasPhotoMode
             _parameters = new Vector4(s.capsuleSamples, s.capsuleStrength, s.capsuleMaxDistance, s.capsuleNormalBias);
             return true;
         }
-        public void Record(CommandBuffer commands, SceneLightShadowAtlas main, Matrix4x4 view, Matrix4x4 projection, Mesh quad)
+        public bool PrepareTemporal(SceneGtaoSettings g,Camera camera,SceneMotionHistory motion,out string error)
+        {
+            error=null;
+            if(!_usesGtao||g.temporal==null||!g.temporal.enabled){Temporal?.Dispose();Temporal=null;return true;}
+            try
+            {
+                if(Temporal==null)Temporal=new SceneGtaoTemporalRenderer();
+                return Temporal.Prepare(g,camera,motion,out error);
+            }
+            catch(Exception exception){error="Temporal GTAO preparation failed: "+exception.GetType().Name;return false;}
+        }
+        public void Record(CommandBuffer commands, SceneLightShadowAtlas main, Matrix4x4 view, Matrix4x4 projection, Mesh quad, SceneMotionHistory motion)
         {
             if (!IsCreated) return;
             _material.DisableKeyword("SCENE_MAIN_LIGHT_SHADOWS"); main?.BindMain(_material);
@@ -113,6 +127,7 @@ namespace GakumasPhotoMode
             _material.SetInt("_CapsuleCount", CapsuleCount); _material.SetVector("_CapsuleParameters", _parameters);
             _material.DisableKeyword("SCENE_GTAO");
             _material.DisableKeyword("SCENE_GTAO_HALF");
+            _material.DisableKeyword("SCENE_GTAO_HISTORY");
             if (_usesGtao)
             {
                 _material.EnableKeyword("SCENE_GTAO");
@@ -122,6 +137,8 @@ namespace GakumasPhotoMode
                 _material.SetFloat("_GtaoMinimumAmbient", _minimumAmbient ? 1 : 0);
                 if (_usesHalf)
                 {
+                    _coarseMaterial.DisableKeyword("SCENE_GTAO_ROTATED");
+                    if(Temporal!=null&&Temporal.RotateSamples){_coarseMaterial.EnableKeyword("SCENE_GTAO_ROTATED");_coarseMaterial.SetFloat("_GtaoSliceOffset",Temporal.SliceOffset);}
                     // A distinct material owns this draw's immutable recorded state.
                     _coarseMaterial.SetTexture("_ScreenGeometry", Geometry);
                     _coarseMaterial.SetMatrix("_ScreenInverseViewProjection", (projection * view).inverse);
@@ -135,6 +152,11 @@ namespace GakumasPhotoMode
                     commands.EndSample("Toolkit half-resolution GTAO"); GtaoCoarseDrawCalls++;
                     _material.EnableKeyword("SCENE_GTAO_HALF"); _material.SetTexture("_GtaoCoarse", GtaoCoarse);
                     _material.SetVector("_GtaoCoarseSize", size); _material.SetVector("_GtaoReconstruction", _reconstruction);
+                }
+                if(Temporal!=null)
+                {
+                    Temporal.Record(commands,Geometry,GtaoCoarse,motion,quad,_gtaoParameters,_gtaoQuality,_reconstruction);
+                    _material.EnableKeyword("SCENE_GTAO_HISTORY");_material.SetTexture("_GtaoHistory",Temporal.Result);
                 }
             }
             commands.BeginSample("Toolkit screen shadow and capsule AO resolve");
@@ -161,6 +183,7 @@ namespace GakumasPhotoMode
         }
         public void Dispose()
         {
+            Temporal?.Dispose();Temporal=null;
             ReleaseTargets(); if (_material != null) UnityEngine.Object.Destroy(_material); _material = null;
             CapsuleCount = ResolveDrawCalls = GtaoCoarseDrawCalls = 0; _usesGtao = _usesHalf = false;
         }

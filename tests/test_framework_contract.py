@@ -561,5 +561,57 @@ class FrameworkContractTests(unittest.TestCase):
                       'reset-invalidates-borrowed-frame', 'GAKUMAS_SELFTEST_CAPTURE_SCENE_MOTION'):
             self.assertIn(token, fixture)
 
+    def test_temporal_gtao_requires_explicit_motion_and_owns_five_float_targets(self):
+        settings = (RUNTIME / 'SceneGtaoTemporalSettings.cs').read_text(encoding='utf-8')
+        self.assertIn('public bool enabled;', settings)
+        for token in ('historyWeight = .85f', 'maximumHistory = 16', 'maximumFrameGap = 1',
+                      'reactiveThreshold = .2f', '!float.IsNaN(v)', '!float.IsInfinity(v)'):
+            self.assertIn(token, settings)
+        source = (RUNTIME / 'SceneGtaoTemporalRenderer.cs').read_text(encoding='utf-8')
+        for token in ('motion==null||!motion.IsCreated', 'new RenderTexture[2]', 'TargetCount => Raw==null?0:5',
+                      't.graphicsFormat!=GraphicsFormat.R32G32B32A32_SFloat', 'filterMode=FilterMode.Point',
+                      'gap>=0&&gap<=_settings.maximumFrameGap', 'MatrixDifference(_projection,_previousProjection)<.1f',
+                      '_read=_write', '_nextPhase=(Phase+1)%6', '(_previousProjection*_previousView).inverse'):
+            self.assertIn(token, source)
+        for forbidden in ('Shader.SetGlobal', '_CameraMotionVectorsTexture', 'motion.enabled=true', 'BakeMesh'):
+            self.assertNotIn(forbidden, source)
+
+    def test_temporal_gtao_pixel_geometry_rejection_and_stable_variance_contract(self):
+        shader = (RUNTIME / 'Resources/SceneGtaoTemporal.shader').read_text(encoding='utf-8')
+        for token in ('input.uv=input.position.xy/_TemporalSize.zw',
+                      'precise float2 texel=floor(input.position.xy)-motion.xy*_TemporalSize.zw',
+                      'data.a!=mapping.a', 'dot(n,expectedNormal)<_TemporalRejection.y',
+                      'abs(dot(delta,expectedNormal))', 'if(total<=1e-6)return o',
+                      'if(abs(oldAo-current)>_TemporalRejection.z)return o',
+                      'float d=a-current;sum+=d;square+=d*d', 'square/count-deltaMean*deltaMean',
+                      'oldAge/(oldAge+1)', 'min(oldAge,_TemporalHistory.z-1)*saturate(total)'):
+            self.assertIn(token, shader)
+        for forbidden in ('_CapsuleA', '_SingleShadow', '_CameraDepthTexture'):
+            self.assertNotIn(forbidden, shader)
+
+    def test_temporal_gtao_is_separate_from_default_shader_and_capsules(self):
+        source = (RUNTIME / 'SceneScreenShadowRenderer.cs').read_text(encoding='utf-8')
+        self.assertLess(source.index('!g.temporal.IsValid'), source.index('_usesGtao = g.strength > 0'))
+        self.assertIn('!_usesGtao||g.temporal==null||!g.temporal.enabled', source)
+        self.assertIn('Temporal?.Dispose();Temporal=null', source)
+        self.assertLess(source.index('Temporal.Record('), source.index('_material.SetTexture("_GtaoHistory",Temporal.Result)'))
+        shader = (RUNTIME / 'Resources/SceneScreenShadow.shader').read_text(encoding='utf-8')
+        self.assertIn('#pragma multi_compile_local __ SCENE_GTAO_HISTORY', shader)
+        self.assertLess(shader.index('float gtao = tex2D(_GtaoHistory'), shader.index('ambient = _GtaoMinimumAmbient'))
+        host = (RUNTIME / 'SceneDeferredCamera.cs').read_text(encoding='utf-8')
+        self.assertIn('_screenShadow?.Temporal?.Complete()', host)
+        self.assertIn('_screenShadow?.Temporal?.ResetHistory(); _prepared = _rendered = -1;', host)
+
+    def test_temporal_gtao_fixture_declares_actual_quality_and_lifecycle_controls(self):
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.GtaoTemporal.cs').read_text(encoding='utf-8')
+        for token in ('whole-image-reproject-reject-clip-age-oracle', 'six-rotations-match-fresh-twelve-direction-integral-',
+                      'stationary-temporal-error-improves-', 'stationary-temporal-variation-reduces-',
+                      'uncovered-white-reference-has-bounded-ghost', 'alpha-cutout-disocclusion',
+                      'two-camera-independent-history', 'skin-deform-motion-and-history-nonvacuous-',
+                      'full-resolution-capsules-combined-after-history-', 'direct-emission-identical-without-indirect',
+                      'default-full-rg8-and-hdr-restored-exact', 'invalid-before-zero-strength-pruning',
+                      'GAKUMAS_SELFTEST_CAPTURE_GTAO_TEMPORAL', 'disable-releases-all-history'):
+            self.assertIn(token, fixture)
+
 if __name__ == '__main__':
     unittest.main()

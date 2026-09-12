@@ -3,6 +3,9 @@
 float4x4 _ScreenViewProjection;
 float4 _GtaoParameters, _GtaoQuality, _GtaoPixelSize;
 float _GtaoMinimumAmbient;
+#if defined(SCENE_GTAO_ROTATED)
+float _GtaoSliceOffset;
+#endif
 
 float GtaoPrimitive(float angle, float nv, float nt)
 {
@@ -68,6 +71,9 @@ float GtaoVisibility(float2 uv, float3 world, float3 normal, float depth)
     [loop] for (int i = 0; i < (int)_GtaoQuality.x; i++)
     {
         float phi = (i + .5) * pi / _GtaoQuality.x;
+        #if defined(SCENE_GTAO_ROTATED)
+        phi += _GtaoSliceOffset * pi / _GtaoQuality.x;
+        #endif
         float3 tangent = cos(phi) * axis + sin(phi) * crossAxis;
         float4 tangentClip = mul(_ScreenViewProjection, float4(tangent, 0));
         // Local derivative gives a world-radius footprint without projecting

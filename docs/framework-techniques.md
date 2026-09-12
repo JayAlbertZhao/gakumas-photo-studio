@@ -39,7 +39,7 @@
 | P02 | Bokeh DOF 范围、分辨率无关散景、30 次采样；PPT 127–128 | 可控 DOF 已有，现为 43 次采样 | 先核对版本／质量档，再做 30 次采样质量与成本对照 |
 | P03 | Bloom、Diffusion、Paraffin、色调／颜色处理；PPT 126 | 已有部分复现和配置 | 更广配置、无私有 LUT 时的自主制作流程与完整阶段一致性 |
 | P04 | Motion Blur；PPT 126、PDF 15 | 已有独立 [场景运动对应](scene-motion.md) 数据前置，未实现完整模糊阶段 | 速度消费、暂停／切镜／遮挡边界、角色表面及平台成本 |
-| P05 | GTAO、脚部 Capsule AO；PDF 19、PPT126 | 显式世界胶囊射线积分与视轴 GTAO；可选 Half 粗接收点、4×4 几何引导重建及无支持全分辨率回退；RG8 G 仅调制间接漫反射，见 [GTAO](scene-gtao.md) 与 [Capsule AO](scene-screen-shadow.md)；新增独立运动数据前置 | AO 尚未使用运动数据累积；自动脚部拟合／全角色接触、时域稳定、薄面复杂场景质量、画外几何与移动成本仍待完成 |
+| P05 | GTAO、脚部 Capsule AO；PDF 19、PPT126 | 显式胶囊、视轴 GTAO、Half 几何引导重建；新增可选运动对应消费、六相旋转、几何／身份／reactive 拒绝、方差裁剪与累积，见 [时域 GTAO](scene-gtao-temporal.md)、[GTAO](scene-gtao.md) 与 [Capsule AO](scene-screen-shadow.md) | 桌面自制运动／反遮挡已验证，默认不变；自动脚部拟合／全角色接触、薄面复杂动态场景质量、画外几何与移动内存／帧时仍待完成 |
 | P06 | 距离雾／球形雾；PPT 130、PDF 29 | 已有距离雾、单球独立模型 | 多球、双雾组合、透明层与原版参数仍未验收 |
 | P07 | 体积光及动态 DepthShadow；PPT 131 | 未接入 | 光体积积分、动态遮挡与质量档；不附带第三方插件 |
 | P08 | Flare／Ghost；PPT 129 | 未覆盖讲演列举的完整能力 | 可替换实现、可见性与遮挡、动画配置 |

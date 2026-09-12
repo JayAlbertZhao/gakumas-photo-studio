@@ -10,6 +10,7 @@ Shader "Hidden/GakumasPhotoMode/SceneGtaoHalf"
             #pragma target 4.0
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile_local __ SCENE_GTAO_ROTATED
             #include "UnityCG.cginc"
             sampler2D _ScreenGeometry;
             float4x4 _ScreenInverseViewProjection, _ScreenView;

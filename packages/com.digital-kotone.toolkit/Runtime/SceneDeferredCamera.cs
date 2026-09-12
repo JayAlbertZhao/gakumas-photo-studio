@@ -81,6 +81,11 @@ namespace GakumasPhotoMode
         public int MotionSnapshotDrawCalls => _motion == null ? 0 : _motion.SnapshotDrawCalls;
         public bool MotionHistoryAvailable => _motion != null && _motion.HistoryAvailable;
         public bool MotionContinuous => _motion != null && _motion.Continuous;
+        public int GtaoTemporalTargetCount => _screenShadow?.Temporal==null?0:_screenShadow.Temporal.TargetCount;
+        public int GtaoTemporalRawDrawCalls => _screenShadow?.Temporal==null?0:_screenShadow.Temporal.RawDrawCalls;
+        public int GtaoTemporalResolveDrawCalls => _screenShadow?.Temporal==null?0:_screenShadow.Temporal.ResolveDrawCalls;
+        public int GtaoTemporalPhase => _screenShadow?.Temporal==null?0:_screenShadow.Temporal.Phase;
+        public bool GtaoHistoryAvailable => _screenShadow?.Temporal!=null&&_screenShadow.Temporal.HistoryAvailable;
         private SceneScreenShadowRenderer _screenShadow;
         public int ScreenShadowTargetCount => _screenShadow == null ? 0 : _screenShadow.TargetCount;
         public int GtaoCoarseDrawCalls => _screenShadow == null ? 0 : _screenShadow.GtaoCoarseDrawCalls;
@@ -115,6 +120,7 @@ namespace GakumasPhotoMode
             // Half mode: XY selected full-resolution texture pixel, Z view depth, W GTAO visibility.
             public readonly RenderTexture gtaoCoarse;
             public readonly RenderTexture motionVectors, previousNormalIdentity;
+            public readonly RenderTexture gtaoCurrent, gtaoHistory, gtaoHistoryNormalIdentity;
             private readonly SceneDeferredCamera _owner;
             private readonly uint _sequence;
             internal Frame(SceneDeferredCamera owner)
@@ -128,6 +134,7 @@ namespace GakumasPhotoMode
                 screenGeometry = owner._screenShadow?.Geometry; shadowOcclusion = owner._screenShadow?.Visibility;
                 gtaoCoarse = owner._screenShadow?.GtaoCoarse;
                 motionVectors = owner._motion?.Motion; previousNormalIdentity = owner._motion?.PreviousNormal;
+                gtaoCurrent=owner._screenShadow?.Temporal?.Raw;gtaoHistory=owner._screenShadow?.Temporal?.Result;gtaoHistoryNormalIdentity=owner._screenShadow?.Temporal?.NormalIdentity;
             }
             public bool IsCurrent => _owner != null && _owner.Current && _sequence == _owner.RenderSequence &&
                 albedoCoverage != null && albedoCoverage.IsCreated();
@@ -194,6 +201,8 @@ namespace GakumasPhotoMode
                 { UnavailableReason = error; ReleaseResources(); return; }
             }
             else { _motion?.Dispose(); _motion = null; }
+            if(_screenShadow!=null&&!_screenShadow.PrepareTemporal(screenShadow.gtao,_camera,_motion,out var temporalError))
+            {UnavailableReason=temporalError;ReleaseResources();return;}
             int count = 0;
             foreach (var decal in decals) if (decal != null && decal.enabled && HasWeight(decal)) count++;
             if (!EnsureTargets(count > 0)) { UnavailableReason = "Target creation failed"; ReleaseResources(); return; }
@@ -219,7 +228,7 @@ namespace GakumasPhotoMode
                     _commands.DrawRenderer(renderer, material, surface.materialIndex, 3); ScreenShadowGeometryDrawCalls++;
                 }
                 _commands.EndSample("Toolkit scene geometry-only prepass");
-                _screenShadow.Record(_commands, _mainShadow, view, projection, Quad());
+                _screenShadow.Record(_commands, _mainShadow, view, projection, Quad(), _motion);
             }
             foreach (var rt in _gbuffer) { _commands.SetRenderTarget(rt); _commands.ClearRenderTarget(rt == _gbuffer[0], true, Color.clear); }
             if (_gi != null) { _commands.SetRenderTarget(_gi); _commands.ClearRenderTarget(false, true, Color.clear); }
@@ -279,11 +288,16 @@ namespace GakumasPhotoMode
             _target = _camera.targetTexture; _prepared = Time.frameCount;
         }
 
-        private void OnPostRender() { if (_prepared == Time.frameCount) { _motion?.Complete(); _rendered = Time.frameCount; RenderSequence++; } }
+        private void OnPostRender() { if (_prepared == Time.frameCount) { _motion?.Complete(); _screenShadow?.Temporal?.Complete(); _rendered = Time.frameCount; RenderSequence++; } }
 
         public void ResetMotionHistory()
         {
             _motion?.ResetHistory(); _prepared = _rendered = -1;
+        }
+
+        public void ResetGtaoHistory()
+        {
+            _screenShadow?.Temporal?.ResetHistory(); _prepared = _rendered = -1;
         }
 
         private string Validate()

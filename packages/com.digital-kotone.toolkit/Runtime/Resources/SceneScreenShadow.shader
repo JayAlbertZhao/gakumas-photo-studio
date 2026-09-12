@@ -13,6 +13,7 @@ Shader "Hidden/GakumasPhotoMode/SceneScreenShadow"
             #pragma multi_compile_local __ SCENE_MAIN_LIGHT_SHADOWS
             #pragma multi_compile_local __ SCENE_GTAO
             #pragma multi_compile_local __ SCENE_GTAO_HALF
+            #pragma multi_compile_local __ SCENE_GTAO_HISTORY
             #include "UnityCG.cginc"
             #if defined(SCENE_MAIN_LIGHT_SHADOWS)
             #define SCENE_LIGHT_SHADOWS 1
@@ -44,9 +45,14 @@ Shader "Hidden/GakumasPhotoMode/SceneScreenShadow"
                 return lerp(a.xyz, b.xyz, (depth - da) / (db - da));
             }
             #if defined(SCENE_GTAO)
+            #if defined(SCENE_GTAO_HISTORY)
+            sampler2D _GtaoHistory;
+            float _GtaoMinimumAmbient;
+            #else
             #include "SceneGtao.hlsl"
             #if defined(SCENE_GTAO_HALF)
             #include "SceneGtaoReconstruction.hlsl"
+            #endif
             #endif
             #endif
             float SphereHit(float3 origin, float3 ray, float3 center, float radius, float limit)
@@ -113,7 +119,9 @@ Shader "Hidden/GakumasPhotoMode/SceneScreenShadow"
                 #endif
                 float ambient = AmbientVisibility(world, normal);
                 #if defined(SCENE_GTAO)
-                #if defined(SCENE_GTAO_HALF)
+                #if defined(SCENE_GTAO_HISTORY)
+                float gtao = tex2D(_GtaoHistory,input.uv).r;
+                #elif defined(SCENE_GTAO_HALF)
                 float gtao = GtaoReconstruct(input.uv, world, normal, geometry.a);
                 #else
                 float gtao = GtaoVisibility(input.uv, world, normal, geometry.a);

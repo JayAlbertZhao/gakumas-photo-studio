@@ -93,7 +93,7 @@ SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBack
 
 `SceneDeferredCamera` 是默认不启用的独立场景后端，登记自己的 PBR 输入与显式场景层，绘制材质 GBuffer、投影分通道贴花和高度 AO，再向主目标输出实际 HDR 光照与深度。宿主从普通 culling mask 排除这些层，角色仍走 Forward。Monitor 发布纹理可驱动贴花 emission。已有下述显式 GI／光源阴影；完整 Forward+、烘焙 ShadowMask、反射桥接与移动附件优化仍待完成。见 [场景后端契约](../../docs/scene-deferred.md)。
 
-`SceneDeferredCamera.screenShadow` 可开启独立的几何深度／网格法线预通道，输出 RG8：R 为真实主方向光可见性，G 为环境可见性。宿主更新 `SceneCapsuleOccluder.start/end/radius` 可跟随脚部或其他接触物；不自动识别原版骨骼。可选 `screenShadow.gtao` 从场景深度计算视轴 horizon 与余弦角积分，并与胶囊按相乘或最小可见性合并。主灯直接光乘 R，间接漫反射乘 G；附加灯、emission 和 Forward 角色不被统一压暗。默认关闭且无额外附件，时域／移动优化仍待完成。见 [ScreenShadow／Capsule AO](../../docs/scene-screen-shadow.md) 与 [GTAO](../../docs/scene-gtao.md)。
+`SceneDeferredCamera.screenShadow` 可开启独立的几何深度／网格法线预通道，输出 RG8：R 为真实主方向光可见性，G 为环境可见性。宿主更新 `SceneCapsuleOccluder.start/end/radius` 可跟随脚部或其他接触物；不自动识别原版骨骼。可选 `screenShadow.gtao` 从场景深度计算视轴 horizon 与余弦角积分，并与胶囊按相乘或最小可见性合并。另可显式启用 `motion` 与 `gtao.temporal` 完成六相采样、历史拒绝和方差裁剪累积。主灯直接光乘 R，间接漫反射乘 G；附加灯、emission 和 Forward 角色不被统一压暗。默认关闭且无额外附件，完整动态场景与移动优化仍待完成。见 [ScreenShadow／Capsule AO](../../docs/scene-screen-shadow.md)、[GTAO](../../docs/scene-gtao.md) 与 [时域接入](../../docs/scene-gtao-temporal.md)。
 
 `SceneDecalLightSettings` 在该场景后端中提供点／胶囊／面状及 Spot 聚光照明，读取 Monitor 的点／线／面 atlas 内容并通过 PBR 材质影响其他表面。Spot 使用内／外完整锥角、局部 +Z 方向与径向 range，支持独立镜面、GI 乘色及背光。四形状共用实际 GPU procedural instancing、Scalar 对照／能力回退、显式接收组和 float32 HDR 累加；默认关闭。Spot／Point 可显式登记 Mesh／Skinned caster 并开启 [光源深度阴影](../../docs/scene-light-shadows.md)，支持 Cutout、世界单位 bias、PCF 和每灯强度，资源按相机独占。主方向光另用 `SceneDeferredCamera.mainLightShadow` 的正交范围／origin／up 配置，深度图与 Spot／Point atlas 独立，可同时照明。Capsule／Area 阴影、cookie 和移动性能尚未验收；GI 生产使用下述独立 Editor 工具。见 [场景灯接入](../../docs/scene-decal-lights.md)。
 

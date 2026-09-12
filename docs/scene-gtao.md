@@ -18,7 +18,7 @@ scene.screenShadow.gtao = new SceneGtaoSettings {
 };
 ```
 
-调用方仍须登记 `scene.surfaces` 并按 [场景后端](scene-deferred.md) 的层约定排除宿主重复绘制。GTAO 不读取 ActorData、normal map、材质贴花法线或上一帧深度。不新增相机、历史纹理或全局 shader 状态，也不自动为现有 Photo Studio 开启效果。
+调用方仍须登记 `scene.surfaces` 并按 [场景后端](scene-deferred.md) 的层约定排除宿主重复绘制。GTAO 不读取 ActorData、normal map 或材质贴花法线。默认空间模式不读取上一帧深度或新增历史纹理；可选 [时域累积](scene-gtao-temporal.md) 须显式开启。两者均不自动为现有 Photo Studio 开启效果。
 
 ## 当前积分与采样约定
 
@@ -28,7 +28,7 @@ scene.screenShadow.gtao = new SceneGtaoSettings {
 
 `normalBias` 沿网格法线移动接收点。半径外贡献为零；`falloffStart` 指定开始将候选 horizon 向无阻挡边界衰减的半径比例，1 表示硬半径截断。`thicknessBlend` 默认为 0，保留最大 horizon；大于 0 时，较远采样发现较低 horizon 会使当前值朝它衰减。这是薄物体启发式，不是实际厚度测量，也不能恢复深度图不可见的背面。零法线、背向或近切线朝向观察射线的法线输出完全可见。
 
-当前每个计算点使用固定切片，无空间随机旋转、历史重投影或抖动。可选半分辨率空间重建见下节，它不增加有效切片方向数。采样仍可能在运动、薄几何、半径硬切换和屏幕边界出现走样；不能用 GTAO 名称宣称完整场景 ground-truth 一致。
+默认每个计算点使用固定切片，无空间随机旋转、历史重投影或抖动。可选半分辨率空间重建见下节，它本身不增加有效切片方向数；另可开启 [六相旋转与历史累积](scene-gtao-temporal.md)。采样仍可能在运动、薄几何、半径硬切换和屏幕边界出现走样；不能用 GTAO 名称宣称完整场景 ground-truth 一致。
 
 ## 可选半分辨率空间重建
 
@@ -45,7 +45,7 @@ scene.screenShadow.gtao.reconstructionNormalThreshold = .9f; // 法线余弦下�
 3. 在连续粗网格坐标附近遍历 4×4 单元。按实际选中点与接收点的像素距离计算每轴半径 4 像素的 tent 权重；再乘双方切平面最大分离距离的线性权重，以及法线点积的线性权重。分离距离到 depthTolerance、点积降到 normalThreshold 时，权重均为 0。跳过越界／背景，归一化有效权重。斜面的原始视深度变化不会直接使同面支持失效。
 4. 无兼容样本或权重总和不超过 `1e-6` 时，重新计算当前全分辨率点 GTAO；不借用前景深度或强行输出白色。细孔／交替前景等最坏情况会大量回退，计算量不保证减为四分之一。
 
-主灯 R 和世界胶囊仍全分辨率计算，之后与重建 GTAO 合并，仅最后写 RG8 时量化。引导不读取 normal map 或网格 ID，邻近、共面同法线但拓扑不连通的片段仍可能互相支持；几何阈值不能识别所有对象边界，滤波也会平滑同面 AO 细节。世界缩放时同步缩放 radius、bias 和 depthTolerance。此模式没有时域抗闪烁或历史累积。
+主灯 R 和世界胶囊仍全分辨率计算，之后与重建 GTAO 合并，仅最后写 RG8 时量化。引导不读取 normal map 或网格 ID，邻近、共面同法线但拓扑不连通的片段仍可能互相支持；几何阈值不能识别所有对象边界，滤波也会平滑同面 AO 细节。世界缩放时同步缩放 radius、bias 和 depthTolerance。仅开启 Half 不会自动开启 temporal。
 
 ## Capsule AO 与光照
 
@@ -61,4 +61,4 @@ GTAO 与胶囊分别先应用自己的强度，再合并进 G。`Multiply` 相�
 
 允许 1–16 个切片、每侧 2–32 个深度采样、1–256 像素半径上限；这约束输入，不承诺最大配置适合实时或移动设备。半径须有限且在 `.001..10000`，strength／falloffStart／thicknessBlend 在 `0..1`，bias 在 `0..radius`，组合与分辨率枚举必须合法。`Half` 另要求有限的 depthTolerance 在 `.000001..10000`、normalThreshold 在 `0...9999`。启用时先验证再裁掉零强度；关闭或 null 时忽略未使用参数，`Full` 不验证未使用的重建参数。
 
-P05 的完整范围仍包括时域稳定、全角色接触与移动成本。当前 Built-in 桌面路径没有与 SSR 合并为移动 RenderPass，也未实现 Memoryless/subpass。各阶段实际执行证据见 [渲染记录](rendering.md)，本接口不构成平台和画质验收的替代。
+P05 的完整范围仍包括完整动态场景的时域画质、全角色接触与移动成本。当前 Built-in 桌面路径没有与 SSR 合并为移动 RenderPass，也未实现 Memoryless/subpass。各阶段实际执行证据见 [渲染记录](rendering.md)，本接口不构成平台和画质验收的替代。
