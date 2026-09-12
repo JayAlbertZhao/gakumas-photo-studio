@@ -53,6 +53,7 @@
 !/docs/release.md
 !/docs/rendering.md
 !/docs/scene-compute-backend.md
+!/docs/scene-deferred.md
 !/docs/scene-depth-data.md
 !/docs/scene-format.md
 !/docs/scene-reflection-resolve.md
@@ -218,6 +219,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/PlanarCapture.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/PlanarReflection.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/PlanarReflection.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDeferred.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDeferred.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDepthData.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDepthData.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDepthHierarchy.compute
@@ -242,6 +245,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TemporalClassification.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneComputeSupport.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneComputeSupport.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SceneDeferredCamera.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SceneDeferredCamera.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneDepthData.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneDepthData.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneReflectionResolve.cs
@@ -279,6 +284,8 @@
 !/unity/Assets/ActorAnimationStub.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorPlanar.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorPlanar.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Monitor.cs

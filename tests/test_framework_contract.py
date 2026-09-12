@@ -262,5 +262,26 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertIn('UnityGet2DClipping', canvas)
 
 
+    def test_deferred_scene_requires_explicit_layer_ownership_and_private_targets(self):
+        source = (RUNTIME / 'SceneDeferredCamera.cs').read_text(encoding='utf-8')
+        for forbidden in ('PhotoModeApp', 'Shader.SetGlobal', '.sharedMaterial =', 'Resources.Load<Material>'):
+            self.assertNotIn(forbidden, source)
+        self.assertNotRegex(source, r'_camera\.(?:cullingMask|targetTexture|enabled)\s*=(?!=)')
+        for required in ('public bool sceneEnabled;', '(_camera.cullingMask & sceneLayers.value) != 0',
+                         'seen.Add((r, surface.materialIndex))', 'CameraEvent.BeforeForwardOpaque',
+                         'ReleaseTargets(ref _scratch)', 'RenderTextureFormat.ARGBFloat',
+                         '_commands.DrawRenderer', '_commands.DrawMesh', 'SubmittedDecals++'):
+            self.assertIn(required, source)
+
+    def test_deferred_channels_feed_lighting_and_real_scene_depth(self):
+        source = (RUNTIME / 'Resources/SceneDeferred.shader').read_text(encoding='utf-8')
+        for required in ('float depth : SV_Depth', 'data.mos.a', 'direct + indirect + data.emission.rgb',
+                         'o.mos.rgb = lerp', 'o.normal.xyz = safeNormal', 'o.emission.rgb = lerp',
+                         'abs(o.normal.a - _ReceiverGroup)', 'heightCoverage', 'determinant((float3x3)unity_ObjectToWorld)'):
+            self.assertIn(required, source)
+        self.assertNotIn('_CameraGBufferTexture', source)
+        self.assertNotIn('_CameraDepthTexture', source)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -6,6 +6,18 @@
 
 以下按阶段逆序记录；旧阶段中的开项以较新的实现记录和 [技术清单](framework-techniques.md) 为准。
 
+### 场景 PBR GBuffer、材质贴花与 HDR 光照
+
+按 PPT 116–120、PDF 22–29 新增默认不启用的 `SceneDeferredCamera`。宿主显式排除登记场景层，组件先绘制未着色的 albedo／normal／MOS／emission，依数组顺序投影材质通道和高度 AO，再计算场景 HDR 并写回主目标深度，角色继续 Forward。输入、层所有权、独立高度公式及限制见 [场景后端](scene-deferred.md)。既有课堂 monitor 的专用 fallback 保持原样，没有自动切换原场景材质。
+
+完整 t15／D3D11 v7 构建无 C#／shader 错误。独立 Player 的 `--self-test-actor-rendering` 执行全部 2343 项检查，其中新增 75 项场景检查，覆盖各材质通道的实际光照及 CPU 数值对照、投影体积／接收组／角度、旋转／非均匀与镜像变换、透视离轴重建、顺序重叠、高度变化、前后 Forward 遮挡及 cutout 深度孔。自制单骨蒙皮的位移和回退进入 GBuffer；Monitor 专用相机的 HDR 4→8 内容实际传到贴花 emission 和最终场景光照。还验证了双相机独立目标、sRGB／线性贴图、property block 拒绝、重复表面／奇异及非仿射变换／非有限输入、禁用、尺寸变化与资源丢失恢复。
+
+前版 2268 项完整 JSON 记录与 1300 张已有 PNG 逐项／逐像素相同。新的材质／光照／Monitor 预览已查看，HDR 断言读取浮点目标，不依赖裁切到 PNG 的白色块。普通 1920×1080 摄影与实际角色 Planar 的 17 项离屏检查使用同一 Player 复查。没有打开可见 Player 窗口。
+
+保留 v1 导入期 CS0103 与浮点预处理条件错误、v2 因 Player 剥离 `Unlit/Color` 而中止的记录。测试改用已有 Resources 自发光 shader 作为 Forward 遮挡控制。v3–v5 的 Forward 背景仍含此前测试保留的几何；v6 在测试作用域隔离并恢复旧 Renderer 标志，增加明确黑色清屏控制，不把这些早期预览当作独立场景证据。
+
+E04/E07 尚有完整场景集成缺口：Forward+、阴影／ShadowMask、GI 生产、既有反射模块的数据桥接、动态水面、移动附件复用和带宽。当前每个贴花使用全屏 ping-pong，未声称原版移动成本；点／胶囊／面贴花灯与 instancing 仍是后续 E09 阶段。
+
 ### HDR Monitor 与发光网格
 
 按 PDF 56–58 的专用 UI 相机／HDR 纹理／UV 发光网格链路新增 `HdrMonitor`、`MonitorCanvas` 和 `MonitorEmissionMaterial`。模块使用独立 capture／published 目标、显式内容版本和 WhenDirty／FixedRate／EveryCall 调度；动画／Canvas 布局只在实际捕获前执行。网格可选择 UV0–UV3、atlas 区域、线性染色和 LED 重复图案，透明 UI 不被重复乘 alpha。相机 target／HDR／MSAA／renderingPath 和临时图形状态在 finally 恢复；不自动开启剧情相机或改默认主材质。接入与资源成本见 [Monitor 说明](hdr-monitor.md)。

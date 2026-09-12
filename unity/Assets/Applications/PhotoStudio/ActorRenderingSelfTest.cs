@@ -144,6 +144,7 @@ namespace GakumasPhotoMode
                 VerifySsrRoughnessOracle(report);
                 VerifyActorPlanarCapture(report);
                 VerifyHdrMonitor(report);
+                VerifySceneDeferred(report);
                 report.accepted = report.checks.TrueForAll(check => check.accepted);
             }
             catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); }

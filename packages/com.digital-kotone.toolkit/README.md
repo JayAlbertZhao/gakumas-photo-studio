@@ -91,4 +91,6 @@ SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBack
 
 可选外部环境、可读网格、LUT 等补充内容仍由宿主提供。不改变旧动作、物理、shader 算法或资源命名规则。原始 Lua 解析、手 K 编辑器、沙盒移动规则和番茄计时规则不在包内。
 
+`SceneDeferredCamera` 是默认不启用的独立场景后端，登记自己的 PBR 输入与显式场景层，绘制材质 GBuffer、投影分通道贴花和高度 AO，再向主目标输出实际 HDR 光照与深度。宿主从普通 culling mask 排除这些层，角色仍走 Forward。Monitor 发布纹理可驱动贴花 emission。尚未包含完整 Forward+、阴影／GI／反射桥接与移动附件优化。见 [场景后端契约](../../docs/scene-deferred.md)。
+
 来源与许可边界见 [NOTICE](NOTICE.md)。包的技术可接入性不表示整个项目已获得统一开源再许可授权。

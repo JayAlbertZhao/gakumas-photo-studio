@@ -28,10 +28,10 @@
 | E01 | 背景 PBR 及其 Def 通道；PPT 108 | 已有背景 fallback | 特殊材质、更多场景输入与 shader 变体 |
 | E02 | 线性灯光衰减、可调镜面、GI 乘色、背向补光；PPT 110–112 | 背景光照部分已有 | 各功能独立可控、遮蔽与多灯组合对照 |
 | E03 | DepthID 几何法线及 SSR mask；PDF 17 | 独立 SceneDepthData：世界网格法线、smoothness 资格、线性深度；min hierarchy 可选 raster／Compute | 显式 opaque／cutout 表面与角色层排除已验证；奇数边缘及 CPU／GPU 缩减一致；不猜读原版 MaterialID，不复用 ActorData／TAA 位，见 [数据契约](scene-depth-data.md) |
-| E04 | 背景 Deferred／透明 Forward+／Actor Forward；PDF 13、22–29 | 默认 Built-in 复现 | 独立可选后端及 buffer 生命周期，不能直接替换默认管线 |
+| E04 | 背景 Deferred／透明 Forward+／Actor Forward；PDF 13、22–29 | 新增可选 SceneDeferredCamera：场景材质 GBuffer、贴花、HDR 光照／深度在宿主 Forward 之前提交 | 默认不启用；完整 Forward+、阴影／GI／反射整合与移动附件复用仍待完成，见 [场景后端](scene-deferred.md) |
 | E05 | Hi-Z SSR、排除角色；PDF 37–43 | 已有可选 Hi-Z trace、角色排除历史、重投影拒绝、统一间接光消费／Planar skip、Compute／RandomWrite；新增接收面感知的粗糙度辐射过滤 | 桌面 GPU／回退／生命周期及独立 CPU 过滤对照已验收，默认关闭过滤保留旧结果；物理 GGX、复杂场景画质与移动性能仍待完成，见 [过滤契约](ssr-roughness.md)、[计算后端](scene-compute-backend.md) 和 [统一反射](scene-reflection-resolve.md) |
 | E06 | Planar 角色／发光网格及区域 mask；PDF 44–51、PPT 114 | 已有镜像／裁剪、区域覆盖、smoothness mip、法线差分扭曲与统一合成；新增 ActorToon 简化材质快照与眼部／头发匹配覆盖 | 合成材质 GPU 和一个真实角色／服装四方向、蒙皮跳转成立；全角色画质、GGX 过滤、多 Probe 调度和移动性能仍待完成，见 [角色适配](actor-planar-capture.md)、[Planar](planar-reflection.md) 与 [统一反射](scene-reflection-resolve.md) |
-| E07 | PBR GBuffer 贴花、MAOS／法线／高度遮蔽／水面贴花；PPT 116–120、PDF 24–25 | 未接入完整场景链 | 分通道混合、投影遮挡、无贴花零额外工作 |
+| E07 | PBR GBuffer 贴花、MAOS／法线／高度遮蔽／水面贴花；PPT 116–120、PDF 24–25 | 新增独立 albedo／normal／MOS／emission 分通道投影、接收组与高度 AO，结果实际进入场景光照；无有效贴花无 scratch／贴花 pass | 自制场景链已实现；原版 Def 映射、完整场景／动态水面、反射桥接与移动带宽仍待完成，见 [材质契约](scene-deferred.md) |
 | E08 | HDR Monitor 与发光网格；PDF 56–58 | 新增 HdrMonitor 专用相机生产、HDR Canvas、内容／时间更新调度、UV／LED 发光网格消费 | 自制真实 UGUI／网格链路已执行；原版整场舞台、视频编解码及移动帧时未验收，见 [Monitor 接入](hdr-monitor.md) |
 | E09 | 点／胶囊／面贴花灯及 instancing；PDF 59–62、PPT 119 | 未接入 | Monitor UV、灯体积、实例化、GI 与重叠成本 |
 | E10 | 天空、植被、水、折射、荧光棒等专用表面；PPT 109 | 未覆盖完整集合 | 资料仅列用途，需独立约定输入与验收，不能假定原版公式 |
