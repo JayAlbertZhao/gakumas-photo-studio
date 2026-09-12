@@ -270,6 +270,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SceneDeferredCamera.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneDepthData.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneDepthData.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SceneDirectionalShadowSettings.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SceneDirectionalShadowSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneGiInput.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneGiInput.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneLightShadowAtlas.cs
@@ -323,6 +325,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.LightShadow.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Lights.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Lights.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MainShadow.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MainShadow.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Monitor.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Monitor.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Planar.cs

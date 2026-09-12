@@ -13,7 +13,7 @@ scene.decalLighting.shadows.casters = new[] {
 };
 ```
 
-光源和 caster 的变换在每次宿主渲染前读取。接收器仍为 `SceneDeferredCamera.surfaces`；caster 不必是接收器，也不必在宿主相机可见层中。主灯 Directional、Point／Capsule／Area 阴影尚未实现：对这些形状显式请求阴影会拒绝场景帧，不会悄悄退化成无阴影。
+光源和 caster 的变换在每次宿主渲染前读取。接收器仍为 `SceneDeferredCamera.surfaces`；caster 不必是接收器，也不必在宿主相机可见层中。主方向光使用下方独立配置。Point／Capsule／Area 阴影尚未实现：对这些场景灯形状显式请求阴影会拒绝场景帧，不会悄悄退化成无阴影。
 
 ## 几何与采样约定
 
@@ -28,6 +28,8 @@ scene.decalLighting.shadows.casters = new[] {
 
 ## Caster、所有权与资源
 
+Spot 与主方向光共用以下 caster、采样与借用状态约定，各自持有深度目标，不共用可变材质或全局参数。
+
 显式 `MeshRenderer`／`SkinnedMeshRenderer` triangle submesh，`materialIndex` 须同时存在于网格和材质槽。模块不读取源 shader 的变形、材质关键字或 Cutout 规则。需要裁切时提供 `alphaMap` 的 alpha、uvST、alpha 和 cutoff；`alphaMap.a * alpha < cutoff` 被裁掉。默认 cutoff=0，alpha=0 的几何也会写深度，需设置正 cutoff 才是空裁切。
 
 `vertexScale` 是蒙皮后的局部顶点缩放，cull 默认 Back，可显式改 Off。禁用、inactive、forceRenderingOff 的 caster 不提交；不改这些借用状态，不创建 Unity Light，不写全局 shader 参数。PropertyBlock、非三角形、缺失 UV、无效子网格、奇异变换或未创建／MSAA alpha 纹理被明确拒绝。蒙皮流由 Unity 更新；离屏角色由调用方保证骨骼更新，例如在自己的角色上设置 `updateWhenOffscreen`。不保证任意原版 GPU 变形／发丝透明材质自动匹配。
@@ -38,6 +40,35 @@ scene.decalLighting.shadows.casters = new[] {
 
 `Frame.lightShadowAtlas` 是借用的诊断纹理，仅在 `Frame.IsCurrent` 为真时有效；不要缓存、销毁或当作已经完成的体积光 API。`LightShadowMapCount` 和 `LightShadowCasterDrawCalls` 说明提交量，不是 GPU 性能数据。
 
+## 主方向光
+
+`SceneDeferredCamera.mainLightShadow` 默认关闭，为已有 `lightDirection`／`lightRadiance` 提供一个固定范围的正交阴影图。它不创建 Unity Light，不使方向光产生距离衰减。
+
+```csharp
+scene.lightDirection = new Vector3(0, 0, -1); // 接收点朝向光源的方向
+scene.mainLightShadow = new SceneDirectionalShadowSettings {
+    enabled = true,
+    origin = new Vector3(0, 0, -10),
+    up = Vector3.up,
+    halfSize = new Vector2(5, 3),
+    nearPlane = .05f,
+    farPlane = 20,
+    resolution = 512,
+    filter = SceneShadowFilter.Pcf3x3,
+    casters = new[] { new SceneShadowCaster { renderer = movingObjectRenderer } }
+};
+```
+
+`origin` 是阴影视图原点，不是方向光的有限发光位置。视图 +Z 取 `-scene.lightDirection.normalized`，up 决定 roll。up 必须非零且不平行于该方向；两者归一化后的叉积平方小于 `1e-6` 时拒绝配置，不隐式更换 up 造成画面跳转。halfSize 是光视图 XY 的半宽／半高，near/far 是相对于 origin 的正轴向距离。调用方更新 origin、up 和覆盖范围以覆盖所需场景。
+
+构造 [Matrix4x4.Ortho](https://docs.unity3d.com/cn/2022.3/ScriptReference/Matrix4x4.Ortho.html) 后转换成 RenderTexture 的 GPU 投影。正交投影 `clip.w=1`，所以 producer 与 consumer 都以 `dot(世界位置-origin, forward)` 算轴向距离；不能沿用 Spot 的 clip.w 当深度。颜色图保存轴向距离/far，空白为 1，最近几何仍由硬件深度选择。depthBias、normalBias、strength 与 Hard／PCF 的定义与上方一致。
+
+接收点在有限 XY、near/far 以外时，主灯可见性取 1；它不会因离开阴影图就完全不发光。近于 near 的遮挡物被裁掉。此实现没有自动包围场景、级联、边界淡出、texel snapping 或静态缓存，移动视域和分辨率会改变栅格化阴影边缘，不保证无限范围或时域稳定的太阳光阴影。
+
+主灯只把自身直接漫反射、镜面及背向漫反射乘以阴影；预计算 GI 的基础项、环境漫反射、emission、Spot／其他灯不随主灯阴影一起变暗。GI 乘色仍在主灯直接光路径内。它与 Spot 阴影可同时运行，主灯深度绘制在场景 GBuffer 之前，最终 HDR resolve 读取主灯深度及独立的其他灯辐射。
+
+resolution 为 32–2048 的 2 次幂，独立于宿主目标大小；最多 1024 个显式 caster。全部直接光 scale 为零、零 lightRadiance 或零 strength 时没有主灯深度目标／draw；启用但无效的设置仍拒绝场景帧。关闭不读取其非法配置。每次主灯渲染均刷新输入，目标丢失、分辨率改变会重建，组件禁用会释放。`Frame.mainLightShadowDepth` 为当前帧借用纹理；释放后该帧不再 current。`MainShadowTargetCount`／`MainShadowCasterDrawCalls` 是资源／提交统计。
+
 ## 验收与待补范围
 
 资产无关 Player 自检使用不出现在接收 GBuffer 中的移动遮挡片、独立光源到平面的 CPU 射线、相机透视／正交、离轴光、near/far、depth／normal bias、Cutout／UV、PCF、GI／镜面／背光、跨帧单骨蒙皮以及四 tile 与逐灯独立渲染叠加对照。另检查遮挡片倾斜时的透视深度、前后剔除和倒置提交顺序下的最近深度。记录中明确保留排除的栅格边缘窄带。
@@ -46,4 +77,6 @@ scene.decalLighting.shadows.casters = new[] {
 
 原生捕获开关为 `GAKUMAS_SELFTEST_CAPTURE_LIGHT_SHADOWS=1`；单骨和静态参考对照可用 `GAKUMAS_SELFTEST_CAPTURE_LIGHT_SHADOW_SKIN=1`。只用于已注入 RenderDoc 的专用自检 Player，不与其他捕获开关混用。
 
-对应 PPT110–112 的场景实时光源遮挡基础及 PDF13–23 的光源阴影调度方向。未完成 PDF 的 MainLight／Actor／ScreenShadow 完整调度、烘焙 ShadowMask 3:3:2 打包、Forward+／透明／角色接收器、其他光源形状、移动 Memoryless/subpass 与成本验收。PPT131 的体积 Spot 积分及体积中的动态 DepthShadow 仍待接入，不随本模块标记完成。
+主方向光另外检查独立平行光射线、斜光、roll、矩形覆盖、近远裁剪、视域外保持照明、与 Spot 同时消费、跨相机资源隔离和宿主尺寸变化。均匀根缩放单骨有三组跨帧三轴旋转／位移，与 CPU 变形静态网格比较完整深度和阴影。原生开关 `GAKUMAS_SELFTEST_CAPTURE_MAIN_SHADOW=1` 捕获主灯与 Spot 共存帧。
+
+对应 PPT110–112 的场景实时光源遮挡基础及 PDF13–23 的光源阴影调度方向。未完成 PDF 的 Actor／ScreenShadow 完整调度、烘焙 ShadowMask 3:3:2 打包、Forward+／透明／角色接收器、其他光源形状、移动 Memoryless/subpass 与成本验收。PPT131 的体积 Spot 积分及体积中的动态 DepthShadow 仍待接入，不随本模块标记完成。

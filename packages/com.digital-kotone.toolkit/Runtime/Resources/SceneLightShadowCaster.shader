@@ -11,10 +11,12 @@ Shader "Hidden/GakumasPhotoMode/SceneLightShadowCaster"
             #pragma target 3.0
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile_local __ SCENE_SHADOW_ORTHOGRAPHIC
             #include "UnityCG.cginc"
             float4x4 _ShadowViewProjection;
             float3 _ShadowVertexScale;
             float4 _ShadowUvST;
+            float4 _ShadowDepthPlane;
             float _ShadowFar, _ShadowAlpha, _ShadowCutoff;
             sampler2D _ShadowAlphaMap;
             struct Input { float4 vertex : POSITION; float2 uv : TEXCOORD0; };
@@ -26,7 +28,11 @@ Shader "Hidden/GakumasPhotoMode/SceneLightShadowCaster"
                 o.position = mul(_ShadowViewProjection, world);
                 // Perspective clip.w is positive light-view axial distance. Color depth is
                 // conventional 0..1, independent of the hardware's reversed-Z attachment.
+                #if defined(SCENE_SHADOW_ORTHOGRAPHIC)
+                o.depth = dot(_ShadowDepthPlane, world) / _ShadowFar;
+                #else
                 o.depth = o.position.w / _ShadowFar;
+                #endif
                 o.uv = input.uv * _ShadowUvST.xy + _ShadowUvST.zw; return o;
             }
             float frag(Varying input) : SV_Target

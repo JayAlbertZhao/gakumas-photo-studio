@@ -6,6 +6,18 @@
 
 以下按阶段逆序记录；旧阶段中的开项以较新的实现记录和 [技术清单](framework-techniques.md) 为准。
 
+### 主方向光正交阴影与 Spot 共存
+
+依据 PPT110–112 的实时方向光及 PDF15／22 的光源阴影与材质数据流，新增默认关闭的 `SceneDirectionalShadowSettings`。主方向光以显式 origin／up／halfSize／near／far 确定光视图，生产自己的正交深度目标；世界轴向深度独立于恒定的 `clip.w`。共用 caster 验证、Cutout 和过滤，但主灯与 Spot 各持目标与参数。阴影只影响该主灯的直接光，基础 GI、emission 和其他灯保持独立。详见 [接入契约](scene-light-shadows.md#主方向光)。
+
+最终 t15／D3D11 v2 构建为 100698220 字节，无 C#／shader 错误。包含真实 GI bundle 的 Player 套件接受 2742 项渲染／状态检查，其中 79 项新增；37 项独立平行光射线内部区域对照最大 RGB 误差约 `0.000190`。覆盖斜光、roll、非正方形覆盖、视域外／near／far、移动 caster、倾斜三角形深度、Cutout／UV、bias／PCF、分离镜面／GI／背光、与 Spot 同时使用、三组单骨三轴运动及 CPU 静态网格整图对照、双相机隔离、目标丢失／resize／禁用和非法输入拒绝。
+
+原生共存帧先绘制主灯光源深度，再绘制场景几何及 Spot，最终 HDR resolve 绑定主灯深度和独立 Spot 辐射。主灯真实深度为 `1/3`，而 `clip.w/far=1/6`，确认没有误用透视深度；Spot 仍为 `0.2`。两种 producer 的 D3D11 比较均为 GreaterEqual 且写深度。另重抓旧四 tile Spot 用例，112 字节阴影参数、实际 atlas 和 float32 灯光累加原始数据与前版逐字节相同。两次捕获各自的 Player 套件均接受 2712 项检查（无实际 GI bundle，含一项捕获请求）。
+
+既有 2663 条完整 JSON 记录及 1332 张 PNG 不变；当前共有 1335 张验证图。普通 1920×1080 摄影与实际角色 Planar 的 17 项离屏检查重新接受，预览已查看。v1 启动时新 UPM 类触发 CS0246，虽随后构建成功仍排除；清洁 v2 构建另行验收。本阶段未观察到 GPU 对照失败。
+
+单正交范围不代表自动场景拟合、级联或时域稳定阴影。点／胶囊／面光源阴影、ShadowMask／ScreenShadow、Forward+／完整角色与透明接收器、体积光和移动成本仍待完成，不因主灯路径已经执行而标记整管线追平。
+
 ### Spot 光源深度阴影与移动 caster
 
 新增默认关闭的 `SceneLightShadowInput`、显式 `SceneShadowCaster` 和每相机 RFloat 深度 atlas，实际从 Spot 光源投影绘制几何并衰减该灯的直接贡献。支持 Scalar／Instanced、Cutout、世界单位 depth／normal bias、Hard／3×3 PCF、强度和四 tile 混合。旧灯结构保持 144 字节，阴影使用独立 112 字节参数。接口／所有权及有限范围见 [场景灯阴影](scene-light-shadows.md)。

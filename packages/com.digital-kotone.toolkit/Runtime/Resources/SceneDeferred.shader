@@ -155,6 +155,12 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
             #pragma target 4.0
             #pragma vertex fullscreen
             #pragma fragment lighting
+            #pragma multi_compile_local __ SCENE_MAIN_LIGHT_SHADOWS
+            #if defined(SCENE_MAIN_LIGHT_SHADOWS)
+            #define SCENE_LIGHT_SHADOWS 1
+            #define SCENE_SHADOW_ORTHOGRAPHIC 1
+            #include "SceneLightShadow.hlsl"
+            #endif
             struct litOutput { float4 color : SV_Target; float depth : SV_Depth; };
             litOutput lighting(screen i)
             {
@@ -177,6 +183,11 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
                     direct += (1 - f0) * diffuse * _DirectionalResponse.x * _DirectionalResponse.w * _LightRadiance * saturate(-dot(n, l));
                 float4 gi = tex2D(_BakedDiffuseGi, i.uv);
                 if (_HasBakedGi > .5 && gi.a > .5) direct *= lerp(1, gi.rgb, _DirectionalResponse.z);
+                #if defined(SCENE_MAIN_LIGHT_SHADOWS)
+                SceneShadowData shadow; shadow.worldToShadow = _SingleShadowMatrix; shadow.atlasST = _SingleShadowST;
+                shadow.depth = _SingleShadowDepth; shadow.options = _SingleShadowOptions;
+                direct *= SceneLightVisibility(world, n, shadow);
+                #endif
                 float3 indirect = diffuse * _AmbientIrradiance * ao;
                 // Baked response already includes Lambert integration, unlike legacy incident ambientIrradiance.
                 if (_HasBakedGi > .5 && gi.a > .5) indirect = data.albedo.rgb * (1 - metallic) * gi.rgb * _GiBaseScale * ao;

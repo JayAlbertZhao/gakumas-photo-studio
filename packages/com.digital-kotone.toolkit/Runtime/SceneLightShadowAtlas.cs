@@ -20,10 +20,15 @@ namespace GakumasPhotoMode
         private readonly List<Material> _materials = new List<Material>();
         private SceneShadowCaster[] _casters;
         private ComputeBuffer _buffer;
+        private Shader _shader;
+        private readonly string _name;
+        private bool _orthographic;
+        private Vector4 _depthPlane;
         private int _tileSize, _grid;
         public RenderTexture Atlas { get; private set; }
         public int MapCount => _indices.Count;
         public int CasterDrawCalls { get; private set; }
+        public SceneLightShadowAtlas(string name = "Toolkit light-source shadow atlas") { _name = name; }
 
         public static string ValidateLight(SceneDecalLight light)
         {
@@ -38,32 +43,15 @@ namespace GakumasPhotoMode
 
         public bool Prepare(List<SceneDecalLight> lights, SceneLightShadowSettings settings, bool instanced, out string error)
         {
-            error = null; _indices.Clear(); _data.Clear(); CasterDrawCalls = 0;
+            error = null; _indices.Clear(); _data.Clear(); CasterDrawCalls = 0; _orthographic = false;
             for (int i = 0; i < lights.Count; i++)
             {
                 _data.Add(default);
                 if (lights[i].shadow != null && lights[i].shadow.enabled && lights[i].shadow.strength > 0) _indices.Add(i);
             }
             if (_indices.Count == 0) { Dispose(); return true; }
-            if (settings == null || settings.tileResolution < 32 || settings.tileResolution > 2048 || !Mathf.IsPowerOfTwo(settings.tileResolution) ||
-                settings.maxShadowedLights < 1 || settings.maxShadowedLights > 16 || _indices.Count > settings.maxShadowedLights ||
-                settings.casters == null || settings.casters.Length > 1024)
-            { error = "Invalid shadow atlas settings or shadow-light/caster budget exceeded"; return false; }
-            foreach (var caster in settings.casters)
-            { error = ValidateCaster(caster); if (error != null) return false; }
-            var shader = Resources.Load<Shader>("SceneLightShadowCaster");
-            if (shader == null || !shader.isSupported || !SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RFloat))
-            { error = "Light-source shadow shader or RFloat target unavailable"; return false; }
-            _casters = settings.casters; _tileSize = settings.tileResolution; _grid = Mathf.CeilToInt(Mathf.Sqrt(_indices.Count));
-            int size = _grid * _tileSize;
-            if (size > Mathf.Min(SystemInfo.maxTextureSize, 4096)) { error = "Light-source shadow atlas exceeds texture limit"; return false; }
-            if (Atlas == null || !Atlas.IsCreated() || Atlas.width != size)
-            {
-                ReleaseAtlas(); Atlas = new RenderTexture(size, size, 24, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear) {
-                    name = "Toolkit light-source shadow atlas", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.HideAndDontSave
-                };
-                if (!Atlas.Create()) { error = "Light-source shadow allocation failed"; return false; }
-            }
+            if (!PrepareAtlas(settings, out error)) return false;
+            int size = Atlas.width;
             for (int tile = 0; tile < _indices.Count; tile++)
             {
                 int index = _indices[tile]; var light = lights[index]; var input = light.shadow;
@@ -79,9 +67,81 @@ namespace GakumasPhotoMode
                     options = new Vector4(input.strength, (int)input.filter, 1f / size, 0)
                 };
             }
+            FinishPrepare(instanced, lights.Count); return true;
+        }
+
+        public bool PrepareDirectional(Vector3 lightDirection, SceneDirectionalShadowSettings settings, bool hasContribution, out string error)
+        {
+            try { return PrepareDirectionalCore(lightDirection, settings, hasContribution, out error); }
+            catch (Exception exception) { Dispose(); error = "Main shadow preparation failed: " + exception.GetType().Name; return false; }
+        }
+
+        private bool PrepareDirectionalCore(Vector3 direction, SceneDirectionalShadowSettings settings, bool hasContribution, out string error)
+        {
+            error = null; _indices.Clear(); _data.Clear(); CasterDrawCalls = 0; _orthographic = true;
+            if (settings == null || !settings.enabled) { Dispose(); return true; }
+            if (!Range(direction.sqrMagnitude, 1e-8f, 1e12f) || !Range(settings.up.sqrMagnitude, 1e-8f, 1e12f) ||
+                !Range(settings.halfSize.x, .001f, 10000) || !Range(settings.halfSize.y, .001f, 10000) ||
+                !Range(settings.nearPlane, .001f, 10000) || !Range(settings.farPlane, .002f, 10000) || settings.farPlane <= settings.nearPlane ||
+                !Range(settings.strength, 0, 1) || !Range(settings.depthBias, 0, settings.farPlane) || !Range(settings.normalBias, 0, settings.farPlane) ||
+                (int)settings.filter < 0 || (int)settings.filter > 1)
+            { error = "Invalid main shadow direction, bounds, clipping, bias or filter"; return false; }
+            for (int i = 0; i < 3; i++) if (!Range(settings.origin[i], -1e6f, 1e6f)) { error = "Invalid main shadow origin"; return false; }
+            var forward = -direction.normalized; var up = settings.up.normalized;
+            if (Vector3.Cross(forward, up).sqrMagnitude < 1e-6f) { error = "Main shadow up must not be parallel to the light direction"; return false; }
+            // Validate a requested configuration before pruning its zero contribution.
+            _indices.Add(0); _data.Add(default);
+            var atlasSettings = new SceneLightShadowSettings { tileResolution = settings.resolution, maxShadowedLights = 1, casters = settings.casters };
+            if (!ValidateAtlasSettings(atlasSettings, out error)) return false;
+            if (!hasContribution || settings.strength == 0) { Dispose(); return true; }
+            if (!PrepareAtlas(atlasSettings, out error)) return false;
+            var rotation = Quaternion.LookRotation(forward, up);
+            var view = Matrix4x4.Scale(new Vector3(1, 1, -1)) * Matrix4x4.TRS(settings.origin, rotation, Vector3.one).inverse;
+            var projection = GL.GetGPUProjectionMatrix(Matrix4x4.Ortho(-settings.halfSize.x, settings.halfSize.x,
+                -settings.halfSize.y, settings.halfSize.y, settings.nearPlane, settings.farPlane), true);
+            // Explicit world-space axial depth. Orthographic clip.w is constant one.
+            _depthPlane = new Vector4(forward.x, forward.y, forward.z, -Vector3.Dot(forward, settings.origin));
+            _data[0] = new ShadowData { worldToShadow = projection * view, atlasST = new Vector4(1, 1, 0, 0),
+                depth = new Vector4(settings.nearPlane, settings.farPlane, settings.depthBias, settings.normalBias),
+                options = new Vector4(settings.strength, (int)settings.filter, 1f / Atlas.width, 0) };
+            FinishPrepare(false, 1); return true;
+        }
+
+        private bool ValidateAtlasSettings(SceneLightShadowSettings settings, out string error)
+        {
+            error = null;
+            if (settings == null || settings.tileResolution < 32 || settings.tileResolution > 2048 || !Mathf.IsPowerOfTwo(settings.tileResolution) ||
+                settings.maxShadowedLights < 1 || settings.maxShadowedLights > 16 || _indices.Count > settings.maxShadowedLights ||
+                settings.casters == null || settings.casters.Length > 1024)
+            { error = "Invalid shadow atlas settings or shadow-light/caster budget exceeded"; return false; }
+            foreach (var caster in settings.casters)
+            { error = ValidateCaster(caster); if (error != null) return false; }
+            return true;
+        }
+
+        private bool PrepareAtlas(SceneLightShadowSettings settings, out string error)
+        {
+            if (!ValidateAtlasSettings(settings, out error)) return false;
+            _shader = Resources.Load<Shader>("SceneLightShadowCaster");
+            if (_shader == null || !_shader.isSupported || !SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RFloat))
+            { error = "Light-source shadow shader or RFloat target unavailable"; return false; }
+            _casters = settings.casters; _tileSize = settings.tileResolution; _grid = Mathf.CeilToInt(Mathf.Sqrt(_indices.Count));
+            int size = _grid * _tileSize;
+            if (size > Mathf.Min(SystemInfo.maxTextureSize, 4096)) { error = "Light-source shadow atlas exceeds texture limit"; return false; }
+            if (Atlas == null || !Atlas.IsCreated() || Atlas.width != size)
+            {
+                ReleaseAtlas(); Atlas = new RenderTexture(size, size, 24, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear) {
+                    name = _name, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.HideAndDontSave
+                };
+                if (!Atlas.Create()) { error = "Light-source shadow allocation failed"; return false; }
+            }
+            return true;
+        }
+        private void FinishPrepare(bool instanced, int lightCount)
+        {
             if (instanced)
             {
-                int capacity = Mathf.NextPowerOfTwo(lights.Count);
+                int capacity = Mathf.NextPowerOfTwo(lightCount);
                 if (_buffer == null || _buffer.count != capacity)
                 { _buffer?.Dispose(); _buffer = new ComputeBuffer(capacity, Marshal.SizeOf<ShadowData>(), ComputeBufferType.Structured) { name = "Toolkit scene light shadow metadata" }; }
                 _buffer.SetData(_data);
@@ -89,9 +149,8 @@ namespace GakumasPhotoMode
             else { _buffer?.Dispose(); _buffer = null; }
             // One owned material per recorded draw: DrawRenderer has no property-block argument.
             int count = _indices.Count * _casters.Length;
-            while (_materials.Count < count) _materials.Add(new Material(shader) { hideFlags = HideFlags.HideAndDontSave });
+            while (_materials.Count < count) _materials.Add(new Material(_shader) { hideFlags = HideFlags.HideAndDontSave });
             while (_materials.Count > count) { int last = _materials.Count - 1; UnityEngine.Object.Destroy(_materials[last]); _materials.RemoveAt(last); }
-            return true;
         }
 
         public void Record(CommandBuffer commands)
@@ -108,6 +167,8 @@ namespace GakumasPhotoMode
                 {
                     var material = _materials[materialIndex++]; var renderer = caster.renderer;
                     if (!renderer.enabled || renderer.forceRenderingOff || !renderer.gameObject.activeInHierarchy) continue;
+                    if (_orthographic) material.EnableKeyword("SCENE_SHADOW_ORTHOGRAPHIC"); else material.DisableKeyword("SCENE_SHADOW_ORTHOGRAPHIC");
+                    material.SetVector("_ShadowDepthPlane", _depthPlane);
                     material.SetMatrix("_ShadowViewProjection", data.worldToShadow); material.SetFloat("_ShadowFar", data.depth.y);
                     material.SetVector("_ShadowVertexScale", caster.vertexScale); material.SetFloat("_Cull", (int)caster.cull);
                     material.SetTexture("_ShadowAlphaMap", caster.alphaMap != null ? caster.alphaMap : Texture2D.whiteTexture);
@@ -129,6 +190,14 @@ namespace GakumasPhotoMode
             if (Atlas == null) return;
             var data = _data[index]; block.SetMatrix("_SingleShadowMatrix", data.worldToShadow);
             block.SetVector("_SingleShadowST", data.atlasST); block.SetVector("_SingleShadowDepth", data.depth); block.SetVector("_SingleShadowOptions", data.options);
+        }
+        public void BindMain(Material material)
+        {
+            if (Atlas == null) { material.DisableKeyword("SCENE_MAIN_LIGHT_SHADOWS"); return; }
+            material.EnableKeyword("SCENE_MAIN_LIGHT_SHADOWS"); material.SetTexture("_LightShadowAtlas", Atlas);
+            var data = _data[0]; material.SetMatrix("_SingleShadowMatrix", data.worldToShadow);
+            material.SetVector("_SingleShadowST", data.atlasST); material.SetVector("_SingleShadowDepth", data.depth);
+            material.SetVector("_SingleShadowOptions", data.options); material.SetVector("_ShadowDepthPlane", _depthPlane);
         }
         private static bool Range(float x, float min, float max) => !float.IsNaN(x) && !float.IsInfinity(x) && x >= min && x <= max;
         private static string ValidateCaster(SceneShadowCaster caster)

@@ -26,9 +26,9 @@
 | A09 | 辅助骨、链、碰撞、参考角度、滑动、跨轴力；PPT 75–78、90–93 | 已有多个求解模块 | 全服装范围、极端动作、坐姿边界与动态对照 |
 | A10 | 自然风、阵风和停歇；PPT 94 | 新增 NaturalWindSettings 及角色接入 | 见下方接口；原版资产参数映射和全动作视觉一致性未验收 |
 | E01 | 背景 PBR 及其 Def 通道；PPT 108 | 已有背景 fallback | 特殊材质、更多场景输入与 shader 变体 |
-| E02 | 线性灯光衰减、可调镜面、GI 乘色、背向补光；PPT 110–112 | 独立 GI 缓冲、基础 GI 压暗、背向漫反射、白光烘焙、Spot 与实例化；新增默认关闭的 Spot 光源深度阴影 | 桌面 GI／Spot 及移动 caster 阴影已验收；其他灯形状、完整角色／场景和一般蒙皮仍待完成，见 [GI](scene-gi.md) 与 [光源阴影](scene-light-shadows.md) |
+| E02 | 线性灯光衰减、可调镜面、GI 乘色、背向补光；PPT 110–112 | 独立 GI、基础 GI 压暗、背向漫反射、白光烘焙、Spot 与实例化；默认关闭的 Spot／主方向光深度阴影 | 桌面 GI、两种光源投影及移动 caster 已验收；点／胶囊／面阴影、完整角色／场景和一般蒙皮仍待完成，见 [GI](scene-gi.md) 与 [光源阴影](scene-light-shadows.md) |
 | E03 | DepthID 几何法线及 SSR mask；PDF 17 | 独立 SceneDepthData：世界网格法线、smoothness 资格、线性深度；min hierarchy 可选 raster／Compute | 显式 opaque／cutout 表面与角色层排除已验证；奇数边缘及 CPU／GPU 缩减一致；不猜读原版 MaterialID，不复用 ActorData／TAA 位，见 [数据契约](scene-depth-data.md) |
-| E04 | 背景 Deferred／透明 Forward+／Actor Forward；PDF 13、22–29 | 可选 SceneDeferredCamera：材质 GBuffer、贴花、GI、HDR 光照／深度及 Spot 阴影在宿主 Forward 前提交 | 默认不启用；主灯／其他形状阴影、ShadowMask 打包、完整 Forward+／反射整合与移动附件仍待完成，见 [场景后端](scene-deferred.md) 与 [阴影](scene-light-shadows.md) |
+| E04 | 背景 Deferred／透明 Forward+／Actor Forward；PDF 13、22–29 | 可选 SceneDeferredCamera：材质、贴花、GI、HDR 光照／深度、Spot 阴影；新增主方向光光源深度生产与消费 | 默认不启用；其他形状阴影、ScreenShadow／ShadowMask 打包、完整 Forward+／反射整合与移动附件仍待完成，见 [场景后端](scene-deferred.md) 与 [阴影](scene-light-shadows.md) |
 | E05 | Hi-Z SSR、排除角色；PDF 37–43 | 已有可选 Hi-Z trace、角色排除历史、重投影拒绝、统一间接光消费／Planar skip、Compute／RandomWrite；新增接收面感知的粗糙度辐射过滤 | 桌面 GPU／回退／生命周期及独立 CPU 过滤对照已验收，默认关闭过滤保留旧结果；物理 GGX、复杂场景画质与移动性能仍待完成，见 [过滤契约](ssr-roughness.md)、[计算后端](scene-compute-backend.md) 和 [统一反射](scene-reflection-resolve.md) |
 | E06 | Planar 角色／发光网格及区域 mask；PDF 44–51、PPT 114 | 已有镜像／裁剪、区域覆盖、smoothness mip、法线差分扭曲与统一合成；新增 ActorToon 简化材质快照与眼部／头发匹配覆盖 | 合成材质 GPU 和一个真实角色／服装四方向、蒙皮跳转成立；全角色画质、GGX 过滤、多 Probe 调度和移动性能仍待完成，见 [角色适配](actor-planar-capture.md)、[Planar](planar-reflection.md) 与 [统一反射](scene-reflection-resolve.md) |
 | E07 | PBR GBuffer 贴花、MAOS／法线／高度遮蔽／水面贴花；PPT 116–120、PDF 24–25 | 新增独立 albedo／normal／MOS／emission 分通道投影、接收组与高度 AO，结果实际进入场景光照；无有效贴花无 scratch／贴花 pass | 自制场景链已实现；原版 Def 映射、完整场景／动态水面、反射桥接与移动带宽仍待完成，见 [材质契约](scene-deferred.md) |

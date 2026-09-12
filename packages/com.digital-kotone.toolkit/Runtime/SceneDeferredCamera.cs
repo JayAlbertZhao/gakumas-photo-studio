@@ -65,6 +65,10 @@ namespace GakumasPhotoMode
         [Range(0, 1)] public float directionalGiWeight;
         [Range(0, 4)] public float directionalDiffuseScale = 1, directionalSpecularScale = 1, directionalBacklight;
         public int GiTargetCount => _gi != null ? 1 : 0;
+        public SceneDirectionalShadowSettings mainLightShadow = new SceneDirectionalShadowSettings();
+        private SceneLightShadowAtlas _mainShadow;
+        public int MainShadowTargetCount => _mainShadow?.Atlas != null ? 1 : 0;
+        public int MainShadowCasterDrawCalls => _mainShadow == null ? 0 : _mainShadow.CasterDrawCalls;
         public SceneDecalLightSettings decalLighting = new SceneDecalLightSettings();
         private SceneDecalLightRenderer _decalLights;
         public int SubmittedLights => _decalLights == null ? 0 : _decalLights.SubmittedLights;
@@ -88,6 +92,7 @@ namespace GakumasPhotoMode
             public readonly RenderTexture bakedDiffuseGi;
             // Borrowed light-view depth atlas; valid only while this frame is current.
             public readonly RenderTexture lightShadowAtlas;
+            public readonly RenderTexture mainLightShadowDepth;
             private readonly SceneDeferredCamera _owner;
             private readonly uint _sequence;
             internal Frame(SceneDeferredCamera owner)
@@ -97,6 +102,7 @@ namespace GakumasPhotoMode
                 albedoCoverage = data[0]; normalGroup = data[1]; mosDepth = data[2]; emission = data[3];
                 bakedDiffuseGi = owner._gi;
                 lightShadowAtlas = owner._decalLights?.ShadowAtlas;
+                mainLightShadowDepth = owner._mainShadow?.Atlas;
             }
             public bool IsCurrent => _owner != null && _owner.Current && _sequence == _owner.RenderSequence &&
                 albedoCoverage != null && albedoCoverage.IsCreated();
@@ -114,7 +120,8 @@ namespace GakumasPhotoMode
         private int _prepared = -1, _rendered = -1, _materialCount;
         private bool Current => isActiveAndEnabled && sceneEnabled && _prepared == Time.frameCount &&
             _rendered == Time.frameCount && _output != null && _camera.targetTexture == _target && _target != null && _target.IsCreated() &&
-            Created(_output) && (!_usesGi || (_gi != null && _gi.IsCreated())) && _output[0].width == _target.width && _output[0].height == _target.height;
+            Created(_output) && (!_usesGi || (_gi != null && _gi.IsCreated())) && (_mainShadow?.Atlas == null || _mainShadow.Atlas.IsCreated()) &&
+            _output[0].width == _target.width && _output[0].height == _target.height;
         public bool TryGetFrame(out Frame frame)
         { frame = default; if (!Current) return false; frame = new Frame(this); return true; }
 
@@ -137,12 +144,21 @@ namespace GakumasPhotoMode
                 if (!_decalLights.Prepare(_camera, decalLighting, out var error)) { UnavailableReason = error; ReleaseResources(); return; }
             }
             else { _decalLights?.Dispose(); _decalLights = null; }
+            if (mainLightShadow != null && mainLightShadow.enabled)
+            {
+                if (_mainShadow == null) _mainShadow = new SceneLightShadowAtlas("Toolkit main directional shadow depth");
+                bool contributes = lightRadiance != Vector3.zero && (directionalDiffuseScale > 0 || directionalSpecularScale > 0);
+                if (!_mainShadow.PrepareDirectional(lightDirection, mainLightShadow, contributes, out var error))
+                { UnavailableReason = error; ReleaseResources(); return; }
+            }
+            else { _mainShadow?.Dispose(); _mainShadow = null; }
             int count = 0;
             foreach (var decal in decals) if (decal != null && decal.enabled && HasWeight(decal)) count++;
             if (!EnsureTargets(count > 0)) { UnavailableReason = "Target creation failed"; ReleaseResources(); return; }
             var view = _camera.worldToCameraMatrix;
             var projection = GL.GetGPUProjectionMatrix(_camera.projectionMatrix, true);
             var vp = projection * view;
+            _mainShadow?.Record(_commands);
             foreach (var rt in _gbuffer) { _commands.SetRenderTarget(rt); _commands.ClearRenderTarget(rt == _gbuffer[0], true, Color.clear); }
             if (_gi != null) { _commands.SetRenderTarget(_gi); _commands.ClearRenderTarget(false, true, Color.clear); }
             SetTargets(_gbuffer, _usesGi);
@@ -189,6 +205,7 @@ namespace GakumasPhotoMode
             lighting.SetFloat("_HasBakedGi", _gi != null ? 1 : 0);
             lighting.SetVector("_DirectionalResponse", new Vector4(directionalDiffuseScale, directionalSpecularScale, directionalGiWeight, directionalBacklight));
             lighting.SetFloat("_GiBaseScale", giBaseScale);
+            _mainShadow?.BindMain(lighting);
             _decalLights?.Record(_commands, _output, _camera, Quad(), _gi);
             lighting.SetFloat("_HasDecalLights", _decalLights?.Accumulation != null ? 1 : 0);
             lighting.SetTexture("_DecalLightAccumulation", _decalLights?.Accumulation != null ? (Texture)_decalLights.Accumulation : Texture2D.blackTexture);
@@ -300,7 +317,7 @@ namespace GakumasPhotoMode
         private Material NextMaterial()
         {
             while (_materials.Count <= _materialCount) _materials.Add(new Material(_shader) { hideFlags = HideFlags.HideAndDontSave });
-            var material = _materials[_materialCount++]; material.DisableKeyword("SCENE_GI_OUTPUT"); return material;
+            var material = _materials[_materialCount++]; material.DisableKeyword("SCENE_GI_OUTPUT"); material.DisableKeyword("SCENE_MAIN_LIGHT_SHADOWS"); return material;
         }
         private void SetTargets(RenderTexture[] buffers, bool gi = false)
         {
@@ -351,6 +368,7 @@ namespace GakumasPhotoMode
         {
             ReleaseGi();
             _decalLights?.Dispose(); _decalLights = null;
+            _mainShadow?.Dispose(); _mainShadow = null;
             _output = null; ReleaseTargets(ref _gbuffer); ReleaseTargets(ref _scratch);
             foreach (var m in _materials) if (m != null) Destroy(m); _materials.Clear();
             if (_quad != null) Destroy(_quad); _quad = null;

@@ -409,5 +409,33 @@ class FrameworkContractTests(unittest.TestCase):
         light = (RUNTIME / 'Resources/SceneDecalLight.hlsl').read_text(encoding='utf-8')
         self.assertIn('attenuation *= SceneLightVisibility(world, n, shadow)', light)
 
+    def test_main_shadow_is_explicit_orthographic_and_owned_before_scene_geometry(self):
+        settings = (RUNTIME / 'SceneDirectionalShadowSettings.cs').read_text(encoding='utf-8')
+        for token in ('public bool enabled;', 'public Vector3 origin', 'public Vector3 up',
+                      'public Vector2 halfSize', 'nearPlane', 'farPlane', 'SceneShadowCaster[] casters'):
+            self.assertIn(token, settings)
+        source = (RUNTIME / 'SceneLightShadowAtlas.cs').read_text(encoding='utf-8')
+        for token in ('PrepareDirectional(', 'Matrix4x4.Ortho(', 'var forward = -direction.normalized',
+                      '_depthPlane = new Vector4(forward.x', 'BindMain(Material material)',
+                      'material.EnableKeyword("SCENE_SHADOW_ORTHOGRAPHIC")', 'settings.farPlane <= settings.nearPlane'):
+            self.assertIn(token, source)
+        host = (RUNTIME / 'SceneDeferredCamera.cs').read_text(encoding='utf-8')
+        self.assertLess(host.index('_mainShadow?.Record(_commands)'), host.index('foreach (var rt in _gbuffer)'))
+        self.assertIn('_mainShadow?.Dispose()', host)
+        self.assertIn('material.DisableKeyword("SCENE_MAIN_LIGHT_SHADOWS")', host)
+        self.assertIn('mainLightShadowDepth = owner._mainShadow?.Atlas', host)
+        self.assertNotIn('Shader.SetGlobal', source)
+
+    def test_main_shadow_uses_axial_world_plane_and_excludes_other_lamps_and_indirect(self):
+        shader = (RUNTIME / 'Resources/SceneLightShadow.hlsl').read_text(encoding='utf-8')
+        self.assertIn('float axial = dot(_ShadowDepthPlane', shader)
+        self.assertIn('(axial - data.depth.z) / data.depth.y', shader)
+        caster = (RUNTIME / 'Resources/SceneLightShadowCaster.shader').read_text(encoding='utf-8')
+        self.assertIn('dot(_ShadowDepthPlane, world) / _ShadowFar', caster)
+        scene = (RUNTIME / 'Resources/SceneDeferred.shader').read_text(encoding='utf-8')
+        self.assertIn('#pragma multi_compile_local __ SCENE_MAIN_LIGHT_SHADOWS', scene)
+        self.assertLess(scene.index('direct *= SceneLightVisibility'), scene.index('float3 indirect ='))
+        self.assertLess(scene.index('direct *= SceneLightVisibility'), scene.index('direct += tex2D(_DecalLightAccumulation'))
+
 if __name__ == '__main__':
     unittest.main()
