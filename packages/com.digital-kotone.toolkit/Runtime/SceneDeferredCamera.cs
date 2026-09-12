@@ -72,6 +72,8 @@ namespace GakumasPhotoMode
         public int LightDrawCalls => _decalLights == null ? 0 : _decalLights.DrawCalls;
         public int LightBufferCapacity => _decalLights == null ? 0 : _decalLights.BufferCapacity;
         public int LightTargetCount => _decalLights?.Accumulation != null ? 1 : 0;
+        public int LightShadowMapCount => _decalLights == null ? 0 : _decalLights.ShadowMapCount;
+        public int LightShadowCasterDrawCalls => _decalLights == null ? 0 : _decalLights.ShadowCasterDrawCalls;
         public SceneDecalLightBackend ActiveLightBackend => _decalLights == null ? SceneDecalLightBackend.Scalar : _decalLights.Backend;
         public string LightFallbackReason => _decalLights?.FallbackReason;
         public int SubmittedSurfaces { get; private set; }
@@ -84,6 +86,8 @@ namespace GakumasPhotoMode
         {
             public readonly RenderTexture albedoCoverage, normalGroup, mosDepth, emission;
             public readonly RenderTexture bakedDiffuseGi;
+            // Borrowed light-view depth atlas; valid only while this frame is current.
+            public readonly RenderTexture lightShadowAtlas;
             private readonly SceneDeferredCamera _owner;
             private readonly uint _sequence;
             internal Frame(SceneDeferredCamera owner)
@@ -92,6 +96,7 @@ namespace GakumasPhotoMode
                 var data = owner._output;
                 albedoCoverage = data[0]; normalGroup = data[1]; mosDepth = data[2]; emission = data[3];
                 bakedDiffuseGi = owner._gi;
+                lightShadowAtlas = owner._decalLights?.ShadowAtlas;
             }
             public bool IsCurrent => _owner != null && _owner.Current && _sequence == _owner.RenderSequence &&
                 albedoCoverage != null && albedoCoverage.IsCreated();

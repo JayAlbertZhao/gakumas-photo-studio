@@ -10,6 +10,7 @@ Shader "Hidden/GakumasPhotoMode/SceneDecalLightScalar"
             #pragma target 3.0
             #pragma vertex LightVert
             #pragma fragment LightFrag
+            #pragma multi_compile_local __ SCENE_LIGHT_SHADOWS
             #include "SceneDecalLight.hlsl"
             ENDCG
         }

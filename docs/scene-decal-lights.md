@@ -73,9 +73,9 @@ var spot = new SceneDecalLight {
 
 角度权重与径向衰减相乘。它同时限制镜面、正向漫反射和可选背向漫反射，GI 乘色保持原有位置，emission 不参与。背向补光不能照亮外锥之外的区域。半径 range 限定球形截断的锥体，不能把相同轴向深度的离轴位置视为相同距离。局部旋转不会继承 GameObject 缩放；内／外角非有限、越界或顺序错误时拒绝该场景帧。旧形状不读取新增角度，保持旧输入兼容。
 
-Spot 仍从 atlas／Monitor 取固定一点。移动该点或更新 Monitor 内容会改变灯色，不会在接收表面投影图案；纹理 alpha 不再次相乘。当前不支持 Light cookie、Unity Light 对象自动同步或光源视角阴影。
+Spot 仍从 atlas／Monitor 取固定一点。移动该点或更新 Monitor 内容会改变灯色，不会在接收表面投影图案；纹理 alpha 不再次相乘。当前不支持 Light cookie、Unity Light 对象自动同步。可显式开启 [Spot 光源阴影](scene-light-shadows.md)。
 
-`receiverGroup=0` 照亮所有登记场景表面，包括不接受材质贴花的 group 0；1–255 仅匹配相同组。它不照亮未登记的 Forward 角色或透明物体。主 Forward 前景遮挡和背景深度仍保留，但**没有光源视角阴影**：即使接收面在相机中可见，灯和它之间的另一块墙也不会自动挡住此光。
+`receiverGroup=0` 照亮所有登记场景表面，包括不接受材质贴花的 group 0；1–255 仅匹配相同组。它不照亮未登记的 Forward 角色或透明物体。主 Forward 前景遮挡和背景深度仍保留。阴影默认关闭；需要墙挡住 Spot 时必须显式启用并登记墙为 caster，其他灯形状阴影尚未实现。
 
 ## 实例化、目标与失败行为
 
@@ -99,4 +99,4 @@ Spot 增量以独立角度／射线／BRDF 的整图 CPU 对照检查软锥、�
 
 可在已由 RenderDoc 注入的专用自检 Player 中显式设置 `GAKUMAS_SELFTEST_CAPTURE_DECAL_LIGHTS=1`，只截取 110 灯的离屏帧。普通运行不加载或依赖 RenderDoc。该诊断使用公开 C API，失败即记录检查失败，不把“发起请求”当作取得原生 draw 证据。Unity Player 的 `-batchmode` 可用于无窗口 D3D11 检查，不能同时加 `-nographics`。参见 [Player 参数](https://docs.unity3d.com/cn/2022.3/Manual/PlayerCommandLineArguments.html) 和 [DrawProcedural 实例数参数](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/Rendering.CommandBuffer.DrawProcedural.html)。
 
-尚未包含原版完整舞台参数、所有角色/透明接收器、遮挡阴影、自动 GI、Forward+ 光列表，以及移动 Memoryless/subpass、带宽与 Vulkan/Metal 实测。不把减少 draw 数量直接写成移动端提速或完整管线已追平。
+尚未包含原版完整舞台参数、所有角色/透明接收器、Spot 之外的光源阴影、自动 GI、Forward+ 光列表，以及移动 Memoryless/subpass、带宽与 Vulkan/Metal 实测。不把减少 draw 数量直接写成移动端提速或完整管线已追平。

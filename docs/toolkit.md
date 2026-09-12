@@ -36,7 +36,7 @@
 | 可选角色反射适配 | `ActorPlanarCaptureSet`／`ActorPlanarLighting`；独立的 ActorToon 材质快照、简化光照及匹配眼部／头发覆盖，见 [角色捕获](actor-planar-capture.md) |
 | 可选 HDR Monitor | `HdrMonitor`／`MonitorEmissionMaterial`；专用 UI 相机、HDR 纹理、显式更新调度与 UV 分区／LED 发光消费，见 [Monitor 接入](hdr-monitor.md) |
 | 可选场景 Deferred 与材质贴花 | `SceneDeferredCamera`；显式场景层、PBR GBuffer、分通道投影与 HDR／深度输出，宿主角色保留 Forward，见 [场景后端](scene-deferred.md) |
-| 可选 Monitor 场景照明 | `SceneDecalLightSettings`；点／胶囊／面体积、点／线／面 UV 采样、实际 GPU 实例化与 Scalar 对照，见 [贴花灯](scene-decal-lights.md) |
+| 可选 Monitor 场景照明 | `SceneDecalLightSettings`；点／胶囊／面／Spot、UV 采样、GPU 实例化与 Scalar 对照，见 [贴花灯](scene-decal-lights.md)；Spot 可选 [动态光源阴影](scene-light-shadows.md) |
 | 可选场景 GI | `SceneGiInput`；UV2 Lightmap／显式 SH／场景绑定、独立 GI 缓冲、逐灯乘色及背向漫反射，已有数据的消费链见 [GI 接入](scene-gi.md) |
 | 可选统一间接反射 | `SceneReflectionResolve`；Planar 优先、SSR 失败回退 Probe、全分辨率法线扭曲和材质响应；宿主须去除接收面原间接镜面项，见 [输入与合成契约](scene-reflection-resolve.md) |
 | 可选反射计算后端 | `SceneShaderBackend.Compute`；SSR trace 与 Hi-Z RandomWrite，独立深度组件也可使用，能力回退与状态见 [计算后端](scene-compute-backend.md) |

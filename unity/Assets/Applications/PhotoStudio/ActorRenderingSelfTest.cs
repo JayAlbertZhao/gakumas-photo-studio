@@ -157,6 +157,21 @@ namespace GakumasPhotoMode
                 if (_target != null) _target.Release();
                 foreach (UnityEngine.Object value in _owned) if (value != null) Destroy(value);
             }
+            if (report.error == null)
+            {
+                _owned.Clear();
+                var fixture = VerifySceneLightShadows(report);
+                while (true)
+                {
+                    bool more; object next = null;
+                    try { more = fixture.MoveNext(); if (more) next = fixture.Current; }
+                    catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); break; }
+                    if (!more) break;
+                    yield return next;
+                }
+                (fixture as IDisposable)?.Dispose();
+                report.accepted = report.error == null && report.checks.TrueForAll(check => check.accepted);
+            }
             string bakeBundle = Environment.GetEnvironmentVariable("GAKUMAS_SELFTEST_GI_BAKE_BUNDLE");
             if (report.error == null && !string.IsNullOrEmpty(bakeBundle))
             {

@@ -15,6 +15,11 @@ namespace GakumasPhotoMode
             public Vector4 radianceShape, uv, parameters, response, clipRect;
         }
         private readonly List<LightData> _data = new List<LightData>();
+        private readonly List<SceneDecalLight> _visible = new List<SceneDecalLight>();
+        private readonly SceneLightShadowAtlas _shadows = new SceneLightShadowAtlas();
+        public RenderTexture ShadowAtlas => _shadows.Atlas;
+        public int ShadowMapCount => _shadows.MapCount;
+        public int ShadowCasterDrawCalls => _shadows.CasterDrawCalls;
         private Material _material;
         private ComputeBuffer _buffer;
         public RenderTexture Accumulation { get; private set; }
@@ -35,7 +40,7 @@ namespace GakumasPhotoMode
 
         private bool PrepareCore(Camera camera, SceneDecalLightSettings settings, out string error)
         {
-            error = null; _data.Clear(); CulledLights = DrawCalls = 0; FallbackReason = null;
+            error = null; _data.Clear(); _visible.Clear(); CulledLights = DrawCalls = 0; FallbackReason = null;
             if (settings == null || !settings.enabled) { Dispose(); return true; }
             if (settings.lights == null || settings.lights.Length > 4096 || settings.batchSize < 1 || settings.batchSize > 1024 ||
                 (int)settings.backend < 0 || (int)settings.backend > 2)
@@ -46,6 +51,7 @@ namespace GakumasPhotoMode
             {
                 if (light == null || !light.enabled) continue;
                 if (!Valid(light)) { error = "Invalid decal-light inputs"; return false; }
+                error = SceneLightShadowAtlas.ValidateLight(light); if (error != null) return false;
                 if (light.radiance == Vector3.zero || (light.diffuseScale == 0 && light.specularScale == 0)) continue;
                 var rotation = light.rotation.normalized;
                 Vector3 x = rotation * Vector3.right, y = rotation * Vector3.up, z = rotation * Vector3.forward;
@@ -62,6 +68,7 @@ namespace GakumasPhotoMode
                     size = new Vector3(radius, radius, light.range * .5f); center = light.position + z * light.range * .5f;
                 }
                 if (!ClipRectangle(center, x, y, z, size, vp, out var rect)) { CulledLights++; continue; }
+                _visible.Add(light);
                 _data.Add(new LightData {
                     positionRange = new Vector4(light.position.x, light.position.y, light.position.z, light.range),
                     axisXLength = new Vector4(x.x, x.y, x.z, light.halfLength), axisYWidth = new Vector4(y.x, y.y, y.z, light.halfSize.x),
@@ -111,12 +118,13 @@ namespace GakumasPhotoMode
                 };
                 if (!Accumulation.Create()) { error = "Decal-light accumulation allocation failed"; return false; }
             }
-            return true;
+            return _shadows.Prepare(_visible, settings.shadows, Backend == SceneDecalLightBackend.Instanced, out error);
         }
 
         public void Record(CommandBuffer commands, RenderTexture[] buffers, Camera camera, Mesh quad, RenderTexture gi)
         {
             if (_data.Count == 0 || _material == null) return;
+            _shadows.Record(commands); _shadows.Bind(_material);
             commands.SetRenderTarget(Accumulation); commands.ClearRenderTarget(false, true, Color.clear);
             for (int i = 0; i < 4; i++) _material.SetTexture("_G" + i, buffers[i]);
             var view = camera.worldToCameraMatrix; var projection = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);
@@ -136,9 +144,11 @@ namespace GakumasPhotoMode
                     DrawCalls++;
                 }
             }
-            else foreach (var data in _data)
+            else for (int index = 0; index < _data.Count; index++)
             {
+                var data = _data[index];
                 var block = new MaterialPropertyBlock();
+                _shadows.BindSingle(block, index);
                 block.SetVector("_SinglePositionRange", data.positionRange); block.SetVector("_SingleAxisXLength", data.axisXLength);
                 block.SetVector("_SingleAxisYWidth", data.axisYWidth); block.SetVector("_SingleAxisZHeight", data.axisZHeight);
                 block.SetVector("_SingleRadianceShape", data.radianceShape); block.SetVector("_SingleUv", data.uv);
@@ -184,9 +194,9 @@ namespace GakumasPhotoMode
             float norm = Quaternion.Dot(light.rotation, light.rotation); return Finite(norm) && norm > 1e-8f;
         }
         private void ReleaseGpu()
-        { ReleaseTarget(); _buffer?.Dispose(); _buffer = null; if (_material != null) UnityEngine.Object.Destroy(_material); _material = null; }
+        { _shadows.Dispose(); ReleaseTarget(); _buffer?.Dispose(); _buffer = null; if (_material != null) UnityEngine.Object.Destroy(_material); _material = null; }
         private void ReleaseTarget()
         { if (Accumulation != null) { Accumulation.Release(); UnityEngine.Object.Destroy(Accumulation); } Accumulation = null; }
-        public void Dispose() { ReleaseGpu(); _data.Clear(); _atlas = null; CulledLights = DrawCalls = 0; }
+        public void Dispose() { ReleaseGpu(); _data.Clear(); _visible.Clear(); _atlas = null; CulledLights = DrawCalls = 0; }
     }
 }

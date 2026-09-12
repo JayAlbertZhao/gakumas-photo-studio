@@ -30,6 +30,7 @@ namespace GakumasPhotoMode
         [Range(0, 4)] public float diffuseScale = 1, specularScale = 1;
         [Range(0, 1)] public float giWeight;
         [Range(0, 4)] public float backlightScale;
+        public SceneLightShadowInput shadow = new SceneLightShadowInput();
     }
 
     [Serializable]
@@ -40,6 +41,7 @@ namespace GakumasPhotoMode
         public bool allowInstancingFallback = true;
         [Range(1, 1024)] public int batchSize = 256;
         public SceneDecalLight[] lights = Array.Empty<SceneDecalLight>();
+        public SceneLightShadowSettings shadows = new SceneLightShadowSettings();
         // If assigned, a current published frame is required. The host updates it first.
         public HdrMonitor monitor;
         // Used only without monitor; null is white. Use a linear texture for literal HDR radiance.

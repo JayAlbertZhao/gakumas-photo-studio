@@ -1,4 +1,5 @@
 #include "UnityCG.cginc"
+#include "SceneLightShadow.hlsl"
 struct SceneLightData
 {
     float4 positionRange, axisXLength, axisYWidth, axisZHeight;
@@ -123,5 +124,15 @@ float4 LightFrag(LightVarying input) : SV_Target
     {
         float4 gi = tex2D(_LightGi, input.uv); if (gi.a > .5) response *= lerp(1, gi.rgb, light.response.z);
     }
+    #if defined(SCENE_LIGHT_SHADOWS)
+    #if defined(SCENE_LIGHT_INSTANCED)
+    SceneShadowData shadow = _SceneLightShadows[input.index];
+    #else
+    SceneShadowData shadow;
+    shadow.worldToShadow = _SingleShadowMatrix; shadow.atlasST = _SingleShadowST;
+    shadow.depth = _SingleShadowDepth; shadow.options = _SingleShadowOptions;
+    #endif
+    attenuation *= SceneLightVisibility(world, n, shadow);
+    #endif
     return float4(response * atlas * light.radianceShape.rgb * attenuation, 0);
 }

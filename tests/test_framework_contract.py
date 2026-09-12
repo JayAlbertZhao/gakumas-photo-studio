@@ -379,5 +379,35 @@ class FrameworkContractTests(unittest.TestCase):
             self.assertIn('#include "SceneDecalLight.hlsl"', (RUNTIME / 'Resources' / name).read_text(encoding='utf-8'))
 
 
+    def test_shadow_producer_is_opt_in_borrowed_geometry_and_separate_metadata(self):
+        settings = (RUNTIME / 'SceneLightShadowSettings.cs').read_text(encoding='utf-8')
+        self.assertIn('public bool enabled;', settings)
+        producer = (RUNTIME / 'SceneLightShadowAtlas.cs').read_text(encoding='utf-8')
+        for token in ('Matrix4x4.Perspective(light.spotOuterAngle', 'GL.GetGPUProjectionMatrix',
+                      'RenderTextureFormat.RFloat', 'commands.DrawRenderer',
+                      'commands.ClearRenderTarget(true, true, Color.white)', 'renderer.HasPropertyBlock()',
+                      'SkinnedMeshRenderer', 'Marshal.SizeOf<ShadowData>()', 'maxShadowedLights',
+                      'material.EnableKeyword("SCENE_LIGHT_SHADOWS")'):
+            self.assertIn(token, producer)
+        for forbidden in ('Shader.SetGlobal', 'renderer.SetPropertyBlock', 'renderer.sharedMaterial =',
+                          'renderer.enabled =', 'AddComponent<Camera>', 'RenderWithShader'):
+            self.assertNotIn(forbidden, producer)
+        self.assertIn('light.shape != SceneDecalLightShape.Spot', producer)
+
+    def test_shadow_consumption_uses_light_depth_and_bounded_per_tile_filter(self):
+        shader = (RUNTIME / 'Resources/SceneLightShadow.hlsl').read_text(encoding='utf-8')
+        for token in ('mul(data.worldToShadow', 'world + normal * data.depth.w',
+                      '(projected.w - data.depth.z) / data.depth.y', 'clamp(uv + float2(x,y) * texel, low, high)',
+                      'visibility /= 9', 'lerp(1, visibility, data.options.x)'):
+            self.assertIn(token, shader)
+        self.assertNotIn('_CameraDepth', shader)
+        caster = (RUNTIME / 'Resources/SceneLightShadowCaster.shader').read_text(encoding='utf-8')
+        self.assertIn('o.depth = o.position.w / _ShadowFar', caster)
+        self.assertIn('ZTest LEqual ZWrite On', caster)
+        for name in ('SceneDecalLightScalar.shader', 'SceneDecalLightInstanced.shader'):
+            self.assertIn('#pragma multi_compile_local __ SCENE_LIGHT_SHADOWS', (RUNTIME / 'Resources' / name).read_text(encoding='utf-8'))
+        light = (RUNTIME / 'Resources/SceneDecalLight.hlsl').read_text(encoding='utf-8')
+        self.assertIn('attenuation *= SceneLightVisibility(world, n, shadow)', light)
+
 if __name__ == '__main__':
     unittest.main()
