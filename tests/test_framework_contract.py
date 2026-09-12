@@ -93,7 +93,7 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertNotIn('AddComponent<ScreenSpaceReflection>', (RUNTIME / 'CharacterSceneRuntime.cs').read_text(encoding='utf-8'))
 
     def test_ssr_uses_explicit_projection_conventions_and_depth_rejection(self):
-        source = (RUNTIME / 'Resources/ScreenSpaceReflection.shader').read_text(encoding='utf-8')
+        source = (RUNTIME / 'Resources/ScreenSpaceReflectionTrace.hlsl').read_text(encoding='utf-8')
         self.assertIn('UNITY_UV_STARTS_AT_TOP', source)
         self.assertIn('TextureUv(previousClip)', source)
         self.assertIn('abs(previousDepth - expectedDepth) > _SsrHistory.y', source)
@@ -139,7 +139,7 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertNotIn('screenSpaceReflection.TryComposite', source)
 
     def test_unified_reflection_has_planar_priority_and_geometry_trace(self):
-        ssr = (RUNTIME / 'Resources/ScreenSpaceReflection.shader').read_text(encoding='utf-8')
+        ssr = (RUNTIME / 'Resources/ScreenSpaceReflectionTrace.hlsl').read_text(encoding='utf-8')
         self.assertLess(ssr.index('_SsrPlanarCoverage.Load'), ssr.index('float4 packed ='))
         resolve = (RUNTIME / 'Resources/SceneReflectionResolve.shader').read_text(encoding='utf-8')
         self.assertLess(resolve.index('if (planar.a > 1e-5)'), resolve.index('float4 ssr ='))
@@ -155,6 +155,37 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertLess(render.index('sceneReflectionResolve.TryComposite'), render.index('screenSpaceReflection.TryComposite'))
         self.assertIn('else if (screenSpaceReflection != null', render)
         self.assertNotIn('AddComponent<SceneReflectionResolve>', (RUNTIME / 'CharacterSceneRuntime.cs').read_text(encoding='utf-8'))
+
+    def test_compute_selector_checks_kernel_and_format_with_explicit_fallback(self):
+        source = (RUNTIME / 'SceneComputeSupport.cs').read_text(encoding='utf-8')
+        for required in ('SystemInfo.supportsComputeShaders', 'SupportsRandomWriteOnRenderTextureFormat',
+                         'asset.HasKernel', 'asset.IsSupported', 'if (!allowFallback)', 'Invalid scene shader backend'):
+            self.assertIn(required, source)
+        for file in ('ScreenSpaceReflection.cs', 'SceneDepthData.cs'):
+            text = (RUNTIME / file).read_text(encoding='utf-8')
+            self.assertIn('= SceneShaderBackend.Raster;', text)
+            self.assertIn('_compute = Instantiate(_computeAsset)', text)
+            self.assertNotIn('_computeAsset.Set', text)
+
+    def test_compute_trace_shares_math_and_writes_every_valid_thread(self):
+        source = (RUNTIME / 'Resources/ScreenSpaceReflection.compute').read_text(encoding='utf-8')
+        raster = (RUNTIME / 'Resources/ScreenSpaceReflection.shader').read_text(encoding='utf-8')
+        for text in (source, raster):
+            self.assertIn('#include "ScreenSpaceReflectionTrace.hlsl"', text)
+        self.assertIn('RWTexture2D<float4> _SsrOutput', source)
+        self.assertIn('any(id.xy >= (uint2)_SsrSize.xy)', source)
+        self.assertIn('_SsrOutput[id.xy] = TraceSceneReflection(uv);', source)
+
+    def test_compute_depth_is_ceil_reduction_not_averaged_mips(self):
+        source = (RUNTIME / 'Resources/SceneDepthHierarchy.compute').read_text(encoding='utf-8')
+        self.assertIn('RWTexture2D<float> _DepthOutput', source)
+        self.assertIn('closest = min(closest', source)
+        self.assertIn('(int2)_DepthSize.xy - 1', source)
+        runtime = (RUNTIME / 'SceneDepthData.cs').read_text(encoding='utf-8')
+        self.assertIn('(output.width + 7) / 8', runtime)
+        self.assertIn('enableRandomWrite = randomWrite', runtime)
+        self.assertNotIn('.GenerateMips(', runtime)
+        self.assertNotIn('autoGenerateMips = true', runtime)
 
 
 if __name__ == '__main__':

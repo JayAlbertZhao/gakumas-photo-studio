@@ -169,6 +169,18 @@ namespace GakumasPhotoMode
             hook.enabled = false; var pipeline = host.AddComponent<OriginalStyleRenderPipeline>(); pipeline.sceneReflectionResolve = resolve;
             pipeline.screenSpaceReflection = ssr; camera.Render(); camera.Render();
             FrameworkCheck(report, "reflection-resolve-production-pipeline-prefers-unified-route", resolve.TryGetRadiance(camera, out _) && !ssr.TryTrace(camera, resized, null, out _));
+            resolve.TryGetRadiance(camera, out var rasterResolved); var rasterUnified = ReadSceneTarget(rasterResolved);
+            ssr.backend = SceneShaderBackend.Compute; ssr.allowComputeFallback = false; camera.Render(); camera.Render();
+            resolve.TryGetRadiance(camera, out var computeResolved);
+            float backendError = PixelError(rasterUnified, ReadSceneTarget(computeResolved));
+            FrameworkCheck(report, "ssr-compute-unified-consumer-radiance-equivalence", ssr.ActiveBackend == SceneShaderBackend.Compute &&
+                ssr.ComputeDispatchCount == 1 && backendError < .001f && SsrHitCount(SsrPixels(ssr, camera)) > 10, backendError);
+            planar.TryGetReflection(camera, resized.width, resized.height, out var computePlanar);
+            var computeMask = ReadSceneTarget(computePlanar); var computeSsr = SsrPixels(ssr, camera);
+            int coveredPixels = 0, invalidTrace = 0;
+            for (int i = 0; i < computeMask.Length; i++) if (computeMask[i].a > 1e-5f)
+            { coveredPixels++; if (computeSsr[i].a > 0) invalidTrace++; }
+            FrameworkCheck(report, "ssr-compute-unified-real-planar-skip", coveredPixels > 20 && invalidTrace == 0, invalidTrace);
             pipeline.enabled = false; resolve.enabled = false; ssr.enabled = false; planar.enabled = false;
             camera.targetTexture = null; target.Release(); resized.Release();
         }

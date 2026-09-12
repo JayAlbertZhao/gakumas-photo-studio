@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 _baseline_spec = importlib.util.spec_from_file_location('release_baseline', Path(__file__).with_name('verify_baseline.py'))
 _baseline_module = importlib.util.module_from_spec(_baseline_spec)
 _baseline_spec.loader.exec_module(_baseline_module)
-ALLOWED_SUFFIXES = {'.cs', '.shader', '.cginc', '.hlsl', '.asmdef', '.meta', '.json', '.md', '.txt',
+ALLOWED_SUFFIXES = {'.cs', '.shader', '.compute', '.cginc', '.hlsl', '.asmdef', '.meta', '.json', '.md', '.txt',
                     '.py', '.yml', '.asset', '.unity'}
 ALLOWED_DOTFILES = {'.gitignore', '.gitattributes', '.editorconfig', '.githooks/pre-commit'}
 PRIVATE_PARTS = {'private-reference', 'localassets', 'privateresources', 'research',
@@ -62,7 +62,7 @@ def validate_name(name: str) -> None:
         raise ValueError('Unreviewed scene')
     if path.suffix.lower() == '.meta':
         underlying = PurePosixPath(name[:-5]).suffix.lower()
-        if (underlying not in {'.cs', '.shader', '.cginc', '.hlsl', '.asmdef'} and
+        if (underlying not in {'.cs', '.shader', '.compute', '.cginc', '.hlsl', '.asmdef'} and
                 name[:-5] not in SOURCE_PROJECT_ASSETS | SOURCE_FOLDERS):
             raise ValueError('Only source metadata may be published')
 
@@ -156,7 +156,7 @@ def collect(root: Path, tracked: bool = False) -> tuple[dict, dict[str, bytes]]:
             if name in SOURCE_PROJECT_ASSETS and name not in reviewed:
                 raise ValueError('Authored scene/settings require a frozen content hash')
             if (baseline and name.startswith(('unity/', 'packages/com.digital-kotone.toolkit/')) and
-                    PurePosixPath(name).suffix in {'.cs', '.shader', '.cginc', '.hlsl', '.asmdef'} and name not in reviewed):
+                    PurePosixPath(name).suffix in {'.cs', '.shader', '.compute', '.cginc', '.hlsl', '.asmdef'} and name not in reviewed):
                 raise ValueError('New Unity source requires an explicit baseline review')
             findings.extend(inspect(name, data))
             payloads[name] = data

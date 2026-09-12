@@ -1,0 +1,15 @@
+#pragma kernel TraceReflections
+#include "UnityCG.cginc"
+#include "ScreenSpaceReflectionTrace.hlsl"
+
+RWTexture2D<float4> _SsrOutput;
+
+[numthreads(8, 8, 1)]
+void TraceReflections(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= (uint2)_SsrSize.xy)) return;
+    // Same texel-center convention as the raster trace, without a blit or
+    // implicit camera globals. Every output texel is written, including misses.
+    float2 uv = (float2(id.xy) + .5) * _SsrSize.zw;
+    _SsrOutput[id.xy] = TraceSceneReflection(uv);
+}

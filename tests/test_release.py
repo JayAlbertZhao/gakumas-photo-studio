@@ -23,8 +23,16 @@ class ReleaseBoundaryTests(unittest.TestCase):
 
     def test_accepts_source_names(self):
         for name in ('unity/Assets/Scripts/Example.cs', '.gitignore', 'docs/assets.md',
+                     'packages/com.example/Runtime/Resources/Example.compute',
+                     'packages/com.example/Runtime/Resources/Example.compute.meta',
                      'unity/Assets/Resources/Example.shader.meta'):
             release.validate_name(name)
+
+    def test_compute_sources_still_have_binary_and_secret_scans(self):
+        self.assertEqual(release.audit_content('trace.compute', b'a\x00b')[0]['rule'], 'binary_or_oversized')
+        self.assertIn('service_token', {f['rule'] for f in release.audit_content('trace.compute', ('gh' + 'p_' + 'z' * 36).encode())})
+        with self.assertRaises(ValueError):
+            release.validate_name('private-reference/trace.compute')
 
     def test_only_documentation_allowed_under_local_assets(self):
         release.validate_name('LocalAssets/README.md')

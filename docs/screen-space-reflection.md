@@ -2,7 +2,7 @@
 
 `ScreenSpaceReflection` 在工具包内提供桌面 Built-in Forward 的 SSR 路径。它使用 [SceneDepthData](scene-depth-data.md) 的几何法线／最小深度层级，沿反射方向查找当前场景交点，把交点投回上一批场景颜色，检查历史深度后输出 HDR 反射与置信度。
 
-本实现采用 PDF 第 37–43 页描述的屏幕空间反射、Hi-Z 和角色排除思路。当前后端采用 pixel shader 追踪与 raster 最小深度层级；Compute／RandomWrite 后端、粗糙度过滤和移动端性能尚待后续阶段。Planar／SSR／Probe 的可选统一消费者见 [SceneReflectionResolve](scene-reflection-resolve.md)，不能仅凭 SSR 有画面就记为全部完成。
+本实现采用 PDF 第 37–43 页描述的屏幕空间反射、Hi-Z 和角色排除思路。默认采用 pixel shader 追踪与 raster 最小深度层级；可选 [Compute／RandomWrite 后端](scene-compute-backend.md) 使用相同独立算法，并提供能力回退。粗糙度过滤和移动端性能尚待后续阶段。Planar／SSR／Probe 的可选统一消费者见 [SceneReflectionResolve](scene-reflection-resolve.md)，不能仅凭 SSR 有画面就记为全部完成。
 
 ## Photo Studio 管线接入
 
@@ -55,11 +55,12 @@ camera.GetComponent<OriginalStyleRenderPipeline>().screenSpaceReflection = ssr;
 | `edgeFade` | 屏幕边缘 UV 衰减带宽 |
 | `cameraCutDistance / cameraCutAngle` | 自动切镜识别阈值；宿主仍可明确调用 ResetHistory |
 | `intensity` | 当前加法合成权重；0 时释放可选阶段资源 |
+| `backend / allowComputeFallback` | Raster 默认；Compute 启用计算追踪与深度缩减，可选择能力不足时回退或拒绝执行 |
 
 参数应在渲染之前修改，不能在同次 render 回调中途改写输入。容差、步数和偏移需要按场景尺度配置；厚度过大会接受错误表面，过小会漏掉栅格化交点。无效配置、其他相机、错误尺寸、未就绪结果和重复消费均拒绝，不沿用旧结果掩盖问题。
 
 ## 平台和成本边界
 
-当前验证针对 Tuanjie 2022.3.62t15、D3D11、Shader Model 4.5、固定尺寸完整视口、非 MSAA／XR 的 Built-in Forward。它额外绘制一次场景颜色和一次登记几何，保留 HDR 颜色／历史／结果、独立深度和层级目标；不是移动端零成本扩展。动态分辨率、SRP、Compute 后端、粗糙度锥追踪／过滤、万人场景成本和整套反射视觉一致性仍需继续完成。
+当前验证针对 Tuanjie 2022.3.62t15、D3D11、Shader Model 4.5、固定尺寸完整视口、非 MSAA／XR 的 Built-in Forward。它额外绘制一次场景颜色和一次登记几何，保留 HDR 颜色／历史／结果、独立深度和层级目标；不是移动端零成本扩展。动态分辨率、SRP、粗糙度锥追踪／过滤、万人场景成本和整套反射视觉一致性仍需继续完成。
 
 裁剪空间与纹理空间的 Y 方向显式遵守 [Unity 平台差异](https://docs.unity3d.com/2022.3/Documentation/Manual/SL-PlatformDifferences.html)，矩阵来自 [GetGPUProjectionMatrix](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/GL.GetGPUProjectionMatrix.html)。方向规则需用真实 GPU 图像验证，不能靠上下对称夹具证明。各阶段执行证据及未完成项见 [渲染记录](rendering.md) 和 [技术清单](framework-techniques.md)。

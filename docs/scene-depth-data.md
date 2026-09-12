@@ -2,7 +2,7 @@
 
 `SceneDepthData` 是可选的 Built-in Forward 相机组件，位于 `Gakumas.Toolkit`。不依赖角色加载器或 Photo Studio UI，也不会自动挂到摄影相机。它为后续 SSR、遮蔽或贴花消费者提供几何输入；本身不计算反射、不改变主画面。
 
-设计对应 QualiArts 管线讲演 PDF 第 17 页的无 normal map 几何法线／SSR mask，以及第 40–43 页的 Hi-Z 和角色排除思路。公开资料没有给出完整 MaterialID 编码或阈值；此模块定义自己的数据契约，不兼容性猜读原版资产。使用普通 raster min-reduction，不宣称实现了原版 ComputeShader、移动 RenderPass 或性能水平。
+设计对应 QualiArts 管线讲演 PDF 第 17 页的无 normal map 几何法线／SSR mask，以及第 40–43 页的 Hi-Z 和角色排除思路。公开资料没有给出完整 MaterialID 编码或阈值；此模块定义自己的数据契约，不兼容性猜读原版资产。默认使用 raster min-reduction，也可选择独立 Compute／RandomWrite 缩减；不宣称原版代码等价、移动 RenderPass 或性能水平。
 
 ## 接入
 
@@ -48,13 +48,15 @@ if (geometry.TryGetFrame(camera, targetWidth, targetHeight, out var frame)) {
 
 层级使用独立纹理，不是硬件 mip 链；例如 5×3 → 3×2 → 2×1 → 1×1，保留奇数边缘。`buildDepthHierarchy = false` 时只提供基础深度和法线。本组件仅生成输入；[ScreenSpaceReflection](screen-space-reflection.md) 是单独的可选消费者，负责匹配的场景颜色历史、射线遍历、重投影与反射接入。
 
+`hierarchyBackend = SceneShaderBackend.Compute` 可启用 8×8 线程组缩减，第 0 层仍由几何绘制生成，后续层使用 RFloat UAV。`allowComputeFallback` 默认 true；实际选择、降级原因与严格模式见 [计算后端](scene-compute-backend.md)。任何借用深度层丢失后 TryGetFrame 都会拒绝旧批次，下次渲染重建。
+
 ## 表面与平台限制
 
 - alphaMask 使用 A 通道；smoothnessMap 使用 R 通道，两者各有独立 UV0 scale/offset。不自动读取共享材质属性。
 - `vertexScale` 可表达宿主的局部顶点缩放并相应修正法线；任意风摆、顶点动画、自定义位移或原版 stencil 不会自动复制。材质不得依赖本模块替其执行生产顶点 shader。
 - 每个注册 renderer 仍须启用、活跃、未 forceRenderingOff，并处于相机 cullingMask 内。无效表面跳过；粒子、线段、Terrain 与透明混合不是此适配器支持范围。
 - 本后端要求两个颜色附件、RFloat 和 RGBA8 支持、Built-in Forward、完整视口、固定尺寸非 MSAA／非 XR 的 2D 目标。其他配置释放目标并通过 `UnavailableReason` 返回原因，不切换项目管线。
-- 模块拥有独立深度附件，额外绘制注册几何；层级另占额外纹理与 blit 成本。没有证明移动端性能，也未采用 memoryless／subpass 架构。
+- 模块拥有独立深度附件，额外绘制注册几何；层级另占额外纹理与 blit／dispatch 成本。没有证明移动端性能，也未采用 memoryless／subpass 架构。
 - 空登记／禁用会释放目标和辅助材质；禁用还会解除相机 command buffer。主材质、主相机深度模式和全局纹理绑定保持不变。主机应在渲染前更新登记数据。
 
 实现使用 [Unity 相机渲染回调](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/MonoBehaviour.OnPostRender.html) 标记可消费帧，并遵守 [CommandBuffer 渲染目标恢复规则](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/Rendering.CommandBuffer.SetRenderTarget.html)。可执行验收见 [渲染记录](rendering.md)；文档 API 存在不等于平台／性能已验收。

@@ -27,9 +27,9 @@
 | A10 | 自然风、阵风和停歇；PPT 94 | 新增 NaturalWindSettings 及角色接入 | 见下方接口；原版资产参数映射和全动作视觉一致性未验收 |
 | E01 | 背景 PBR 及其 Def 通道；PPT 108 | 已有背景 fallback | 特殊材质、更多场景输入与 shader 变体 |
 | E02 | 线性灯光衰减、可调镜面、GI 乘色、背向补光；PPT 110–112 | 背景光照部分已有 | 各功能独立可控、遮蔽与多灯组合对照 |
-| E03 | DepthID 几何法线及 SSR mask；PDF 17 | 新增独立 SceneDepthData：世界网格法线、smoothness 资格、独立线性深度 | 显式 opaque／cutout 表面与角色层排除已验证；不猜读原版 MaterialID，不复用 ActorData／TAA 位，见 [数据契约](scene-depth-data.md) |
+| E03 | DepthID 几何法线及 SSR mask；PDF 17 | 独立 SceneDepthData：世界网格法线、smoothness 资格、线性深度；min hierarchy 可选 raster／Compute | 显式 opaque／cutout 表面与角色层排除已验证；奇数边缘及 CPU／GPU 缩减一致；不猜读原版 MaterialID，不复用 ActorData／TAA 位，见 [数据契约](scene-depth-data.md) |
 | E04 | 背景 Deferred／透明 Forward+／Actor Forward；PDF 13、22–29 | 默认 Built-in 复现 | 独立可选后端及 buffer 生命周期，不能直接替换默认管线 |
-| E05 | Hi-Z SSR、排除角色；PDF 37–43 | 已有可选 ScreenSpaceReflection：Hi-Z trace、角色排除历史、重投影拒绝；新增 TryTrace 供统一间接光消费并跳过 Planar 区域 | 实际 GPU／生命周期已验收；Compute／RandomWrite、SSR 粗糙度过滤与移动性能仍待完成，见 [SSR 接口](screen-space-reflection.md) 和 [统一反射](scene-reflection-resolve.md) |
+| E05 | Hi-Z SSR、排除角色；PDF 37–43 | 已有可选 Hi-Z trace、角色排除历史、重投影拒绝、统一间接光消费／Planar skip；新增 Compute／RandomWrite 追踪与最小深度缩减 | 桌面 GPU／回退／生命周期已验收，三种尺寸至 1025×769 的同输入 raster／Compute 输出相同；SSR 粗糙度过滤与移动性能仍待完成，见 [计算后端](scene-compute-backend.md) 和 [统一反射](scene-reflection-resolve.md) |
 | E06 | Planar 角色／发光网格及区域 mask；PDF 44–51、PPT 114 | 已有单 pass 捕获、镜像／裁剪、独立覆盖、接收面深度和 smoothness mip；新增全分辨率法线差分扭曲与 Planar／SSR／Probe 统一合成 | 40 项 Planar 检查及后续 52 项统一合成 GPU／生命周期检查成立；完整真实角色廉价材质适配、GGX 过滤、多 Probe 调度和移动性能仍待完成，见 [Planar](planar-reflection.md) 与 [统一反射](scene-reflection-resolve.md) |
 | E07 | PBR GBuffer 贴花、MAOS／法线／高度遮蔽／水面贴花；PPT 116–120、PDF 24–25 | 未接入完整场景链 | 分通道混合、投影遮挡、无贴花零额外工作 |
 | E08 | HDR Monitor 与发光网格；PDF 56–58 | 有部分背景输入读取 | 通用相机／纹理输出模块、动画与更新调度 |
@@ -45,7 +45,7 @@
 | P08 | Flare／Ghost；PPT 129 | 未覆盖讲演列举的完整能力 | 可替换实现、可见性与遮挡、动画配置 |
 | P09 | 低分辨率透明／扭曲／重特效及上采样；PDF 15、31 | 未接入完整分层调度 | 深度相容、边缘合成、排序与目标释放 |
 | O01 | FSR 与高质量 TAA 输入；PDF 10、69 | 未接入；现有超采样不是 FSR | 合规可选依赖、画质档、分辨率切换与 GPU 成本 |
-| O02 | Memoryless／RenderPass／SubPass／MRT 复用；PDF 11–12、22、27 | 未实现同级架构 | 独立后端、附件预算、负载测量、平台回退 |
+| O02 | Memoryless／RenderPass／SubPass／MRT 复用；PDF 11–12、22、27 | 部分场景 MRT 与 Compute 算法已有，未实现同级移动架构 | 独立移动后端、附件预算、负载测量、平台回退；不得由桌面 Compute 输出相同推导性能完成 |
 | O03 | 移动端能力与驱动差异；PDF 8、64–65 | 当前验证集中于桌面 D3D11 | Vulkan／Metal 实机、能力探测、质量回退与长时间运行 |
 | C01 | 观众 LOD、模型预算、四向 runtime billboard、Compute；PPT 99–103 | 未接入 | 独立 crowd 模块、视角切换、万人规模成本；不捆绑观众资产 |
 

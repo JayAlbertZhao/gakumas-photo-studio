@@ -87,5 +87,5 @@ class ToolkitBoundaryTests(unittest.TestCase):
         self.assertGreater(len(names), 100)
         for name in names:
             with self.subTest(file=name):
-                self.assertIn(Path(name).suffix, {'.cs', '.meta', '.asmdef', '.shader', '.cginc', '.hlsl', '.json', '.md'})
+                self.assertIn(Path(name).suffix, {'.cs', '.meta', '.asmdef', '.shader', '.compute', '.cginc', '.hlsl', '.json', '.md'})
                 self.assertNotIn('PrivateResources', name)

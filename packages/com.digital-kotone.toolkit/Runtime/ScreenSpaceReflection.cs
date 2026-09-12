@@ -27,6 +27,12 @@ namespace GakumasPhotoMode
         [Min(.01f)] public float cameraCutDistance = 2;
         [Range(1, 180)] public float cameraCutAngle = 35;
         public bool useHierarchy = true;
+        public SceneShaderBackend backend = SceneShaderBackend.Raster;
+        public bool allowComputeFallback = true;
+        public SceneShaderBackend ActiveBackend { get; private set; }
+        public SceneShaderBackend ActiveHierarchyBackend => _geometry != null ? _geometry.ActiveHierarchyBackend : SceneShaderBackend.Raster;
+        public string ComputeFallbackReason { get; private set; }
+        public int ComputeDispatchCount { get; private set; }
 
         public bool HistoryAvailable { get; private set; }
         public string UnavailableReason { get; private set; }
@@ -35,9 +41,12 @@ namespace GakumasPhotoMode
         private SceneDepthData.Frame _frame;
         private Shader _shader;
         private Material _material;
+        private ComputeShader _computeAsset, _compute;
+        private int _computeKernel;
         private readonly List<Material> _visibilityMaterials = new List<Material>();
         private CommandBuffer _visibilityCommands;
         private RenderTexture _sceneColor, _historyColor, _historyDepth, _visibility, _reflection, _composite;
+        private RenderTexture _sourceTarget;
         private Matrix4x4 _historyView, _historyProjection;
         private Vector3 _historyPosition;
         private Quaternion _historyRotation;
@@ -50,6 +59,7 @@ namespace GakumasPhotoMode
         {
             _camera = GetComponent<Camera>();
             _shader = Resources.Load<Shader>("ScreenSpaceReflection");
+            _computeAsset = Resources.Load<ComputeShader>("ScreenSpaceReflection");
             _visibilityCommands = new CommandBuffer { name = "Toolkit SSR visible receivers" };
             _camera.AddCommandBuffer(CameraEvent.BeforeImageEffects, _visibilityCommands);
         }
@@ -57,13 +67,25 @@ namespace GakumasPhotoMode
         private void OnPreCull()
         {
             _preparedFrame = _renderedFrame = -1;
+            ComputeDispatchCount = 0; ComputeFallbackReason = null;
             _visibilityCommands.Clear();
             UnavailableReason = Validate();
             if (UnavailableReason != null) { ReleaseResources(); return; }
+            if (!SceneComputeSupport.Select(backend, allowComputeFallback, _computeAsset, "TraceReflections", RenderTextureFormat.ARGBHalf,
+                out var selected, out _computeKernel, out var fallback, out var error))
+            { UnavailableReason = error; ReleaseResources(); return; }
+            ActiveBackend = selected; ComputeFallbackReason = fallback;
             int width = _camera.targetTexture != null ? _camera.targetTexture.width : _camera.pixelWidth;
             int height = _camera.targetTexture != null ? _camera.targetTexture.height : _camera.pixelHeight;
             if (width < 1 || height < 1) { UnavailableReason = "Empty target"; ReleaseResources(); return; }
-            if (!EnsureResources(width, height)) { UnavailableReason = "Target allocation failed"; ReleaseResources(); return; }
+            if (!EnsureResources(width, height))
+            {
+                if (ActiveBackend == SceneShaderBackend.Compute && allowComputeFallback)
+                { ActiveBackend = SceneShaderBackend.Raster; ComputeFallbackReason = "Compute reflection allocation failed"; }
+                else { UnavailableReason = "Target allocation failed"; ReleaseResources(); return; }
+                if (!EnsureResources(width, height)) { UnavailableReason = "Fallback allocation failed"; ReleaseResources(); return; }
+            }
+            if (ActiveBackend == SceneShaderBackend.Compute && _compute == null) _compute = Instantiate(_computeAsset);
             _sceneCamera.CopyFrom(_camera);
             _sceneCamera.enabled = false;
             _sceneCamera.allowMSAA = false;
@@ -89,6 +111,8 @@ namespace GakumasPhotoMode
             _geometry.surfaces = surfaces;
             _geometry.smoothnessThreshold = smoothnessThreshold;
             _geometry.buildDepthHierarchy = useHierarchy;
+            _geometry.hierarchyBackend = ActiveBackend;
+            _geometry.allowComputeFallback = allowComputeFallback;
             _sceneCamera.Render();
             if (!_geometry.TryGetFrame(_sceneCamera, width, height, out _frame))
             {
@@ -96,6 +120,7 @@ namespace GakumasPhotoMode
                 ResetHistory(); return;
             }
             if (_frame.DepthLevelCount > 15) { UnavailableReason = "Depth hierarchy exceeds 15 levels"; ResetHistory(); return; }
+            if (_geometry.ComputeFallbackReason != null) ComputeFallbackReason = _geometry.ComputeFallbackReason;
             _surfaceSignature = 17;
             _visibilityCommands.SetRenderTarget(new RenderTargetIdentifier(_visibility), BuiltinRenderTextureType.CurrentActive);
             _visibilityCommands.ClearRenderTarget(false, true, Color.clear);
@@ -123,7 +148,7 @@ namespace GakumasPhotoMode
                 material.SetFloat("_SsrSmoothnessThreshold", smoothnessThreshold);
                 _visibilityCommands.DrawRenderer(renderer, material, surface.materialIndex, 0);
             }
-            _preparedFrame = Time.frameCount;
+            _sourceTarget = _camera.targetTexture; _preparedFrame = Time.frameCount;
         }
 
         private void OnPostRender()
@@ -153,6 +178,7 @@ namespace GakumasPhotoMode
             if (!isActiveAndEnabled || !reflectionsEnabled || camera != _camera || source == null ||
                 _preparedFrame != Time.frameCount || _renderedFrame != Time.frameCount ||
                 _consumedSequence == _renderSequence || _sceneColor == null ||
+                _sourceTarget != _camera.targetTexture || _reflection == null || !_reflection.IsCreated() ||
                 source.width != _sceneColor.width || source.height != _sceneColor.height) return false;
             _consumedSequence = _renderSequence;
             Matrix4x4 inverseView = _frame.worldToCamera.inverse;
@@ -182,7 +208,8 @@ namespace GakumasPhotoMode
             _material.SetVector("_SsrTrace", new Vector4(maximumDistance, thickness, normalBias, maximumSteps));
             _material.SetVector("_SsrFrame", new Vector4(_frame.farClip, camera.nearClipPlane, camera.orthographic ? 1 : 0, _frame.DepthLevelCount - 1));
             _material.SetVector("_SsrHistory", new Vector4(continuous ? 1 : 0, historyDepthTolerance, edgeFade, intensity));
-            Graphics.Blit(source, _reflection, _material, 1);
+            if (ActiveBackend == SceneShaderBackend.Compute) DispatchTrace();
+            else Graphics.Blit(source, _reflection, _material, 1);
             _material.SetTexture("_SsrReflection", _reflection);
             if (continuous && composite) Graphics.Blit(source, _composite, _material, 2);
             // Copy only the actor-free auxiliary capture, never the composited
@@ -201,12 +228,31 @@ namespace GakumasPhotoMode
         public bool TryGetReflection(Camera camera, out Texture texture)
         {
             texture = null;
-            if (!isActiveAndEnabled || camera != _camera || _renderedFrame != Time.frameCount ||
-                _consumedSequence != _renderSequence || _reflection == null) return false;
+            if (!isActiveAndEnabled || !reflectionsEnabled || camera != _camera || _renderedFrame != Time.frameCount ||
+                _sourceTarget != _camera.targetTexture || _consumedSequence != _renderSequence ||
+                _reflection == null || !_reflection.IsCreated()) return false;
             texture = _reflection; return true;
         }
 
         public void ResetHistory() { HistoryAvailable = false; _historyFrame = -1; _renderedFrame = -1; }
+
+        // Bind the same fully prepared input set as the reference raster path.
+        // Instance-local compute parameters avoid cross-camera asset mutations.
+        private void DispatchTrace()
+        {
+            foreach (string name in TraceTextures) _compute.SetTexture(_computeKernel, name, _material.GetTexture(name));
+            for (int level = 0; level < 15; level++)
+                _compute.SetTexture(_computeKernel, "_SsrDepth" + level, _frame.GetDepthLevel(Mathf.Min(level, _frame.DepthLevelCount - 1)));
+            foreach (string name in TraceMatrices) _compute.SetMatrix(name, _material.GetMatrix(name));
+            foreach (string name in TraceVectors) _compute.SetVector(name, _material.GetVector(name));
+            _compute.SetFloat("_SsrPlanarAvailable", _material.GetFloat("_SsrPlanarAvailable"));
+            _compute.SetTexture(_computeKernel, "_SsrOutput", _reflection);
+            _compute.Dispatch(_computeKernel, (_reflection.width + 7) / 8, (_reflection.height + 7) / 8, 1);
+            ComputeDispatchCount++;
+        }
+        private static readonly string[] TraceTextures = { "_SsrNormalMask", "_SsrVisibility", "_SsrPlanarCoverage", "_SsrHistoryColor", "_SsrHistoryDepth" };
+        private static readonly string[] TraceMatrices = { "_SsrInverseProjection", "_SsrProjection", "_SsrView", "_SsrInverseView", "_SsrHistoryView", "_SsrHistoryViewProjection" };
+        private static readonly string[] TraceVectors = { "_SsrSize", "_SsrTrace", "_SsrFrame", "_SsrHistory" };
 
         private string Validate()
         {
@@ -240,6 +286,7 @@ namespace GakumasPhotoMode
         private bool EnsureResources(int width, int height)
         {
             if (_sceneColor != null && (_sceneColor.width != width || _sceneColor.height != height ||
+                _reflection.enableRandomWrite != (ActiveBackend == SceneShaderBackend.Compute) ||
                 !_sceneColor.IsCreated() || !_historyColor.IsCreated() || !_historyDepth.IsCreated() ||
                 !_visibility.IsCreated() || !_reflection.IsCreated() || !_composite.IsCreated())) ReleaseResources();
             if (_sceneCamera == null)
@@ -257,18 +304,18 @@ namespace GakumasPhotoMode
                 _historyDepth = Target(width, height, 0, RenderTextureFormat.RFloat, "SSR history depth");
                 _visibility = Target(width, height, 0, SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.R8)
                     ? RenderTextureFormat.R8 : RenderTextureFormat.ARGB32, "SSR visible receivers");
-                _reflection = Target(width, height, 0, RenderTextureFormat.ARGBHalf, "SSR radiance and confidence");
+                _reflection = Target(width, height, 0, RenderTextureFormat.ARGBHalf, "SSR radiance and confidence", ActiveBackend == SceneShaderBackend.Compute);
                 _composite = Target(width, height, 0, RenderTextureFormat.ARGBHalf, "SSR HDR composite");
             }
             return _sceneColor.IsCreated() && _historyColor.IsCreated() && _historyDepth.IsCreated() &&
                 _visibility.IsCreated() && _reflection.IsCreated() && _composite.IsCreated();
         }
 
-        private static RenderTexture Target(int width, int height, int depth, RenderTextureFormat format, string name)
+        private static RenderTexture Target(int width, int height, int depth, RenderTextureFormat format, string name, bool randomWrite = false)
         {
             var target = new RenderTexture(width, height, depth, format, RenderTextureReadWrite.Linear) {
                 name = name, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp,
-                useMipMap = false, autoGenerateMips = false, hideFlags = HideFlags.HideAndDontSave
+                useMipMap = false, autoGenerateMips = false, enableRandomWrite = randomWrite, hideFlags = HideFlags.HideAndDontSave
             };
             target.Create(); return target;
         }
@@ -285,6 +332,8 @@ namespace GakumasPhotoMode
             Release(ref _sceneColor); Release(ref _historyColor); Release(ref _historyDepth);
             Release(ref _visibility); Release(ref _reflection); Release(ref _composite);
             if (_material != null) { Destroy(_material); _material = null; }
+            if (_compute != null) { Destroy(_compute); _compute = null; }
+            ComputeDispatchCount = 0;
             foreach (Material material in _visibilityMaterials) if (material != null) Destroy(material);
             _visibilityMaterials.Clear();
         }

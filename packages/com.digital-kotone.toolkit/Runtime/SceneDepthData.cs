@@ -57,6 +57,11 @@ namespace GakumasPhotoMode
         public LayerMask excludedLayers;
         [Range(0, 1)] public float smoothnessThreshold = 0.5f;
         public bool buildDepthHierarchy = true;
+        public SceneShaderBackend hierarchyBackend = SceneShaderBackend.Raster;
+        public bool allowComputeFallback = true;
+        public SceneShaderBackend ActiveHierarchyBackend { get; private set; }
+        public string ComputeFallbackReason { get; private set; }
+        public int ComputeDispatchCount { get; private set; }
         public int SubmittedSurfaces { get; private set; }
         public uint RenderSequence { get; private set; }
         public string UnavailableReason { get; private set; }
@@ -65,6 +70,9 @@ namespace GakumasPhotoMode
         private CommandBuffer _commands;
         private Shader _shader;
         private Material _reduction;
+        private ComputeShader _computeAsset, _compute;
+        private int _computeKernel;
+        private SceneShaderBackend _allocatedBackend;
         private readonly List<Material> _materials = new List<Material>();
         private RenderTexture _normalMask;
         private RenderTexture[] _levels;
@@ -78,6 +86,7 @@ namespace GakumasPhotoMode
         {
             _camera = GetComponent<Camera>();
             _shader = Resources.Load<Shader>("SceneDepthData");
+            _computeAsset = Resources.Load<ComputeShader>("SceneDepthHierarchy");
             _commands = new CommandBuffer { name = "Toolkit scene DepthID and min-depth hierarchy" };
             _camera.AddCommandBuffer(CameraEvent.BeforeForwardOpaque, _commands);
         }
@@ -86,14 +95,30 @@ namespace GakumasPhotoMode
         {
             _preparedFrame = _renderedFrame = -1;
             SubmittedSurfaces = 0;
+            ComputeDispatchCount = 0; ComputeFallbackReason = null;
             if (_commands == null) return;
             _commands.Clear();
             UnavailableReason = ValidateCamera();
             if (UnavailableReason != null) { ReleaseResources(); return; }
+            if (!SceneComputeSupport.Select(buildDepthHierarchy ? hierarchyBackend : SceneShaderBackend.Raster,
+                allowComputeFallback, _computeAsset, "ReduceMinDepth", RenderTextureFormat.RFloat,
+                out var selected, out _computeKernel, out var fallback, out var error))
+            { UnavailableReason = error; ReleaseResources(); return; }
+            ActiveHierarchyBackend = selected; ComputeFallbackReason = fallback;
             int width = _camera.targetTexture != null ? _camera.targetTexture.width : _camera.pixelWidth;
             int height = _camera.targetTexture != null ? _camera.targetTexture.height : _camera.pixelHeight;
             if (width < 1 || height < 1) { UnavailableReason = "Empty target"; ReleaseResources(); return; }
-            if (!EnsureTargets(width, height)) { UnavailableReason = "Target creation failed"; ReleaseResources(); return; }
+            if (!EnsureTargets(width, height))
+            {
+                if (ActiveHierarchyBackend == SceneShaderBackend.Compute && allowComputeFallback)
+                { ActiveHierarchyBackend = SceneShaderBackend.Raster; ComputeFallbackReason = "Compute depth allocation failed"; }
+                else { UnavailableReason = "Target creation failed"; ReleaseResources(); return; }
+                if (!EnsureTargets(width, height)) { UnavailableReason = "Fallback target creation failed"; ReleaseResources(); return; }
+            }
+            if (ActiveHierarchyBackend == SceneShaderBackend.Compute && _compute == null)
+                _compute = Instantiate(_computeAsset);
+            else if (ActiveHierarchyBackend == SceneShaderBackend.Raster && _compute != null)
+            { Destroy(_compute); _compute = null; }
             _cameraTarget = _camera.targetTexture;
             _view = _camera.worldToCameraMatrix;
             _projection = GL.GetGPUProjectionMatrix(_camera.projectionMatrix, true);
@@ -131,8 +156,22 @@ namespace GakumasPhotoMode
                 _commands.DrawRenderer(renderer, material, surface.materialIndex, 0);
             }
             if (_reduction == null) _reduction = new Material(_shader) { hideFlags = HideFlags.HideAndDontSave };
+            // Unbind the geometry MRT before its depth is read as a compute SRV.
+            if (ActiveHierarchyBackend == SceneShaderBackend.Compute) _commands.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
             for (int level = 1; level < _levels.Length; level++)
-                _commands.Blit(_levels[level - 1], _levels[level], _reduction, 1);
+            {
+                if (ActiveHierarchyBackend == SceneShaderBackend.Raster)
+                    _commands.Blit(_levels[level - 1], _levels[level], _reduction, 1);
+                else
+                {
+                    RenderTexture input = _levels[level - 1], output = _levels[level];
+                    _commands.SetComputeVectorParam(_compute, "_DepthSize", new Vector4(input.width, input.height, output.width, output.height));
+                    _commands.SetComputeTextureParam(_compute, _computeKernel, "_DepthInput", input);
+                    _commands.SetComputeTextureParam(_compute, _computeKernel, "_DepthOutput", output);
+                    _commands.DispatchCompute(_compute, _computeKernel, (output.width + 7) / 8, (output.height + 7) / 8, 1);
+                    ComputeDispatchCount++;
+                }
+            }
             // Unity restores active framebuffer state after this command buffer.
             // Shaders use explicit camera matrices, leaving camera globals alone.
             _preparedFrame = Time.frameCount;
@@ -153,6 +192,8 @@ namespace GakumasPhotoMode
                 _preparedFrame != Time.frameCount || _normalMask == null || !_normalMask.IsCreated() ||
                 _normalMask.width != width || _normalMask.height != height || _camera.targetTexture != _cameraTarget)
                 return false;
+            if (_levels == null) return false;
+            foreach (RenderTexture level in _levels) if (level == null || !level.IsCreated()) return false;
             frame = new Frame(_normalMask, _levels, _view, _projection, _far, RenderSequence);
             return true;
         }
@@ -201,9 +242,10 @@ namespace GakumasPhotoMode
             if (_levels != null) foreach (RenderTexture level in _levels)
                 created &= level != null && level.IsCreated();
             if (created && _normalMask.width == width &&
-                _normalMask.height == height && _hierarchy == buildDepthHierarchy) return true;
+                _normalMask.height == height && _hierarchy == buildDepthHierarchy && _allocatedBackend == ActiveHierarchyBackend) return true;
             ReleaseTargets();
             _hierarchy = buildDepthHierarchy;
+            _allocatedBackend = ActiveHierarchyBackend;
             _normalMask = MakeTarget(width, height, 0, RenderTextureFormat.ARGB32, "ToolkitSceneNormalMask");
             var levels = new List<RenderTexture>();
             levels.Add(MakeTarget(width, height, 24, RenderTextureFormat.RFloat, "ToolkitSceneLinearDepth"));
@@ -212,7 +254,8 @@ namespace GakumasPhotoMode
                 // Ceil sizes preserve odd right/bottom edges; these are explicit
                 // levels, not hardware floor-sized mips or averaged depth.
                 width = (width + 1) / 2; height = (height + 1) / 2;
-                levels.Add(MakeTarget(width, height, 0, RenderTextureFormat.RFloat, "ToolkitSceneMinDepth" + levels.Count));
+                levels.Add(MakeTarget(width, height, 0, RenderTextureFormat.RFloat, "ToolkitSceneMinDepth" + levels.Count,
+                    ActiveHierarchyBackend == SceneShaderBackend.Compute));
             }
             _levels = levels.ToArray();
             if (!_normalMask.IsCreated()) return false;
@@ -220,11 +263,11 @@ namespace GakumasPhotoMode
             return true;
         }
 
-        private static RenderTexture MakeTarget(int width, int height, int depth, RenderTextureFormat format, string name)
+        private static RenderTexture MakeTarget(int width, int height, int depth, RenderTextureFormat format, string name, bool randomWrite = false)
         {
             var target = new RenderTexture(width, height, depth, format, RenderTextureReadWrite.Linear) {
                 name = name, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp,
-                useMipMap = false, autoGenerateMips = false, hideFlags = HideFlags.HideAndDontSave
+                useMipMap = false, autoGenerateMips = false, enableRandomWrite = randomWrite, hideFlags = HideFlags.HideAndDontSave
             };
             target.Create();
             return target;
@@ -244,6 +287,8 @@ namespace GakumasPhotoMode
             foreach (Material material in _materials) if (material != null) Destroy(material);
             _materials.Clear();
             if (_reduction != null) { Destroy(_reduction); _reduction = null; }
+            if (_compute != null) { Destroy(_compute); _compute = null; }
+            ComputeDispatchCount = 0;
         }
 
         private void OnDisable()

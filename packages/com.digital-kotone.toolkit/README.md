@@ -71,7 +71,9 @@ pipeline.sphereFog = new SphereFogSettings {
 
 ## 边界
 
-`ScreenSpaceReflection` 可独立用于 Built-in Forward 场景，默认关闭。它捕获不含角色的背景颜色和深度，用 Hi-Z 追踪与历史深度检查产生反射；通过 `OriginalStyleRenderPipeline.screenSpaceReflection` 或自己的 HDR 回调接入。保留旧显式加法入口，另有无加法 TryTrace 供统一消费者使用；Compute、SSR 粗糙度过滤与移动优化未完成。详见 [SSR 接入与限制](../../docs/screen-space-reflection.md)。
+`ScreenSpaceReflection` 可独立用于 Built-in Forward 场景，默认关闭。它捕获不含角色的背景颜色和深度，用 Hi-Z 追踪与历史深度检查产生反射；通过 `OriginalStyleRenderPipeline.screenSpaceReflection` 或自己的 HDR 回调接入。保留旧显式加法入口，另有无加法 TryTrace 供统一消费者使用；SSR 粗糙度过滤与移动优化未完成。详见 [SSR 接入与限制](../../docs/screen-space-reflection.md)。
+
+SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBackend.Compute`，使用相机私有 kernel 实例进行追踪／最小深度 RandomWrite。默认 Raster，支持显式能力降级与严格模式；桌面同输入结果有实际 GPU 对照，尚未证明性能提升。见 [计算后端](../../docs/scene-compute-backend.md)。
 
 `PlanarReflection` 提供默认关闭的镜像捕获与接收面投影，适用于角色／发光网格和镜面宿主。显式指定单 pass 材质和几何输入，输出独立的 HDR 反射与覆盖，支持画外网格、oblique 裁剪、实际深度遮挡及 smoothness mip。它不自动给已有材质增加反射。详见 [Planar 接入](../../docs/planar-reflection.md)。
 
