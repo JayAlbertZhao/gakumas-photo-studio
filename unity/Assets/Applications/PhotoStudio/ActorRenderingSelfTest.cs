@@ -156,6 +156,24 @@ namespace GakumasPhotoMode
                 if (_target != null) _target.Release();
                 foreach (UnityEngine.Object value in _owned) if (value != null) Destroy(value);
             }
+            string bakeBundle = Environment.GetEnvironmentVariable("GAKUMAS_SELFTEST_GI_BAKE_BUNDLE");
+            if (report.error == null && !string.IsNullOrEmpty(bakeBundle))
+            {
+                // Keep the historical suite before additive scene/probe state. Drive the
+                // iterator explicitly so asynchronous fixture failures enter the same report.
+                _owned.Clear();
+                var fixture = VerifyRealGiBake(report, bakeBundle);
+                while (true)
+                {
+                    bool more; object next = null;
+                    try { more = fixture.MoveNext(); if (more) next = fixture.Current; }
+                    catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); break; }
+                    if (!more) break;
+                    yield return next;
+                }
+                (fixture as IDisposable)?.Dispose();
+                report.accepted = report.error == null && report.checks.TrueForAll(check => check.accepted);
+            }
             if (!string.IsNullOrEmpty(_directory) && Directory.Exists(_directory))
                 File.WriteAllText(Path.Combine(_directory, "actor-synthetic.json"), JsonUtility.ToJson(report, true));
             Debug.Log("[ActorSelfTest] accepted=" + report.accepted + "; checks=" + report.checks.Count);

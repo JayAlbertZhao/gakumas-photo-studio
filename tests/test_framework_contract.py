@@ -326,5 +326,33 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertIn('response *= lerp(1, gi.rgb, light.response.z)', lights)
 
 
+    def test_reference_baker_is_editor_only_and_clones_before_uv_changes(self):
+        source = (ROOT / 'packages/com.digital-kotone.toolkit/Editor/SceneGiBaker.cs').read_text(encoding='utf-8')
+        for token in ('BakeSceneCopy(', 'AssetDatabase.CopyAsset(sourceScene, destination)',
+                      'UnityEngine.Object.Instantiate(filter.sharedMesh)', 'new Material(bound[i])',
+                      'Lightmapping.Bake()', 'Lightmapping.lightingDataAsset == null',
+                      'EditorSceneManager.RestoreSceneManagerSetup(setup)', 'AssetDatabase.GetDependencies(sourceScene, true)',
+                      'asset.sha256 == asset.sha256After', 'actualLightmapper', 'settings.lightmapper != options.lightmapper'):
+            self.assertIn(token, source)
+        self.assertLess(source.index('UnityEngine.Object.Instantiate(filter.sharedMesh)'), source.index('Unwrapping.GenerateSecondaryUVSet(mesh)'))
+        self.assertLess(source.index('SceneManager.GetSceneAt(i).isDirty'), source.index('Directory.CreateDirectory(destinationFolder)'))
+        self.assertIn('Directory.Exists(folder) || File.Exists(folder)', source)
+        self.assertNotIn('Lightmapping.ClearDiskCache', source)
+        self.assertNotIn('AssetDatabase.DeleteAsset', source)
+
+    def test_actual_baked_scene_tests_require_explicit_private_bundle(self):
+        app = ROOT / 'unity/Assets/Applications/PhotoStudio'
+        entry = (app / 'ActorRenderingSelfTest.cs').read_text(encoding='utf-8')
+        fixture = (app / 'ActorRenderingSelfTest.BakedGi.cs').read_text(encoding='utf-8')
+        self.assertIn('GAKUMAS_SELFTEST_GI_BAKE_BUNDLE', entry)
+        self.assertLess(entry.index('VerifySceneGi(report)'), entry.index('VerifyRealGiBake(report, bakeBundle)'))
+        for token in ('LoadSceneMode.Additive', 'LightProbes.Tetrahedralize()', 'LightProbes.GetInterpolatedProbe',
+                      'BakedGiRayUv(', 'BakedGiBilinear(', 'SkinnedMeshRenderer', 'UnloadSceneAsync',
+                      'SceneGiSource.RendererLightmap', 'SceneGiSource.SceneProbe'):
+            self.assertIn(token, fixture)
+        self.assertNotIn('AddAmbientLight', fixture)
+        self.assertNotIn('LightmapSettings.lightmaps =', fixture)
+
+
 if __name__ == '__main__':
     unittest.main()

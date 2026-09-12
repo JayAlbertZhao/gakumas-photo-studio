@@ -37,7 +37,7 @@ Package Manager 的 Samples 中提供相同用途的 **Minimal Character Host**�
 
 ## 构建自己的 Player
 
-当前团结版本的 URP 包会在 Built-in 构建时拒绝空 URP Asset 列表。包内提供从原摄影构建器原样抽出的 Editor 帮助类：在自己的 Editor 构建脚本中用 `GakumasPhotoMode.Editor.ToolkitBuildPipeline.BuildPlayer(options)` 代替 `BuildPipeline.BuildPlayer(options)`，options 仍为标准 `BuildPlayerOptions`。若使用 Editor asmdef，引用 `Gakumas.Toolkit.Editor`。
+当前团结版本的 URP 包会在 Built-in 构建时拒绝空 URP Asset 列表。包内提供来自原摄影构建器的 Editor 帮助类：在自己的 Editor 构建脚本中用 `GakumasPhotoMode.Editor.ToolkitBuildPipeline.BuildPlayer(options)` 代替 `BuildPipeline.BuildPlayer(options)`，options 仍为标准 `BuildPlayerOptions`。`ToolkitBuildPipeline.BuildAssetBundles(output, builds, options, target)` 为 Built-in bundle 构建复用同一作用域保护，结束后恢复变体设置；不切换活动渲染管线。若使用 Editor asmdef，引用 `Gakumas.Toolkit.Editor`。
 
 该帮助类仅在构建期间关闭 URP 的 unused-variant stripping，并在 finally 中恢复原设置；不会切换渲染管线。直接用默认 Build 按钮没有这个包装；也可自行管理相应 URP Global Settings。Windows 工程路径宜短，过长路径可能导致依赖包的 shadergraph 导入失败。
 
@@ -97,4 +97,4 @@ SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBack
 
 来源与许可边界见 [NOTICE](NOTICE.md)。包的技术可接入性不表示整个项目已获得统一开源再许可授权。
 
-`SceneGiInput` 给登记表面提供 Lightmap／SH 预计算漫反射响应，支持 UV2/ST、显式解码与 Renderer 场景绑定。可独立压低基础 GI，让方向光或贴花灯乘 GI，并添加漫反射背光。默认 None，不改旧摄影；运行时消费不等于完成白光烘焙生产或移动管线。见 [场景 GI](../../docs/scene-gi.md)。
+`SceneGiInput` 给登记表面提供 Lightmap／SH 预计算漫反射响应，支持 UV2/ST、显式解码与 Renderer 场景绑定。可独立压低基础 GI，让方向光或贴花灯乘 GI，并添加漫反射背光。Editor 的 `SceneGiBaker.BakeSceneCopy` 在新场景副本中生产白光参考烘焙，克隆 UV2／材质并验证源资产哈希；真实 Lightmap、场景探针和移动单骨网格已做桌面消费验证。默认 None，不改旧摄影；完整场景／角色和移动管线仍需各自验收。见 [场景 GI](../../docs/scene-gi.md)。

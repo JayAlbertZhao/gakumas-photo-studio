@@ -9,6 +9,8 @@
 | `unity/Assets/Scenes/PhotoMode.unity` | 原空场景，仍挂载同 GUID 的 PhotoModeApp |
 | `unity/Assets/Editor/Phase1Builder.cs` | 原 PhotoStudioBuilder 构建及本地验证入口 |
 | `packages/com.digital-kotone.toolkit/Editor/ToolkitBuildPipeline.cs`（仓库根目录起） | 复用原有 Built-in/URP 构建包装，构建后恢复设置，不参与 Player |
+| `packages/com.digital-kotone.toolkit/Editor/SceneGiBaker.cs` | 可复用白光参考烘焙：新场景／UV2／材质副本、实际 Lightmapping、源资产哈希与场景恢复 |
+| `unity/Assets/Editor/SceneGiBakeFixture.cs` | 自制场景烘焙与 scene bundle 验证入口；生成内容仅保存在本地 |
 | `unity/Assets/Applications/PhotoStudio/PhotoModeApp.cs` | 继承核心协调器；保留摄影 UI、快捷键、命令行、窗口/画质策略及原诊断入口 |
 | `CharacterSceneRuntime.cs`、`CharacterSceneRuntime.Api.cs`、`CharacterSceneOptions.cs` | 核心角色/场景协调及显式初始化、选择、暂停接口，不自动启动摄影应用 |
 | `BundleCatalog.cs`、`Phase1Manifest.cs` | 外部数据清单和 bundle 加载 |

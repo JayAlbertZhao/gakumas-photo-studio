@@ -1,6 +1,7 @@
 using System;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
+using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
@@ -12,8 +13,19 @@ namespace GakumasPhotoMode.Editor
         public static BuildReport BuildPlayer(BuildPlayerOptions options, bool originalShaderReference = false)
         {
             if (originalShaderReference) return BuildPipeline.BuildPlayer(options);
+            return WithBuiltinVariants(() => BuildPipeline.BuildPlayer(options));
+        }
+
+        public static AssetBundleManifest BuildAssetBundles(string output, AssetBundleBuild[] builds, BuildAssetBundleOptions options, BuildTarget target)
+        {
+            if (GraphicsSettings.currentRenderPipeline != null) return BuildPipeline.BuildAssetBundles(output, builds, options, target);
+            return WithBuiltinVariants(() => BuildPipeline.BuildAssetBundles(output, builds, options, target));
+        }
+
+        private static T WithBuiltinVariants<T>(Func<T> build)
+        {
             var settings = GraphicsSettings.GetSettingsForRenderPipeline<UniversalRenderPipeline>();
-            if (settings == null) return BuildPipeline.BuildPlayer(options);
+            if (settings == null) return build();
             var serialized = new SerializedObject(settings);
             var stripUnused = serialized.FindProperty("m_StripUnusedVariants");
             if (stripUnused == null)
@@ -26,7 +38,7 @@ namespace GakumasPhotoMode.Editor
                 // of activating URP or changing the ordinary render pipeline.
                 stripUnused.boolValue = false;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
-                return BuildPipeline.BuildPlayer(options);
+                return build();
             }
             finally
             {
