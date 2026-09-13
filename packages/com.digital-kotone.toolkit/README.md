@@ -110,3 +110,5 @@ SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBack
 `VolumetricLightingRenderer` 在有限均匀介质内积分最多 16 个聚光灯，消费显式当前深度并独立生成已登记几何的动态阴影。支持透视／正交／偏轴、相函数、质量档和 Hard／PCF 遮挡；默认不启用，不自动处理已有透明层。输入／资源所有权和使用示例见 [体积光](../../docs/volumetric-lighting.md)。
 
 `LensFlareRenderer` 消费当前完整深度，给可配置的 Flare／Ghost 元素计算源可见比例；支持自有线性 atlas、确定性动画、实例化及低分辨率绘制。独立输入、借用帧和默认关闭的应用桥接见 [Flare／Ghost](../../docs/lens-flares.md)。不依赖 ProFlare 或原版素材。
+
+`LowResolutionFxRenderer` 消费当前 HDR／不透明深度和有序网格或 Renderer，按显式 Full／Half／Quarter 批次组合透明、加法和折射；深度边缘用原几何重画，折射读取先前已合成的背景。纹理、顶点颜色、软交点、逐面雾和生成粒子网格可独立使用，默认不接入摄影。借用帧、目标预算和完整重特效调度的剩余范围见 [分层透明特效](../../docs/low-resolution-fx.md)。

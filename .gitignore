@@ -53,6 +53,7 @@
 !/docs/framework-techniques.md
 !/docs/hdr-monitor.md
 !/docs/lens-flares.md
+!/docs/low-resolution-fx.md
 !/docs/motion-blur.md
 !/docs/planar-reflection.md
 !/docs/release.md
@@ -199,6 +200,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/LensFlareRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/LensFlareSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/LensFlareSettings.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/LowResolutionFxRenderer.cs
+!/packages/com.digital-kotone.toolkit/Runtime/LowResolutionFxRenderer.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/LowResolutionFxSettings.cs
+!/packages/com.digital-kotone.toolkit/Runtime/LowResolutionFxSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/MaterialRepairer.cs
 !/packages/com.digital-kotone.toolkit/Runtime/MaterialRepairer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/MonitorEmissionMaterial.cs
@@ -265,6 +270,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolumeSurface.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/LensFlare.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/LensFlare.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/LowResolutionFx.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/LowResolutionFx.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorCanvas.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorCanvas.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorEmission.shader
@@ -405,6 +412,7 @@
 !/tests/test_framework_contract.py
 !/tests/test_lens_flare_contract.py
 !/tests/test_local_assets.py
+!/tests/test_low_resolution_fx_contract.py
 !/tests/test_motion_blur_contract.py
 !/tests/test_release.py
 !/tests/test_rendering_contract.py
@@ -444,6 +452,10 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.LightShadow.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Lights.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Lights.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.LowResolutionFx.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.LowResolutionFx.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.LowResolutionFxDynamic.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.LowResolutionFxDynamic.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MainShadow.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MainShadow.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Monitor.cs

@@ -74,6 +74,12 @@ namespace GakumasPhotoMode
         public string LensFlareUnavailableReason { get; private set; }
         public bool TryGetLensFlareFrame(out LensFlareRenderer.Frame frame)
         { frame=default; return _lensFlares!=null && _lensFlares.TryGetFrame(out frame); }
+        public LowResolutionFxSettings lowResolutionFx = new LowResolutionFxSettings();
+        public Func<Camera, RenderTexture, FogVolumeDepth> lowResolutionFxDepthProvider;
+        private LowResolutionFxRenderer _lowResolutionFx;
+        public string LowResolutionFxUnavailableReason { get; private set; }
+        public bool TryGetLowResolutionFxFrame(out LowResolutionFxRenderer.Frame frame)
+        { frame=default; return _lowResolutionFx!=null && _lowResolutionFx.TryGetFrame(out frame); }
         public TemporalClassification temporalClassification;
         // Explicit alternative to the unchanged legacy temporal pass. Same camera only.
         public SceneDeferredCamera sceneTemporalSource;
@@ -361,6 +367,7 @@ namespace GakumasPhotoMode
                 current = ApplySceneDistanceFog(current, temporaries);
                 current = ApplySphereFog(current, temporaries);
             }
+            current=ApplyLowResolutionFx(current);
             current=ApplyVolumetricLighting(current);
             current=ApplyLensFlares(current);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "--legacy-diffusion") >= 0)
@@ -664,6 +671,21 @@ namespace GakumasPhotoMode
             _postMaterial.SetTexture("_TemporalFlagsTex", active ? mask : Texture2D.blackTexture);
             _postMaterial.SetVector("_TemporalJitterUv", active ?
                 new Vector4(temporalClassification.jitterUv.x, temporalClassification.jitterUv.y, 0, 0) : Vector4.zero);
+        }
+
+        private RenderTexture ApplyLowResolutionFx(RenderTexture source)
+        {
+            LowResolutionFxUnavailableReason=null;
+            if(lowResolutionFx==null || !lowResolutionFx.enabled) { _lowResolutionFx?.Dispose(); _lowResolutionFx=null; return source; }
+            try
+            {
+                if(lowResolutionFxDepthProvider==null) { _lowResolutionFx?.Dispose(); LowResolutionFxUnavailableReason="Explicit current opaque FX depth provider required"; return source; }
+                var depth=lowResolutionFxDepthProvider(_sourceCamera,source);
+                if(_lowResolutionFx==null) _lowResolutionFx=new LowResolutionFxRenderer();
+                if(_lowResolutionFx.TryRender(source,depth,_sourceCamera,lowResolutionFx,out var frame)) return frame.color;
+                LowResolutionFxUnavailableReason=_lowResolutionFx.UnavailableReason; return source;
+            }
+            catch(Exception error) { _lowResolutionFx?.Dispose(); LowResolutionFxUnavailableReason="FX depth provider failed: "+error.GetType().Name; return source; }
         }
 
         private RenderTexture ApplyLensFlares(RenderTexture source)
@@ -1358,6 +1380,7 @@ namespace GakumasPhotoMode
             _fogVolumes?.Dispose();_fogVolumes=null;
             _volumetricLighting?.Dispose();_volumetricLighting=null;
             _lensFlares?.Dispose();_lensFlares=null;
+            _lowResolutionFx?.Dispose();_lowResolutionFx=null;
             ReleaseActorData();
             ReleaseHistory();
             if (_postMaterial != null) DestroyImmediate(_postMaterial);

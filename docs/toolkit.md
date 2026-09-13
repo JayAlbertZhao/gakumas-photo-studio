@@ -27,6 +27,8 @@
 
 镜头光学元素可用 `LensFlareSettings`／`LensFlareRenderer`：独立配置 Flare、Ghost、光环、星芒或自有 atlas，完整深度决定源遮挡，显式时间支持暂停／seek；一次实例化绘制可输出低分辨率附件。默认关闭，使用与 P09 调度边界见 [Flare／Ghost](lens-flares.md)。
 
+几何透明特效可用 `LowResolutionFxSettings`／`LowResolutionFxRenderer`：宿主显式排序 Full／Half／Quarter 表面，支持 Alpha／Additive／折射、当前深度引导与完整分辨率边缘重画。可提交网格、Renderer 或生成的粒子网格；贴图、蒙皮更新和生命周期由宿主管理。默认关闭，输入与尚未统一的体积／光学调度边界见 [分层透明特效](low-resolution-fx.md)。
+
 | 需要做的事 | 入口 |
 | --- | --- |
 | 显式初始化 | `Initialize(CharacterSceneOptions)`；DataRoot 必填 |
