@@ -56,7 +56,7 @@
       "baseline_sha256": "8d96a3cfdc758ef1ee6ac5c8c6b4f6900c2bfe45676e786ee3c169a59881db72"
     },
     "unity/Assets/Scripts/OriginalStyleRenderPipeline.cs": {
-      "sha256": "280a76750e8f94f2c77e56bb2adba6068f971737525be1d2e09253b5e17178c0",
+      "sha256": "15c74c44f0ac1afd438b0bf38f2a31d67dfb6728c1531e69a67b2dd2e046561d",
       "baseline_sha256": "08bc0a1eb0da8430850929da1a2ac27e3ae63426d06257c58fbfe6501ffa062d"
     },
     "unity/Assets/Scripts/PhotoModeApp.cs": {
@@ -103,7 +103,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "7e3feeb1dc39ad3d9dd0ce9ee376e8573208943f2ecfc691a709d082a116df85",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "389ed50f2a60fa1bb7d79f68f1469f2f010e6514c943e231bfd2dd77db72d4c1",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "f7ed80552027f273ec73b1a31cd4efcbf2d3ad628d6237047e61d8a45db89aad",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
@@ -319,7 +319,23 @@
     "packages/com.digital-kotone.toolkit/Runtime/Resources/BokehDepthOfField.shader": "aa2323c0c102ce5a860fb3c846ea2602245e8997753a0c0a75af091c8b1e3e4f",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/BokehDepthOfField.shader.meta": "58da4683f4dec6341833a192feb8bc56ce05a679515faf63f9b692b1e9cd5bf1",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Bokeh.cs": "8ad6454d0eac643eb86c59d0b514c0a24e3108388eea325392c2e7c831ecdb32",
-    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Bokeh.cs.meta": "ccca229d3575785e6d5696968e516394397c21b0d97af0f381705b8772718273"
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Bokeh.cs.meta": "ccca229d3575785e6d5696968e516394397c21b0d97af0f381705b8772718273",
+    "packages/com.digital-kotone.toolkit/Runtime/ColorGradingLut.cs": "40a33caae875ef4ac023317d6c69735ddad9cc1543652281b4b246968dbcf417",
+    "packages/com.digital-kotone.toolkit/Runtime/ColorGradingLut.cs.meta": "461ef5e6b391df3dec7765ab578e54984185026be876f22e43c869e7b99a9df9",
+    "packages/com.digital-kotone.toolkit/Runtime/ColorGradingMath.cs": "7cef096555f6c6903a585f8df7b50ba1efb0823292ea4a40292f2c0cad8ee202",
+    "packages/com.digital-kotone.toolkit/Runtime/ColorGradingMath.cs.meta": "6d0fe77f7556a3c37964f8c7c26c6c4cbed1f2b36e6213de160c5578c12cf11d",
+    "packages/com.digital-kotone.toolkit/Runtime/ColorGradingProfile.cs": "1d536984b15f5b4eff1130160adfd3ed6288ef5f4b8817aaaba7b958060d8b30",
+    "packages/com.digital-kotone.toolkit/Runtime/ColorGradingProfile.cs.meta": "656bbaf7bc5eaec789fb7caa3be8d5a9ca939a39ecea2a79b92b1d9fedb6c839",
+    "packages/com.digital-kotone.toolkit/Runtime/ColorGradingProfileAsset.cs": "c41393538c2c259b027f4f1123efb12fdc40702d278736713f9ab3f558955c28",
+    "packages/com.digital-kotone.toolkit/Runtime/ColorGradingProfileAsset.cs.meta": "e86195efd277cf2b1f51f19d31c17375ae28e8748c31bce487e3b9b0c24c8b80",
+    "packages/com.digital-kotone.toolkit/Runtime/ColorGradingRenderer.cs": "9f616cd6162ff862e616312ec3bcf2901102d420594c5609d132cdb213c4cdd4",
+    "packages/com.digital-kotone.toolkit/Runtime/ColorGradingRenderer.cs.meta": "92ea15881b9ad25f9a220d1827a73a755576dc2b52a206ab3ad537726cf81725",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/AuthoredColorLut.shader": "3f98cc7ec7d6e175358d3c56ee33750e43aee94be24f35558bdb4f0ffc10444b",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/AuthoredColorLut.shader.meta": "55eb6d7299cd7e933500392395117c4bae62e3da48f9939e7c88c0fa5a179348",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/AuthoredPostComposite.shader": "9579c7983f57de855a060ca4caf063cedce6d3c9f3b160865719d111791c89cf",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/AuthoredPostComposite.shader.meta": "a1725e018b3391e859b3a03c78ad7434784b9463e75e761bca90fa0bb334bd7d",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ColorGrading.cs": "ee239fb66055e3691a3dd41c0b08c1d7235e0bc1b19acad51dac28aef9f2bf62",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ColorGrading.cs.meta": "bb02664bd63441b4ef1b789b6bbfc7b2372c146656a257487a5f05f27ac91bc5"
   },
   "relocations": {
     "unity/Assets/ActorAnimationStub/ActorAnimation.Runtime.asmdef": "packages/com.digital-kotone.toolkit/Runtime/Compatibility/ActorAnimationStub/ActorAnimation.Runtime.asmdef",

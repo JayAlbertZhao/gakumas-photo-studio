@@ -66,6 +66,15 @@ namespace GakumasPhotoMode
         public ScreenSpaceReflection screenSpaceReflection;
         public SceneReflectionResolve sceneReflectionResolve;
 
+        // Caller owns the immutable LUT; explicit replacement, never a second grade over the old LUT.
+        public bool useAuthoredColorGrading;
+        public ColorGradingLut authoredColorLut;
+        private ColorGradingRenderer _authoredColorRenderer;
+        private Material _authoredComposite;
+        public string AuthoredColorUnavailableReason { get; private set; }
+        public bool TryGetAuthoredColorFrame(out ColorGradingRenderer.Frame frame)
+        { frame=default;return _authoredColorRenderer!=null && _authoredColorRenderer.TryGetFrame(out frame); }
+
         private Camera _sourceCamera;
         private Camera _actorCamera;
         private Material _postMaterial;
@@ -167,7 +176,7 @@ namespace GakumasPhotoMode
                 if (paraffin != null)
                     _paraffinMaterial = new Material(paraffin) { hideFlags = HideFlags.HideAndDontSave };
             }
-            EnsureCapturedColorLut();
+            if(!useAuthoredColorGrading) EnsureCapturedColorLut();
             if (_actorDataShader == null) _actorDataShader = Resources.Load<Shader>("ActorDataReplacement");
             if (_actorCamera == null)
             {
@@ -506,7 +515,13 @@ namespace GakumasPhotoMode
             RenderTexture finalColor = GetTemporary(
                 finalDestination.width, finalDestination.height,
                 RenderTextureFormat.ARGBHalf, temporaries);
-            Graphics.Blit(postInput, finalColor, _postMaterial, 5);
+            if(useAuthoredColorGrading)
+                ApplyAuthoredColor(postInput,finalColor,temporaries);
+            else
+            {
+                ReleaseAuthoredColor();
+                Graphics.Blit(postInput, finalColor, _postMaterial, 5);
+            }
             // The original frame has a full-resolution temporal accumulation target. Once
             // temporal resolve is active, a second full-strength FXAA pass unnecessarily
             // softens eyelashes and hair cards, so finalColor is presented directly.
@@ -522,6 +537,39 @@ namespace GakumasPhotoMode
             texture.wrapMode = TextureWrapMode.Clamp;
             collection.Add(texture);
             return texture;
+        }
+
+        private void ApplyAuthoredColor(RenderTexture source,RenderTexture destination,ICollection<RenderTexture> temporaries)
+        {
+            AuthoredColorUnavailableReason=null;
+            try
+            {
+                var shader=Resources.Load<Shader>("AuthoredPostComposite");
+                if(authoredColorLut==null || !authoredColorLut.IsValid || shader==null || !shader.isSupported)
+                    throw new InvalidOperationException("Live authored LUT and HDR composite shader required");
+                if(_authoredComposite==null) _authoredComposite=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
+                _authoredComposite.CopyPropertiesFromMaterial(_postMaterial);
+                var hdr=GetTemporary(destination.width,destination.height,RenderTextureFormat.ARGBFloat,temporaries);
+                hdr.name="Toolkit authored pre-grade HDR";
+                Graphics.Blit(source,hdr,_authoredComposite,0);
+                if(_authoredColorRenderer==null) _authoredColorRenderer=new ColorGradingRenderer();
+                if(!_authoredColorRenderer.TryRender(hdr,authoredColorLut,out var frame))
+                    throw new InvalidOperationException(_authoredColorRenderer.UnavailableReason);
+                Graphics.Blit(frame.color,destination);
+            }
+            catch(Exception error)
+            {
+                _authoredColorRenderer?.Dispose();
+                AuthoredColorUnavailableReason="Authored color unavailable: "+error.Message;
+                Graphics.Blit(source,destination); // Explicit failure: ungraded HDR, never private/old LUT fallback.
+            }
+        }
+
+        private void ReleaseAuthoredColor()
+        {
+            _authoredColorRenderer?.Dispose();_authoredColorRenderer=null;
+            if(_authoredComposite!=null) DestroyImmediate(_authoredComposite);
+            _authoredComposite=null;AuthoredColorUnavailableReason=null;
         }
 
         public bool TryGetSceneDistanceFog(out Vector4 parameters, out Color linearColor)
@@ -1219,6 +1267,7 @@ namespace GakumasPhotoMode
 
         private void OnDisable()
         {
+            ReleaseAuthoredColor();
             _bokehDepthOfField?.Dispose();_bokehDepthOfField=null;
             ReleaseActorData();
             ReleaseHistory();
