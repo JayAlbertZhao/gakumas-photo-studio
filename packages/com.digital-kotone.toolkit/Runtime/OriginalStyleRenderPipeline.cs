@@ -66,6 +66,14 @@ namespace GakumasPhotoMode
         public string VolumetricLightingUnavailableReason {get;private set;}
         public bool TryGetVolumetricLightingFrame(out VolumetricLightingRenderer.Frame frame)
         {frame=default;return _volumetricLighting!=null&&_volumetricLighting.TryGetFrame(out frame);}
+        public LensFlareSettings lensFlares = new LensFlareSettings();
+        public Func<Camera, RenderTexture, FogVolumeDepth> lensFlareDepthProvider;
+        // Explicit timeline, so seeking/pause never depends on this component's wall clock.
+        public double lensFlareTimeSeconds;
+        private LensFlareRenderer _lensFlares;
+        public string LensFlareUnavailableReason { get; private set; }
+        public bool TryGetLensFlareFrame(out LensFlareRenderer.Frame frame)
+        { frame=default; return _lensFlares!=null && _lensFlares.TryGetFrame(out frame); }
         public TemporalClassification temporalClassification;
         // Explicit alternative to the unchanged legacy temporal pass. Same camera only.
         public SceneDeferredCamera sceneTemporalSource;
@@ -354,6 +362,7 @@ namespace GakumasPhotoMode
                 current = ApplySphereFog(current, temporaries);
             }
             current=ApplyVolumetricLighting(current);
+            current=ApplyLensFlares(current);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "--legacy-diffusion") >= 0)
             {
                 RenderTexture legacyDiffused = GetTemporary(
@@ -655,6 +664,21 @@ namespace GakumasPhotoMode
             _postMaterial.SetTexture("_TemporalFlagsTex", active ? mask : Texture2D.blackTexture);
             _postMaterial.SetVector("_TemporalJitterUv", active ?
                 new Vector4(temporalClassification.jitterUv.x, temporalClassification.jitterUv.y, 0, 0) : Vector4.zero);
+        }
+
+        private RenderTexture ApplyLensFlares(RenderTexture source)
+        {
+            LensFlareUnavailableReason=null;
+            if (lensFlares==null || !lensFlares.enabled) { _lensFlares?.Dispose(); _lensFlares=null; return source; }
+            try
+            {
+                if (lensFlareDepthProvider==null) { _lensFlares?.Dispose(); LensFlareUnavailableReason="Explicit current flare depth provider required"; return source; }
+                var depth=lensFlareDepthProvider(_sourceCamera,source);
+                if (_lensFlares==null) _lensFlares=new LensFlareRenderer();
+                if (_lensFlares.TryRender(source,depth,_sourceCamera,lensFlares,lensFlareTimeSeconds,out var frame)) return frame.color;
+                LensFlareUnavailableReason=_lensFlares.UnavailableReason; return source;
+            }
+            catch (Exception e) { _lensFlares?.Dispose(); LensFlareUnavailableReason="Flare depth provider failed: "+e.GetType().Name; return source; }
         }
 
         private RenderTexture ApplyVolumetricLighting(RenderTexture source)
@@ -1333,6 +1357,7 @@ namespace GakumasPhotoMode
             _bokehDepthOfField?.Dispose();_bokehDepthOfField=null;
             _fogVolumes?.Dispose();_fogVolumes=null;
             _volumetricLighting?.Dispose();_volumetricLighting=null;
+            _lensFlares?.Dispose();_lensFlares=null;
             ReleaseActorData();
             ReleaseHistory();
             if (_postMaterial != null) DestroyImmediate(_postMaterial);

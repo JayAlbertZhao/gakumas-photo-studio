@@ -108,3 +108,5 @@ SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBack
 `FogVolumeRenderer` 通过不可变 `FogVolumeBinding` 消费宿主自己的 HDR／设备或线性深度，联合处理距离介质和最多八个球；默认不启用。透明表面共用同一绑定，先求不透明雾，再按自身深度求雾并覆盖混合。示范表面使用显式线性 Vector 颜色，不自动接管已有透明材质。使用与边界见 [多介质雾](../../docs/fog-volumes.md)。
 
 `VolumetricLightingRenderer` 在有限均匀介质内积分最多 16 个聚光灯，消费显式当前深度并独立生成已登记几何的动态阴影。支持透视／正交／偏轴、相函数、质量档和 Hard／PCF 遮挡；默认不启用，不自动处理已有透明层。输入／资源所有权和使用示例见 [体积光](../../docs/volumetric-lighting.md)。
+
+`LensFlareRenderer` 消费当前完整深度，给可配置的 Flare／Ghost 元素计算源可见比例；支持自有线性 atlas、确定性动画、实例化及低分辨率绘制。独立输入、借用帧和默认关闭的应用桥接见 [Flare／Ghost](../../docs/lens-flares.md)。不依赖 ProFlare 或原版素材。

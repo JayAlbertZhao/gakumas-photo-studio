@@ -25,6 +25,8 @@
 
 带遮挡的光束可用 `VolumetricLightingSettings`／`VolumetricLightingRenderer`：有限均匀介质中的最多 16 个聚光灯单次散射，宿主登记的刚体／蒙皮／cutout 几何每次产生光源阴影。默认关闭，显式输入当前 HDR／深度，接入及透明层／成本限制见 [体积光](volumetric-lighting.md)。
 
+镜头光学元素可用 `LensFlareSettings`／`LensFlareRenderer`：独立配置 Flare、Ghost、光环、星芒或自有 atlas，完整深度决定源遮挡，显式时间支持暂停／seek；一次实例化绘制可输出低分辨率附件。默认关闭，使用与 P09 调度边界见 [Flare／Ghost](lens-flares.md)。
+
 | 需要做的事 | 入口 |
 | --- | --- |
 | 显式初始化 | `Initialize(CharacterSceneOptions)`；DataRoot 必填 |

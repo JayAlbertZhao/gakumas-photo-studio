@@ -56,7 +56,7 @@
       "baseline_sha256": "8d96a3cfdc758ef1ee6ac5c8c6b4f6900c2bfe45676e786ee3c169a59881db72"
     },
     "unity/Assets/Scripts/OriginalStyleRenderPipeline.cs": {
-      "sha256": "a6b39225d6bc4f81e13f6ec02415e461dc81b65626e6b8630176b8640107d6c8",
+      "sha256": "d75e6b842ae91caa04f2303040fbdb2ed8d4029d862d2f27d56bef664a0758b4",
       "baseline_sha256": "08bc0a1eb0da8430850929da1a2ac27e3ae63426d06257c58fbfe6501ffa062d"
     },
     "unity/Assets/Scripts/PhotoModeApp.cs": {
@@ -103,7 +103,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "7e3feeb1dc39ad3d9dd0ce9ee376e8573208943f2ecfc691a709d082a116df85",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "ec8086214d4a4fa6f799e06080ae83c37c9eb2b9bde665128eaeb70196bdf3ff",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "edb56e1f49e040c3a72022fdf5adb0c6054577feb635886fe3b892ea11f1ecc7",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
@@ -137,7 +137,7 @@
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs": "93267c4f15f0a7b3dcf3e1d3b1e07ced8258c9854d6ed1de91231a88aedce443",
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs.meta": "75aad888d4351b0776443c7e5751c3d105b6d12acf55d926068d065dfa837552",
     "packages/com.digital-kotone.toolkit/NOTICE.md": "81a4267084c7405793f975954b0b386565322e0d8b8c28a5a39ad3d49fbcc806",
-    "packages/com.digital-kotone.toolkit/README.md": "02fc9256a8c8740540856ff9b21758cafdf2e71956cdaf9f73420c911750864e",
+    "packages/com.digital-kotone.toolkit/README.md": "cda4958dcac07ba709d6032281007f5b70fc4d65acc5cfc5e86c2ddb502170d2",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef": "6337904b37c3452d23c72a5c38b37d9e36a1de06dcfc262db792ddb141df3ccb",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef.meta": "b97945697274955dd36c6850061768b3522c5aa5768d95eb5401c2704ab0f013",
     "packages/com.digital-kotone.toolkit/Editor/ToolkitBuildPipeline.cs": "d82bdbb42be1669477bc12630ddddf5a7a7331bb04109dc879a9fcd76fe5f1d1",
@@ -369,7 +369,15 @@
     "packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingSettings.cs": "ec09a0d956337012e84c5bb2d1bc262d594d0ea2ba94f4d37764b761459e4677",
     "packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingSettings.cs.meta": "8938d0d00d2155ad207f03cf7474be1e2af65ae6cb93181997cdf0ef6c7c4e9d",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Volumetric.cs": "d1785019550b7eafbf207fb135502fa539c3dd95d1ae137915858ea8fa0d077b",
-    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Volumetric.cs.meta": "d5fa3c989a6c9ac56465c9d2f4f3f0b7a5f3cfbfb99e8543891c5dd0722cb458"
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Volumetric.cs.meta": "d5fa3c989a6c9ac56465c9d2f4f3f0b7a5f3cfbfb99e8543891c5dd0722cb458",
+    "packages/com.digital-kotone.toolkit/Runtime/LensFlareRenderer.cs": "efa3b2660dee586cd921cdacd30dbf40c8532ac3419d527b9c71fa87e19ac3d4",
+    "packages/com.digital-kotone.toolkit/Runtime/LensFlareRenderer.cs.meta": "f125906f72e3b65a00f69106753316494b53ee5bc86e01d427559c3a7797f668",
+    "packages/com.digital-kotone.toolkit/Runtime/LensFlareSettings.cs": "7d84d0193d9706c3913dd57855bd2540b00e3061708ad11df43f98525df03af7",
+    "packages/com.digital-kotone.toolkit/Runtime/LensFlareSettings.cs.meta": "f8874293c5461e2411ce018f59a68d2530683165abd7f87995c868782a012850",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/LensFlare.shader": "e6cdb6f9fb6fc34008558898da1e8eacc1b79c6bdb71a2eb26ea685677c9b223",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/LensFlare.shader.meta": "b538f2a6525eecff6ff997f225575d4ec8373e7cda72d5d6fa256ee9d0a54689",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.LensFlare.cs": "dab330e66983f698dc238ef77fe950343338c06f31bedcb030396edc1d88ffcb",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.LensFlare.cs.meta": "37d6f8067172f13c67d7a4d854aa49f218f18c61179b421458ba1c497ee718e7"
   },
   "relocations": {
     "unity/Assets/ActorAnimationStub/ActorAnimation.Runtime.asmdef": "packages/com.digital-kotone.toolkit/Runtime/Compatibility/ActorAnimationStub/ActorAnimation.Runtime.asmdef",
