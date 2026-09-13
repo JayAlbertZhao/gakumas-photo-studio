@@ -19,7 +19,7 @@
 | A02 | Def、肌肤／非肌肤双 Ramp、质感 Ramp、发高光；PPT 40–49 | 已有复现 | 对照各输入的数值、采样器及混合顺序 |
 | A03 | UV2 Layer 同时控制颜色与 Def；PPT 50–51 | 已有材质路径及可逆控制 | 更广服装、动作和光照组合 |
 | A04 | 主光、附加光、rim、环境镜面；PPT 27–32 | 已有 | 独立自阴影／背景投影及附加光角度语义完整对照 |
-| A05 | 顶点 nibble 打包、专用描边法线；PPT 67–74 | runtime 解码与切线挤出已有；新增 ActorVertexEncoding | 已有编码／解码与向量转换接口；Maya 导出插件和自动平滑法线生成未实现 |
+| A05 | 顶点 nibble 打包、专用描边法线；PPT 67–74 | runtime 解码与切线挤出、ActorVertexEncoding；新增显式 [描边向量自动生成](outline-authoring.md)：同位置分组、角度加权及独立网格／blend-frame tangent 副本 | 自制三角化、接缝和原生蒙皮整图有对照；Maya 导出插件、原 UVSet 交换格式、生产角色／服装及动态组合的视觉一致性仍待完成 |
 | A06 | 稀疏面部形变、骨与视角修形；PPT 54–65 | 默认 CPU 保留；新增可选 [GraphicsBuffer GPU 后端](gpu-face-deformation.md)，原有权重／眨眼／视角修形共用；另有只读的当前选中顶点来源 | 桌面逐顶点、原生 compute→draw 及一个真实角色已对照，定位器覆盖全部 108 个单独形状；完整角色／服装、其他 CPU 几何消费者、GPU 帧时和移动驱动仍待完成 |
 | A07 | 可动画面部贴花；PPT 58、62；PDF 29 | 新增默认关闭的 [独立可动画贴花](animated-face-decals.md)：显式接收面、投影／UV／混合、AnimationClip／类型化曲线及 Planar；可消费 [共享制作数据](performance-authoring.md) | 桌面全图、实际蒙皮／GPU 顶点及一个角色全部 108 个单独形状已对照；其他角色／服装／制作动作、Maya 客户端制作／导出实测及移动成本仍待完成 |
 | A08 | MotionEffect 材质／Prefab／粒子／定位器；PPT 52、59–62 | 已有 [预制体／Local 粒子／Playable](motion-effects.md) 与 [当前面部顶点定位器](vertex-locators.md)；新增 [共享制作曲线、材质区间与 FBX／sidecar 转换](performance-authoring.md)，显式绑定和统一时钟 | 桌面粒子／顶点／整图重放已验证；Blender 原生关键帧、自定义属性 FBX 导入及 Player 联合消费已实测；通用蒙皮 provider、世界轨迹／制作特效、Maya 客户端和生产 rig、移动成本仍待完成 |

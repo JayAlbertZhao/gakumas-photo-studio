@@ -107,7 +107,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "7e3feeb1dc39ad3d9dd0ce9ee376e8573208943f2ecfc691a709d082a116df85",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "e7771c708a2e9a11939817d179b6f19fa6877803306c614d7deeeb4f65a685ce",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "3462ffc90c7513b0eab7d73660e9cc136367b3215794ab3507eb347788fd3d71",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
@@ -551,7 +551,11 @@
     "packages/com.digital-kotone.toolkit/Runtime/SceneWaterSettings.cs": "393370da112c7abd3233c207d3084f3228e5be83c52be2974118a0d1463e46a9",
     "packages/com.digital-kotone.toolkit/Runtime/SceneWaterSettings.cs.meta": "3ef2c41e939d4ca50ef6201267e2ee8d3ab894df84ece83d4de04df95106ae89",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Water.cs": "040b654a8889dbf89ca2a1edf140768835e170b1b11bdb19015685c007e41deb",
-    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Water.cs.meta": "3172ee53773eb1e83a3dfc7645a0116d55a373f04744dfb64ed3e09b4388b752"
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Water.cs.meta": "3172ee53773eb1e83a3dfc7645a0116d55a373f04744dfb64ed3e09b4388b752",
+    "packages/com.digital-kotone.toolkit/Runtime/ActorOutlineAuthoring.cs": "0991958017b6df7e562dd01c949482f3bff0d3542da87079744c79f13ad09b4e",
+    "packages/com.digital-kotone.toolkit/Runtime/ActorOutlineAuthoring.cs.meta": "4db59d966d52761da0b359d122bb43be880068c9abb85a66b8669a0a228d4612",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.OutlineAuthoring.cs": "9fc01538da5538c6615226a9faf5628a98b7b037a1c317e7098ceb4048f2ada0",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.OutlineAuthoring.cs.meta": "6c2a2b56bf9968d17cb19a6df99c69b251f19b8f7bd88245f6585c5734aaa4ed"
   },
   "relocations": {
     "unity/Assets/ActorAnimationStub/ActorAnimation.Runtime.asmdef": "packages/com.digital-kotone.toolkit/Runtime/Compatibility/ActorAnimationStub/ActorAnimation.Runtime.asmdef",
