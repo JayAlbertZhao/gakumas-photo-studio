@@ -107,7 +107,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "7e3feeb1dc39ad3d9dd0ce9ee376e8573208943f2ecfc691a709d082a116df85",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "3462ffc90c7513b0eab7d73660e9cc136367b3215794ab3507eb347788fd3d71",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "d8465438b728492203bb11264293963da71e42f1e1bd60636d269205c386e0d3",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
@@ -476,7 +476,7 @@
     "unity/Assets/Editor/PerformanceAuthoringValidation.cs.meta": "068657c23062c719bfe3b87b60168acd85359656663817cec685b7c446dbd3a9",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneForwardLightGrid.compute": "54365ed2fa3e06b9b9137e5480fbc4ee91182d79d3e68ed33b63898db4d9814a",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneForwardLightGrid.compute.meta": "bdd43d5161fb4a00618635e505bc2a001ba32f06ebd8c99e84ad7d04452d859f",
-    "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneForwardLighting.hlsl": "d6886aafd1dd2093ac2f1dc268671813684b6d1d74174e1311fc5f7e2c270542",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneForwardLighting.hlsl": "159d34d2231f574d7fed547e82ef06b9104d3ee44819bdb7409463651a210140",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneForwardLighting.hlsl.meta": "baea9033268baebe2b7482447df9ec1e684e4c59df082c093fd9d50fb1242a65",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneForwardLighting.shader": "68487b2c010b1b3be47096a251fbc2eca0bf57ffa1fd550ed0e3ab7704d42a65",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneForwardLighting.shader.meta": "b91b17512e336c01199b2e13afa6f4cda9f9229aefad5f89a6c02c2b1ded953d",
@@ -555,7 +555,9 @@
     "packages/com.digital-kotone.toolkit/Runtime/ActorOutlineAuthoring.cs": "0991958017b6df7e562dd01c949482f3bff0d3542da87079744c79f13ad09b4e",
     "packages/com.digital-kotone.toolkit/Runtime/ActorOutlineAuthoring.cs.meta": "4db59d966d52761da0b359d122bb43be880068c9abb85a66b8669a0a228d4612",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.OutlineAuthoring.cs": "9fc01538da5538c6615226a9faf5628a98b7b037a1c317e7098ceb4048f2ada0",
-    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.OutlineAuthoring.cs.meta": "6c2a2b56bf9968d17cb19a6df99c69b251f19b8f7bd88245f6585c5734aaa4ed"
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.OutlineAuthoring.cs.meta": "6c2a2b56bf9968d17cb19a6df99c69b251f19b8f7bd88245f6585c5734aaa4ed",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ForwardBasis.cs": "e8cbe340e31670c5b320e8908d8a577181b26513e41e0d513e84c3d554e1347b",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ForwardBasis.cs.meta": "dad6d56a0c6956a5733c0cf23df51e1c939734b5729a6b3960fd424d36b9a286"
   },
   "relocations": {
     "unity/Assets/ActorAnimationStub/ActorAnimation.Runtime.asmdef": "packages/com.digital-kotone.toolkit/Runtime/Compatibility/ActorAnimationStub/ActorAnimation.Runtime.asmdef",

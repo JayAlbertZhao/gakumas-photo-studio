@@ -25,7 +25,7 @@
 | A08 | MotionEffect 材质／Prefab／粒子／定位器；PPT 52、59–62 | 已有 [预制体／Local 粒子／Playable](motion-effects.md) 与 [当前面部顶点定位器](vertex-locators.md)；新增 [共享制作曲线、材质区间与 FBX／sidecar 转换](performance-authoring.md)，显式绑定和统一时钟 | 桌面粒子／顶点／整图重放已验证；Blender 原生关键帧、自定义属性 FBX 导入及 Player 联合消费已实测；通用蒙皮 provider、世界轨迹／制作特效、Maya 客户端和生产 rig、移动成本仍待完成 |
 | A09 | 辅助骨、链、碰撞、参考角度、滑动、跨轴力；PPT 75–78、90–93 | 已有多个求解模块 | 全服装范围、极端动作、坐姿边界与动态对照 |
 | A10 | 自然风、阵风和停歇；PPT 94 | 新增 NaturalWindSettings 及角色接入 | 见下方接口；原版资产参数映射和全动作视觉一致性未验收 |
-| E01 | 背景 PBR 及其 Def 通道；PPT 108 | 已有背景 fallback | 特殊材质、更多场景输入与 shader 变体 |
+| E01 | 背景 PBR 及其 Def 通道；PPT 108 | 已有背景 fallback；透明／特效共享 [法线贴图基](forward-normal-basis.md) 按实际矩阵计算，支持显式镜像／非均匀变换 | 特殊材质、更多场景输入与 shader 变体；本次法线基修正不代表原版 Def ABI 或全场景画质一致 |
 | E02 | 线性灯光衰减、可调镜面、GI 乘色、背向补光；PPT 110–112 | 独立 GI、基础 GI 压暗、背向漫反射、白光烘焙、Spot 与实例化；默认关闭的 Spot／Point 六面／主方向光深度阴影 | 桌面 GI、三种光源投影及移动 caster 已验收；胶囊／面阴影、完整角色／场景和一般蒙皮仍待完成，见 [GI](scene-gi.md) 与 [光源阴影](scene-light-shadows.md) |
 | E03 | DepthID 几何法线及 SSR mask；PDF 17 | 独立 SceneDepthData：世界网格法线、smoothness 资格、线性深度；min hierarchy 可选 raster／Compute | 显式 opaque／cutout 表面与角色层排除已验证；奇数边缘及 CPU／GPU 缩减一致；不猜读原版 MaterialID，不复用 ActorData／TAA 位，见 [数据契约](scene-depth-data.md) |
 | E04 | 背景 Deferred／透明 Forward+／Actor Forward；PDF 13、22–29、69 | 可选 SceneDeferredCamera、[全分辨率透明 Forward+](scene-forward-plus.md)；[LowResolutionFx／HeavyFx 当前光照](fx-forward-lighting.md) 在真实 Full／Half／Quarter 几何中消费相同 GPU bitset、材质／GI／Monitor和主光／局部阴影；角色保留 Forward | 默认不启用；特效介质与表面光照独立组合，桌面整图和当前原生蒙皮有对照；透明反射／复杂介质排序、ShadowMask 打包、胶囊／面阴影与移动附件仍待完成，另见 [场景后端](scene-deferred.md)、[ScreenShadow](scene-screen-shadow.md) 与 [光源阴影](scene-light-shadows.md) |

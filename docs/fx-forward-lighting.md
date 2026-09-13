@@ -45,6 +45,8 @@ if (renderer.TryRender(source, depth, camera, geometry, out var frame)) {
 
 照明使用表面自己的 world position、normal、tangent、UV／UV2，不采样后方不透明 GBuffer 的材质。`lighting.inputs`、`lighting.gi` 和 `receiverGroup` 沿用场景材质／GI／灯组契约。
 
+Renderer 与显式 mesh/matrix 都从本次实际矩阵计算切线基的镜像符号；不会因引擎未填写 `unity_WorldTransformParams.w` 丢失法线图 Y 分量。相关行为修正与独立整图检查见 [共享法线基](forward-normal-basis.md)。
+
 - FX 纹理 RGB、可选顶点 RGB、`linearRadiance` 乘在 PBR 输出辐射上，包含 emission；它们不重新解释为 albedo。
 - 材质 alpha = albedoMap alpha × inputs.alpha；再乘原有 opacity、FX纹理／顶点 alpha、径向与软交界淡出。`alphaCutoff` 对材质 alpha 生效。
 - 先计算 PBR／emission，再做表面雾或体积传输。Alpha表面的体积散射也乘材质 alpha，包括第二盏及之后的介质灯。Additive表面保留原有只透射、不叠加介质散射的语义。

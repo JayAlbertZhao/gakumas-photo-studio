@@ -53,6 +53,8 @@ pass.settings.surfaces = new[] {
 
 材质复用 [场景材质](scene-deferred.md) 的线性 RGB normal map、albedo／MOS／emission／UV／cutoff／vertexScale 输入。透明 alpha 来自 albedo纹理 alpha × 输入 alpha。MOS 为 metallic、occlusion、smoothness，不猜读原版 Def。
 
+法线贴图的副切线方向由实际物体矩阵、原 tangent.w 和显式 vertexScale 决定，不依赖手工 DrawRenderer 可能缺失的引擎镜像标志。非均匀／镜像变换、独立参考及这次修正的画面范围见 [共享法线基](forward-normal-basis.md)。
+
 各表面可用 [SceneGiInput](scene-gi.md) 显式光照贴图／Unity绑定贴图／SH Probe。主光与附加灯分别控制 GI乘色、漫反射／镜面／背向漫反射，基础 GI 也可缩放。Monitor／atlas 复用 [贴花灯](scene-decal-lights.md) 的采样规则；指定 Monitor 就必须有当前发布帧，没有时不退到白图。
 
 显式主方向光及 Spot／Point 六面阴影分别借助 [已有阴影生产器](scene-light-shadows.md)，主光与局部光使用独立图和参数。透明接收面不自动成为半透明 caster；caster 列表仍使用已有 opaque／cutout 契约。胶囊／面光源阴影请求仍被拒绝。

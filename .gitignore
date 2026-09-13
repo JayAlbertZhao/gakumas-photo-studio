@@ -53,6 +53,7 @@
 !/docs/code-map.md
 !/docs/crowd.md
 !/docs/fog-volumes.md
+!/docs/forward-normal-basis.md
 !/docs/framework-techniques.md
 !/docs/fsr.md
 !/docs/fx-forward-lighting.md
@@ -547,6 +548,7 @@
 !/tests/test_examples.py
 !/tests/test_face_decal_contract.py
 !/tests/test_fog_volume_contract.py
+!/tests/test_forward_basis_contract.py
 !/tests/test_forward_plus_contract.py
 !/tests/test_framework_contract.py
 !/tests/test_fsr_contract.py
@@ -591,6 +593,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FaceDecals.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FogVolume.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FogVolume.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ForwardBasis.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ForwardBasis.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ForwardPlus.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ForwardPlus.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs

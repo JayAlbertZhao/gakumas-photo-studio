@@ -118,7 +118,10 @@ ForwardVarying ForwardVertex(ForwardInput input)
     ForwardVarying o; input.vertex.xyz *= _VertexScale;
     float4 world = mul(unity_ObjectToWorld, input.vertex); o.world = world.xyz; o.position = mul(_ViewProjection, world);
     o.normal = UnityObjectToWorldNormal(input.normal / _VertexScale);
-    o.tangent = float4(mul((float3x3)unity_ObjectToWorld, input.tangent.xyz * _VertexScale), input.tangent.w * unity_WorldTransformParams.w * sign(_VertexScale.x * _VertexScale.y * _VertexScale.z));
+    // Manual DrawRenderer/DrawMesh do not guarantee WorldTransformParams.w.
+    // Derive parity from the current matrix, as Deferred/Reflection already do.
+    float handedness = sign(determinant((float3x3)unity_ObjectToWorld)) * sign(_VertexScale.x * _VertexScale.y * _VertexScale.z);
+    o.tangent = float4(mul((float3x3)unity_ObjectToWorld, input.tangent.xyz * _VertexScale), input.tangent.w * handedness);
     o.uv = input.uv * _UvST.xy + _UvST.zw; o.uv2 = input.uv2; return o;
 }
 float4 ForwardFragment(ForwardVarying input) : SV_Target
