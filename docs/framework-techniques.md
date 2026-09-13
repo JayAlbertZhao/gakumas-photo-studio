@@ -36,7 +36,7 @@
 | E09 | 点／胶囊／面贴花灯及 instancing；PDF 59–62、PPT 119 | SceneDecalLightSettings：Monitor、PBR、Scalar／GPU Instanced、float32 累加；Spot／Point 可选光源阴影，144 字节旧布局保留 | 桌面 Monitor／GI、Spot 与 Point 六面／跨面 PCF 已验收；胶囊／面阴影、原版整舞台参数和移动带宽仍待验收，见 [贴花灯](scene-decal-lights.md) |
 | E10 | 天空、植被、水、折射、荧光棒等专用表面；PPT 109 | 未覆盖完整集合 | 资料仅列用途，需独立约定输入与验收，不能假定原版公式 |
 | P01 | 方差裁剪 TAA、ExcludeTAA、NoJitter；PDF 33 | 新增可选 [场景颜色 TAA](scene-temporal-antialiasing.md)：消费实际运动／可见性，HDR 方差裁剪、Point 深度射线与显式后处理桥接；旧默认 shader 不变 | 自制桌面场景的 jitter／运动／蒙皮／生命周期已验证；完整角色分类、复杂透明层、全舞台动态画质及移动成本仍待完成，不引入默认投影 jitter |
-| P02 | Bokeh DOF 范围、分辨率无关散景、30 次采样；PPT 127–128 | 可控 DOF 已有，现为 43 次采样 | 先核对版本／质量档，再做 30 次采样质量与成本对照 |
+| P02 | Bokeh DOF 范围、分辨率无关散景、30 次采样；PPT 127–128 | 默认关闭的独立 [DOF 模块](bokeh-depth-of-field.md)：显式线性深度、手动清晰范围／物理镜头、自定义完整 30／43 点孔径；原生 GPU 采样数、整图及分辨率控制已验收；旧摄影路径不变 | 全动态角色／发丝透明与复杂近远遮挡质量、完整深度适配、移动内存与实际帧时；未恢复原文未公开的 30 点布局 |
 | P03 | Bloom、Diffusion、Paraffin、色调／颜色处理；PPT 126 | 已有部分复现和配置 | 更广配置、无私有 LUT 时的自主制作流程与完整阶段一致性 |
 | P04 | Motion Blur；PPT 126、PDF 15 | 已有独立 [场景运动对应](scene-motion.md) 数据前置，未实现完整模糊阶段 | 速度消费、暂停／切镜／遮挡边界、角色表面及平台成本 |
 | P05 | GTAO、脚部 Capsule AO；PDF 19、PPT126 | 显式胶囊、视轴 GTAO、Half 几何引导重建；新增可选运动对应消费、六相旋转、几何／身份／reactive 拒绝、方差裁剪与累积，见 [时域 GTAO](scene-gtao-temporal.md)、[GTAO](scene-gtao.md) 与 [Capsule AO](scene-screen-shadow.md) | 桌面自制运动／反遮挡已验证，默认不变；自动脚部拟合／全角色接触、薄面复杂动态场景质量、画外几何与移动内存／帧时仍待完成 |

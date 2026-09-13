@@ -55,6 +55,14 @@ namespace GakumasPhotoMode
         public TemporalClassification temporalClassification;
         // Explicit alternative to the unchanged legacy temporal pass. Same camera only.
         public SceneDeferredCamera sceneTemporalSource;
+        public BokehDepthOfFieldSettings bokehDepthOfField = new BokehDepthOfFieldSettings();
+        // Called after temporal resolve, before DOF. The host must supply matching
+        // positive eye depth in R (including any applied color de-jitter).
+        public Func<Camera, RenderTexture, RenderTexture> bokehDepthProvider;
+        private BokehDepthOfFieldRenderer _bokehDepthOfField;
+        public string BokehDepthOfFieldUnavailableReason { get; private set; }
+        public bool TryGetBokehDepthOfFieldFrame(out BokehDepthOfFieldRenderer.Frame frame)
+        {frame=default;return _bokehDepthOfField!=null&&_bokehDepthOfField.TryGetFrame(out frame);}
         public ScreenSpaceReflection screenSpaceReflection;
         public SceneReflectionResolve sceneReflectionResolve;
 
@@ -602,6 +610,20 @@ namespace GakumasPhotoMode
         private RenderTexture ApplyDepthOfField(
             RenderTexture source, ICollection<RenderTexture> temporaries)
         {
+            if(bokehDepthOfField!=null&&bokehDepthOfField.enabled)
+            {
+                BokehDepthOfFieldUnavailableReason=null;
+                try
+                {
+                    if(bokehDepthProvider==null){_bokehDepthOfField?.Dispose();BokehDepthOfFieldUnavailableReason="Explicit current linear-depth provider required";return source;}
+                    var depth=bokehDepthProvider(_sourceCamera,source);
+                    if(_bokehDepthOfField==null)_bokehDepthOfField=new BokehDepthOfFieldRenderer();
+                    if(_bokehDepthOfField.TryRender(source,depth,bokehDepthOfField,out var frame))return frame.color;
+                    BokehDepthOfFieldUnavailableReason=_bokehDepthOfField.UnavailableReason;return source;
+                }
+                catch(Exception error){_bokehDepthOfField?.Dispose();BokehDepthOfFieldUnavailableReason="Bokeh depth provider failed: "+error.GetType().Name;return source;}
+            }
+            _bokehDepthOfField?.Dispose();_bokehDepthOfField=null;BokehDepthOfFieldUnavailableReason=null;
             if (!_depthOfFieldActive || _depthOfFieldMaterial == null) return source;
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "--disable-story-dof") >= 0)
                 return source;
@@ -1197,6 +1219,7 @@ namespace GakumasPhotoMode
 
         private void OnDisable()
         {
+            _bokehDepthOfField?.Dispose();_bokehDepthOfField=null;
             ReleaseActorData();
             ReleaseHistory();
             if (_postMaterial != null) DestroyImmediate(_postMaterial);

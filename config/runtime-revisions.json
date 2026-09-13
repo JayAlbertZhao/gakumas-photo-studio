@@ -56,7 +56,7 @@
       "baseline_sha256": "8d96a3cfdc758ef1ee6ac5c8c6b4f6900c2bfe45676e786ee3c169a59881db72"
     },
     "unity/Assets/Scripts/OriginalStyleRenderPipeline.cs": {
-      "sha256": "e8fdbadb5377e33849df99d762ca8f942b48415b2ce7ab87acd4ecbfb7c55326",
+      "sha256": "280a76750e8f94f2c77e56bb2adba6068f971737525be1d2e09253b5e17178c0",
       "baseline_sha256": "08bc0a1eb0da8430850929da1a2ac27e3ae63426d06257c58fbfe6501ffa062d"
     },
     "unity/Assets/Scripts/PhotoModeApp.cs": {
@@ -103,7 +103,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "7e3feeb1dc39ad3d9dd0ce9ee376e8573208943f2ecfc691a709d082a116df85",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "3357d36828b1934b5a9308f6dd6d4288b51cd09f54dbe489955a75dce6d3cf36",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "389ed50f2a60fa1bb7d79f68f1469f2f010e6514c943e231bfd2dd77db72d4c1",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
@@ -309,7 +309,17 @@
     "packages/com.digital-kotone.toolkit/Runtime/SceneTemporalAntialiasingSettings.cs": "b4c0e835aa9cdfff53993f1cabe55c7c8a8586a1e81727f5352c5fead2e259fa",
     "packages/com.digital-kotone.toolkit/Runtime/SceneTemporalAntialiasingSettings.cs.meta": "0100caf626f6cb11c6c906e8cfc8445c0237be4af3c7beb4c34d869f34eb40ef",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneTaa.cs": "25cd7741b60aad8ae95a4e831ee33fb6b0c5f51ae4166fc211763ea98c0471a9",
-    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneTaa.cs.meta": "ddc1ca80c5bbbf4f54a21eb2ab5cf0ebe1784564c5a1e1ec995ca17cc7519643"
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneTaa.cs.meta": "ddc1ca80c5bbbf4f54a21eb2ab5cf0ebe1784564c5a1e1ec995ca17cc7519643",
+    "packages/com.digital-kotone.toolkit/Runtime/BokehDepthOfFieldRenderer.cs": "194a13d7fa5390182bcdcdbf9dfd39fca2cd3288c80954e5bec48d1cb1303b18",
+    "packages/com.digital-kotone.toolkit/Runtime/BokehDepthOfFieldRenderer.cs.meta": "f4d2d20189a796a5ce221dcdbc46b8b48854ec4cbaa559e26067b5d619eeca75",
+    "packages/com.digital-kotone.toolkit/Runtime/BokehDepthOfFieldSettings.cs": "ffaec954751c75c099de536df69af89313708d7a8a61943a951f236e2ee1ec61",
+    "packages/com.digital-kotone.toolkit/Runtime/BokehDepthOfFieldSettings.cs.meta": "56d97238eb90221b27d7fd3912d243dbaefa28b5e4dda624ecc65a547ce42a2f",
+    "packages/com.digital-kotone.toolkit/Runtime/BokehKernel.cs": "18aea24b50a91d2e0dab58d002ea8872bee498659ea5145335db73155672c97a",
+    "packages/com.digital-kotone.toolkit/Runtime/BokehKernel.cs.meta": "8d392bc32741b89a6188df451906924ca8ef659bd28420c29c133bfd8b56ac23",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/BokehDepthOfField.shader": "aa2323c0c102ce5a860fb3c846ea2602245e8997753a0c0a75af091c8b1e3e4f",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/BokehDepthOfField.shader.meta": "58da4683f4dec6341833a192feb8bc56ce05a679515faf63f9b692b1e9cd5bf1",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Bokeh.cs": "8ad6454d0eac643eb86c59d0b514c0a24e3108388eea325392c2e7c831ecdb32",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Bokeh.cs.meta": "ccca229d3575785e6d5696968e516394397c21b0d97af0f381705b8772718273"
   },
   "relocations": {
     "unity/Assets/ActorAnimationStub/ActorAnimation.Runtime.asmdef": "packages/com.digital-kotone.toolkit/Runtime/Compatibility/ActorAnimationStub/ActorAnimation.Runtime.asmdef",
