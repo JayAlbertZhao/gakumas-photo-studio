@@ -71,6 +71,7 @@
 | 可选场景颜色 TAA | `SceneTemporalAntialiasingSettings`；实际 motion 与可见性 guide、HDR 方差裁剪／分类、独立颜色历史和显式后处理桥接；默认关闭，见 [接入契约](scene-temporal-antialiasing.md) |
 | 可选场景 GI | `SceneGiInput`；UV2 Lightmap／显式 SH／场景绑定、独立 GI 缓冲、逐灯乘色及背向漫反射，已有数据的消费链见 [GI 接入](scene-gi.md) |
 | 可选统一间接反射 | `SceneReflectionResolve`；Planar 优先、SSR 失败回退 Probe、全分辨率法线扭曲和材质响应；宿主须去除接收面原间接镜面项，见 [输入与合成契约](scene-reflection-resolve.md) |
+| 可选自主天空／环境输入 | `SceneSkyCamera` 与 `SceneSkyCapture`；自有渐变／Cube／经纬图、可逆相机绑定、原生 HDR 六面及统一反射／水面消费，见 [天空接入](scene-sky.md) |
 | 可选反射计算后端 | `SceneShaderBackend.Compute`；SSR trace 与 Hi-Z RandomWrite，独立深度组件也可使用，能力回退与状态见 [计算后端](scene-compute-backend.md) |
 | 可选 SSR 粗糙度 | `SsrRoughnessSettings`；接收面感知的两遍辐射过滤，默认无额外目标，保留 Planar 优先与 Probe 置信度回退，见 [过滤契约](ssr-roughness.md) |
 

@@ -160,7 +160,8 @@ namespace GakumasPhotoMode
             VectorRange(value.f0, 0, 1) && Range(value.occlusion, 0, 1) && Range(value.specularScale, 0, 8) &&
             Range(value.normalStrength, 0, 2) && Range(value.distortionScale.x, -.5f, .5f) && Range(value.distortionScale.y, -.5f, .5f) &&
             Range(value.probeMaximumMip, 0, 12) && Finite(value.f0MapST) && Finite(value.normalMapST) && Finite(value.probeHdrDecode) &&
-            (value.probe == null || value.probe.dimension == TextureDimension.Cube);
+            (value.probe == null || value.probe.dimension == TextureDimension.Cube &&
+                (!(value.probe is RenderTexture probe) || probe.IsCreated() && probe.antiAliasing == 1 && !probe.useDynamicScale));
         private static bool Range(float v, float min, float max) => !float.IsNaN(v) && v >= min && v <= max;
         private static bool VectorRange(Vector3 v, float min, float max) => Range(v.x, min, max) && Range(v.y, min, max) && Range(v.z, min, max);
         private static bool Finite(Vector4 v) => Range(v.x, -1e6f, 1e6f) && Range(v.y, -1e6f, 1e6f) && Range(v.z, -1e6f, 1e6f) && Range(v.w, -1e6f, 1e6f);

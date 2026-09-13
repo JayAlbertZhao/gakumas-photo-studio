@@ -104,12 +104,12 @@ namespace GakumasPhotoMode
                         m.SetVector("_WaterWaveA",new Vector4(water.waveA.x,water.waveA.y,water.waveA.z,Phase(settings.seconds*water.waveA.w)));
                         m.SetVector("_WaterWaveB",new Vector4(water.waveB.x,water.waveB.y,water.waveB.z,Phase(settings.seconds*water.waveB.w)));
                         m.SetVector("_WaterNormalScroll",new Vector4(Fraction(settings.seconds*water.normalScroll.x),Fraction(settings.seconds*water.normalScroll.y),s.inputs.normalMap!=null?1:0,0));
-                        m.SetTexture("_WaterProbe",water.reflectionProbe);
+                        m.SetTexture("_WaterProbe",water.ReflectionInput);
                         RenderTexture planar=null;
                         if(water.planarReflection!=null)water.planarReflection.TryGetReflection(camera,source.width,source.height,out planar);
                         if(planar!=null)PlanarSurfaces++;
                         m.SetTexture("_WaterPlanar",planar!=null?planar:Texture2D.blackTexture);
-                        m.SetVector("_WaterReflection",new Vector4(water.reflectionProbe!=null?1:0,water.probeMaximumMip,planar!=null?1:0,0));
+                        m.SetVector("_WaterReflection",new Vector4(water.ReflectionInput!=null?1:0,water.probeMaximumMip,planar!=null?1:0,0));
                         m.SetVector("_WaterReflectionDistortion",water.reflectionDistortion);
                         var next=current==a?b:a;commands.Blit(current,next);commands.SetRenderTarget(next);
                         commands.DrawRenderer(s.renderer,m,s.submesh,0);current=next;SubmittedSurfaces++;
@@ -141,7 +141,9 @@ namespace GakumasPhotoMode
                 !mesh.HasVertexAttribute(VertexAttribute.Normal)||!mesh.HasVertexAttribute(VertexAttribute.Tangent)||!mesh.HasVertexAttribute(VertexAttribute.TexCoord0))return false;
             foreach(var t in new[]{s.inputs.albedoMap,s.inputs.normalMap,s.inputs.mosMap,s.inputs.emissionMap})
                 if(t!=null && (t.dimension!=TextureDimension.Tex2D || (t is RenderTexture rt && (!Texture(rt)||Owns(rt)))))return false;
-            if(w.reflectionProbe!=null && w.probeMaximumMip>w.reflectionProbe.mipmapCount-1)return false;
+            var reflection=w.ReflectionInput;
+            if(!ReferenceEquals(reflection,null) && (reflection==null || reflection.dimension!=TextureDimension.Cube || w.probeMaximumMip>reflection.mipmapCount-1 ||
+                (reflection is RenderTexture probe && (!probe.IsCreated() || probe.antiAliasing!=1 || probe.useDynamicScale))))return false;
             if(s.gi!=null && (Owns(s.gi.lightmap as RenderTexture)||Owns(s.gi.directionality as RenderTexture)))return false;
             if(s.gi!=null && !s.gi.Validate(r,mesh,out error))return false;
             error=null;return true;

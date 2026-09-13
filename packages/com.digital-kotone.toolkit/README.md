@@ -109,7 +109,9 @@ SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBack
 
 可选外部环境、可读网格、LUT 等补充内容仍由宿主提供。不改变旧动作、物理、shader 算法或资源命名规则。原始 Lua 解析、手 K 编辑器、沙盒移动规则和番茄计时规则不在包内。
 
-`SceneDeferredCamera` 是默认不启用的独立场景后端，登记自己的 PBR 输入与显式场景层，绘制材质 GBuffer、投影分通道贴花和高度 AO，再向主目标输出实际 HDR 光照与深度。宿主从普通 culling mask 排除这些层，角色仍走 Forward。Monitor 发布纹理可驱动贴花 emission。已有下述显式 GI／光源阴影；完整 Forward+、烘焙 ShadowMask、反射桥接与移动附件优化仍待完成。见 [场景后端契约](../../docs/scene-deferred.md)。
+`SceneDeferredCamera` 是默认不启用的独立场景后端，登记自己的 PBR 输入与显式场景层，绘制材质 GBuffer、投影分通道贴花和高度 AO，再向主目标输出实际 HDR 光照与深度。宿主从普通 culling mask 排除这些层，角色仍走 Forward。Monitor 发布纹理可驱动贴花 emission。已有显式 GI／光源阴影、[透明 Forward+](../../docs/scene-forward-plus.md) 和 [烘焙 ShadowMask](../../docs/scene-baked-shadows.md)；完整场景、反射桥接与移动附件优化仍待完成。见 [场景后端契约](../../docs/scene-deferred.md)。
+
+`SceneSkyCamera` 提供默认关闭的自有渐变／Cube／经纬图天空与可逆原生 Skybox 绑定；`SceneSkyCapture` 显式生成六面 HDR Cube，可直接供统一反射和水面读取。没有原版天空资产，不写全局 GI，不把普通 mip 当作 GGX 预滤波。源空间、完整视口、当前代及资源所有权见 [自主天空](../../docs/scene-sky.md)。
 
 `SceneDeferredCamera.screenShadow` 可开启独立的几何深度／网格法线预通道，输出 RG8：R 为真实主方向光可见性，G 为环境可见性。宿主更新 `SceneCapsuleOccluder.start/end/radius` 可跟随脚部或其他接触物；不自动识别原版骨骼。可选 `screenShadow.gtao` 从场景深度计算视轴 horizon 与余弦角积分，并与胶囊按相乘或最小可见性合并。另可显式启用 `motion` 与 `gtao.temporal` 完成六相采样、历史拒绝和方差裁剪累积。主灯直接光乘 R，间接漫反射乘 G；附加灯、emission 和 Forward 角色不被统一压暗。默认关闭且无额外附件，完整动态场景与移动优化仍待完成。见 [ScreenShadow／Capsule AO](../../docs/scene-screen-shadow.md)、[GTAO](../../docs/scene-gtao.md) 与 [时域接入](../../docs/scene-gtao-temporal.md)。
 

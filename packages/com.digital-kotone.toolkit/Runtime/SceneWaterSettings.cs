@@ -16,6 +16,10 @@ namespace GakumasPhotoMode
         [Range(0, 1)] public float reflectionStrength = 1;
         // Linear RGB, no implicit RGBM/Unity reflection-probe decoding.
         public Cubemap reflectionProbe;
+        // Optional current GPU cube override; preserves the existing Cubemap
+        // field/serialized type. A supplied invalid capture is not a fallback.
+        public RenderTexture reflectionCapture;
+        internal Texture ReflectionInput => reflectionCapture ?? (Texture)reflectionProbe;
         [Range(0, 12)] public float probeMaximumMip;
         // Only the current same-camera producer is consumed. Missing coverage falls back to the cube.
         public PlanarReflection planarReflection;
