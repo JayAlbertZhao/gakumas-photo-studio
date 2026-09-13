@@ -435,10 +435,12 @@ namespace GakumasPhotoMode
             // history sharp, then route every subsequent post input through the
             // resolved DOF surface.
             RenderTexture postInput = ApplyDepthOfField(temporal, temporaries);
+            bool sceneMotionBlurResolved = false;
             if(sceneMotionBlurSource!=null&&sceneMotionBlurSource.motionBlur!=null&&sceneMotionBlurSource.motionBlur.enabled)
             {
                 bool dejittered=sceneColorResolved&&sceneMotionBlurSource==sceneTemporalSource;
-                if(sceneMotionBlurSource.TryResolveMotionBlur(_sourceCamera,postInput,dejittered,temporalClassification,out var blurred))postInput=blurred;
+                if(sceneMotionBlurSource.TryResolveMotionBlur(_sourceCamera,postInput,dejittered,temporalClassification,out var blurred))
+                { postInput=blurred; sceneMotionBlurResolved=true; }
                 // Invalid/paused sources retain this current HDR; no stale frame or unrelated host motion fallback.
             }
 
@@ -477,10 +479,32 @@ namespace GakumasPhotoMode
             // feed the already-completed bloom pyramid.
             postInput = ApplyParaffin(postInput, temporaries);
 
+            // Only an explicit manual FSR request changes this ordering. Compose
+            // bloom once before spatial reconstruction; diffusion then consumes
+            // the actual full-size reconstructed HDR. The legacy branch is intact.
+            FsrCameraRenderer.TryGetActive(_sourceCamera, out var fsrRequest);
+            bool fsrBeforeDiffusion = false;
+            if (fsrRequest != null)
+            {
+                bool hasLut = (_storyPostProfileClassroomColorCompatible && _classroomColorLut != null) || _capturedColorLut != null;
+                bool legacyBloomScale = _presentationContext == PresentationContext.BakedAdv &&
+                    Array.IndexOf(Environment.GetCommandLineArgs(), "--legacy-baked-adv-compensation") >= 0;
+                float weight = useAuthoredColorGrading || hasLut ? _storyBloomIntensityLinear * (legacyBloomScale ? .68f : 1f) : bloomIntensity;
+                bool requestedSceneTaa = sceneTemporalSource != null && sceneTemporalSource.temporalAntialiasing != null && sceneTemporalSource.temporalAntialiasing.enabled;
+                if (requestedSceneTaa && !sceneColorResolved)
+                    fsrRequest.RejectUpstream(sceneTemporalSource.TemporalColorUnavailableReason ?? "requested scene TAA did not resolve");
+                else if (bokehDepthOfField != null && bokehDepthOfField.enabled && BokehDepthOfFieldUnavailableReason != null)
+                    fsrRequest.RejectUpstream(BokehDepthOfFieldUnavailableReason);
+                else if (sceneMotionBlurSource != null && sceneMotionBlurSource.motionBlur != null && sceneMotionBlurSource.motionBlur.enabled && !sceneMotionBlurResolved)
+                    fsrRequest.RejectUpstream(sceneMotionBlurSource.MotionBlurUnavailableReason ?? "requested motion blur did not resolve");
+                else
+                    fsrBeforeDiffusion = fsrRequest.TryBeforeDiffusion(postInput, bloom, weight, out postInput);
+            }
+
             // Captured final post t1: a 720x405 copy at 3840x2160 output
             // (3/16 resolution), then the exact 9-tap 0.36-texel separable blur.
-            int capturedBlurWidth = Mathf.Max(1, Mathf.RoundToInt(source.width * (3f / 16f)));
-            int capturedBlurHeight = Mathf.Max(1, Mathf.RoundToInt(source.height * (3f / 16f)));
+            int capturedBlurWidth = Mathf.Max(1, Mathf.RoundToInt((fsrBeforeDiffusion ? postInput.width : source.width) * (3f / 16f)));
+            int capturedBlurHeight = Mathf.Max(1, Mathf.RoundToInt((fsrBeforeDiffusion ? postInput.height : source.height) * (3f / 16f)));
             RenderTexture blurSource = GetTemporary(capturedBlurWidth, capturedBlurHeight, source.format, temporaries);
             RenderTexture blurHorizontal = GetTemporary(capturedBlurWidth, capturedBlurHeight, source.format, temporaries);
             RenderTexture blurVertical = GetTemporary(capturedBlurWidth, capturedBlurHeight, source.format, temporaries);
@@ -509,7 +533,7 @@ namespace GakumasPhotoMode
             Graphics.Blit(postInput, occlusionRaw, _postMaterial, 3);
             Graphics.Blit(occlusionRaw, occlusionBlurred, _postMaterial, 4);
 
-            _postMaterial.SetTexture("_BloomTex", bloom);
+            _postMaterial.SetTexture("_BloomTex", fsrBeforeDiffusion ? (Texture)Texture2D.blackTexture : bloom);
             _postMaterial.SetTexture("_BlurTex", blurVertical);
             _postMaterial.SetTexture("_OcclusionTex", occlusionBlurred);
             _postMaterial.SetTexture("_ActorDataTex", _actorData != null ? _actorData : Texture2D.blackTexture);
@@ -575,8 +599,9 @@ namespace GakumasPhotoMode
             // presentation size.  When a 2x source target is active, write the
             // final pass to the presenter's window-sized target rather than
             // grading at 4K and downsampling the already-tonemapped result.
-            RenderTexture finalDestination;
-            if (!SupersamplePresenter.TryGetPresentationTarget(
+            RenderTexture finalDestination = destination;
+            if (!(fsrBeforeDiffusion && fsrRequest.TryGetPresentationTarget(out finalDestination)) &&
+                !SupersamplePresenter.TryGetPresentationTarget(
                     _sourceCamera, out finalDestination))
                 finalDestination = destination;
             RenderTexture finalColor = GetTemporary(
@@ -593,6 +618,13 @@ namespace GakumasPhotoMode
             // temporal resolve is active, a second full-strength FXAA pass unnecessarily
             // softens eyelashes and hair cards, so finalColor is presented directly.
             Graphics.Blit(finalColor, finalDestination);
+
+            if (fsrBeforeDiffusion)
+            {
+                if (useAuthoredColorGrading && AuthoredColorUnavailableReason != null)
+                    fsrRequest.RejectUpstream(AuthoredColorUnavailableReason);
+                else fsrRequest.MarkPresented();
+            }
 
             foreach (RenderTexture temporary in temporaries) RenderTexture.ReleaseTemporary(temporary);
         }

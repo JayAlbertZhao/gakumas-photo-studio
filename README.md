@@ -20,6 +20,8 @@
 
 可选渲染模块的接口与未完成范围见 [框架技术清单](docs/framework-techniques.md)。其中 [自主调色与 LUT](docs/authored-color-grading.md) 可直接用于应用自己的 HDR 输入；[Motion Blur](docs/motion-blur.md) 可消费宿主提供的当前 HDR／运动／深度，或显式接入场景后端。模块不需要游戏 LUT／原版资产，仍需满足各自输入契约。
 
+[FSR1 空间重建](docs/fsr.md) 提供独立图像接口和实际低分辨率手动相机宿主，可消费场景 TAA，并把 UI 留在完整输出分辨率。默认关闭；不会替换摄影应用的现有超采样。AMD 算法来自包依赖，分发时保留 [第三方声明](packages/com.digital-kotone.toolkit/ThirdPartyNotices.md)。
+
 ## 当前能做什么
 
 | 输入 | 支持情况 |

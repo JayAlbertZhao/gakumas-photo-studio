@@ -1,0 +1,27 @@
+#pragma kernel Prepare
+#pragma kernel Expand
+#pragma kernel Finish
+#pragma target 5.0
+#ifndef SHADER_TARGET
+#define SHADER_TARGET 50
+#endif
+#include "FsrShared.hlsl"
+RWTexture2D<float4> _FsrOutput;
+[numthreads(8, 8, 1)]
+void Prepare(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= (uint2)_FsrInputSize.xy)) return;
+    _FsrOutput[id.xy] = FsrPrepare(id.xy);
+}
+[numthreads(8, 8, 1)]
+void Expand(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= (uint2)_FsrOutputSize.xy)) return;
+    _FsrOutput[id.xy] = FsrExpand(id.xy);
+}
+[numthreads(8, 8, 1)]
+void Finish(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= (uint2)_FsrOutputSize.xy)) return;
+    _FsrOutput[id.xy] = FsrFinish(id.xy);
+}

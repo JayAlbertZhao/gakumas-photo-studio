@@ -44,7 +44,7 @@
 | P07 | 体积光及动态 DepthShadow；PPT 131 | 默认关闭的 [体积光](volumetric-lighting.md) 与 [低尺寸积分](volumetric-reconstruction.md)；新增 [联合重特效](heavy-fx.md) 中按不透明及各表面实际深度分别计算透射／散射 | 桌面整图、动态双光源阴影及共享重建路径已验证；原版参数、相交层／折射后深度、半透明光源遮挡、复杂舞台质量与移动成本仍待完成 |
 | P08 | Flare／Ghost；PPT 129、PDF 31 | 默认关闭的 [Flare／Ghost](lens-flares.md)；另可直接写入 [联合重特效](heavy-fx.md) 共享附件，当前源可见性与显式时间不变 | 桌面整图、共享批次和实际相机链已验证；原版处方、半透明多层遮光、专用时域稳定性、复杂舞台与移动帧时仍待完成 |
 | P09 | 低分辨率透明／扭曲／重特效及上采样；PDF 15、31 | [独立几何](low-resolution-fx.md) 与默认关闭的 [联合重特效](heavy-fx.md) 共用介质／有序几何／镜头附件、R8 修复决策和整批重画；可选 [当前表面 Forward 光照](fx-forward-lighting.md) 保留混合批次和材质 alpha | 桌面整图、当前蒙皮、介质／表面独立阴影有对照；启用光照的折射材质明确不支持，相交层排序、折射介质输运、完整舞台及移动成本仍待完成 |
-| O01 | FSR 与高质量 TAA 输入；PDF 10、69 | 未接入；现有超采样不是 FSR | 合规可选依赖、画质档、分辨率切换与 GPU 成本 |
+| O01 | FSR 与高质量 TAA 输入；PDF 10、69 | 默认关闭的 [FSR1](fsr.md)：通过 UPM Core 的 AMD 算法执行 EASU／RCAS，独立 Compute／Raster；真实低尺寸相机、四档、当前 TAA、Bloom 后／Diffusion 前桥接，UI 保持完整分辨率 | 自制桌面全图数值、抗锯齿时序、真实 UGUI 次序及 720p／1080p 四档原生 GPU 事件计时已对照。完整角色／舞台、HDR 极亮部、其他图形后端、移动内存及实机净收益待完成；不替换默认摄影超采样 |
 | O02 | Memoryless／RenderPass／SubPass／MRT 复用；PDF 11–12、22、27 | 部分场景 MRT 与 Compute 算法已有，未实现同级移动架构 | 独立移动后端、附件预算、负载测量、平台回退；不得由桌面 Compute 输出相同推导性能完成 |
 | O03 | 移动端能力与驱动差异；PDF 8、64–65 | 当前验证集中于桌面 D3D11 | Vulkan／Metal 实机、能力探测、质量回退与长时间运行 |
 | C01 | 观众 LOD、模型预算、四向 runtime billboard、Compute；PPT 99–103 | 默认关闭的 [独立 Crowd](crowd.md)：八类共享当前骨／shape pose、GPU 最近模型预算、稳定排序／压缩、四向动态材质图集和 PBR／Toon 间接绘制；显式 CPU 回退 | 桌面原生几何／阴影／遮挡／透明次序、26 视角及 65,536 边界已对照，万人真实 compute／间接绘制有捕获；四视图仍为有限角度近似，完整制作观众、独立动作变化、时域／反射／阴影投射接入及移动成本待完成；不捆绑观众资产 |

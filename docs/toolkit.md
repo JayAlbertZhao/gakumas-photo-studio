@@ -23,6 +23,8 @@
 
 群集可用 `CrowdDefinition`／`CrowdRenderer`／`CrowdCamera`：八类共享当前 pose、GPU 最近模型预算、四向动态材质捕获与间接绘制，不需要兼容角色格式或摄影 UI。默认关闭，模型与动画由宿主提供；生命周期、CPU 回退、原生深度次序及四视图近似边界见 [Crowd 接入](crowd.md)。
 
+空间重建可用 `FsrSettings`／`FsrRenderer`；`FsrCameraRenderer` 显式执行真实低分辨率 `Camera.Render()`，支持当前场景 TAA 和可选 Bloom 后／Diffusion 前桥接。完整输出及原生分辨率 UI 由宿主呈现，默认摄影路径不变。输入编码、四档比例、所有权、内存预算及 AMD 外部依赖见 [FSR1 接入](fsr.md)。
+
 独立后处理输入可用 `MotionBlurSettings`／`MotionBlurInput`／`MotionBlurRenderer`；实际相机通过 `SceneDeferredCamera.motionBlur` 和 `OriginalStyleRenderPipeline.sceneMotionBlurSource` 显式接入。曝光时间、当前深度／运动方向及借用输出约定见 [Motion Blur 接入](motion-blur.md)。
 
 距离与局部介质可用 `FogVolumeSettings`／`FogVolumeBinding`／`FogVolumeRenderer`；八球和距离雾共同积分，显式消费当前深度。独立透明材质可共用视图快照并按自身表面深度求雾，接入次序和后处理桥接限制见 [多介质雾](fog-volumes.md)。

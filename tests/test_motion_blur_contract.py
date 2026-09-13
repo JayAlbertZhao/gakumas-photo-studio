@@ -41,7 +41,9 @@ class MotionBlurContract(unittest.TestCase):
         post=(RUNTIME/'OriginalStyleRenderPipeline.cs').read_text(encoding='utf-8')
         self.assertIn('public SceneDeferredCamera sceneMotionBlurSource;',post)
         self.assertLess(post.index('ApplyDepthOfField(temporal, temporaries)'),post.index('TryResolveMotionBlur('))
-        self.assertIn('out var blurred))postInput=blurred;',post)
+        self.assertRegex(post, r'out var blurred\)\)\s*\{\s*postInput\s*=\s*blurred;\s*sceneMotionBlurResolved\s*=\s*true;\s*\}')
+        self.assertIn('bool sceneMotionBlurResolved = false;',post)
+        self.assertLess(post.index('TryResolveMotionBlur('),post.index('RenderTexture bloom ='))
         self.assertIn('sceneMotionBlurSource?.ResetMotionBlurHistory();',post)
 
 if __name__=='__main__':unittest.main()

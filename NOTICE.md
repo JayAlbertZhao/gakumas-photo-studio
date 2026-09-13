@@ -12,5 +12,6 @@
 - [gakumas-VRify](https://github.com/KagaminTheMirror/gakumas-VRify)：研究参考项目，GPL-3.0。当前独立 Photo Studio 发布清单不包含其源码、派生探针补丁或二进制。未来若合入派生代码，须单独履行适用许可，不能沿用此处“仅参考”的分类。
 - [Gakumas_Launcher](https://github.com/a4nqi3n/Gakumas_Launcher)、[gakuen-imas-localify](https://github.com/chinosk6/gakuen-imas-localify)：资料索引；没有打包 release、翻译台本或插件二进制。
 - RenderDoc：运行时可选本地 API 连接；不捆绑 RenderDoc 二进制。
+- FSR1：通过使用者安装的 UPM Core 引用 AMD EASU／RCAS 实现，不内置算法头文件。AMD 算法不是本项目原创；适配与标量校验见 [第三方声明](packages/com.digital-kotone.toolkit/ThirdPartyNotices.md)，含编译产物分发所需的 AMD MIT 声明。
 
 原始游戏 DLL、反汇编/反编译文本、shader DXBC/SPIR-V、抓帧和内存转储、解密配置、登录凭据、个人绝对路径均留在私人参考目录。
