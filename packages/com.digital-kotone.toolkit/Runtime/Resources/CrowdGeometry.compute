@@ -1,0 +1,31 @@
+#pragma kernel Deform
+struct Vertex { float4 position,normal,tangent,uv; };
+struct Influence { uint4 indices;float4 weight; };
+struct Bone { float4 x,y,z; };
+struct Delta { float4 position,normal,tangent; };
+StructuredBuffer<Vertex> _CrowdRest;
+StructuredBuffer<Influence> _CrowdInfluences;
+StructuredBuffer<Bone> _CrowdBones;
+StructuredBuffer<Delta> _CrowdDeltas;
+StructuredBuffer<float> _CrowdWeights;
+RWStructuredBuffer<Vertex> _CrowdCurrent;
+uint _CrowdVertexCount,_CrowdBoneCount,_CrowdShapeCount;
+float3 Transform(Bone b,float3 p,float w)
+{return float3(dot(b.x,float4(p,w)),dot(b.y,float4(p,w)),dot(b.z,float4(p,w)));}
+float3 Unit(float3 v){float lengthSquared=dot(v,v);return lengthSquared>1e-10?v*rsqrt(lengthSquared):0;}
+[numthreads(128,1,1)]
+void Deform(uint3 tid:SV_DispatchThreadID)
+{
+    uint i=tid.x;if(i>=_CrowdVertexCount)return;Vertex v=_CrowdRest[i];
+    float3 p=v.position.xyz,n=v.normal.xyz,t=v.tangent.xyz;
+    [loop]for(uint shape=0;shape<_CrowdShapeCount;shape++)
+    {Delta d=_CrowdDeltas[shape*_CrowdVertexCount+i];float w=_CrowdWeights[shape];p+=d.position.xyz*w;n+=d.normal.xyz*w;t+=d.tangent.xyz*w;}
+    if(_CrowdBoneCount>0)
+    {
+        Influence skin=_CrowdInfluences[i];float3 sp=0,sn=0,st=0;
+        [unroll]for(uint k=0;k<4;k++)if(skin.weight[k]>0)
+        {Bone b=_CrowdBones[skin.indices[k]];sp+=Transform(b,p,1)*skin.weight[k];sn+=Transform(b,n,0)*skin.weight[k];st+=Transform(b,t,0)*skin.weight[k];}
+        p=sp;n=sn;t=st;
+    }
+    v.position=float4(p,1);v.normal=float4(Unit(n),0);v.tangent=float4(Unit(t),v.tangent.w);_CrowdCurrent[i]=v;
+}

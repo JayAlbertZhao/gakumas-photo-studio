@@ -51,6 +51,7 @@
 !/docs/baseline.md
 !/docs/bokeh-depth-of-field.md
 !/docs/code-map.md
+!/docs/crowd.md
 !/docs/fog-volumes.md
 !/docs/framework-techniques.md
 !/docs/fx-forward-lighting.md
@@ -189,6 +190,16 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Compatibility/VLStub/vl-unity.Runtime.asmdef.meta
 !/packages/com.digital-kotone.toolkit/Runtime/CrossCharacterCostumeAssembler.cs
 !/packages/com.digital-kotone.toolkit/Runtime/CrossCharacterCostumeAssembler.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/CrowdCamera.cs
+!/packages/com.digital-kotone.toolkit/Runtime/CrowdCamera.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/CrowdDefinition.cs
+!/packages/com.digital-kotone.toolkit/Runtime/CrowdDefinition.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/CrowdPrototypeGeometry.cs
+!/packages/com.digital-kotone.toolkit/Runtime/CrowdPrototypeGeometry.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/CrowdRenderer.cs
+!/packages/com.digital-kotone.toolkit/Runtime/CrowdRenderer.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/CrowdSelection.cs
+!/packages/com.digital-kotone.toolkit/Runtime/CrowdSelection.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/FaceDecalAnimation.cs
 !/packages/com.digital-kotone.toolkit/Runtime/FaceDecalAnimation.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/FaceDecalLayer.cs
@@ -313,6 +324,16 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/BokehDepthOfField.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/CapturedActorShadow.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/CapturedActorShadow.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/CrowdCapture.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/CrowdCapture.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/CrowdDraw.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/CrowdDraw.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/CrowdGeometry.compute
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/CrowdGeometry.compute.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/CrowdSelection.compute
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/CrowdSelection.compute.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/CrowdShared.hlsl
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/CrowdShared.hlsl.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolume.hlsl
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolume.hlsl.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolume.shader
@@ -495,6 +516,7 @@
 !/tests/test_baseline.py
 !/tests/test_bokeh_contract.py
 !/tests/test_color_grading_contract.py
+!/tests/test_crowd_contract.py
 !/tests/test_documentation.py
 !/tests/test_examples.py
 !/tests/test_face_decal_contract.py
@@ -532,6 +554,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Bokeh.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ColorGrading.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ColorGrading.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Crowd.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Crowd.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FaceDecals.cs
@@ -640,6 +664,8 @@
 !/unity/Assets/Editor/SceneGiBakeFixture.cs
 !/unity/Assets/Editor/SceneGiBakeFixture.cs.meta
 !/unity/Assets/Resources.meta
+!/unity/Assets/Resources/CrowdNativeReference.shader
+!/unity/Assets/Resources/CrowdNativeReference.shader.meta
 !/unity/Assets/Resources/FaceDecalProbe.shader
 !/unity/Assets/Resources/FaceDecalProbe.shader.meta
 !/unity/Assets/Resources/FaceDeformationProbe.shader

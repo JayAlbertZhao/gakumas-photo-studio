@@ -39,6 +39,9 @@ float4 _UvST, _DirectionalResponse;
 float3 _Albedo, _Mos, _Emission, _VertexScale, _LightDirection, _LightRadiance, _AmbientIrradiance;
 float3 _CameraPosition, _CameraForward;
 float _HasNormal, _Alpha, _Cutoff, _ReceiverGroup, _Additive, _Orthographic, _GiBaseScale;
+#if defined(TOOLKIT_FORWARD_TOON)
+float4 _ForwardToon; // threshold, softness, shadow diffuse level, enabled
+#endif
 float4x4 _ViewProjection;
 float3 ForwardNormal(float3 n) { return n * rsqrt(max(dot(n, n), 1e-12)); }
 
@@ -52,6 +55,15 @@ float3 ForwardBrdf(float3 albedo, float3 mos, float3 n, float3 v, float3 l, floa
     float distribution = a2 / max(UNITY_PI * denominator * denominator, 1e-8);
     float visibility = .5 / max(nl * sqrt(nv * nv * (1 - a2) + a2) + nv * sqrt(nl * nl * (1 - a2) + a2), 1e-6);
     float3 f0 = lerp(.04, albedo, mos.r), f = f0 + (1 - f0) * pow(1 - vh, 5);
+    #if defined(TOOLKIT_FORWARD_TOON)
+    if (_ForwardToon.w > .5)
+    {
+        float band = lerp(_ForwardToon.z, 1, smoothstep(_ForwardToon.x - _ForwardToon.y, _ForwardToon.x + _ForwardToon.y, nl));
+        float3 toon = (1 - f) * albedo * ((1 - mos.r) / UNITY_PI) * response.x * band + distribution * visibility * f * response.y * nl;
+        if (response.w > 0) toon += (1 - f0) * albedo * ((1 - mos.r) / UNITY_PI) * response.x * response.w * saturate(-dot(n, l));
+        return toon;
+    }
+    #endif
     float3 result = ((1 - f) * albedo * ((1 - mos.r) / UNITY_PI) * response.x + distribution * visibility * f * response.y) * nl;
     if (response.w > 0) result += (1 - f0) * albedo * ((1 - mos.r) / UNITY_PI) * response.x * response.w * saturate(-dot(n, l));
     return result;

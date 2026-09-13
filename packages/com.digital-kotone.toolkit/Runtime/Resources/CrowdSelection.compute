@@ -1,0 +1,105 @@
+#pragma kernel Classify
+#pragma kernel Bitonic
+#pragma kernel ScanBlocks
+#pragma kernel ScanTotals
+#pragma kernel Scatter
+
+// Stable ordering and deterministic per-prototype/LOD compaction. Rendering reads
+// these actual IDs and indirect arguments; no per-frame CPU visibility readback.
+struct CrowdInstanceData
+{
+    float4 positionScale;
+    float4 rotationType; // sin(yaw),cos(yaw),prototype,hidden
+    float4 tint;
+};
+StructuredBuffer<CrowdInstanceData> _CrowdInstances;
+StructuredBuffer<float4> _CrowdBounds; // local center.xyz, conservative radius
+float4 _CrowdPlanes[6];
+float3 _CrowdCamera;
+uint _CrowdCount, _CrowdCapacity, _CrowdMeshBudget, _CrowdTypes, _CrowdBlocks;
+uint _CrowdSortK, _CrowdSortJ;
+RWStructuredBuffer<uint2> _CrowdOrder; // positive float distance bits, original index
+RWStructuredBuffer<uint> _CrowdScan, _CrowdTotals, _CrowdOffsets, _CrowdIndices;
+RWBuffer<uint> _CrowdArguments; // IndirectArguments uses a typed R32_UINT UAV on D3D11.
+groupshared uint scan[256];
+
+float3 CrowdRotate(float3 p, float2 yaw)
+{ precise float3 result=float3(yaw.y*p.x+yaw.x*p.z,p.y,-yaw.x*p.x+yaw.y*p.z);return result; }
+
+[numthreads(256,1,1)]
+void Classify(uint3 tid : SV_DispatchThreadID)
+{
+    uint i=tid.x; if(i>=_CrowdCapacity)return;
+    uint2 key=uint2(0x7f800000u,i);
+    if(i<_CrowdCount)
+    {
+        CrowdInstanceData item=_CrowdInstances[i]; float4 sphere=_CrowdBounds[(uint)item.rotationType.z];
+        precise float3 center=item.positionScale.xyz+CrowdRotate(sphere.xyz*item.positionScale.w,item.rotationType.xy);
+        float radius=sphere.w*item.positionScale.w; bool visible=item.rotationType.w<.5;
+        [unroll] for(uint plane=0;plane<6;plane++)
+        { precise float side=(_CrowdPlanes[plane].x*center.x+_CrowdPlanes[plane].y*center.y)+_CrowdPlanes[plane].z*center.z+_CrowdPlanes[plane].w;visible=visible&&side>=-radius; }
+        if(visible){precise float3 delta=center-_CrowdCamera;precise float distance=(delta.x*delta.x+delta.y*delta.y)+delta.z*delta.z;key.x=asuint(distance);}
+    }
+    _CrowdOrder[i]=key;
+}
+
+bool Less(uint2 a,uint2 b){return a.x<b.x||(a.x==b.x&&a.y<b.y);}
+[numthreads(256,1,1)]
+void Bitonic(uint3 tid : SV_DispatchThreadID)
+{
+    uint i=tid.x,j=i^_CrowdSortJ;if(i>=_CrowdCapacity||j<=i)return;
+    uint2 a=_CrowdOrder[i],b=_CrowdOrder[j];bool ascending=(i&_CrowdSortK)==0;
+    if(ascending?Less(b,a):Less(a,b)){_CrowdOrder[i]=b;_CrowdOrder[j]=a;}
+}
+
+bool Member(uint rank,uint bucket)
+{
+    bool member=false;
+    if(rank<_CrowdCount)
+    {
+        uint2 key=_CrowdOrder[rank];
+        if(key.x!=0x7f800000u)
+        {
+            uint type=(uint)_CrowdInstances[key.y].rotationType.z;
+            uint lod=rank<_CrowdMeshBudget?0:1;member=bucket==type*2+lod;
+        }
+    }
+    return member;
+}
+
+[numthreads(256,1,1)]
+void ScanBlocks(uint3 group : SV_GroupID,uint lane : SV_GroupIndex)
+{
+    uint bucket=group.y,rank=group.x*256+lane;
+    uint value=Member(rank,bucket)?1:0;scan[lane]=value;GroupMemoryBarrierWithGroupSync();
+    [unroll] for(uint offset=1;offset<256;offset<<=1)
+    {
+        uint add=lane>=offset?scan[lane-offset]:0;GroupMemoryBarrierWithGroupSync();
+        scan[lane]+=add;GroupMemoryBarrierWithGroupSync();
+    }
+    if(rank<_CrowdCapacity)_CrowdScan[bucket*_CrowdCapacity+rank]=scan[lane]-value;
+    if(lane==255)_CrowdTotals[bucket*_CrowdBlocks+group.x]=scan[lane];
+}
+
+[numthreads(256,1,1)]
+void ScanTotals(uint3 group : SV_GroupID,uint lane : SV_GroupIndex)
+{
+    uint bucket=group.x,value=lane<_CrowdBlocks?_CrowdTotals[bucket*_CrowdBlocks+lane]:0;
+    scan[lane]=value;GroupMemoryBarrierWithGroupSync();
+    [unroll] for(uint offset=1;offset<256;offset<<=1)
+    {
+        uint add=lane>=offset?scan[lane-offset]:0;GroupMemoryBarrierWithGroupSync();
+        scan[lane]+=add;GroupMemoryBarrierWithGroupSync();
+    }
+    if(lane<_CrowdBlocks)_CrowdOffsets[bucket*_CrowdBlocks+lane]=scan[lane]-value;
+    if(lane==255)_CrowdArguments[bucket*5+1]=scan[lane];
+}
+
+[numthreads(256,1,1)]
+void Scatter(uint3 group : SV_GroupID,uint lane : SV_GroupIndex)
+{
+    uint bucket=group.y,rank=group.x*256+lane;
+    if(!Member(rank,bucket))return;
+    uint offset=_CrowdOffsets[bucket*_CrowdBlocks+group.x]+_CrowdScan[bucket*_CrowdCapacity+rank];
+    _CrowdIndices[bucket*_CrowdCapacity+offset]=_CrowdOrder[rank].y;
+}
