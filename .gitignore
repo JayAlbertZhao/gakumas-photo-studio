@@ -49,6 +49,7 @@
 !/docs/baseline.md
 !/docs/bokeh-depth-of-field.md
 !/docs/code-map.md
+!/docs/fog-volumes.md
 !/docs/framework-techniques.md
 !/docs/hdr-monitor.md
 !/docs/motion-blur.md
@@ -178,6 +179,12 @@
 !/packages/com.digital-kotone.toolkit/Runtime/FaceExpressionRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/FaceMotionLibrary.cs
 !/packages/com.digital-kotone.toolkit/Runtime/FaceMotionLibrary.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/FogVolumeBinding.cs
+!/packages/com.digital-kotone.toolkit/Runtime/FogVolumeBinding.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/FogVolumeRenderer.cs
+!/packages/com.digital-kotone.toolkit/Runtime/FogVolumeRenderer.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/FogVolumeSettings.cs
+!/packages/com.digital-kotone.toolkit/Runtime/FogVolumeSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Gakumas.Toolkit.asmdef
 !/packages/com.digital-kotone.toolkit/Runtime/Gakumas.Toolkit.asmdef.meta
 !/packages/com.digital-kotone.toolkit/Runtime/HairDynamicsSystem.cs
@@ -244,6 +251,12 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/BokehDepthOfField.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/CapturedActorShadow.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/CapturedActorShadow.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolume.hlsl
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolume.hlsl.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolume.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolume.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolumeSurface.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolumeSurface.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorCanvas.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorCanvas.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorEmission.shader
@@ -374,6 +387,7 @@
 !/tests/test_color_grading_contract.py
 !/tests/test_documentation.py
 !/tests/test_examples.py
+!/tests/test_fog_volume_contract.py
 !/tests/test_framework_contract.py
 !/tests/test_local_assets.py
 !/tests/test_motion_blur_contract.py
@@ -396,6 +410,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ColorGrading.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FogVolume.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FogVolume.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Gi.cs

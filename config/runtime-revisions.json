@@ -56,7 +56,7 @@
       "baseline_sha256": "8d96a3cfdc758ef1ee6ac5c8c6b4f6900c2bfe45676e786ee3c169a59881db72"
     },
     "unity/Assets/Scripts/OriginalStyleRenderPipeline.cs": {
-      "sha256": "dfbf5fe6f13eed9150c63dc5c533fa0f6508db2cd8711c4fc2c52bddf198d70a",
+      "sha256": "fd9c3d92b03a356a54173530891631d42a3125be0f2064fc0344b6883d4590f8",
       "baseline_sha256": "08bc0a1eb0da8430850929da1a2ac27e3ae63426d06257c58fbfe6501ffa062d"
     },
     "unity/Assets/Scripts/PhotoModeApp.cs": {
@@ -103,7 +103,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "7e3feeb1dc39ad3d9dd0ce9ee376e8573208943f2ecfc691a709d082a116df85",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "db1bd84244da3f34b35869e7d5adf7b424ac5bcb2fa0ab39e774a38163bfac07",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "b9877ebeef14cbf7f8eda34045eba62753be2ddb6fc4512171680d6f9521c2d2",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
@@ -137,7 +137,7 @@
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs": "93267c4f15f0a7b3dcf3e1d3b1e07ced8258c9854d6ed1de91231a88aedce443",
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs.meta": "75aad888d4351b0776443c7e5751c3d105b6d12acf55d926068d065dfa837552",
     "packages/com.digital-kotone.toolkit/NOTICE.md": "81a4267084c7405793f975954b0b386565322e0d8b8c28a5a39ad3d49fbcc806",
-    "packages/com.digital-kotone.toolkit/README.md": "7e405b70579ad9ec5319abebe2b9a90f467b876756ee1df3d263a90a2ca7236b",
+    "packages/com.digital-kotone.toolkit/README.md": "1d8caf7f892f50457600ed607aa09d1f8b2ee76f1c969edf0e8f5f6c896ec986",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef": "6337904b37c3452d23c72a5c38b37d9e36a1de06dcfc262db792ddb141df3ccb",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef.meta": "b97945697274955dd36c6850061768b3522c5aa5768d95eb5401c2704ab0f013",
     "packages/com.digital-kotone.toolkit/Editor/ToolkitBuildPipeline.cs": "d82bdbb42be1669477bc12630ddddf5a7a7331bb04109dc879a9fcd76fe5f1d1",
@@ -347,7 +347,21 @@
     "packages/com.digital-kotone.toolkit/Runtime/SceneMotionBlurRenderer.cs": "039fe00f7a99f41520be363e4f9d5a293b96287d7a2ad53236bb69798a5fb91c",
     "packages/com.digital-kotone.toolkit/Runtime/SceneMotionBlurRenderer.cs.meta": "cf4c3b810e1c8c9db9d5b0e17a9863b43161274a847d3f7c18dbfc60e60a4f58",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionBlur.cs": "8e4d8b54efba1c21c648b3051281401bde99c5a38c1127c266dd24f7ae3a2b86",
-    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionBlur.cs.meta": "dfc6ff8854b04bc9bcaa4ce112cfa872a3540fa668b66fe6c7583117945c67e9"
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionBlur.cs.meta": "dfc6ff8854b04bc9bcaa4ce112cfa872a3540fa668b66fe6c7583117945c67e9",
+    "packages/com.digital-kotone.toolkit/Runtime/FogVolumeBinding.cs": "da97d262096c21f9ecbe9e1e37e14c49c87b78e99b8dba5df8595097007b8708",
+    "packages/com.digital-kotone.toolkit/Runtime/FogVolumeBinding.cs.meta": "9052e9e10dc68d2f2905d87ad1c9d76cf1b95621a4f9889df1448e729a86884a",
+    "packages/com.digital-kotone.toolkit/Runtime/FogVolumeRenderer.cs": "63813bf31a891cdad3f4eca6c851b8b01159cb808efe0d4f3b8b3154a01b4055",
+    "packages/com.digital-kotone.toolkit/Runtime/FogVolumeRenderer.cs.meta": "6d9dc9a068bc18171ba788401984f7498de5f8c84db0bd68fece5ff267844f79",
+    "packages/com.digital-kotone.toolkit/Runtime/FogVolumeSettings.cs": "355e2a9d06b0a5e1ed6a84484151edfd7dd51bb7e3c686ebc97fe743bd47bfda",
+    "packages/com.digital-kotone.toolkit/Runtime/FogVolumeSettings.cs.meta": "db62ace2a24b443bfb8ebbdf0f5b062125c5f09b9072696559bf6a36369e989c",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolume.hlsl": "757d01d1d3a2b799ad2179b62fd21b64961e4bbeeac202f68b4b950b75191dd7",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolume.hlsl.meta": "474d7c258ffcd20b9110e71431bc2ee6698575d0842415f32d4c630e953364bc",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolume.shader": "ebe06f38a8168f9f7bed2790a05d717807ab8e652f67e3a6375bae3c77f70c68",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolume.shader.meta": "0d0643edddb3d5c8495cc3dcc88e0180dbfdb24566561bae074db9940222de91",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolumeSurface.shader": "78d391de82cb54692fc101b4dc374f53fa9a8f20f1ad17ea65f6e3a0d6639858",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolumeSurface.shader.meta": "e64337b4ebf5b7a51dd2dfc4c250b5eddcfc75ce8b50ed60f7ed2e361a6be731",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FogVolume.cs": "caaf7a24ee969c8738d8c1cc721e956f0c7c32ec466e8d2608e72aa6a94d16b3",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FogVolume.cs.meta": "8b181a3f6fe2d46179273226e40a95883c67bfd96926c387896a89f34206f689"
   },
   "relocations": {
     "unity/Assets/ActorAnimationStub/ActorAnimation.Runtime.asmdef": "packages/com.digital-kotone.toolkit/Runtime/Compatibility/ActorAnimationStub/ActorAnimation.Runtime.asmdef",

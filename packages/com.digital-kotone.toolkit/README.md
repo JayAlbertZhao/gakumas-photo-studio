@@ -104,3 +104,5 @@ SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBack
 `SceneGiInput` 给登记表面提供 Lightmap／SH 预计算漫反射响应，支持 UV2/ST、显式解码与 Renderer 场景绑定。可独立压低基础 GI，让方向光或贴花灯乘 GI，并添加漫反射背光。Editor 的 `SceneGiBaker.BakeSceneCopy` 在新场景副本中生产白光参考烘焙，克隆 UV2／材质并验证源资产哈希；真实 Lightmap、场景探针和移动单骨网格已做桌面消费验证。默认 None，不改旧摄影；完整场景／角色和移动管线仍需各自验收。见 [场景 GI](../../docs/scene-gi.md)。
 
 `MotionBlurRenderer` 接收宿主拥有的当前 HDR、可见运动／当前正深度和采样间隔，提供默认关闭的 tile／双方向深度重建。`SceneDeferredCamera` 可用实际 GPU 几何对应和 framebuffer 可见性生产 guide，显式后处理桥接位于 DOF 后、Bloom 前；不自动登记角色或支持任意透明层。曝光、jitter、生命周期、桌面验证和附件成本见 [Motion Blur](../../docs/motion-blur.md)。
+
+`FogVolumeRenderer` 通过不可变 `FogVolumeBinding` 消费宿主自己的 HDR／设备或线性深度，联合处理距离介质和最多八个球；默认不启用。透明表面共用同一绑定，先求不透明雾，再按自身深度求雾并覆盖混合。示范表面使用显式线性 Vector 颜色，不自动接管已有透明材质。使用与边界见 [多介质雾](../../docs/fog-volumes.md)。

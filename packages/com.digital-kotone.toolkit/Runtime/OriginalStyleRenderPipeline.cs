@@ -52,6 +52,14 @@ namespace GakumasPhotoMode
 
         // Opt-in and owned by this camera; no scene search or global registry.
         public SphereFogSettings sphereFog = new SphereFogSettings();
+        // Explicit alternative to both legacy fog passes. Single-depth opaque input;
+        // forward transparent layers must use the separate shared-binding workflow.
+        public FogVolumeSettings fogVolumes = new FogVolumeSettings();
+        public Func<Camera, RenderTexture, FogVolumeDepth> fogVolumeDepthProvider;
+        private FogVolumeRenderer _fogVolumes;
+        public string FogVolumeUnavailableReason { get; private set; }
+        public bool TryGetFogVolumeFrame(out FogVolumeRenderer.Frame frame)
+        {frame=default;return _fogVolumes!=null&&_fogVolumes.TryGetFrame(out frame);}
         public TemporalClassification temporalClassification;
         // Explicit alternative to the unchanged legacy temporal pass. Same camera only.
         public SceneDeferredCamera sceneTemporalSource;
@@ -332,8 +340,13 @@ namespace GakumasPhotoMode
                 sceneReflectionResolve.TryComposite(_sourceCamera, source, out RenderTexture resolved)) current = resolved;
             else if (screenSpaceReflection != null &&
                 screenSpaceReflection.TryComposite(_sourceCamera, source, out RenderTexture reflected)) current = reflected;
-            current = ApplySceneDistanceFog(current, temporaries);
-            current = ApplySphereFog(current, temporaries);
+            if(fogVolumes!=null&&fogVolumes.enabled)current=ApplyFogVolumes(current);
+            else
+            {
+                _fogVolumes?.Dispose();_fogVolumes=null;FogVolumeUnavailableReason=null;
+                current = ApplySceneDistanceFog(current, temporaries);
+                current = ApplySphereFog(current, temporaries);
+            }
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "--legacy-diffusion") >= 0)
             {
                 RenderTexture legacyDiffused = GetTemporary(
@@ -635,6 +648,22 @@ namespace GakumasPhotoMode
             _postMaterial.SetTexture("_TemporalFlagsTex", active ? mask : Texture2D.blackTexture);
             _postMaterial.SetVector("_TemporalJitterUv", active ?
                 new Vector4(temporalClassification.jitterUv.x, temporalClassification.jitterUv.y, 0, 0) : Vector4.zero);
+        }
+
+        private RenderTexture ApplyFogVolumes(RenderTexture source)
+        {
+            FogVolumeUnavailableReason=null;
+            try
+            {
+                if(fogVolumeDepthProvider==null){_fogVolumes?.Dispose();FogVolumeUnavailableReason="Explicit current fog depth provider required";return source;}
+                if(!FogVolumeBinding.TryCreate(fogVolumes,_sourceCamera,source.width,source.height,out var binding,out var reason))
+                {_fogVolumes?.Dispose();FogVolumeUnavailableReason=reason;return source;}
+                var depth=fogVolumeDepthProvider(_sourceCamera,source);
+                if(_fogVolumes==null)_fogVolumes=new FogVolumeRenderer();
+                if(_fogVolumes.TryRender(source,depth,binding,out var frame))return frame.color;
+                FogVolumeUnavailableReason=_fogVolumes.UnavailableReason;return source;
+            }
+            catch(Exception e){_fogVolumes?.Dispose();FogVolumeUnavailableReason="Fog depth provider failed: "+e.GetType().Name;return source;}
         }
 
         private RenderTexture ApplySphereFog(
@@ -1280,6 +1309,7 @@ namespace GakumasPhotoMode
         {
             ReleaseAuthoredColor();
             _bokehDepthOfField?.Dispose();_bokehDepthOfField=null;
+            _fogVolumes?.Dispose();_fogVolumes=null;
             ReleaseActorData();
             ReleaseHistory();
             if (_postMaterial != null) DestroyImmediate(_postMaterial);

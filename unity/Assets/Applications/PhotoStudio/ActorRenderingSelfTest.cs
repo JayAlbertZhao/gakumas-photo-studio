@@ -338,6 +338,21 @@ namespace GakumasPhotoMode
                 (fixture as IDisposable)?.Dispose();
                 report.accepted = report.error == null && report.checks.TrueForAll(check => check.accepted);
             }
+            if (report.error == null)
+            {
+                _owned.Clear();
+                var fixture = VerifyFogVolumes(report);
+                while (true)
+                {
+                    bool more; object next = null;
+                    try { more = fixture.MoveNext(); if (more) next = fixture.Current; }
+                    catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); break; }
+                    if (!more) break;
+                    yield return next;
+                }
+                (fixture as IDisposable)?.Dispose();
+                report.accepted = report.error == null && report.checks.TrueForAll(check => check.accepted);
+            }
             if (report.error == null && !string.IsNullOrEmpty(bakeBundle))
             {
                 // Keep the historical suite before additive scene/probe state. Drive the

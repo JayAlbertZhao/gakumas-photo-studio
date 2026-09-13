@@ -21,6 +21,8 @@
 
 独立后处理输入可用 `MotionBlurSettings`／`MotionBlurInput`／`MotionBlurRenderer`；实际相机通过 `SceneDeferredCamera.motionBlur` 和 `OriginalStyleRenderPipeline.sceneMotionBlurSource` 显式接入。曝光时间、当前深度／运动方向及借用输出约定见 [Motion Blur 接入](motion-blur.md)。
 
+距离与局部介质可用 `FogVolumeSettings`／`FogVolumeBinding`／`FogVolumeRenderer`；八球和距离雾共同积分，显式消费当前深度。独立透明材质可共用视图快照并按自身表面深度求雾，接入次序和后处理桥接限制见 [多介质雾](fog-volumes.md)。
+
 | 需要做的事 | 入口 |
 | --- | --- |
 | 显式初始化 | `Initialize(CharacterSceneOptions)`；DataRoot 必填 |
