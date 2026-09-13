@@ -9,7 +9,7 @@ namespace GakumasPhotoMode
     internal sealed class SceneDecalLightRenderer : IDisposable
     {
         [StructLayout(LayoutKind.Sequential)]
-        private struct LightData
+        internal struct LightData
         {
             public Vector4 positionRange, axisXLength, axisYWidth, axisZHeight;
             public Vector4 radianceShape, uv, parameters, response, clipRect;
@@ -31,6 +31,10 @@ namespace GakumasPhotoMode
         public int BufferCapacity => _buffer == null ? 0 : _buffer.count;
         public SceneDecalLightBackend Backend { get; private set; }
         public string FallbackReason { get; private set; }
+        // Borrowed only while recording this camera's current commands. No GPU allocation.
+        internal List<LightData> PreparedLights => _data;
+        internal List<SceneDecalLight> PreparedSources => _visible;
+        internal Texture PreparedAtlas => _atlas;
 
         public bool Prepare(Camera camera, SceneDecalLightSettings settings, out string error)
         {
@@ -39,6 +43,13 @@ namespace GakumasPhotoMode
         }
 
         private bool PrepareCore(Camera camera, SceneDecalLightSettings settings, out string error)
+        {
+            if (!PrepareSnapshot(camera, settings, out error)) return false;
+            if (_data.Count == 0) return true;
+            return PrepareDeferred(camera, settings, out error);
+        }
+
+        internal bool PrepareSnapshot(Camera camera, SceneDecalLightSettings settings, out string error)
         {
             error = null; _data.Clear(); _visible.Clear(); CulledLights = DrawCalls = 0; FallbackReason = null;
             if (settings == null || !settings.enabled) { Dispose(); return true; }
@@ -89,6 +100,12 @@ namespace GakumasPhotoMode
             else _atlas = settings.atlas != null ? settings.atlas : Texture2D.whiteTexture;
             if (_atlas.dimension != TextureDimension.Tex2D || (_atlas is RenderTexture rt && (!rt.IsCreated() || rt.antiAliasing != 1)))
             { error = "Decal-light atlas requires a readable 2D non-MSAA GPU texture"; return false; }
+            return true;
+        }
+
+        private bool PrepareDeferred(Camera camera, SceneDecalLightSettings settings, out string error)
+        {
+            error = null;
             var instanced = Resources.Load<Shader>("SceneDecalLightInstanced");
             bool capable = SystemInfo.supportsInstancing && SystemInfo.graphicsShaderLevel >= 45 && instanced != null && instanced.isSupported;
             var selected = settings.backend;

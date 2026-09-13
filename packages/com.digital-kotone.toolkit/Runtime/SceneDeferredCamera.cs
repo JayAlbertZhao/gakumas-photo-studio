@@ -504,9 +504,9 @@ namespace GakumasPhotoMode
         private static bool Finite(Vector3 x) => Finite(x.x) && Finite(x.y) && Finite(x.z);
         private static bool Positive(Vector3 x) => Finite(x) && x.x >= 0 && x.y >= 0 && x.z >= 0 && x.x <= 65504 && x.y <= 65504 && x.z <= 65504;
         private static bool Unit(float x) => Finite(x) && x >= 0 && x <= 1;
-        private static bool Matrix(Matrix4x4 m)
+        internal static bool Matrix(Matrix4x4 m)
         { for (int i = 0; i < 16; i++) if (!Finite(m[i])) return false; return Finite(m.determinant) && Mathf.Abs(m.determinant) > 1e-12f; }
-        private static bool Inputs(MaterialInputs v)
+        internal static bool Inputs(MaterialInputs v)
         {
             if (v == null || !Positive(v.albedo) || v.albedo.x > 1 || v.albedo.y > 1 || v.albedo.z > 1 || !Positive(v.emission) ||
                 !Unit(v.mos.x) || !Unit(v.mos.y) || !Unit(v.mos.z) || !Unit(v.alpha)) return false;
@@ -514,7 +514,7 @@ namespace GakumasPhotoMode
             return true;
         }
 
-        private static void BindInputs(Material m, MaterialInputs v)
+        internal static void BindInputs(Material m, MaterialInputs v)
         {
             m.SetTexture("_AlbedoMap", v.albedoMap != null ? v.albedoMap : Texture2D.whiteTexture);
             m.SetTexture("_NormalMap", v.normalMap != null ? v.normalMap : Texture2D.grayTexture);

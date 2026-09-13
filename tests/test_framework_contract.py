@@ -360,7 +360,7 @@ class FrameworkContractTests(unittest.TestCase):
         self.assertIn('spotInnerAngle = 30', settings)
         self.assertIn('spotOuterAngle = 60', settings)
         renderer = (RUNTIME / 'SceneDecalLightRenderer.cs').read_text(encoding='utf-8')
-        struct = renderer[renderer.index('private struct LightData'):renderer.index('private readonly List<LightData>')]
+        struct = renderer[renderer.index('internal struct LightData'):renderer.index('private readonly List<LightData>')]
         self.assertEqual(struct.count('Vector4'), 2)
         self.assertIn('parameters, response, clipRect', struct)
         self.assertIn('light.shape == SceneDecalLightShape.Spot', renderer)

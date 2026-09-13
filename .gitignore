@@ -69,6 +69,7 @@
 !/docs/scene-deferred.md
 !/docs/scene-depth-data.md
 !/docs/scene-format.md
+!/docs/scene-forward-plus.md
 !/docs/scene-gi.md
 !/docs/scene-gtao-temporal.md
 !/docs/scene-gtao.md
@@ -355,6 +356,12 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDepthData.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDepthHierarchy.compute
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDepthHierarchy.compute.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneForwardLightGrid.compute
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneForwardLightGrid.compute.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneForwardLighting.hlsl
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneForwardLighting.hlsl.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneForwardLighting.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneForwardLighting.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneGi.hlsl
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneGi.hlsl.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneGtao.hlsl
@@ -413,6 +420,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SceneDepthData.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneDirectionalShadowSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneDirectionalShadowSettings.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SceneForwardLightingCamera.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SceneForwardLightingCamera.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SceneForwardLightingSettings.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SceneForwardLightingSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneGiInput.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneGiInput.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneGtaoSettings.cs
@@ -475,6 +486,7 @@
 !/tests/test_examples.py
 !/tests/test_face_decal_contract.py
 !/tests/test_fog_volume_contract.py
+!/tests/test_forward_plus_contract.py
 !/tests/test_framework_contract.py
 !/tests/test_gpu_face_contract.py
 !/tests/test_heavy_fx_contract.py
@@ -512,6 +524,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FaceDecals.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FogVolume.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FogVolume.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ForwardPlus.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ForwardPlus.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Gi.cs

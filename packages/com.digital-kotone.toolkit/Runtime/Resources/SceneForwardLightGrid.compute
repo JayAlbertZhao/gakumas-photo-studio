@@ -1,0 +1,32 @@
+#pragma kernel BuildTiles
+struct SceneLightData
+{
+    float4 positionRange, axisXLength, axisYWidth, axisZHeight;
+    float4 radianceShape, uv, parameters, response, clipRect;
+};
+StructuredBuffer<SceneLightData> _SceneLights;
+RWStructuredBuffer<uint> _ForwardTiles;
+int _ForwardLightCount, _ForwardWords, _ForwardTileSize, _ForwardTilesX, _ForwardTilesY;
+float4 _ForwardTarget; // Width, height, native UV starts at top, reserved.
+
+// Each invocation owns exactly one word: all words, including zero/tail bits, are overwritten.
+// The 2D set spans all depths. Opaque min/max depth cannot bound transparent receivers.
+[numthreads(8, 8, 1)]
+void BuildTiles(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_ForwardTilesX || id.y >= (uint)_ForwardTilesY || id.z >= (uint)_ForwardWords) return;
+    float2 tileLow = id.xy * _ForwardTileSize;
+    float2 tileHigh = min(tileLow + _ForwardTileSize, _ForwardTarget.xy);
+    uint mask = 0;
+    [loop] for (uint bit = 0; bit < 32; bit++)
+    {
+        uint light = id.z * 32 + bit;
+        if (light >= (uint)_ForwardLightCount) break;
+        float4 rect = _SceneLights[light].clipRect * .5 + .5;
+        if (_ForwardTarget.z > .5) rect.yw = 1 - rect.wy;
+        // A one-pixel conservative guard covers projection/edge rounding, never removes lights.
+        float2 low = rect.xy * _ForwardTarget.xy - 1, high = rect.zw * _ForwardTarget.xy + 1;
+        if (all(high >= tileLow) && all(low <= tileHigh)) mask |= 1u << bit;
+    }
+    _ForwardTiles[(id.y * _ForwardTilesX + id.x) * _ForwardWords + id.z] = mask;
+}
