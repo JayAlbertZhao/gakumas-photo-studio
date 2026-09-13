@@ -24,6 +24,7 @@ class LowResolutionFxContract(unittest.TestCase):
 
     def test_shader_depth_repair_and_sampler_independence(self):
         code = (RUNTIME / 'Resources/LowResolutionFx.shader').read_text(encoding='utf-8')
+        code += (RUNTIME / 'Resources/LowResolutionFxShared.hlsl').read_text(encoding='utf-8')
         for required in ('ReduceDepth', 'FxNeedsRepair', 'FxRefract', 'range.y-range.x', 'ColorMask RGB', 'original.a', 'Blend One OneMinusSrcAlpha'):
             self.assertIn(required, code)
         for forbidden in ('tex2D(', 'SamplerState', '_CameraDepthTexture'):

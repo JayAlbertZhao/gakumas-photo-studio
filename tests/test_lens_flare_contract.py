@@ -27,6 +27,7 @@ class LensFlareContract(unittest.TestCase):
 
     def test_stable_profiles_sampler_free_low_resolution_resolve(self):
         code = (RUNTIME / 'Resources/LensFlare.shader').read_text(encoding='utf-8')
+        code += (RUNTIME / 'Resources/LensFlareShared.hlsl').read_text(encoding='utf-8')
         for required in ('StructuredBuffer<FlareEmitter>', 'StructuredBuffer<FlareElement>', 'input.position.xy/_FlareInput.zw', 'SV_InstanceID',
                          'FlareVisible', 'dot(offset,offset)>1', 'radius>=.0001', 'Blend One One, Zero One', 'original.a'):
             self.assertIn(required, code)

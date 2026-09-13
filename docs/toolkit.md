@@ -29,7 +29,9 @@
 
 镜头光学元素可用 `LensFlareSettings`／`LensFlareRenderer`：独立配置 Flare、Ghost、光环、星芒或自有 atlas，完整深度决定源遮挡，显式时间支持暂停／seek；一次实例化绘制可输出低分辨率附件。默认关闭，使用与 P09 调度边界见 [Flare／Ghost](lens-flares.md)。
 
-几何透明特效可用 `LowResolutionFxSettings`／`LowResolutionFxRenderer`：宿主显式排序 Full／Half／Quarter 表面，支持 Alpha／Additive／折射、当前深度引导与完整分辨率边缘重画。可提交网格、Renderer 或生成的粒子网格；贴图、蒙皮更新和生命周期由宿主管理。默认关闭，输入与尚未统一的体积／光学调度边界见 [分层透明特效](low-resolution-fx.md)。
+几何透明特效可用 `LowResolutionFxSettings`／`LowResolutionFxRenderer`：宿主显式排序 Full／Half／Quarter 表面，支持 Alpha／Additive／折射、当前深度引导与完整分辨率边缘重画。可提交网格、Renderer 或生成的粒子网格；贴图、蒙皮更新和生命周期由宿主管理。独立接口见 [分层透明特效](low-resolution-fx.md)。
+
+需要同时使用几何、连续体积与镜头效果时，可显式选择 `HeavyFxSettings`／`HeavyFxRenderer`。同尺寸相邻类型直接共用预乘效果附件，每批一个完整 R8 重画决策，保持几何顺序和折射边界；介质按各表面实际深度着色。它与各独立后处理桥接互斥，默认关闭。最小调用、内存及支持边界见 [联合重特效](heavy-fx.md)。
 
 | 需要做的事 | 入口 |
 | --- | --- |

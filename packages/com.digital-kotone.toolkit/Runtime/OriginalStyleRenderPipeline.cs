@@ -80,6 +80,14 @@ namespace GakumasPhotoMode
         public string LowResolutionFxUnavailableReason { get; private set; }
         public bool TryGetLowResolutionFxFrame(out LowResolutionFxRenderer.Frame frame)
         { frame=default; return _lowResolutionFx!=null && _lowResolutionFx.TryGetFrame(out frame); }
+        public HeavyFxSettings heavyFx = new HeavyFxSettings();
+        public Func<Camera,RenderTexture,FogVolumeDepth> heavyFxDepthProvider;
+        public RenderTexture heavyFxProtection;
+        public double heavyFxTimeSeconds;
+        private HeavyFxRenderer _heavyFx;
+        public string HeavyFxUnavailableReason {get;private set;}
+        public bool TryGetHeavyFxFrame(out HeavyFxRenderer.Frame frame)
+        {frame=default;return _heavyFx!=null&&_heavyFx.TryGetFrame(out frame);}
         public TemporalClassification temporalClassification;
         // Explicit alternative to the unchanged legacy temporal pass. Same camera only.
         public SceneDeferredCamera sceneTemporalSource;
@@ -360,16 +368,28 @@ namespace GakumasPhotoMode
                 sceneReflectionResolve.TryComposite(_sourceCamera, source, out RenderTexture resolved)) current = resolved;
             else if (screenSpaceReflection != null &&
                 screenSpaceReflection.TryComposite(_sourceCamera, source, out RenderTexture reflected)) current = reflected;
-            if(fogVolumes!=null&&fogVolumes.enabled)current=ApplyFogVolumes(current);
+            if(heavyFx!=null&&heavyFx.enabled)
+            {
+                _fogVolumes?.Dispose();_fogVolumes=null;
+                _lowResolutionFx?.Dispose();_lowResolutionFx=null;
+                _volumetricLighting?.Dispose();_volumetricLighting=null;
+                _lensFlares?.Dispose();_lensFlares=null;
+                current=ApplyHeavyFx(current);
+            }
             else
             {
-                _fogVolumes?.Dispose();_fogVolumes=null;FogVolumeUnavailableReason=null;
-                current = ApplySceneDistanceFog(current, temporaries);
-                current = ApplySphereFog(current, temporaries);
+                _heavyFx?.Dispose();_heavyFx=null;HeavyFxUnavailableReason=null;
+                if(fogVolumes!=null&&fogVolumes.enabled)current=ApplyFogVolumes(current);
+                else
+                {
+                    _fogVolumes?.Dispose();_fogVolumes=null;FogVolumeUnavailableReason=null;
+                    current = ApplySceneDistanceFog(current, temporaries);
+                    current = ApplySphereFog(current, temporaries);
+                }
+                current=ApplyLowResolutionFx(current);
+                current=ApplyVolumetricLighting(current);
+                current=ApplyLensFlares(current);
             }
-            current=ApplyLowResolutionFx(current);
-            current=ApplyVolumetricLighting(current);
-            current=ApplyLensFlares(current);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "--legacy-diffusion") >= 0)
             {
                 RenderTexture legacyDiffused = GetTemporary(
@@ -671,6 +691,24 @@ namespace GakumasPhotoMode
             _postMaterial.SetTexture("_TemporalFlagsTex", active ? mask : Texture2D.blackTexture);
             _postMaterial.SetVector("_TemporalJitterUv", active ?
                 new Vector4(temporalClassification.jitterUv.x, temporalClassification.jitterUv.y, 0, 0) : Vector4.zero);
+        }
+
+        private RenderTexture ApplyHeavyFx(RenderTexture source)
+        {
+            HeavyFxUnavailableReason=null;
+            if((lowResolutionFx!=null&&lowResolutionFx.enabled)||(volumetricLighting!=null&&volumetricLighting.enabled)||
+                (lensFlares!=null&&lensFlares.enabled)||(fogVolumes!=null&&fogVolumes.enabled)||(sphereFog!=null&&sphereFog.enabled)||
+                TryGetSceneDistanceFog(out _,out _)||(heavyFx.geometry!=null&&heavyFx.geometry.enabled&&heavyFx.geometry.fog!=null&&heavyFx.geometry.fog.enabled))
+            {_heavyFx?.Dispose();HeavyFxUnavailableReason="Joint FX requires exclusive opaque input; disable independent FX/fog bridges";return source;}
+            try
+            {
+                if(heavyFxDepthProvider==null){_heavyFx?.Dispose();HeavyFxUnavailableReason="Explicit current joint FX depth provider required";return source;}
+                var depth=heavyFxDepthProvider(_sourceCamera,source);
+                if(_heavyFx==null)_heavyFx=new HeavyFxRenderer();
+                if(_heavyFx.TryRender(source,depth,_sourceCamera,heavyFx,heavyFxTimeSeconds,out var frame,heavyFxProtection))return frame.color;
+                HeavyFxUnavailableReason=_heavyFx.UnavailableReason;return source;
+            }
+            catch(Exception error){_heavyFx?.Dispose();HeavyFxUnavailableReason="Joint FX depth provider failed: "+error.GetType().Name;return source;}
         }
 
         private RenderTexture ApplyLowResolutionFx(RenderTexture source)
@@ -1381,6 +1419,7 @@ namespace GakumasPhotoMode
             _volumetricLighting?.Dispose();_volumetricLighting=null;
             _lensFlares?.Dispose();_lensFlares=null;
             _lowResolutionFx?.Dispose();_lowResolutionFx=null;
+            _heavyFx?.Dispose();_heavyFx=null;
             ReleaseActorData();
             ReleaseHistory();
             if (_postMaterial != null) DestroyImmediate(_postMaterial);

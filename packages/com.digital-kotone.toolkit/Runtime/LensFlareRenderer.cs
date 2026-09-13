@@ -8,7 +8,7 @@ using UnityEngine.Rendering;
 namespace GakumasPhotoMode
 {
     /// <summary>Current-depth visibility, instanced authored optical elements, optional reduced-resolution HDR resolve.</summary>
-    public sealed class LensFlareRenderer : IDisposable
+    public sealed partial class LensFlareRenderer : IDisposable
     {
         [StructLayout(LayoutKind.Sequential)]
         private struct EmitterData { public Vector4 screen, occlusion, options, radiance; }
@@ -191,6 +191,7 @@ namespace GakumasPhotoMode
         }
         private void Release()
         {
+            ReleaseShared();
             ReleaseTargets(); emitterBuffer?.Dispose(); elementBuffer?.Dispose(); emitterBuffer=elementBuffer=null;
             if (material!=null) UnityEngine.Object.Destroy(material); material=null; emitters.Clear(); elements.Clear(); DrawCalls=0;
         }

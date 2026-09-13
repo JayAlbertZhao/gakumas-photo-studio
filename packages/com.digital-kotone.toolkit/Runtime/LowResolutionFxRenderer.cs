@@ -178,7 +178,7 @@ namespace GakumasPhotoMode
             finally { RenderTexture.active=saved!=null && saved.IsCreated()?saved:null; }
         }
 
-        private static bool ValidateSurface(LowResolutionFxSurface s,out string reason)
+        internal static bool ValidateSurface(LowResolutionFxSurface s,out string reason)
         {
             reason="Invalid FX geometry, linear material, UV or blend settings";
             if((s.renderer==null)==(s.mesh==null) || !ValidResolution(s.resolution) || s.blend<FxBlend.Alpha || s.blend>FxBlend.Distortion ||

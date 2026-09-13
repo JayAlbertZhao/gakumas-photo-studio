@@ -8,6 +8,8 @@
 
 `SceneTemporalAntialiasingSettings` 提供显式场景运动驱动的 HDR 颜色 TAA、可见性／分类保护及同相机后处理桥接，默认关闭并保留旧摄影 shader。依赖实际 GPU motion，不自动加投影 jitter；八张 float4 目标属于桌面正确性后端。最小调用、颜色／深度／历史所有权及未覆盖范围见 [颜色 TAA 接入](../../docs/scene-temporal-antialiasing.md)。
 
+`HeavyFxSettings`／`HeavyFxRenderer` 可将连续体积、有序透明／折射几何及镜头光学元素接入共享低分辨率工作附件。显式输入当前 HDR、深度、相机和时间，每批只生成一次完整重画决策；默认关闭，不调用各独立 renderer 串联完整 HDR。最小调用、逐表面介质、资源借用和未覆盖范围见 [联合重特效](../../docs/heavy-fx.md)。
+
 1. 使用 Tuanjie 2022.3.62t15、Windows Player 支持；当前固定依赖 URP 14.2.0-t1、Mathematics 1.3.2。其他编辑器/平台尚未验证。默认运行路径使用 Built-in Render Pipeline；声明 URP 依赖是为保留原有可选研究路径，不要求将项目切到 URP。
 2. 在 Package Manager 选择 **Add package from disk**，选择本目录的 `package.json`。不要把 Runtime 又复制一份到 Assets；兼容程序集和类型不能重复。
 3. 将项目 Color Space 设置为 Linear。在空场景中使用下方入口；场景不需要额外相机。核心创建自身相机、光源和默认环境。

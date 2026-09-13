@@ -33,7 +33,17 @@
             enter=0;leave=maximum;float3 local=origin-_MediumCenter.xyz;
             [unroll] for(int axis=0;axis<3;axis++)
             {
-                if(abs(direction[axis])<1e-8){if(abs(local[axis])>_MediumHalfSize[axis])return false;}
+                if(abs(direction[axis])<1e-8)
+                {
+                    float tolerance=0;
+                    #if defined(HEAVY_FX_VOLUME)
+                    // Closed parallel slab: unprojection can put an exact face ray a
+                    // few float ULPs outside. Keep resolvably outside rays excluded.
+                    float scale=max(max(abs(origin[axis]),abs(_MediumCenter[axis])),_MediumHalfSize[axis]);
+                    tolerance=4*(asfloat(asuint(scale)+1)-scale);
+                    #endif
+                    if(abs(local[axis])>_MediumHalfSize[axis]+tolerance)return false;
+                }
                 else
                 {
                     float a=(-_MediumHalfSize[axis]-local[axis])/direction[axis],b=(_MediumHalfSize[axis]-local[axis])/direction[axis];
@@ -73,10 +83,10 @@
             }
             enter=lo;leave=hi;return leave>enter;
         }
-        float4 Scatter(v2f_img input):SV_Target
+        float4 VolumeScatterRay(float3 start,float3 direction,float lengthRay)
         {
-            float3 start,direction;float lengthRay,mediumEnter,mediumLeave;
-            if(_MediumParameters.x<=0||!VolumeRay(input.pos.xy,start,direction,lengthRay)||!VolumeBox(start,direction,lengthRay,mediumEnter,mediumLeave))return 0;
+            float mediumEnter,mediumLeave;
+            if(_MediumParameters.x<=0||!VolumeBox(start,direction,lengthRay,mediumEnter,mediumLeave))return 0;
             float enter=mediumEnter,leave=mediumLeave;if(!VolumeCone(start,direction,enter,leave))return 0;
             float stepLength=(leave-enter)/_MediumParameters.z,total=0,sigma=_MediumParameters.x,g=_MediumParameters.y;
             float stepOpacity=FogOneMinusExp(sigma*stepLength);
@@ -99,6 +109,12 @@
                 total+=exp(-sigma*(a-mediumEnter+lightPath))*stepOpacity*phase*attenuation*visibility;
             }
             return float4(total*_MediumAlbedo.xyz*_VolumeLightRadianceInner.xyz,0);
+        }
+        float4 Scatter(v2f_img input):SV_Target
+        {
+            float3 start,direction;float lengthRay;
+            if(_MediumParameters.x<=0||!VolumeRay(input.pos.xy,start,direction,lengthRay))return 0;
+            return VolumeScatterRay(start,direction,lengthRay);
         }
         float4 Composite(v2f_img input):SV_Target
         {
