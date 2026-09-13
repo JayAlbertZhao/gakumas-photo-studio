@@ -44,7 +44,7 @@ if (volume.TryRender(hdr, new FogVolumeDepth(linearEyeDepth), camera,
 
 ## 输入与生命周期
 
-颜色接受线性 RGBAFloat／RGBAHalf／R11G11B10；输出两个 RGBAFloat 目标：`frame.scattering` 是相加的 RGB 散射，alpha 为 0；`frame.color` 是最终 HDR，alpha 精确保留输入。正向眼空间深度接受 RFloat／RHalf，0 表示天空；设备深度用 `new FogVolumeDepth(depth, FogDepthEncoding.Device)`，接受 RFloat／Depth，使用实际 GPU 投影解算清除值和反向 Z。深度与颜色必须来自同一帧、同一像素网格，包括 jitter；模块不能从纹理外观判断深度是否陈旧。
+颜色接受线性 RGBAFloat／RGBAHalf／R11G11B10；输出两个完整尺寸 RGBAFloat 目标：`frame.scattering` 是相加的 RGB 散射，alpha 为 0；`frame.color` 是最终 HDR，alpha 精确保留输入。默认 Full 直接积分，可选 Half／Quarter 增加低尺寸积分与深度／颜色引导重建，见 [低分辨率体积光](volumetric-reconstruction.md)。正向眼空间深度接受 RFloat／RHalf，0 表示天空；设备深度用 `new FogVolumeDepth(depth, FogDepthEncoding.Device)`，接受 RFloat／Depth，使用实际 GPU 投影解算清除值和反向 Z。深度与颜色必须来自同一帧、同一像素网格，包括 jitter；模块不能从纹理外观判断深度是否陈旧。
 
 可选 `protection` 为同尺寸线性 R8／RFloat，R>0 或非有限值保留原色。非法逐像素深度（负值、非有限值、近裁面前的线性深度、超出 [0,1] 的设备深度）保留原色；线性深度超过远裁面则截到远裁面。`affectSky=false` 保留天空。拒绝输入互相别名或借用自己的输出，以及 MSAA、mipmap、动态尺寸、XR 和部分视口。
 
@@ -72,4 +72,4 @@ Photo Studio 可显式设置 `OriginalStyleRenderPipeline.volumetricLighting` �
 
 公开自制渲染夹具覆盖独立密集世界空间积分、内外相机／正交／偏轴、窄锥／硬边、正负相函数、步数收敛、天空／保护／无效深度、多个彩色灯及跨行阴影图集、刚体／骨骼／alpha 遮挡、尺寸／别名／双实例／丢失目标与默认恢复。实际相机生产深度并经后处理桥接消费；原生证据核对阴影→散射→HDR 合成→下游消费的真实字节，而不只检查有无绘制调用。量化记录见 [渲染记录](rendering.md)。
 
-两个全尺寸 RGBAFloat 目标在 1080p 约 63.3 MiB，不含输入和阴影附件。`DrawCalls` 是每个有效灯一次全屏积分加一次合成；`ShadowCasterDrawCalls` 单独计数。源阴影每灯一 tile，分辨率 32–2048、图集边长最多 4096，还需深度附件；体积端每步 Hard 一次或 PCF 九次读取。未实现低分辨率／froxel 加速，未测手机、Vulkan／Metal、XR 或实际 GPU 帧时；资源数量不等于性能验收。原版整体画质和全角色材质仍需单独对照。
+默认 Full 的两个全尺寸 RGBAFloat 目标在 1080p 约 63.3 MiB，不含输入和阴影附件。Full 的 `DrawCalls` 是每个有效灯一次全屏积分加一次合成；缩减路径另有范围、遮罩、重建和每灯条件重算，资源与实际测量见 [低分辨率体积光](volumetric-reconstruction.md)。`ShadowCasterDrawCalls` 单独计数。源阴影每灯一 tile，分辨率 32–2048、图集边长最多 4096，还需深度附件；体积端每步 Hard 一次或 PCF 九次读取。未实现 froxel，未测手机、Vulkan／Metal、XR 或实际 GPU 帧时；资源数量不等于性能验收。原版整体画质和全角色材质仍需单独对照。

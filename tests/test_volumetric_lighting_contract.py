@@ -23,7 +23,7 @@ class VolumetricLightingContract(unittest.TestCase):
             self.assertIn(required, renderer)
 
     def test_finite_shadowed_transport_and_exact_alpha(self):
-        shader = (RUNTIME / 'Resources/VolumetricLighting.shader').read_text(encoding='utf-8')
+        shader = (RUNTIME / 'Resources/VolumetricLighting.shader').read_text(encoding='utf-8') + (RUNTIME / 'Resources/VolumetricLightingShared.hlsl').read_text(encoding='utf-8')
         for required in ('VolumeBox', 'VolumeCone', 'mediumEnter', 'lightPath', 'SceneLightVisibility(world,float3(0,0,0),data)',
                          'denominator=1+g*(g-2*mu)', 'FogOneMinusExp(sigma*stepLength)', 'Blend One One, Zero One', '_VolumeScattering.Load(texel).rgb,original.a'):
             self.assertIn(required, shader)

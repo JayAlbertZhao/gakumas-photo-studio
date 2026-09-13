@@ -25,6 +25,8 @@
 
 带遮挡的光束可用 `VolumetricLightingSettings`／`VolumetricLightingRenderer`：有限均匀介质中的最多 16 个聚光灯单次散射，宿主登记的刚体／蒙皮／cutout 几何每次产生光源阴影。默认关闭，显式输入当前 HDR／深度，接入及透明层／成本限制见 [体积光](volumetric-lighting.md)。
 
+体积积分默认 Full，可显式选择 `VolumetricResolution.Half`／`Quarter`。低尺寸散射经过完整深度／对比引导，在危险区域重新完整积分；最终透射保持完整深度精度。质量与额外资源预算见 [低分辨率体积光](volumetric-reconstruction.md)，保守重算可能使它比 Full 更贵。
+
 镜头光学元素可用 `LensFlareSettings`／`LensFlareRenderer`：独立配置 Flare、Ghost、光环、星芒或自有 atlas，完整深度决定源遮挡，显式时间支持暂停／seek；一次实例化绘制可输出低分辨率附件。默认关闭，使用与 P09 调度边界见 [Flare／Ghost](lens-flares.md)。
 
 几何透明特效可用 `LowResolutionFxSettings`／`LowResolutionFxRenderer`：宿主显式排序 Full／Half／Quarter 表面，支持 Alpha／Additive／折射、当前深度引导与完整分辨率边缘重画。可提交网格、Renderer 或生成的粒子网格；贴图、蒙皮更新和生命周期由宿主管理。默认关闭，输入与尚未统一的体积／光学调度边界见 [分层透明特效](low-resolution-fx.md)。

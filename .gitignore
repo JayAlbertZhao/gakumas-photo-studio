@@ -77,6 +77,7 @@
 !/docs/toolkit.md
 !/docs/user-guide.md
 !/docs/volumetric-lighting.md
+!/docs/volumetric-reconstruction.md
 !/examples/01-single-motion.timeline.json
 !/examples/02-motion-transition.timeline.json
 !/examples/03-motion-sequence.timeline.json
@@ -342,6 +343,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TemporalClassification.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/VolumetricLighting.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/VolumetricLighting.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/VolumetricLightingShared.hlsl
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/VolumetricLightingShared.hlsl.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/VolumetricReconstruction.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/VolumetricReconstruction.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneComputeSupport.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneComputeSupport.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneDecalLightRenderer.cs
@@ -394,6 +399,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SupersamplePresenter.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingRenderer.Reconstruction.cs
+!/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingRenderer.Reconstruction.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingRenderer.cs
 !/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingSettings.cs
@@ -419,6 +426,7 @@
 !/tests/test_studio.py
 !/tests/test_toolkit_contract.py
 !/tests/test_volumetric_lighting_contract.py
+!/tests/test_volumetric_reconstruction_contract.py
 !/tools/import_private_resources.py
 !/tools/release.py
 !/tools/verify_baseline.py
@@ -488,6 +496,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Temporal.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Volumetric.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Volumetric.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VolumetricReconstruction.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VolumetricReconstruction.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingValidation.cs

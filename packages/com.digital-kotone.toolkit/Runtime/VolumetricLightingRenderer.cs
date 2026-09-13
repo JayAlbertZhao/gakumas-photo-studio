@@ -7,15 +7,17 @@ using UnityEngine.Rendering;
 namespace GakumasPhotoMode
 {
     /// <summary>Finite-medium single scattering from actual depth and independently owned dynamic shadow maps.</summary>
-    public sealed class VolumetricLightingRenderer : IDisposable
+    public sealed partial class VolumetricLightingRenderer : IDisposable
     {
         public readonly struct Frame
         {
             private readonly VolumetricLightingRenderer owner;
             private readonly uint generation;
             public readonly RenderTexture color, scattering, shadowAtlas;
+            public readonly RenderTexture lowResolutionScattering, depthRange, reconstructionMask;
             internal Frame(VolumetricLightingRenderer renderer)
-            {owner=renderer;generation=renderer.generation;color=renderer.color;scattering=renderer.scattering;shadowAtlas=renderer.shadows.Atlas;}
+            {owner=renderer;generation=renderer.generation;color=renderer.color;scattering=renderer.scattering;shadowAtlas=renderer.shadows.Atlas;
+                lowResolutionScattering=renderer.lowScattering;depthRange=renderer.depthRange;reconstructionMask=renderer.reconstructionMask;}
             public bool IsCurrent=>owner!=null&&owner.hasFrame&&owner.generation==generation&&owner.Created;
         }
         // Reuse the tested camera snapshot/unprojection contract, without enabling its fog media.
@@ -30,16 +32,16 @@ namespace GakumasPhotoMode
         private bool hasFrame;
         public int DrawCalls {get;private set;}
         public int LightCount=>lights.Count;
-        public int TargetCount=>Created?2+(shadows.Atlas!=null?1:0):0;
+        public int TargetCount=>Created?2+(shadows.Atlas!=null?1:0)+(lowScattering!=null?3:0):0;
         public int ShadowMapCount=>shadows.MapCount;
         public int ShadowCasterDrawCalls=>shadows.CasterDrawCalls;
         public string UnavailableReason {get;private set;}
-        private bool Created=>color!=null&&color.IsCreated()&&scattering!=null&&scattering.IsCreated()&&(shadows.Atlas==null||shadows.Atlas.IsCreated());
+        private bool Created=>color!=null&&color.IsCreated()&&scattering!=null&&scattering.IsCreated()&&(shadows.Atlas==null||shadows.Atlas.IsCreated())&&ReducedTargetsCreated;
         public bool TryGetFrame(out Frame frame){frame=default;if(!hasFrame||!Created)return false;frame=new Frame(this);return true;}
 
         public bool TryRender(RenderTexture source,FogVolumeDepth depth,Camera camera,VolumetricLightingSettings settings,out Frame frame,RenderTexture protection=null)
         {
-            frame=default;generation++;hasFrame=false;DrawCalls=0;UnavailableReason=null;
+            frame=default;generation++;hasFrame=false;DrawCalls=0;ReintegrationDrawCalls=0;UnavailableReason=null;
             if(settings==null||!settings.enabled){Release();return false;}
             if(!settings.Validate(out var reason))return Fail(reason);
             if(!Valid(source)||!Valid(depth.texture)||source.sRGB||depth.texture.sRGB||source==depth.texture||Owns(source)||Owns(depth.texture)||
@@ -52,6 +54,7 @@ namespace GakumasPhotoMode
                     (protection.format!=RenderTextureFormat.R8&&protection.format!=RenderTextureFormat.RFloat))))
                 return Fail("Volumetric lighting requires distinct matching linear HDR, depth and optional protection targets");
             if(!FogVolumeBinding.TryCreate(viewSettings,camera,source.width,source.height,out var view,out reason))return Fail(reason);
+            if(settings.resolution!=VolumetricResolution.Full&&!ReducedCapabilities(source,settings,out reason))return Fail(reason);
             var shader=Resources.Load<Shader>("VolumetricLighting");
             if(shader==null||!shader.isSupported||!SystemInfo.IsFormatSupported(GraphicsFormat.R32G32B32A32_SFloat,FormatUsage.Render)||!SystemInfo.IsFormatSupported(GraphicsFormat.R32G32B32A32_SFloat,FormatUsage.Sample))
                 return Fail("Volumetric shader or float render/sample targets unavailable");
@@ -68,6 +71,12 @@ namespace GakumasPhotoMode
                 while(materials.Count<lights.Count)materials.Add(new Material(shader){hideFlags=HideFlags.HideAndDontSave});
                 while(materials.Count>lights.Count){int last=materials.Count-1;UnityEngine.Object.Destroy(materials[last]);materials.RemoveAt(last);}
                 if(composite==null)composite=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
+                if(settings.resolution!=VolumetricResolution.Full)
+                {
+                    if(!RenderReduced(source,depth,camera,settings,view,protection,out reason))return Fail(reason);
+                    hasFrame=true;frame=new Frame(this);return true;
+                }
+                ReleaseReduced();
                 void Bind(Material material)
                 {
                     view.Apply(material);material.SetTexture("_VolumeDepth",depth.texture);material.SetTexture("_VolumeProtection",protection);
@@ -95,14 +104,14 @@ namespace GakumasPhotoMode
             finally{RenderTexture.active=saved!=null&&saved.IsCreated()?saved:null;}
         }
         private static bool Valid(RenderTexture t)=>t!=null&&t.IsCreated()&&t.antiAliasing==1&&!t.useMipMap&&!t.useDynamicScale&&t.dimension==TextureDimension.Tex2D&&t.volumeDepth==1;
-        private bool Owns(RenderTexture t)=>t!=null&&(t==color||t==scattering||t==shadows.Atlas);
+        private bool Owns(RenderTexture t)=>t!=null&&(t==color||t==scattering||t==shadows.Atlas||t==lowScattering||t==depthRange||t==reconstructionMask);
         private bool Fail(string reason){Release();UnavailableReason=reason;return false;}
         private static RenderTexture Allocate(int width,int height,string label)
         {
             var t=new RenderTexture(width,height,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear){name="Toolkit volumetric "+label,filterMode=FilterMode.Point,wrapMode=TextureWrapMode.Clamp,hideFlags=HideFlags.HideAndDontSave};
             t.Create();if(!t.IsCreated()||t.graphicsFormat!=GraphicsFormat.R32G32B32A32_SFloat){t.Release();UnityEngine.Object.Destroy(t);throw new InvalidOperationException("Volumetric target allocation failed");}return t;
         }
-        private void ReleaseTargets(){if(Owns(RenderTexture.active))RenderTexture.active=null;foreach(var t in new[]{color,scattering})if(t!=null){t.Release();UnityEngine.Object.Destroy(t);}color=scattering=null;hasFrame=false;}
+        private void ReleaseTargets(){if(Owns(RenderTexture.active))RenderTexture.active=null;ReleaseReduced();foreach(var t in new[]{color,scattering})if(t!=null){t.Release();UnityEngine.Object.Destroy(t);}color=scattering=null;hasFrame=false;}
         private void Release(){ReleaseTargets();shadows.Dispose();foreach(var material in materials)UnityEngine.Object.Destroy(material);materials.Clear();lights.Clear();shadowLights.Clear();if(composite!=null)UnityEngine.Object.Destroy(composite);composite=null;DrawCalls=0;}
         public void Dispose(){generation++;Release();}
     }

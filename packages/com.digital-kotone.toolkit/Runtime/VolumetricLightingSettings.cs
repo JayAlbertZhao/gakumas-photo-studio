@@ -3,6 +3,21 @@ using UnityEngine;
 
 namespace GakumasPhotoMode
 {
+    public enum VolumetricResolution { Full=1, Half=2, Quarter=4 }
+
+    /// <summary>Reduced integration controls; Full retains its original path and ignores these settings.</summary>
+    [Serializable]
+    public sealed class VolumetricReconstructionSettings
+    {
+        [Min(0)] public float depthAbsoluteTolerance=.005f;
+        [Range(0,1)] public float depthRelativeTolerance=.002f;
+        [Min(0)] public float radianceAbsoluteTolerance=.001f;
+        [Range(0,1)] public float radianceRelativeTolerance=.02f;
+        [Range(1,2048)] public int maximumTargetMiB=512;
+        internal bool Validate()=>FogVolumeSettings.Range(depthAbsoluteTolerance,0,10)&&FogVolumeSettings.Range(depthRelativeTolerance,0,1)&&
+            FogVolumeSettings.Range(radianceAbsoluteTolerance,0,65504)&&FogVolumeSettings.Range(radianceRelativeTolerance,0,1)&&maximumTargetMiB>=1&&maximumTargetMiB<=2048;
+    }
+
     /// <summary>Independent finite homogeneous medium and shadowed spot-light integration.</summary>
     [Serializable]
     public sealed class VolumetricLightingSettings
@@ -17,12 +32,17 @@ namespace GakumasPhotoMode
         [Range(8,256)] public int samplesPerLight=64;
         public bool attenuateBackground=true;
         public bool affectSky=true;
+        public VolumetricResolution resolution=VolumetricResolution.Full;
+        public VolumetricReconstructionSettings reconstruction=new VolumetricReconstructionSettings();
         public VolumetricSpotLight[] lights=Array.Empty<VolumetricSpotLight>();
         public SceneLightShadowSettings shadows=new SceneLightShadowSettings();
 
         internal bool Validate(out string reason)
         {
             reason=null;
+            if((resolution!=VolumetricResolution.Full&&resolution!=VolumetricResolution.Half&&resolution!=VolumetricResolution.Quarter)||
+                (resolution!=VolumetricResolution.Full&&(reconstruction==null||!reconstruction.Validate())))
+            {reason="Invalid volumetric resolution or reconstruction settings";return false;}
             if(!FogVolumeSettings.Position(mediumCenter)||!FogVolumeSettings.Range(extinction,0,100)||
                 !FogVolumeSettings.Range(anisotropy,-.95f,.95f)||samplesPerLight<8||samplesPerLight>256||lights==null||lights.Length>MaximumLights)
             {reason="Invalid volumetric medium, sample count or light budget";return false;}
