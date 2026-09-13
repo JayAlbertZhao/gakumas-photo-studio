@@ -55,6 +55,8 @@ Package Manager 的 Samples 中提供相同用途的 **Minimal Character Host**�
 
 `VertexLocatorRig` 用当前顶点／三角形创建独立 Transform 挂点，可直接供 MotionEffect 使用；`VertexDeformationSampler` 消费自己提供的稀疏形变／骨矩阵。现有角色通过 `FaceExpressionRenderer.TryCreateVertexSource` 读取最后实际应用的 CPU／GPU 面部 pose，不回读 GPU 或使用停在初始姿态的 CPU 网格副本。显式更新顺序、shader 缩放、资源所有权及其他几何 provider 的限制见 [当前顶点定位器](../../docs/vertex-locators.md)。
 
+`PerformanceClip`／`PerformancePlayer` 在同一显式时钟下消费自制面部权重、贴花曲线、Prefab 和材质区间，宿主明确绑定对象并在两阶段之间更新几何／定位器。`.performance` sidecar 与精确命名的 FBX 字符串属性可转换为 Unity 数据。DCC 采样、示范脚本、资源所有权和尚未实测的 Maya 客户端边界见 [共享制作输入](../../docs/performance-authoring.md)，默认摄影不接入这些播放器。
+
 通过 `CharacterSceneRuntime` 的 `CharacterIds`、`Costumes`、`Motions` 获取当前清单；调用 `SelectCharacter(id)`、`SelectMotion(label)`、`SelectCostume(index)`、`SelectExpression(index)`、`SelectExpressionMotion(name)`、`PlayVoice(index)`。`SetPlaybackPaused(bool)` 管理当前摄影/剧情暂停，`EvaluateMotion(seconds)` 可手动采样已有动作。
 
 `Timeline` 暴露已有 StoryTimelinePlayer：`StartStory(seconds)`、`Seek(seconds, playVoice)`、`StopStory()`。`PreviewCamera`、`CharacterRoot`、`RenderControls` 供宿主接入相机/角色/光照控制。调用前先完成初始化；未初始化的清单和对象可能为 null。

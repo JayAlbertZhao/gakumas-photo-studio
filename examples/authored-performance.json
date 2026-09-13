@@ -1,0 +1,41 @@
+{
+  "schema": "photo-studio.performance.v1",
+  "duration": 1.0,
+  "loop": true,
+  "morphs": [{"target": "face.smile", "keys": [
+    {"seconds": 0, "value": 0, "inTangent": 0, "outTangent": 0, "interpolation": 1},
+    {"seconds": 1, "value": 1, "inTangent": 0, "outTangent": 0, "interpolation": 1}
+  ]}],
+  "decals": [{
+    "target": "cheek",
+    "baseline": {
+      "positionOffset": {"x": 0, "y": 0, "z": 3},
+      "rotationDegrees": {"x": 0, "y": 0, "z": 0},
+      "scale": {"x": 1, "y": 1, "z": 1},
+      "size": {"x": 2, "y": 2, "z": 2},
+      "pivot": {"x": 0, "y": 0, "z": 0},
+      "uvScale": {"x": 1, "y": 1}, "uvBias": {"x": 0, "y": 0},
+      "uvRotationDegrees": 0,
+      "tint": {"x": 0.9, "y": 0.1, "z": 0.2, "w": 1},
+      "opacity": 0, "edgeFeather": 0, "angleFadeStart": 180, "angleFadeEnd": 180, "blend": 0
+    },
+    "tracks": [{"channel": 24, "keys": [
+      {"seconds": 0, "value": 0, "inTangent": 0, "outTangent": 0, "interpolation": 1},
+      {"seconds": 1, "value": 0.8, "inTangent": 0, "outTangent": 0, "interpolation": 1}
+    ]}]
+  }],
+  "effects": [{
+    "id": "marker", "prefab": "my.marker", "attachment": "tear", "start": 0, "duration": 1,
+    "seed": 713, "position": {"x": 0, "y": 0, "z": 0},
+    "rotation": {"x": 0, "y": 0, "z": 0}, "scale": {"x": 1, "y": 1, "z": 1}
+  }],
+  "materials": [{
+    "id": "atlas", "target": "face.surface", "colorTexture": "my.atlas", "shadeTexture": "", "defTexture": "",
+    "start": 0, "duration": 1, "columns": 2, "rows": 1, "fps": 2
+  }],
+  "locators": [{
+    "id": "tear", "a": 0, "b": 1, "c": 2,
+    "barycentric": {"x": 1, "y": 0, "z": 0}, "alignToTriangle": true,
+    "positionOffset": {"x": 0, "y": 0, "z": -0.04}, "rotationDegrees": {"x": 0, "y": 0, "z": 0}
+  }]
+}
