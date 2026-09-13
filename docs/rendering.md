@@ -6,6 +6,18 @@
 
 以下按阶段逆序记录；旧阶段中的开项以较新的实现记录和 [技术清单](framework-techniques.md) 为准。
 
+### 实际运动驱动的可选 Motion Blur
+
+PPT126／PDF15 的 Motion Blur 缺少公开滤波公式，本轮新增独立 `MotionBlurSettings`／`MotionBlurInput`／`MotionBlurRenderer` 和实际场景 guide 适配。消费当前／上次 GPU 几何对应、当前 framebuffer 可见性和独立曝光时钟，采用 tile／邻域最大速度、局部第二方向、深度权重与整数 HDR 采样；显式桥接在 DOF 后、Bloom 前。默认关闭，旧 post shader 不变。使用、数学模型和成本见 [Motion Blur](motion-blur.md)。
+
+干净 t15／D3D11 构建为 101368580 字节。实际 GI bundle 的完整 Player 执行并接受 5784 项命名渲染／状态检查，新增 673 项；原有 5111 条完整 JSON 记录及 1360 张 PNG 逐字节不变。新控制包括三种 HDR 格式／退化尺寸、4–64 候选、曝光与 jitter、速度溢出、刚体／相机／两骨蒙皮／blendshape、cutout 与 Forward opaque 遮挡、分类、时钟断点、双相机和目标生命周期。新增八张自制效果预览。
+
+两次真实 Camera.Render 原生抓帧锁定 guide／三阶段滤波／三个后处理消费者共 16 个 draw 的 shader、常量、格式和生产消费字节。25,026 个重建像素与独立 CPU 参考整图比较，无像素排除；最大差约 1.08e−6，alpha 完全保留。自制匀速前景的 64 次实际曝光积分中，未模糊／模糊 RGB MAE 为 0.02438／0.01620，仅证明该控制改善。
+
+失败诊断保留：ReadPixels 被错误翻转；double 采样地址跨越一个整数 texel 边界；Mono 较宽 float 局部值改变近水平速度的并列选择。最终参考显式物化 float32 最大值比较并按捕获中的 FMA 形成整数地址，原 RGB 阈值不扩大。位运算拒绝非有限 guide／速度溢出；低于半像素曝光的对应噪声不提供运动方向。
+
+旧 Full／Half／无 GTAO 的 18 份原生数据全部不变；四次原生 Player 各接受 5754 项控制。普通 1920×1080 摄影及真实角色 Planar 的 17 项离屏控制重跑；后脑发束预览保持完整，历史 active RenderTexture 警告数未增加。完整角色透明层、曝光内非线性运动、多方向复杂遮挡、DOF 联合质量、移动附件及实测 GPU 帧时仍是开项。1920×1080、R=24 时本模块及 scene guide 附件约 63.4 MiB，尚未做移动内存优化。
+
 ### 自主颜色配置、LUT 制作与实际后处理消费
 
 按 PPT126 列举的颜色技术，新增 `ColorGradingProfile`／JSON／ScriptableObject 制作入口、CPU 数学变换、16³／32³／64³ LUT 和独立 renderer。支持 Bradford 白平衡、曝光／滤色／对比度／色相／饱和度、Lift／Gamma／Gain、八条曲线及依据作者原始数学图独立实现的 GT 映射。输入是线性 sRGB HDR，输出是显示线性 sRGB；不冒充 Unity Volume 参数或原版 profile。旧 post shader 保持不变，默认关闭的新桥接在 HDR 合成后替代旧 LUT／色调映射，从起点启用时不尝试读取私有文件。使用及精度边界见 [自主调色契约](authored-color-grading.md)。

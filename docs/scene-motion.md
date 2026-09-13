@@ -53,4 +53,4 @@ UV 遵循模块 shader 的纹理坐标；CPU 读回不应仅凭 `graphicsUVStart
 - 默认关闭不分配、不绘制。启用需 geometry shader、RGBAFloat Render／Sample 及场景后端既有条件，缺失能力拒绝场景帧，不伪造相机运动。
 - 为逐次核验索引对应，网格须 CPU-readable 且为三角形；静态合批 renderer 拒绝，避免合并顶点流 ID 与局部网格不一致。顶点预算为 1–4000000，distance 为 0–100000，angle 为 0–180，均须有限。
 
-已验证 t15／D3D11 桌面隐藏 Player 的真实离屏路径；[GTAO 时域模块](scene-gtao-temporal.md) 和 [场景颜色 TAA](scene-temporal-antialiasing.md) 已可显式消费对应数据。geometry shader 后端不构成移动优化；Metal、Vulkan、移动设备、Memoryless 或 GPU 帧时均未验收。便携高效后端、Motion Blur 消费、完整角色分类和完整场景动态画质仍待后续阶段。执行记录见 [渲染记录](rendering.md)。
+已验证 t15／D3D11 桌面隐藏 Player 的真实离屏路径；[GTAO 时域模块](scene-gtao-temporal.md)、[场景颜色 TAA](scene-temporal-antialiasing.md) 和 [Motion Blur](motion-blur.md) 已可显式消费对应数据。geometry shader 后端不构成移动优化；Metal、Vulkan、移动设备、Memoryless 或 GPU 帧时均未验收。便携高效后端、完整角色分类和完整场景动态画质仍待后续阶段。执行记录见 [渲染记录](rendering.md)。

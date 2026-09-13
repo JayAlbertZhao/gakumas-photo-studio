@@ -55,6 +55,8 @@ namespace GakumasPhotoMode
         public TemporalClassification temporalClassification;
         // Explicit alternative to the unchanged legacy temporal pass. Same camera only.
         public SceneDeferredCamera sceneTemporalSource;
+        // Independent opt-in current-motion consumer, after DOF and before Bloom.
+        public SceneDeferredCamera sceneMotionBlurSource;
         public BokehDepthOfFieldSettings bokehDepthOfField = new BokehDepthOfFieldSettings();
         // Called after temporal resolve, before DOF. The host must supply matching
         // positive eye depth in R (including any applied color de-jitter).
@@ -263,6 +265,7 @@ namespace GakumasPhotoMode
             _historyValid = false;
             _historyFrame = -1;
             sceneTemporalSource?.ResetTemporalColorHistory();
+            sceneMotionBlurSource?.ResetMotionBlurHistory();
         }
 
         private void OnPreCull()
@@ -349,9 +352,11 @@ namespace GakumasPhotoMode
             }
 
             RenderTexture temporal;
+            bool sceneColorResolved=false;
             if(sceneTemporalSource!=null&&sceneTemporalSource.temporalAntialiasing!=null&&sceneTemporalSource.temporalAntialiasing.enabled)
             {
-                if(!sceneTemporalSource.TryResolveTemporalColor(_sourceCamera,current,temporalClassification,out temporal))temporal=current;
+                sceneColorResolved=sceneTemporalSource.TryResolveTemporalColor(_sourceCamera,current,temporalClassification,out temporal);
+                if(!sceneColorResolved)temporal=current;
                 // A failed explicit scene resolve passes through; never silently read unrelated host motion.
                 _historyValid=false;_historyFrame=-1;
             }
@@ -374,6 +379,12 @@ namespace GakumasPhotoMode
             // history sharp, then route every subsequent post input through the
             // resolved DOF surface.
             RenderTexture postInput = ApplyDepthOfField(temporal, temporaries);
+            if(sceneMotionBlurSource!=null&&sceneMotionBlurSource.motionBlur!=null&&sceneMotionBlurSource.motionBlur.enabled)
+            {
+                bool dejittered=sceneColorResolved&&sceneMotionBlurSource==sceneTemporalSource;
+                if(sceneMotionBlurSource.TryResolveMotionBlur(_sourceCamera,postInput,dejittered,temporalClassification,out var blurred))postInput=blurred;
+                // Invalid/paused sources retain this current HDR; no stale frame or unrelated host motion fallback.
+            }
 
             int width = Mathf.Max(1, source.width / 2);
             int height = Mathf.Max(1, source.height / 2);

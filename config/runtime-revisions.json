@@ -56,7 +56,7 @@
       "baseline_sha256": "8d96a3cfdc758ef1ee6ac5c8c6b4f6900c2bfe45676e786ee3c169a59881db72"
     },
     "unity/Assets/Scripts/OriginalStyleRenderPipeline.cs": {
-      "sha256": "15c74c44f0ac1afd438b0bf38f2a31d67dfb6728c1531e69a67b2dd2e046561d",
+      "sha256": "dfbf5fe6f13eed9150c63dc5c533fa0f6508db2cd8711c4fc2c52bddf198d70a",
       "baseline_sha256": "08bc0a1eb0da8430850929da1a2ac27e3ae63426d06257c58fbfe6501ffa062d"
     },
     "unity/Assets/Scripts/PhotoModeApp.cs": {
@@ -103,7 +103,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "7e3feeb1dc39ad3d9dd0ce9ee376e8573208943f2ecfc691a709d082a116df85",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "f7ed80552027f273ec73b1a31cd4efcbf2d3ad628d6237047e61d8a45db89aad",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "db1bd84244da3f34b35869e7d5adf7b424ac5bcb2fa0ab39e774a38163bfac07",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
@@ -137,7 +137,7 @@
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs": "93267c4f15f0a7b3dcf3e1d3b1e07ced8258c9854d6ed1de91231a88aedce443",
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs.meta": "75aad888d4351b0776443c7e5751c3d105b6d12acf55d926068d065dfa837552",
     "packages/com.digital-kotone.toolkit/NOTICE.md": "81a4267084c7405793f975954b0b386565322e0d8b8c28a5a39ad3d49fbcc806",
-    "packages/com.digital-kotone.toolkit/README.md": "a4a469b0566cf17b2850d875e8577eb02ec48194c329c1f186c7449b8b4259d7",
+    "packages/com.digital-kotone.toolkit/README.md": "7e405b70579ad9ec5319abebe2b9a90f467b876756ee1df3d263a90a2ca7236b",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef": "6337904b37c3452d23c72a5c38b37d9e36a1de06dcfc262db792ddb141df3ccb",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef.meta": "b97945697274955dd36c6850061768b3522c5aa5768d95eb5401c2704ab0f013",
     "packages/com.digital-kotone.toolkit/Editor/ToolkitBuildPipeline.cs": "d82bdbb42be1669477bc12630ddddf5a7a7331bb04109dc879a9fcd76fe5f1d1",
@@ -220,7 +220,7 @@
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Monitor.cs.meta": "e0861a2399ffc3c68e3b65746faae71f84e9dfbe33c3a181982bbf71b8439842",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDeferred.shader": "37a9cf302d8ae204be4bfa75a358b4e20e53b5f4ab76cc5ee5c0b838605e7cf4",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneDeferred.shader.meta": "0252e4f62b4059295d384303aa535f0556137f1479556cea7889260c88a4372b",
-    "packages/com.digital-kotone.toolkit/Runtime/SceneDeferredCamera.cs": "22b4e38aa4d1b7fdafa3bb68608e4119c47c9ada7eb76dd714fdddbdf6080ea3",
+    "packages/com.digital-kotone.toolkit/Runtime/SceneDeferredCamera.cs": "433f1ebf55fdaef1a682c6a510bc92245a3e5413be917653ed49da8c728314a1",
     "packages/com.digital-kotone.toolkit/Runtime/SceneDeferredCamera.cs.meta": "8b21322ae1b28b71c5cc9b22e7c2bf57a47bf4da471a56b0c632550494bb76be",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs": "822befb8fb8ea664d07ab45f7100708180e30df7bbe46d9dea717f7bbadd9d57",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs.meta": "8703e4faa97a48ec3db838bd6a3aad09d84fed2f865ec2d63458f2a9049b6228",
@@ -335,7 +335,19 @@
     "packages/com.digital-kotone.toolkit/Runtime/Resources/AuthoredPostComposite.shader": "9579c7983f57de855a060ca4caf063cedce6d3c9f3b160865719d111791c89cf",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/AuthoredPostComposite.shader.meta": "a1725e018b3391e859b3a03c78ad7434784b9463e75e761bca90fa0bb334bd7d",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ColorGrading.cs": "ee239fb66055e3691a3dd41c0b08c1d7235e0bc1b19acad51dac28aef9f2bf62",
-    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ColorGrading.cs.meta": "bb02664bd63441b4ef1b789b6bbfc7b2372c146656a257487a5f05f27ac91bc5"
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ColorGrading.cs.meta": "bb02664bd63441b4ef1b789b6bbfc7b2372c146656a257487a5f05f27ac91bc5",
+    "packages/com.digital-kotone.toolkit/Runtime/MotionBlurRenderer.cs": "0a0e6858e718766214167290ac3c2c81b98717cb64346458bf9f7f9594c63b74",
+    "packages/com.digital-kotone.toolkit/Runtime/MotionBlurRenderer.cs.meta": "ba0e15498460053d1539d35f5f78991cd18289197915475f9b4bd46cd13bc6d8",
+    "packages/com.digital-kotone.toolkit/Runtime/MotionBlurSettings.cs": "11a3f6ba2ea33ea5e6388b27ce9f19e4b8c17ccabb5f6dd38aede448fc25f2b2",
+    "packages/com.digital-kotone.toolkit/Runtime/MotionBlurSettings.cs.meta": "56c9992278fccc3b0996c8b8017db0dbb6a6c84f4c170c9fe3156c2867562157",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/MotionBlur.shader": "6a0917f47e0fcf7a195b89c7893bd1ee5ea1ff87053141f698a30bf97050ca36",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/MotionBlur.shader.meta": "0c97d500c3a8116f78e6725a661a11972c574ce0faf5628077d6af89302cfab7",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneMotionBlurGuide.shader": "6d37b2dd84ff5008e034ad2d75e1c4451029b32517f43afd2dcad4c65abb14ab",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/SceneMotionBlurGuide.shader.meta": "7598206fe335a95067860488b35d5fcc61d4d54908699d61ac15c7fc6274c1c7",
+    "packages/com.digital-kotone.toolkit/Runtime/SceneMotionBlurRenderer.cs": "039fe00f7a99f41520be363e4f9d5a293b96287d7a2ad53236bb69798a5fb91c",
+    "packages/com.digital-kotone.toolkit/Runtime/SceneMotionBlurRenderer.cs.meta": "cf4c3b810e1c8c9db9d5b0e17a9863b43161274a847d3f7c18dbfc60e60a4f58",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionBlur.cs": "8e4d8b54efba1c21c648b3051281401bde99c5a38c1127c266dd24f7ae3a2b86",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionBlur.cs.meta": "dfc6ff8854b04bc9bcaa4ce112cfa872a3540fa668b66fe6c7583117945c67e9"
   },
   "relocations": {
     "unity/Assets/ActorAnimationStub/ActorAnimation.Runtime.asmdef": "packages/com.digital-kotone.toolkit/Runtime/Compatibility/ActorAnimationStub/ActorAnimation.Runtime.asmdef",

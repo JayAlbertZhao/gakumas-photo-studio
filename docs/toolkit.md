@@ -19,6 +19,8 @@
 
 来自讲演的框架技术覆盖、可选自然风、TAA 表面分类和自制网格编码接口见 [框架技术清单](framework-techniques.md)。这些模块不要求 Photo Studio UI；未实现的场景／移动端能力保留明确状态。
 
+独立后处理输入可用 `MotionBlurSettings`／`MotionBlurInput`／`MotionBlurRenderer`；实际相机通过 `SceneDeferredCamera.motionBlur` 和 `OriginalStyleRenderPipeline.sceneMotionBlurSource` 显式接入。曝光时间、当前深度／运动方向及借用输出约定见 [Motion Blur 接入](motion-blur.md)。
+
 | 需要做的事 | 入口 |
 | --- | --- |
 | 显式初始化 | `Initialize(CharacterSceneOptions)`；DataRoot 必填 |

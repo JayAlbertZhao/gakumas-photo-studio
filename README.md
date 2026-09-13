@@ -18,7 +18,7 @@
 
 开发自己的应用：克隆后，在同版本编辑器的 Package Manager 中选择 **Add package from disk**，打开 `packages/com.digital-kotone.toolkit/package.json`。导入包内 **Minimal Character Host** 示例，将组件挂到空物体，填写自己的兼容数据目录即可接入。步骤、C# API 和当前限制见 [工具库接入](docs/toolkit.md)。使用现有摄影应用则继续下面的流程，原命令和默认行为不变。
 
-可选渲染模块的接口与未完成范围见 [框架技术清单](docs/framework-techniques.md)。其中 [自主调色与 LUT](docs/authored-color-grading.md) 可直接用于应用自己的 HDR 输入，不需要角色资产或游戏 LUT；其他模块仍按各自的数据契约接入。
+可选渲染模块的接口与未完成范围见 [框架技术清单](docs/framework-techniques.md)。其中 [自主调色与 LUT](docs/authored-color-grading.md) 可直接用于应用自己的 HDR 输入；[Motion Blur](docs/motion-blur.md) 可消费宿主提供的当前 HDR／运动／深度，或显式接入场景后端。模块不需要游戏 LUT／原版资产，仍需满足各自输入契约。
 
 ## 当前能做什么
 

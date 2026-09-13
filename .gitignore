@@ -51,6 +51,7 @@
 !/docs/code-map.md
 !/docs/framework-techniques.md
 !/docs/hdr-monitor.md
+!/docs/motion-blur.md
 !/docs/planar-reflection.md
 !/docs/release.md
 !/docs/rendering.md
@@ -189,6 +190,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/MaterialRepairer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/MonitorEmissionMaterial.cs
 !/packages/com.digital-kotone.toolkit/Runtime/MonitorEmissionMaterial.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/MotionBlurRenderer.cs
+!/packages/com.digital-kotone.toolkit/Runtime/MotionBlurRenderer.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/MotionBlurSettings.cs
+!/packages/com.digital-kotone.toolkit/Runtime/MotionBlurSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/NaturalWindSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/NaturalWindSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/OrbitPhotoCamera.cs
@@ -243,6 +248,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorCanvas.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorEmission.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorEmission.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/MotionBlur.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/MotionBlur.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/OriginalStylePost.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/OriginalStylePost.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/PhotoColorGrade.shader
@@ -281,6 +288,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneLightShadowCaster.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneMotion.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneMotion.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneMotionBlurGuide.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneMotionBlurGuide.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneReflectionResolve.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneReflectionResolve.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneScreenShadow.shader
@@ -327,6 +336,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SceneLightShadowAtlas.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneLightShadowSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneLightShadowSettings.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SceneMotionBlurRenderer.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SceneMotionBlurRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneMotionHistory.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneMotionHistory.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneMotionSettings.cs
@@ -365,6 +376,7 @@
 !/tests/test_examples.py
 !/tests/test_framework_contract.py
 !/tests/test_local_assets.py
+!/tests/test_motion_blur_contract.py
 !/tests/test_release.py
 !/tests/test_rendering_contract.py
 !/tests/test_studio.py
@@ -402,6 +414,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MainShadow.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Monitor.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Monitor.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionBlur.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionBlur.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Planar.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Planar.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.PointShadow.cs

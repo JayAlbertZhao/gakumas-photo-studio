@@ -541,7 +541,7 @@ class FrameworkContractTests(unittest.TestCase):
         host = (RUNTIME / 'SceneDeferredCamera.cs').read_text(encoding='utf-8')
         self.assertLess(host.index('_motion?.Record(_commands)'), host.index('foreach (var rt in _gbuffer)'))
         self.assertIn('_motion?.Complete()', host)
-        self.assertIn('_motion?.ResetHistory(); _prepared = _rendered = -1;', host)
+        self.assertIn('_motion?.ResetHistory(); _motionBlur?.ResetHistory(); _prepared = _rendered = -1;', host)
         self.assertIn('_motion?.Motion == null || _motion.IsCreated', host)
 
     def test_scene_motion_saves_actual_renderer_vertices_and_never_accumulates_ao(self):

@@ -563,7 +563,8 @@ class ActorRenderingWiringTests(unittest.TestCase):
             self.assertIn('_report.' + field + ' == 0', probe)
         self.assertRegex(pipeline, r'public void ResetTemporalHistory\(\)\s*\{\s*'
                                    r'_historyValid = false;\s*_historyFrame = -1;\s*'
-                                   r'sceneTemporalSource\?\.ResetTemporalColorHistory\(\);\s*\}')
+                                   r'sceneTemporalSource\?\.ResetTemporalColorHistory\(\);\s*'
+                                   r'sceneMotionBlurSource\?\.ResetMotionBlurHistory\(\);\s*\}')
         callers = [path.name for folder in ('packages/com.digital-kotone.toolkit/Runtime', 'unity/Assets/Applications/PhotoStudio')
                    for path in (ROOT / folder).rglob('*.cs')
                    if '.ResetTemporalHistory(' in path.read_text(encoding='utf-8')]

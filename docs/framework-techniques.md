@@ -38,7 +38,7 @@
 | P01 | 方差裁剪 TAA、ExcludeTAA、NoJitter；PDF 33 | 新增可选 [场景颜色 TAA](scene-temporal-antialiasing.md)：消费实际运动／可见性，HDR 方差裁剪、Point 深度射线与显式后处理桥接；旧默认 shader 不变 | 自制桌面场景的 jitter／运动／蒙皮／生命周期已验证；完整角色分类、复杂透明层、全舞台动态画质及移动成本仍待完成，不引入默认投影 jitter |
 | P02 | Bokeh DOF 范围、分辨率无关散景、30 次采样；PPT 127–128 | 默认关闭的独立 [DOF 模块](bokeh-depth-of-field.md)：显式线性深度、手动清晰范围／物理镜头、自定义完整 30／43 点孔径；原生 GPU 采样数、整图及分辨率控制已验收；旧摄影路径不变 | 全动态角色／发丝透明与复杂近远遮挡质量、完整深度适配、移动内存与实际帧时；未恢复原文未公开的 30 点布局 |
 | P03 | Bloom、Diffusion、Paraffin、色调／颜色处理；PPT 126 | 已有合成路径；新增不依赖私有文件的 profile／JSON／资产、Bradford 白平衡、颜色调整、LGG、八条曲线、GT 映射与 16³／32³／64³ LUT 制作／消费，见 [自主调色](authored-color-grading.md) | 独立模块及实际 Camera.Render 桥接已验收，默认路径不变；全场景外观、Unity Volume 参数／曲线语义适配、更广合成配置和移动性能仍待完成 |
-| P04 | Motion Blur；PPT 126、PDF 15 | 已有独立 [场景运动对应](scene-motion.md) 数据前置，未实现完整模糊阶段 | 速度消费、暂停／切镜／遮挡边界、角色表面及平台成本 |
+| P04 | Motion Blur；PPT 126、PDF 15 | 新增可选 [Motion Blur](motion-blur.md)：实际几何对应／当前可见性、曝光时钟、tile／双方向深度重建，显式 DOF 后／Bloom 前消费；默认摄影不启用 | 自制刚体／蒙皮／blendshape、遮挡／暂停／切镜／jitter 及桌面整图／原生链已验证；完整角色发丝透明、复杂重叠方向与 DOF 联合质量、移动内存／帧时仍待完成；不宣称恢复原文未公开滤波器 |
 | P05 | GTAO、脚部 Capsule AO；PDF 19、PPT126 | 显式胶囊、视轴 GTAO、Half 几何引导重建；新增可选运动对应消费、六相旋转、几何／身份／reactive 拒绝、方差裁剪与累积，见 [时域 GTAO](scene-gtao-temporal.md)、[GTAO](scene-gtao.md) 与 [Capsule AO](scene-screen-shadow.md) | 桌面自制运动／反遮挡已验证，默认不变；自动脚部拟合／全角色接触、薄面复杂动态场景质量、画外几何与移动内存／帧时仍待完成 |
 | P06 | 距离雾／球形雾；PPT 130、PDF 29 | 已有距离雾、单球独立模型 | 多球、双雾组合、透明层与原版参数仍未验收 |
 | P07 | 体积光及动态 DepthShadow；PPT 131 | 未接入 | 光体积积分、动态遮挡与质量档；不附带第三方插件 |

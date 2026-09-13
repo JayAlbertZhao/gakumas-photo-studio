@@ -34,6 +34,7 @@ namespace GakumasPhotoMode
             // Increment when vertex identity is reassigned without a topology/mesh change.
             public uint motionRevision;
             public TemporalPixelFlags temporalFlags;
+            public bool excludeMotionBlur;
             // 0 = no decals; otherwise exact projector receiver group 1..255.
             [Range(0, 255)] public int receiverGroup = 1;
         }
@@ -75,6 +76,16 @@ namespace GakumasPhotoMode
         public SceneScreenShadowSettings screenShadow = new SceneScreenShadowSettings();
         public SceneMotionSettings motion = new SceneMotionSettings();
         private SceneMotionHistory _motion;
+        public MotionBlurSettings motionBlur = new MotionBlurSettings();
+        // Optional scene/simulation clock for manually rendered or seekable applications.
+        public double? motionBlurTime;
+        public Vector2 motionBlurJitterUv;
+        private SceneMotionBlurRenderer _motionBlur;
+        private CommandBuffer _motionBlurVisibilityCommands;
+        public string MotionBlurUnavailableReason { get; private set; }
+        public int MotionBlurTargetCount => _motionBlur?.TargetCount ?? 0;
+        public int MotionBlurVisibilityDrawCalls => _motionBlur?.VisibilityDrawCalls ?? 0;
+        public int MotionBlurResolveDrawCalls => _motionBlur?.ResolveDrawCalls ?? 0;
         public SceneTemporalAntialiasingSettings temporalAntialiasing = new SceneTemporalAntialiasingSettings();
         private SceneTemporalAntialiasingRenderer _temporalAntialiasing;
         private CommandBuffer _temporalVisibilityCommands;
@@ -207,6 +218,38 @@ namespace GakumasPhotoMode
         }
         public void ResetTemporalColorHistory(){_temporalAntialiasing?.ResetHistory();}
 
+        public readonly struct MotionBlurFrame
+        {
+            private readonly SceneDeferredCamera owner;
+            private readonly uint sequence;
+            public readonly RenderTexture color, visibleMotionDepth, tileMaximum, neighborhoodMaximum;
+            internal MotionBlurFrame(SceneDeferredCamera owner,MotionBlurRenderer.Frame frame)
+            {this.owner=owner;sequence=owner.RenderSequence;color=frame.color;visibleMotionDepth=owner._motionBlur.Guide;tileMaximum=frame.tileMaximum;neighborhoodMaximum=frame.neighborhoodMaximum;}
+            public bool IsCurrent => owner!=null && owner.Current && sequence==owner.RenderSequence && owner._motionBlur!=null && owner._motionBlur.HasResult(sequence);
+        }
+        public bool TryGetMotionBlurFrame(out MotionBlurFrame frame)
+        {
+            frame=default;
+            if(!Current||_motionBlur==null||!_motionBlur.HasResult(RenderSequence)||!_motionBlur.TryGetFrame(out var value))return false;
+            frame=new MotionBlurFrame(this,value);return true;
+        }
+        public bool TryResolveMotionBlur(Camera camera,RenderTexture current,bool sourceIsDejittered,TemporalClassification classification,out RenderTexture output)
+        {
+            output=null;
+            if(camera!=_camera||!Current||motionBlur==null||!motionBlur.enabled||_motionBlur==null)
+            {MotionBlurUnavailableReason="Motion blur requires this camera's completed current visible motion frame";return false;}
+            RenderTexture mask=null;
+            if(classification!=null)
+            {
+                if(!classification.TryGetMask(camera,current!=null?current.width:0,current!=null?current.height:0,out var texture)||
+                   !(texture is RenderTexture target)||!target.IsCreated()||classification.jitterUv!=_motionBlur.PreparedJitter)
+                {MotionBlurUnavailableReason="Motion blur requires matching current classification and jitter";_motionBlur.ResetHistory();return false;}
+                mask=target;
+            }
+            bool ok=_motionBlur.Resolve(RenderSequence,current,sourceIsDejittered,mask,out output,out var error);MotionBlurUnavailableReason=error;return ok;
+        }
+        public void ResetMotionBlurHistory(){_motionBlur?.ResetHistory();}
+
         private void OnEnable()
         {
             _camera = GetComponent<Camera>(); _shader = Resources.Load<Shader>("SceneDeferred");
@@ -220,6 +263,7 @@ namespace GakumasPhotoMode
             if (_commands == null) return;
             _commands.Clear(); UnavailableReason = Validate();
             _temporalVisibilityCommands?.Clear();
+            _motionBlurVisibilityCommands?.Clear();
             if (UnavailableReason != null) { ReleaseResources(); return; }
             if (decalLighting != null && decalLighting.enabled)
             {
@@ -268,6 +312,28 @@ namespace GakumasPhotoMode
                 catch(Exception exception){UnavailableReason="Scene TAA prepare failed: "+exception.GetType().Name;ReleaseResources();return;}
             }
             else ReleaseTemporalColor();
+            if(motionBlur!=null&&motionBlur.enabled)
+            {
+                try
+                {
+                    if(_motionBlur==null)_motionBlur=new SceneMotionBlurRenderer();
+                    Vector2 jitter=temporalAntialiasing!=null&&temporalAntialiasing.enabled?temporalAntialiasing.jitterUv:motionBlurJitterUv;
+                    if(!_motionBlur.Prepare(motionBlur,_camera,_motion,motionBlurTime??Time.timeAsDouble,jitter,out var error))
+                    {ReleaseMotionBlur();MotionBlurUnavailableReason=error;}
+                    else
+                    {
+                        MotionBlurUnavailableReason=null;
+                        if(_motionBlurVisibilityCommands==null)
+                        {
+                            _motionBlurVisibilityCommands=new CommandBuffer{name="Toolkit visible scene motion blur guides"};
+                            _camera.AddCommandBuffer(CameraEvent.BeforeImageEffects,_motionBlurVisibilityCommands);
+                        }
+                        _motionBlur.RecordVisibility(_motionBlurVisibilityCommands,_motion,surfaces);
+                    }
+                }
+                catch(Exception error){ReleaseMotionBlur();MotionBlurUnavailableReason="Motion blur prepare failed: "+error.GetType().Name;}
+            }
+            else {ReleaseMotionBlur();MotionBlurUnavailableReason=null;}
             int count = 0;
             foreach (var decal in decals) if (decal != null && decal.enabled && HasWeight(decal)) count++;
             if (!EnsureTargets(count > 0)) { UnavailableReason = "Target creation failed"; ReleaseResources(); return; }
@@ -353,11 +419,11 @@ namespace GakumasPhotoMode
             _target = _camera.targetTexture; _prepared = Time.frameCount;
         }
 
-        private void OnPostRender() { if (_prepared == Time.frameCount) { _motion?.Complete(); _screenShadow?.Temporal?.Complete(); _rendered = Time.frameCount; RenderSequence++; } }
+        private void OnPostRender() { if (_prepared == Time.frameCount) { _motion?.Complete(); _motionBlur?.Complete(); _screenShadow?.Temporal?.Complete(); _rendered = Time.frameCount; RenderSequence++; } }
 
         public void ResetMotionHistory()
         {
-            _motion?.ResetHistory(); _prepared = _rendered = -1;
+            _motion?.ResetHistory(); _motionBlur?.ResetHistory(); _prepared = _rendered = -1;
         }
 
         public void ResetGtaoHistory()
@@ -512,6 +578,7 @@ namespace GakumasPhotoMode
         { if (array != null) foreach (var rt in array) if (rt != null) { rt.Release(); Destroy(rt); } array = null; }
         private void ReleaseResources()
         {
+            ReleaseMotionBlur();
             ReleaseTemporalColor();
             ReleaseGi();
             _decalLights?.Dispose(); _decalLights = null;
@@ -537,6 +604,15 @@ namespace GakumasPhotoMode
                 _temporalVisibilityCommands.Release();_temporalVisibilityCommands=null;
             }
             _temporalAntialiasing?.Dispose();_temporalAntialiasing=null;
+        }
+        private void ReleaseMotionBlur()
+        {
+            if(_motionBlurVisibilityCommands!=null)
+            {
+                if(_camera!=null)_camera.RemoveCommandBuffer(CameraEvent.BeforeImageEffects,_motionBlurVisibilityCommands);
+                _motionBlurVisibilityCommands.Release();_motionBlurVisibilityCommands=null;
+            }
+            _motionBlur?.Dispose();_motionBlur=null;
         }
     }
 }
