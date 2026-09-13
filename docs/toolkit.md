@@ -23,6 +23,8 @@
 
 距离与局部介质可用 `FogVolumeSettings`／`FogVolumeBinding`／`FogVolumeRenderer`；八球和距离雾共同积分，显式消费当前深度。独立透明材质可共用视图快照并按自身表面深度求雾，接入次序和后处理桥接限制见 [多介质雾](fog-volumes.md)。
 
+带遮挡的光束可用 `VolumetricLightingSettings`／`VolumetricLightingRenderer`：有限均匀介质中的最多 16 个聚光灯单次散射，宿主登记的刚体／蒙皮／cutout 几何每次产生光源阴影。默认关闭，显式输入当前 HDR／深度，接入及透明层／成本限制见 [体积光](volumetric-lighting.md)。
+
 | 需要做的事 | 入口 |
 | --- | --- |
 | 显式初始化 | `Initialize(CharacterSceneOptions)`；DataRoot 必填 |

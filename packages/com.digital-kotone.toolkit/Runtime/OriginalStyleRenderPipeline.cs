@@ -60,6 +60,12 @@ namespace GakumasPhotoMode
         public string FogVolumeUnavailableReason { get; private set; }
         public bool TryGetFogVolumeFrame(out FogVolumeRenderer.Frame frame)
         {frame=default;return _fogVolumes!=null&&_fogVolumes.TryGetFrame(out frame);}
+        public VolumetricLightingSettings volumetricLighting=new VolumetricLightingSettings();
+        public Func<Camera,RenderTexture,FogVolumeDepth> volumetricDepthProvider;
+        private VolumetricLightingRenderer _volumetricLighting;
+        public string VolumetricLightingUnavailableReason {get;private set;}
+        public bool TryGetVolumetricLightingFrame(out VolumetricLightingRenderer.Frame frame)
+        {frame=default;return _volumetricLighting!=null&&_volumetricLighting.TryGetFrame(out frame);}
         public TemporalClassification temporalClassification;
         // Explicit alternative to the unchanged legacy temporal pass. Same camera only.
         public SceneDeferredCamera sceneTemporalSource;
@@ -347,6 +353,7 @@ namespace GakumasPhotoMode
                 current = ApplySceneDistanceFog(current, temporaries);
                 current = ApplySphereFog(current, temporaries);
             }
+            current=ApplyVolumetricLighting(current);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "--legacy-diffusion") >= 0)
             {
                 RenderTexture legacyDiffused = GetTemporary(
@@ -648,6 +655,21 @@ namespace GakumasPhotoMode
             _postMaterial.SetTexture("_TemporalFlagsTex", active ? mask : Texture2D.blackTexture);
             _postMaterial.SetVector("_TemporalJitterUv", active ?
                 new Vector4(temporalClassification.jitterUv.x, temporalClassification.jitterUv.y, 0, 0) : Vector4.zero);
+        }
+
+        private RenderTexture ApplyVolumetricLighting(RenderTexture source)
+        {
+            VolumetricLightingUnavailableReason=null;
+            if(volumetricLighting==null||!volumetricLighting.enabled){_volumetricLighting?.Dispose();_volumetricLighting=null;return source;}
+            try
+            {
+                if(volumetricDepthProvider==null){_volumetricLighting?.Dispose();VolumetricLightingUnavailableReason="Explicit current volumetric depth provider required";return source;}
+                var depth=volumetricDepthProvider(_sourceCamera,source);
+                if(_volumetricLighting==null)_volumetricLighting=new VolumetricLightingRenderer();
+                if(_volumetricLighting.TryRender(source,depth,_sourceCamera,volumetricLighting,out var frame))return frame.color;
+                VolumetricLightingUnavailableReason=_volumetricLighting.UnavailableReason;return source;
+            }
+            catch(Exception e){_volumetricLighting?.Dispose();VolumetricLightingUnavailableReason="Volumetric depth provider failed: "+e.GetType().Name;return source;}
         }
 
         private RenderTexture ApplyFogVolumes(RenderTexture source)
@@ -1310,6 +1332,7 @@ namespace GakumasPhotoMode
             ReleaseAuthoredColor();
             _bokehDepthOfField?.Dispose();_bokehDepthOfField=null;
             _fogVolumes?.Dispose();_fogVolumes=null;
+            _volumetricLighting?.Dispose();_volumetricLighting=null;
             ReleaseActorData();
             ReleaseHistory();
             if (_postMaterial != null) DestroyImmediate(_postMaterial);

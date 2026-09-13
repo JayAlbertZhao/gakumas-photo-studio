@@ -223,6 +223,13 @@ namespace GakumasPhotoMode
             var data = _data[index]; block.SetMatrix("_SingleShadowMatrix", data.worldToShadow);
             block.SetVector("_SingleShadowST", data.atlasST); block.SetVector("_SingleShadowDepth", data.depth); block.SetVector("_SingleShadowOptions", data.options);
         }
+        // Owned full-screen volume materials use the same source-depth contract as surface lights.
+        public void BindSingle(Material material, int index)
+        {
+            if(Atlas==null)return;
+            var data=_data[index];material.SetMatrix("_SingleShadowMatrix",data.worldToShadow);
+            material.SetVector("_SingleShadowST",data.atlasST);material.SetVector("_SingleShadowDepth",data.depth);material.SetVector("_SingleShadowOptions",data.options);
+        }
         public void BindMain(Material material)
         {
             if (Atlas == null) { material.DisableKeyword("SCENE_MAIN_LIGHT_SHADOWS"); return; }

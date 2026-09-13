@@ -74,6 +74,7 @@
 !/docs/status.md
 !/docs/toolkit.md
 !/docs/user-guide.md
+!/docs/volumetric-lighting.md
 !/examples/01-single-motion.timeline.json
 !/examples/02-motion-transition.timeline.json
 !/examples/03-motion-sequence.timeline.json
@@ -325,6 +326,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/StudioFloor.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TemporalClassification.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TemporalClassification.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/VolumetricLighting.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/VolumetricLighting.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneComputeSupport.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneComputeSupport.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneDecalLightRenderer.cs
@@ -377,6 +380,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SupersamplePresenter.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingRenderer.cs
+!/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingRenderer.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingSettings.cs
+!/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Samples~/MinimalHost/MinimalCharacterHost.cs
 !/packages/com.digital-kotone.toolkit/Samples~/MinimalHost/MinimalCharacterHost.cs.meta
 !/packages/com.digital-kotone.toolkit/package.json
@@ -395,6 +402,7 @@
 !/tests/test_rendering_contract.py
 !/tests/test_studio.py
 !/tests/test_toolkit_contract.py
+!/tests/test_volumetric_lighting_contract.py
 !/tools/import_private_resources.py
 !/tools/release.py
 !/tools/verify_baseline.py
@@ -456,6 +464,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SsrRoughness.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Temporal.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Temporal.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Volumetric.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Volumetric.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingValidation.cs
