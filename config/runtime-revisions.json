@@ -8,7 +8,7 @@
       "baseline_sha256": "f96c9e9a1289a9bc13ba883efe9b6ad1882b57b21815caaebaa90b1c8dcda497"
     },
     "unity/Assets/Scripts/FaceExpressionRenderer.cs": {
-      "sha256": "088708aa08c6621a9837ba9d75f9f213cbdbabc3bbf0b6850e7f1a8b61a6393c",
+      "sha256": "523c2ea93277cd5437c66da21633722cdd97cde26ec2680a653bf4907d384c4a",
       "baseline_sha256": "d67db5da84725ba0551ea720f0045cf34c14a141491596e05e9eeea96ea5cf01"
     },
     "unity/Assets/Scripts/HairDynamicsSystem.cs": {
@@ -60,7 +60,7 @@
       "baseline_sha256": "08bc0a1eb0da8430850929da1a2ac27e3ae63426d06257c58fbfe6501ffa062d"
     },
     "unity/Assets/Scripts/PhotoModeApp.cs": {
-      "sha256": "8f3c80cb08ef16317dde76d26df59f3103ad5cc1aa13817013d686c16a388a07",
+      "sha256": "2208db91c77513224ddcae46a8af4beab7b6c813a94780ebb128469cd3979f2a",
       "baseline_sha256": "0d8741b4550b6cef4185c7cb087b20747b2dbc3c52a03760b6c07ddc81d27e23"
     },
     "unity/Assets/Scripts/SupersamplePresenter.cs": {
@@ -90,6 +90,10 @@
     "unity/Packages/packages-lock.json": {
       "sha256": "bb98372566126482ce1f2af6875b0316422b73fce1d8af1753382f56e2b6dad4",
       "baseline_sha256": "a3dab720a75a3176c0c6e7068ea6fc55a4d9dcdba0b1ca4ab6b44986fe7033b1"
+    },
+    "unity/Assets/Scripts/FaceDecalRuntime.cs": {
+      "sha256": "9a31e7c50021a203b86ecedb82f6ce4bfff0f550984eabde055367a6183a090a",
+      "baseline_sha256": "d10d5f703e7b00b048b30bf8db792523797fac6fcff27e672b74839a8b38b177"
     }
   },
   "additions": {
@@ -103,7 +107,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "7e3feeb1dc39ad3d9dd0ce9ee376e8573208943f2ecfc691a709d082a116df85",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "a65fd98e00468e72ced431aaaf901b7996b8b34a15b058009fc04ea0b4a7925e",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "72bb2c202dd5b3b2d7766cb4e6d0ce61070402eb89fba09049a65c69b5a05e3f",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
@@ -137,7 +141,7 @@
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs": "93267c4f15f0a7b3dcf3e1d3b1e07ced8258c9854d6ed1de91231a88aedce443",
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs.meta": "75aad888d4351b0776443c7e5751c3d105b6d12acf55d926068d065dfa837552",
     "packages/com.digital-kotone.toolkit/NOTICE.md": "81a4267084c7405793f975954b0b386565322e0d8b8c28a5a39ad3d49fbcc806",
-    "packages/com.digital-kotone.toolkit/README.md": "2840e7e70d8394098adf314cfd6af442795791045c993e1c770695baf139cba0",
+    "packages/com.digital-kotone.toolkit/README.md": "00423af2ad37e90731b016c8986ff99334ade1de72be6f1a79b3a5b7895ebd53",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef": "6337904b37c3452d23c72a5c38b37d9e36a1de06dcfc262db792ddb141df3ccb",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef.meta": "b97945697274955dd36c6850061768b3522c5aa5768d95eb5401c2704ab0f013",
     "packages/com.digital-kotone.toolkit/Editor/ToolkitBuildPipeline.cs": "d82bdbb42be1669477bc12630ddddf5a7a7331bb04109dc879a9fcd76fe5f1d1",
@@ -411,7 +415,19 @@
     "packages/com.digital-kotone.toolkit/Runtime/Resources/LowResolutionFxShared.hlsl": "6b7f58de7e0c822b0de28a0a569d95f560c6a1ac3ceeb34e3c4c4f99f9471e10",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/LowResolutionFxShared.hlsl.meta": "7f744500d40161fff884f65b83125b8801d5c4bc0b63adae834b1f6df5345d12",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.HeavyFx.cs": "1fc102f70fe75aa62fa3a948ee3aa873879d3546315593adf8da34ae3b047a9b",
-    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.HeavyFx.cs.meta": "743c544735775523ca50b58ec1143a9f88fefc96f76eb6511472b5e69e6ff391"
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.HeavyFx.cs.meta": "743c544735775523ca50b58ec1143a9f88fefc96f76eb6511472b5e69e6ff391",
+    "packages/com.digital-kotone.toolkit/Runtime/FaceExpressionRenderer.Gpu.cs": "5fd4d93c35aef75320782c6e7767808046cb2de834a30b11da78de39d3bf2893",
+    "packages/com.digital-kotone.toolkit/Runtime/FaceExpressionRenderer.Gpu.cs.meta": "2fcb37f45c3fc75c7c7625867885ae4e78af9bc23d30362eb8b5a143f5db8709",
+    "packages/com.digital-kotone.toolkit/Runtime/GpuFaceDeformer.cs": "5141fcf13b7dcae2e593e6c1c08762ed28af0f85b3fbba2948399e2810665345",
+    "packages/com.digital-kotone.toolkit/Runtime/GpuFaceDeformer.cs.meta": "38da767ea6ea3506a5c847df3a8ede8614db9bea55ce1c3bb8da57eeb3ed8fe9",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/GpuFaceDeformer.compute": "bf27513e79ca0f16b16b7eab3b6d991f5181facab2e49333ff3ab7b2feef582d",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/GpuFaceDeformer.compute.meta": "156a19b69e0aaa640ed563b0662c3a5a6bdc74db43e5a348b8f6743a0f9325ad",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.GpuFace.cs": "9c1c56e422f76815073effc6d7bcba7bfeb1e4c9d3a8737d9af6a7b749333719",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.GpuFace.cs.meta": "1d9d6d8dd28c740418cf5016d81627b3b18caf071cfe1b367b3f06296010134f",
+    "unity/Assets/Applications/PhotoStudio/GpuFaceCharacterValidation.cs": "c7ee8e3f32643957a3ebeed732bd27571c71cbabbbf059589a7f17b9ad6ed523",
+    "unity/Assets/Applications/PhotoStudio/GpuFaceCharacterValidation.cs.meta": "743383e5c35e3333d1a790fd4520c1e3f981804c785dd3937cf2c9dddc33f436",
+    "unity/Assets/Resources/FaceDeformationProbe.shader": "2b7b375de09141395c4f5e296369e55d1a81de759506ef2c37b04c940eb93d3d",
+    "unity/Assets/Resources/FaceDeformationProbe.shader.meta": "4cc5f17500aee9f9b15a61e4b99814c16f0ff2c60731a0ffa155baa5d04bf519"
   },
   "relocations": {
     "unity/Assets/ActorAnimationStub/ActorAnimation.Runtime.asmdef": "packages/com.digital-kotone.toolkit/Runtime/Compatibility/ActorAnimationStub/ActorAnimation.Runtime.asmdef",

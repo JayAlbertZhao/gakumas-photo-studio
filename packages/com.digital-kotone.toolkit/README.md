@@ -47,6 +47,8 @@ Package Manager 的 Samples 中提供相同用途的 **Minimal Character Host**�
 
 ## 控制入口
 
+`GpuFaceDeformer` 可单独接收自己制作的 Mesh、稀疏差分、权重及骨矩阵，直接写入可绘制顶点缓冲；不依赖兼容角色格式。已有角色可设置 `FaceExpressionRenderer.GpuDeformationEnabled`，默认 false。输入布局、当前资源借用、CPU 回退及移动平台边界见 [GPU 面部形变](../../docs/gpu-face-deformation.md)。
+
 通过 `CharacterSceneRuntime` 的 `CharacterIds`、`Costumes`、`Motions` 获取当前清单；调用 `SelectCharacter(id)`、`SelectMotion(label)`、`SelectCostume(index)`、`SelectExpression(index)`、`SelectExpressionMotion(name)`、`PlayVoice(index)`。`SetPlaybackPaused(bool)` 管理当前摄影/剧情暂停，`EvaluateMotion(seconds)` 可手动采样已有动作。
 
 `Timeline` 暴露已有 StoryTimelinePlayer：`StartStory(seconds)`、`Seek(seconds, playVoice)`、`StopStory()`。`PreviewCamera`、`CharacterRoot`、`RenderControls` 供宿主接入相机/角色/光照控制。调用前先完成初始化；未初始化的清单和对象可能为 null。

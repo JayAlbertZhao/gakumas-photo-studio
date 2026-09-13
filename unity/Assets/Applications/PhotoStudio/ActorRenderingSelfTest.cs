@@ -445,6 +445,21 @@ namespace GakumasPhotoMode
                 (fixture as IDisposable)?.Dispose();
                 report.accepted = report.error == null && report.checks.TrueForAll(check => check.accepted);
             }
+            if (report.error == null)
+            {
+                _owned.Clear();
+                var fixture = VerifyGpuFace(report);
+                while (true)
+                {
+                    bool more; object next = null;
+                    try { more = fixture.MoveNext(); if (more) next = fixture.Current; }
+                    catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); break; }
+                    if (!more) break;
+                    yield return next;
+                }
+                (fixture as IDisposable)?.Dispose();
+                report.accepted = report.error == null && report.checks.TrueForAll(check => check.accepted);
+            }
             if (!string.IsNullOrEmpty(_directory) && Directory.Exists(_directory))
                 File.WriteAllText(Path.Combine(_directory, "actor-synthetic.json"), JsonUtility.ToJson(report, true));
             Debug.Log("[ActorSelfTest] accepted=" + report.accepted + "; checks=" + report.checks.Count);

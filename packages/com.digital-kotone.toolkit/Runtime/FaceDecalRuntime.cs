@@ -195,6 +195,12 @@ namespace GakumasPhotoMode
 
         private void LogCoverage()
         {
+            if (_faceMeshes.Any(filter => filter != null &&
+                filter.GetComponentInParent<FaceExpressionRenderer>()?.IsGpuDeformationActive == true))
+            {
+                Debug.Log("[FaceDecal] CPU vertex coverage unavailable while GPU face deformation is active; fragment projection remains active.");
+                return;
+            }
             for (int projectorIndex = 0; projectorIndex < _activeCount; projectorIndex++)
             {
                 int inside = 0;

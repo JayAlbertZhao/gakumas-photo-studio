@@ -1,0 +1,111 @@
+#pragma kernel DeformFace
+#pragma target 5.0
+
+struct Rest { float3 position; float3 normal; float4 tangent; float inverseWeight; };
+struct Entry { uint shape; float3 position; };
+struct Bone { float4 x; float4 y; float4 z; float4 state; };
+StructuredBuffer<Rest> _FaceRest;
+StructuredBuffer<Entry> _FaceEntries;
+StructuredBuffer<uint> _FaceStarts;
+StructuredBuffer<uint> _FaceInfluences;
+StructuredBuffer<float> _FaceWeights;
+StructuredBuffer<Bone> _FaceBones;
+RWByteAddressBuffer _FaceOutput0, _FaceOutput1, _FaceOutput2, _FaceOutput3;
+uint _FaceVertexCount, _FaceBoneCount;
+int4 _FaceStrides, _FaceChannels, _FaceOffsets;
+
+void Store3(int stream, uint offset, float3 value)
+{
+    if (stream == 0) _FaceOutput0.Store3(offset,asuint(value));
+    else if (stream == 1) _FaceOutput1.Store3(offset,asuint(value));
+    else if (stream == 2) _FaceOutput2.Store3(offset,asuint(value));
+    else if (stream == 3) _FaceOutput3.Store3(offset,asuint(value));
+}
+void StoreW(int stream, uint offset, float value)
+{
+    if (stream == 0) _FaceOutput0.Store(offset,asuint(value));
+    else if (stream == 1) _FaceOutput1.Store(offset,asuint(value));
+    else if (stream == 2) _FaceOutput2.Store(offset,asuint(value));
+    else if (stream == 3) _FaceOutput3.Store(offset,asuint(value));
+}
+void AddProduct(float3 a, float b, inout float3 sum, inout float3 error)
+{
+    // Compensated product/sum using float32 only. Mono evaluates Matrix4x4 dot
+    // products with wider intermediates; rounding every product to float can
+    // move an otherwise equivalent edge across a raster sample. Keep the low
+    // words until the vector component is stored, without requiring GPU FP64.
+    precise float3 ca = a * 4097.0;
+    precise float3 ah = ca - (ca - a), al = a - ah;
+    precise float cb = b * 4097.0;
+    precise float bh = cb - (cb - b), bl = b - bh;
+    precise float3 product = a * b;
+    precise float3 tail = product - ah * bh;
+    tail = tail - al * bh; tail = tail - ah * bl;
+    tail = al * bl - tail;
+    precise float3 next = sum + product;
+    precise float3 shift = next - sum;
+    precise float3 residue = (sum - (next - shift)) + (product - shift);
+    error = error + (residue + tail); sum = next;
+}
+float3 Transform(Bone b, float3 v, float w)
+{
+    precise float3 sum = 0, error = 0;
+    AddProduct(float3(b.x.x,b.y.x,b.z.x),v.x,sum,error);
+    AddProduct(float3(b.x.y,b.y.y,b.z.y),v.y,sum,error);
+    AddProduct(float3(b.x.z,b.y.z,b.z.z),v.z,sum,error);
+    AddProduct(float3(b.x.w,b.y.w,b.z.w),w,sum,error);
+    precise float3 result = sum + error;
+    return result;
+}
+float3 UnityNormalized(float3 v)
+{
+    float length = sqrt(dot(v,v));
+    return length > 1e-5 ? v / length : 0;
+}
+
+[numthreads(64,1,1)]
+void DeformFace(uint3 thread : SV_DispatchThreadID)
+{
+    uint v = thread.x;
+    if (v >= _FaceVertexCount) return;
+    Rest rest = _FaceRest[v]; precise float3 blended = rest.position;
+    for (uint i = _FaceStarts[v]; i < _FaceStarts[v+1]; i++)
+    {
+        Entry e = _FaceEntries[i]; float weight = _FaceWeights[e.shape];
+        if (abs(weight) >= .0001) blended = blended + e.position * weight;
+    }
+    float3 position = blended, normal = rest.normal, tangent = rest.tangent.xyz;
+    bool moving = false;
+    [unroll] for (uint k = 0; k < 4; k++)
+    {
+        uint packed = _FaceInfluences[v*4+k]; uint bone = packed & 65535u;
+        uint safeBone = min(bone,max(_FaceBoneCount,1u)-1u);
+        if ((packed >> 16) != 0 && bone < _FaceBoneCount)
+            moving = moving || _FaceBones[safeBone].state.x != 0;
+    }
+    if (moving)
+    {
+        precise float3 p = 0, n = 0, t = 0;
+        [unroll] for (uint k = 0; k < 4; k++)
+        {
+            uint packed = _FaceInfluences[v*4+k]; uint bone = packed & 65535u;
+            float weight = (packed >> 16) * (1.0 / 65535.0);
+            if (weight <= 0 || bone >= _FaceBoneCount) continue;
+            Bone b = _FaceBones[min(bone,max(_FaceBoneCount,1u)-1u)];
+            p = p + Transform(b,blended,1)*weight;
+            n = n + Transform(b,rest.normal,0)*weight;
+            t = t + Transform(b,rest.tangent.xyz,0)*weight;
+        }
+        float inverseWeight = rest.inverseWeight;
+        position = p * inverseWeight; n *= inverseWeight; t *= inverseWeight;
+        normal = dot(n,n) > 0 ? UnityNormalized(n) : rest.normal;
+        tangent = dot(t,t) > 0 ? UnityNormalized(t) : float3(1,0,0);
+    }
+    Store3(_FaceChannels.x,v*_FaceStrides[_FaceChannels.x]+_FaceOffsets.x,position);
+    if (_FaceChannels.y >= 0) Store3(_FaceChannels.y,v*_FaceStrides[_FaceChannels.y]+_FaceOffsets.y,normal);
+    if (_FaceChannels.z >= 0)
+    {
+        uint offset = v*_FaceStrides[_FaceChannels.z]+_FaceOffsets.z;
+        Store3(_FaceChannels.z,offset,tangent); StoreW(_FaceChannels.z,offset+12,rest.tangent.w);
+    }
+}

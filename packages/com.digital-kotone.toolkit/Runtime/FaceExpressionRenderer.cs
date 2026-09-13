@@ -9,7 +9,7 @@ using VL.FaceSystem;
 namespace GakumasPhotoMode
 {
     [DefaultExecutionOrder(950)]
-    public sealed class FaceExpressionRenderer : MonoBehaviour
+    public sealed partial class FaceExpressionRenderer : MonoBehaviour
     {
         private VLActorFaceModel _shapeSource;
         private VLActorFaceModel _weightDriver;
@@ -106,7 +106,7 @@ namespace GakumasPhotoMode
         public float EyeHighlightOffset { get; private set; }
         public Vector2 FaceCorrectionAngles { get { return new Vector2(_faceCorrectionYaw, _faceCorrectionPitch); } }
         public bool BoneSkinningReady { get { return _boneSkinningReady; } }
-        public float MaximumBoneDisplacement { get { return _maximumBoneDisplacement; } }
+        public float MaximumBoneDisplacement { get { return IsGpuDeformationActive ? float.NaN : _maximumBoneDisplacement; } }
         public bool StoryGazeActive { get { return _storyGazeActive; } }
         public bool HasEyeBones { get { return _leftEye != null && _rightEye != null; } }
         public Vector3 EyeCenterPosition
@@ -193,6 +193,7 @@ namespace GakumasPhotoMode
                 _blinkActive = false;
                 _blinkWeight = 0f;
                 _traceBlink = Environment.GetCommandLineArgs().Contains("--trace-original-blink");
+                _gpuDeformationEnabled |= Environment.GetCommandLineArgs().Contains("--gpu-face-deformation");
                 Debug.Log(string.Format(
                     "[PhotoMode] Face deformation ready: {0} vertices, {1} shapes, correction={2}, eyeHighlight={3}, customSkinning={4}, bones={5}",
                     _baseVertices.Length, ShapeCount, _faceCorrection != null, _eyeHighlight != null,
@@ -430,6 +431,9 @@ namespace GakumasPhotoMode
                 }
                 if (float.IsNaN(_lastWeights[index]) || Mathf.Abs(weights[index] - _lastWeights[index]) > 0.0001f) changed = true;
             }
+            if (TryApplyGpuDeformation(weights, changed)) return;
+            changed |= _cpuBlendNeedsRefresh;
+            _cpuBlendNeedsRefresh = false;
             if (changed)
             {
                 Array.Copy(_baseVertices, _blendVertices, _baseVertices.Length);
@@ -469,6 +473,29 @@ namespace GakumasPhotoMode
                 return;
             }
 
+            bool hasBoneMotion = PrepareSkinMatrices();
+
+            // Preserve the authored mesh bit-for-bit at bone rest.  Even a
+            // normalized sum of four identity influences can accumulate a few
+            // float ULPs; there is no reason to pay that error or CPU cost until
+            // at least one eye/tongue matrix actually moves.
+            if (!hasBoneMotion)
+            {
+                _deformedMesh.vertices = _blendVertices;
+                if (_baseNormals != null && _baseNormals.Length == _baseVertices.Length)
+                    _deformedMesh.normals = _baseNormals;
+                if (_baseTangents != null && _baseTangents.Length == _baseVertices.Length)
+                    _deformedMesh.tangents = _baseTangents;
+                _deformedMesh.RecalculateBounds();
+                _maximumBoneDisplacement = 0f;
+                return;
+            }
+
+            ApplyPreparedBoneSkinning();
+        }
+
+        private bool PrepareSkinMatrices()
+        {
             Transform root = _shapeSource.bones[0];
             Matrix4x4 meshWorldToLocal = _renderer.transform.worldToLocalMatrix;
             Matrix4x4 headBindToMesh = _shapeSource.bindposes[0].inverse;
@@ -518,22 +545,11 @@ namespace GakumasPhotoMode
                 }
             }
 
-            // Preserve the authored mesh bit-for-bit at bone rest.  Even a
-            // normalized sum of four identity influences can accumulate a few
-            // float ULPs; there is no reason to pay that error or CPU cost until
-            // at least one eye/tongue matrix actually moves.
-            if (!hasBoneMotion)
-            {
-                _deformedMesh.vertices = _blendVertices;
-                if (_baseNormals != null && _baseNormals.Length == _baseVertices.Length)
-                    _deformedMesh.normals = _baseNormals;
-                if (_baseTangents != null && _baseTangents.Length == _baseVertices.Length)
-                    _deformedMesh.tangents = _baseTangents;
-                _deformedMesh.RecalculateBounds();
-                _maximumBoneDisplacement = 0f;
-                return;
-            }
+            return hasBoneMotion;
+        }
 
+        private void ApplyPreparedBoneSkinning()
+        {
             const float inverseUnorm16 = 1f / 65535f;
             uint[] packedWeights = _shapeSource.boneWeightAndIndices;
             _maximumBoneDisplacement = 0f;
@@ -788,7 +804,7 @@ namespace GakumasPhotoMode
                 FloatJson(_gazeYaw), FloatJson(_gazePitch),
                 _boneSkinningReady ? "true" : "false", _boneSkinningDisabled ? "true" : "false",
                 _shapeSource == null || _shapeSource.bones == null ? 0 : _shapeSource.bones.Length,
-                FloatJson(_maximumBoneDisplacement),
+                IsGpuDeformationActive ? "null" : FloatJson(_maximumBoneDisplacement),
                 _blinkShapeIndex, _blinkActive ? "true" : "false",
                 FloatJson(_blinkElapsed), FloatJson(_nextBlinkTime),
                 _automaticBlinkEnabled ? "true" : "false",
@@ -980,6 +996,7 @@ namespace GakumasPhotoMode
 
         private void OnDestroy()
         {
+            ReleaseGpuDeformation();
             if (_deformedMesh != null) DestroyImmediate(_deformedMesh);
         }
 
