@@ -1,5 +1,6 @@
 #include "UnityCG.cginc"
 #include "SceneLightShadow.hlsl"
+#include "SceneBakedShadow.hlsl"
 struct SceneLightData
 {
     float4 positionRange, axisXLength, axisYWidth, axisZHeight;
@@ -132,7 +133,23 @@ float4 LightFrag(LightVarying input) : SV_Target
     shadow.worldToShadow = _SingleShadowMatrix; shadow.atlasST = _SingleShadowST;
     shadow.depth = _SingleShadowDepth; shadow.options = _SingleShadowOptions;
     #endif
+    #if defined(SCENE_BAKED_SHADOW_PACKED) && defined(SCENE_BAKED_LIGHT_CHANNELS)
+    float realtimeVisibility = SceneLightVisibility(world, n, shadow);
+    #else
     attenuation *= SceneLightVisibility(world, n, shadow);
+    #endif
+    #endif
+    #if defined(SCENE_BAKED_SHADOW_PACKED) && defined(SCENE_BAKED_LIGHT_CHANNELS)
+    #if defined(SCENE_LIGHT_INSTANCED)
+    float channel = _SceneBakedChannels[input.index];
+    #else
+    float channel = _SingleBakedChannel;
+    #endif
+    float maskVisibility = SceneBakedSelect(SceneBakedUnpack(tex2D(_PackedBakedShadow, input.uv).rg), channel);
+    #if defined(SCENE_LIGHT_SHADOWS)
+    maskVisibility = min(maskVisibility, realtimeVisibility);
+    #endif
+    attenuation *= maskVisibility;
     #endif
     return float4(response * atlas * light.radianceShape.rgb * attenuation, 0);
 }

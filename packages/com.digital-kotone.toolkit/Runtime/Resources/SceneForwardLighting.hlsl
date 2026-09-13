@@ -1,6 +1,7 @@
 #include "UnityCG.cginc"
 #include "SceneGi.hlsl"
 #define SCENE_LIGHT_INSTANCED
+#include "SceneBakedShadow.hlsl"
 #if defined(SCENE_LIGHT_SHADOWS)
 #define FORWARD_LOCAL_SHADOWS
 #endif
@@ -69,7 +70,7 @@ float3 ForwardBrdf(float3 albedo, float3 mos, float3 n, float3 v, float3 l, floa
     return result;
 }
 
-float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo, float3 mos, float4 gi)
+float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo, float3 mos, float4 gi, float4 baked)
 {
     SceneLightData light = _SceneLights[index];
     if (light.parameters.z > .5 && abs(_ReceiverGroup - light.parameters.z) > .1) return 0;
@@ -105,11 +106,20 @@ float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo,
     }
     float3 response = ForwardBrdf(albedo, mos, n, v, ForwardNormal(source - world), light.response);
     if (gi.a > .5 && light.response.z > 0) response *= lerp(1, gi.rgb, light.response.z);
+    #if defined(SCENE_BAKED_SHADOW_INPUT) && defined(SCENE_BAKED_LIGHT_CHANNELS)
+    float maskVisibility = SceneBakedSelect(baked, _SceneBakedChannels[index]);
     #if defined(FORWARD_LOCAL_SHADOWS)
+    maskVisibility = min(maskVisibility, SceneLightVisibility(world, n, _SceneLightShadows[index]));
+    #endif
+    attenuation *= maskVisibility;
+    #elif defined(FORWARD_LOCAL_SHADOWS)
     attenuation *= SceneLightVisibility(world, n, _SceneLightShadows[index]);
     #endif
     return response * clamp(tex2Dlod(_LightAtlas, float4(atlasUv, 0, 0)).rgb, 0, 65504) * light.radianceShape.rgb * attenuation;
 }
+// Existing specialized consumers retain the same unmasked contract.
+float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo, float3 mos, float4 gi)
+{ return ForwardLocal(index, world, n, v, albedo, mos, gi, 1); }
 
 struct ForwardInput { float4 vertex : POSITION; float3 normal : NORMAL; float4 tangent : TANGENT; float2 uv : TEXCOORD0; float2 uv2 : TEXCOORD1; };
 struct ForwardVarying { float4 position : SV_POSITION; float3 world : TEXCOORD0; float3 normal : TEXCOORD1; float4 tangent : TEXCOORD2; float2 uv : TEXCOORD3; float2 uv2 : TEXCOORD4; };
@@ -139,12 +149,19 @@ float4 ForwardFragment(ForwardVarying input) : SV_Target
     }
     float3 v = ForwardNormal(lerp(_CameraPosition - input.world, -_CameraForward, _Orthographic));
     float4 gi = SceneGi(input.uv2, n);
+    float4 baked = SceneBakedSample(input.uv2);
     float3 direct = ForwardBrdf(albedo, mos, n, v, _LightDirection, _DirectionalResponse) * _LightRadiance;
     if (gi.a > .5) direct *= lerp(1, gi.rgb, _DirectionalResponse.z);
     #if defined(SCENE_MAIN_LIGHT_SHADOWS)
     ForwardMainShadowData shadow; shadow.worldToShadow = _SingleShadowMatrix; shadow.atlasST = _SingleShadowST;
     shadow.depth = _SingleShadowDepth; shadow.options = _SingleShadowOptions;
+    #if defined(SCENE_BAKED_SHADOW_INPUT)
+    direct *= min(ForwardMainVisibility(input.world, n, shadow), SceneBakedSelect(baked, _MainBakedChannel));
+    #else
     direct *= ForwardMainVisibility(input.world, n, shadow);
+    #endif
+    #elif defined(SCENE_BAKED_SHADOW_INPUT)
+    direct *= SceneBakedSelect(baked, _MainBakedChannel);
     #endif
     if (_ForwardTiled != 0)
     {
@@ -156,12 +173,12 @@ float4 ForwardFragment(ForwardVarying input) : SV_Target
             [loop] while (mask != 0)
             {
                 uint bit = firstbitlow(mask); mask &= mask - 1;
-                direct += ForwardLocal(word * 32 + bit, input.world, n, v, albedo, mos, gi);
+                direct += ForwardLocal(word * 32 + bit, input.world, n, v, albedo, mos, gi, baked);
             }
         }
     }
     else [loop] for (uint index = 0; index < (uint)_ForwardLightCount; index++)
-        direct += ForwardLocal(index, input.world, n, v, albedo, mos, gi);
+        direct += ForwardLocal(index, input.world, n, v, albedo, mos, gi, baked);
     float3 indirect = albedo * ((1 - mos.r) / UNITY_PI) * _AmbientIrradiance * mos.g;
     if (gi.a > .5) indirect = albedo * (1 - mos.r) * gi.rgb * _GiBaseScale * mos.g;
     float3 emission = clamp(tex2D(_EmissionMap, input.uv).rgb * _Emission, 0, 65504);

@@ -138,7 +138,7 @@ namespace GakumasPhotoMode
                 if(shader==null||!shader.isSupported||!Supported(GraphicsFormat.R32G32B32A32_SFloat)||!Supported(GraphicsFormat.R32G32_SFloat)||!Supported(GraphicsFormat.R8_UNorm)||
                     !SystemInfo.IsFormatSupported(GraphicsFormat.R32G32B32A32_SFloat,FormatUsage.Blend)||(hasOptics&&!Supported(GraphicsFormat.R32_SFloat)))
                     return Fail("Joint shaders or float target/blend capabilities unavailable");
-                if(!surfaceLighting.Prepare(camera,source.width,source.height,hasGeometry?settings.geometry.lighting:null,surfaces,out reason))return Fail(reason);
+                if(!surfaceLighting.Prepare(camera,source.width,source.height,hasGeometry?settings.geometry.lighting:null,surfaces,out reason,Owns))return Fail(reason);
                 if(!Created||a.width!=source.width||a.height!=source.height)ReleaseTargets();
                 if(a==null){a=Allocate(source.width,source.height,RenderTextureFormat.ARGBFloat,"HDR A");b=Allocate(source.width,source.height,RenderTextureFormat.ARGBFloat,"HDR B");repair=Allocate(source.width,source.height,RenderTextureFormat.R8,"current repair mask");}
                 if(!shadows.Prepare(shadowLights,hasMedium?settings.medium.shadows:null,false,out reason))return Fail(reason);

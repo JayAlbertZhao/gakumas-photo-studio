@@ -19,6 +19,7 @@ namespace GakumasPhotoMode
         [Range(0, 1)] public float alphaCutoff;
         [Range(0, 255)] public int receiverGroup = 1;
         public SceneGiInput gi = new SceneGiInput();
+        public SceneBakedShadowInput bakedShadow = new SceneBakedShadowInput();
         // Alpha uses premultiplied over; additive does not change destination alpha.
         public bool additive;
     }
@@ -39,6 +40,7 @@ namespace GakumasPhotoMode
         [Range(0, 4)] public float diffuseScale = 1, specularScale = 1, backlightScale, giBaseScale = 1;
         [Range(0, 1)] public float directionalGiWeight;
         public SceneDirectionalShadowSettings mainLightShadow = new SceneDirectionalShadowSettings();
+        public SceneBakedShadowChannel mainBakedShadowChannel;
     }
 
     [Serializable]

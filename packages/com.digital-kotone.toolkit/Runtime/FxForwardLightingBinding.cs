@@ -22,13 +22,16 @@ namespace GakumasPhotoMode
         public FxForwardLightingBinding(bool heavy) { this.heavy = heavy; }
         public static bool Lit(LowResolutionFxSurface surface) => surface.lighting != null && surface.lighting.enabled;
         public bool Prepare(Camera camera, int width, int height, SceneForwardLightSettings settings,
-            List<LowResolutionFxSurface> surfaces, out string error)
+            List<LowResolutionFxSurface> surfaces, out string error, Func<RenderTexture, bool> owns = null)
         {
             Active = false; error = null;
             foreach (var s in surfaces)
             {
                 if (!Lit(s)) continue;
                 if (!ValidateSurface(s, out error)) { Dispose(); return false; }
+                var baked = s.lighting.bakedShadow;
+                if (baked != null && baked.Enabled && baked.Resolve(s.renderer, out var map, out _, out _) && map is RenderTexture rt && owns != null && owns(rt))
+                { error = "Baked shadow input aliases an owned FX target"; Dispose(); return false; }
                 Active = true;
             }
             if (!Active) { Dispose(); return true; }
@@ -64,6 +67,7 @@ namespace GakumasPhotoMode
                 { error = "Mesh/matrix draws require explicit lightmap or probe GI, not renderer/scene-probe lookup"; return false; }
                 if (!l.gi.Validate(r, mesh, out error)) return false;
             }
+            if (l.bakedShadow != null && !l.bakedShadow.Validate(r, mesh, out error)) return false;
             return true;
         }
         public void Bind(Material material, LowResolutionFxSurface s)
@@ -78,6 +82,7 @@ namespace GakumasPhotoMode
             material.SetFloat("_ReceiverGroup", s.lighting.receiverGroup); material.SetFloat("_Cutoff", s.lighting.alphaCutoff);
             material.SetFloat("_SceneGiMode", 0);
             if (s.lighting.gi != null && !s.lighting.gi.Bind(material, s.renderer, out var error)) throw new InvalidOperationException(error);
+            SceneBakedShadowInput.Bind(material, s.renderer, s.lighting.bakedShadow);
         }
         private static void Keyword(Material material, string name, bool enabled)
         { if (enabled) material.EnableKeyword(name); else material.DisableKeyword(name); }

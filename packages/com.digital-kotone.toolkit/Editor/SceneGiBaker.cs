@@ -18,6 +18,10 @@ namespace GakumasPhotoMode.Editor
             public float texelsPerUnit = 8;
             public int atlasSize = 256, directSamples = 64, indirectSamples = 256, environmentSamples = 64, bounces = 2;
             public bool directional;
+            // Explicit alternate bake: indirect white GI plus Mixed-light occlusion.
+            public bool shadowMask;
+            // Distinct scene basenames avoid streamed-scene bundle cache collisions.
+            public string sceneName = "Reference";
             public LightingSettings.Lightmapper lightmapper = LightingSettings.Lightmapper.ProgressiveGPU;
         }
         [Serializable] public sealed class MapRecord
@@ -33,6 +37,8 @@ namespace GakumasPhotoMode.Editor
         }
         [Serializable] public sealed class ProbeRecord { public Vector3 position; public float[] coefficients; }
         [Serializable] public sealed class SourceRecord { public string path, sha256, sha256After; }
+        [Serializable] public sealed class ShadowMapRecord { public int lightmapIndex; public string path, sha256, format; public int width, height; }
+        [Serializable] public sealed class ShadowLightRecord { public string path; public int channel; }
         [Serializable] public sealed class Result
         {
             public string schema = "photo-studio.reference-gi-bake.v1", engine, scene, lightingData, sourceSceneSha256, sourceSceneSha256After, actualLightmapper;
@@ -44,12 +50,16 @@ namespace GakumasPhotoMode.Editor
             public ReceiverRecord[] receivers;
             public ProbeRecord[] probes;
             public SourceRecord[] sourceAssets;
+            public ShadowMapRecord[] shadowMaps;
+            public ShadowLightRecord[] shadowLights;
         }
 
         public static Result BakeSceneCopy(string sourceScene, string destinationFolder, Options options = null)
         {
             options = options ?? new Options();
             ValidatePaths(sourceScene, destinationFolder);
+            if (string.IsNullOrEmpty(options.sceneName) || !System.Text.RegularExpressions.Regex.IsMatch(options.sceneName, "^[a-zA-Z0-9-]+$"))
+                throw new ArgumentException("Use a simple generated scene name without a path or extension.");
             if (EditorApplication.isPlayingOrWillChangePlaymode || Lightmapping.isRunning)
                 throw new InvalidOperationException("Cannot start GI bake while playing or another bake is running.");
             if (QualitySettings.activeColorSpace != ColorSpace.Linear || GraphicsSettings.currentRenderPipeline != null)
@@ -70,7 +80,7 @@ namespace GakumasPhotoMode.Editor
                     throw new InvalidOperationException("Save all additive scenes before baking a copy.");
                 if (SceneManager.GetSceneAt(i).isDirty) throw new InvalidOperationException("Save or discard dirty scenes explicitly before baking a copy.");
             }
-            string before = HashFile(sourceScene), destination = destinationFolder + "/Reference.unity";
+            string before = HashFile(sourceScene), destination = destinationFolder + "/" + options.sceneName + ".unity";
             var originals = new List<SourceRecord>();
             foreach (string path in AssetDatabase.GetDependencies(sourceScene, true))
             {
@@ -95,6 +105,7 @@ namespace GakumasPhotoMode.Editor
                     lightmapCompression = LightmapCompression.None, prioritizeView = false
                 };
                 if (settings.lightmapper != options.lightmapper) throw new InvalidOperationException("Requested lightmapper is unavailable; select an installed backend explicitly.");
+                if (options.shadowMask) settings.mixedBakeMode = MixedLightingMode.Shadowmask;
                 AssetDatabase.CreateAsset(settings, destinationFolder + "/ReferenceLighting.asset"); Lightmapping.lightingSettings = settings;
                 // No ambient fallback or colored sky contribution in the reference bake.
                 RenderSettings.skybox = null; RenderSettings.ambientMode = AmbientMode.Flat; RenderSettings.ambientLight = Color.black;
@@ -106,7 +117,8 @@ namespace GakumasPhotoMode.Editor
                     foreach (var light in root.GetComponentsInChildren<Light>(true))
                     {
                         if (!light.isActiveAndEnabled) continue;
-                        light.color = Color.white; light.useColorTemperature = false; light.lightmapBakeType = LightmapBakeType.Baked; whiteLights++;
+                        light.color = Color.white; light.useColorTemperature = false;
+                        light.lightmapBakeType = options.shadowMask ? LightmapBakeType.Mixed : LightmapBakeType.Baked; whiteLights++;
                     }
                     foreach (var r in root.GetComponentsInChildren<MeshRenderer>(true))
                     {
@@ -146,6 +158,7 @@ namespace GakumasPhotoMode.Editor
                 result.actualLightmapper = Lightmapping.lightingSettings.lightmapper.ToString();
                 result.sourceSceneSha256 = before; result.sourceSceneSha256After = HashFile(sourceScene);
                 result.accepted = before == result.sourceSceneSha256After && result.maps.Length > 0;
+                if (options.shadowMask) result.accepted &= result.shadowMaps != null && result.shadowMaps.Length > 0;
                 result.sourceAssets = originals.ToArray();
                 foreach (var asset in result.sourceAssets)
                 { asset.sha256After = File.Exists(asset.path) ? HashFile(asset.path) : null; result.accepted &= asset.sha256 == asset.sha256After; }
@@ -175,6 +188,23 @@ namespace GakumasPhotoMode.Editor
                     width = map.lightmapColor.width, height = map.lightmapColor.height, format = map.lightmapColor.format.ToString() });
             }
             result.maps = maps.ToArray(); var receivers = new List<ReceiverRecord>();
+            if (settings.shadowMask)
+            {
+                var masks = new List<ShadowMapRecord>(); var lights = new List<ShadowLightRecord>();
+                var bakedMaps = LightmapSettings.lightmaps;
+                for (int index = 0; index < bakedMaps.Length; index++)
+                {
+                    var mask = bakedMaps[index].shadowMask; if (mask == null) continue;
+                    string path = AssetDatabase.GetAssetPath(mask);
+                    masks.Add(new ShadowMapRecord { lightmapIndex = index, path = path, sha256 = HashFile(path), format = mask.graphicsFormat.ToString(), width = mask.width, height = mask.height });
+                }
+                foreach (var root in scene.GetRootGameObjects()) foreach (var light in root.GetComponentsInChildren<Light>(true))
+                {
+                    if (!light.isActiveAndEnabled) continue;
+                    lights.Add(new ShadowLightRecord { path = AnimationUtility.CalculateTransformPath(light.transform, null), channel = light.bakingOutput.occlusionMaskChannel });
+                }
+                result.shadowMaps = masks.ToArray(); result.shadowLights = lights.ToArray();
+            }
             foreach (var root in scene.GetRootGameObjects()) foreach (var r in root.GetComponentsInChildren<MeshRenderer>(true))
             {
                 if (!r.enabled || !r.gameObject.activeInHierarchy) continue;

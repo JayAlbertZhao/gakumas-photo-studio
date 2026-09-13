@@ -12,6 +12,7 @@ namespace GakumasPhotoMode
         private readonly SceneDecalLightRenderer snapshot = new SceneDecalLightRenderer();
         private readonly SceneLightShadowAtlas shadows = new SceneLightShadowAtlas("Toolkit Forward+ local shadows");
         private readonly SceneLightShadowAtlas mainShadow = new SceneLightShadowAtlas("Toolkit Forward+ directional shadows");
+        private readonly SceneBakedShadowChannels bakedChannels = new SceneBakedShadowChannels();
         private ComputeShader compute;
         private ComputeBuffer lights, tiles;
         private int words, tilesX, tilesY, kernel, width, height;
@@ -24,14 +25,14 @@ namespace GakumasPhotoMode
         public int CulledLights => snapshot.CulledLights;
         public int TileCount { get; private set; }
         public long GridBytes => tiles == null ? 0 : (long)tiles.count * 4;
-        public long BufferBytes => GridBytes + (lights == null ? 0 : (long)lights.count * 144);
-        public int AllocatedBuffers => (lights != null ? 1 : 0) + (tiles != null ? 1 : 0);
+        public long BufferBytes => GridBytes + (lights == null ? 0 : (long)lights.count * 144) + bakedChannels.Bytes;
+        public int AllocatedBuffers => (lights != null ? 1 : 0) + (tiles != null ? 1 : 0) + bakedChannels.BufferCount;
         public int LocalShadowMapCount => shadows.MapCount;
         public int MainShadowMapCount => mainShadow.MapCount;
         public int ShadowTargetCount => (shadows.Atlas != null ? 1 : 0) + (mainShadow.Atlas != null ? 1 : 0);
         public bool Owns(RenderTexture texture) => texture != null && (texture == shadows.Atlas || texture == mainShadow.Atlas);
         public bool IsCreated => lights != null && lights.IsValid() && tiles != null && tiles.IsValid() &&
-            (shadows.Atlas == null || shadows.Atlas.IsCreated()) && (mainShadow.Atlas == null || mainShadow.Atlas.IsCreated());
+            bakedChannels.IsCreated && (shadows.Atlas == null || shadows.Atlas.IsCreated()) && (mainShadow.Atlas == null || mainShadow.Atlas.IsCreated());
         internal ComputeBuffer TileBuffer => tiles;
         internal List<SceneDecalLightRenderer.LightData> LightSnapshot => snapshot.PreparedLights;
 
@@ -48,6 +49,7 @@ namespace GakumasPhotoMode
                     !mainShadow.PrepareDirectional(settings.lightDirection, settings.mainLightShadow,
                         settings.lightRadiance != Vector3.zero && (settings.diffuseScale > 0 || settings.specularScale > 0), out error))
                 { Dispose(); return false; }
+                bakedChannels.Prepare(snapshot.PreparedSources, true);
                 return true;
             }
             catch (Exception exception) { error = "Forward light resources failed: " + exception.GetType().Name; Dispose(); return false; }
@@ -66,7 +68,7 @@ namespace GakumasPhotoMode
                 !Vector(settings.lightRadiance, 0, 65504) || !Vector(settings.ambientIrradiance, 0, 65504) || !Range(settings.giBaseScale, 0, 4) ||
                 !Range(settings.diffuseScale, 0, 4) || !Range(settings.specularScale, 0, 4) || !Range(settings.backlightScale, 0, 4) || !Range(settings.directionalGiWeight, 0, 1))
                 return "Invalid Forward+ illumination";
-            return null;
+            return SceneBakedShadowInput.ChannelValid(settings.mainBakedShadowChannel) ? null : "Invalid Forward main baked shadow channel";
         }
         private bool PrepareBuffers(out string error)
         {
@@ -123,13 +125,14 @@ namespace GakumasPhotoMode
             material.SetInt("_ForwardTilesX", tilesX); material.SetInt("_ForwardTiled", Backend == SceneForwardLightBackend.Tiled ? 1 : 0);
             material.SetTexture("_LightAtlas", snapshot.PreparedAtlas != null ? snapshot.PreparedAtlas : Texture2D.whiteTexture);
             mainShadow.BindMain(material); material.SetTexture("_MainShadowAtlas", mainShadow.Atlas); shadows.Bind(material);
+            bakedChannels.Bind(material); material.SetFloat("_MainBakedChannel", (int)settings.mainBakedShadowChannel);
         }
         private static bool Range(float x, float a, float b) => !float.IsNaN(x) && !float.IsInfinity(x) && x >= a && x <= b;
         private static bool Vector(Vector3 v, float a, float b) => Range(v.x, a, b) && Range(v.y, a, b) && Range(v.z, a, b);
         public void Dispose()
         {
             lights?.Dispose(); lights = null; tiles?.Dispose(); tiles = null; TileCount = 0;
-            snapshot.Dispose(); shadows.Dispose(); mainShadow.Dispose(); settings = null; FallbackReason = null;
+            bakedChannels.Dispose(); snapshot.Dispose(); shadows.Dispose(); mainShadow.Dispose(); settings = null; FallbackReason = null;
         }
     }
 }

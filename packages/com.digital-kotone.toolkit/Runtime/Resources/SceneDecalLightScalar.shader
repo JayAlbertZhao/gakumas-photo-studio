@@ -7,6 +7,8 @@ Shader "Hidden/GakumasPhotoMode/SceneDecalLightScalar"
             Name "SCALAR_LIGHT_VOLUME"
             Cull Off ZTest Always ZWrite Off Blend One One ColorMask RGB
             CGPROGRAM
+            #pragma multi_compile_local __ SCENE_BAKED_SHADOW_PACKED
+            #pragma multi_compile_local __ SCENE_BAKED_LIGHT_CHANNELS
             #pragma target 3.0
             #pragma vertex LightVert
             #pragma fragment LightFrag

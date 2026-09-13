@@ -10,6 +10,7 @@ namespace GakumasPhotoMode
         public bool enabled;
         public SceneDeferredCamera.MaterialInputs inputs = new SceneDeferredCamera.MaterialInputs();
         public SceneGiInput gi = new SceneGiInput();
+        public SceneBakedShadowInput bakedShadow = new SceneBakedShadowInput();
         [Range(0, 255)] public int receiverGroup = 1;
         [Range(0, 1)] public float alphaCutoff;
     }

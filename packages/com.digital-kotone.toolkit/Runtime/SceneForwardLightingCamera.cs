@@ -82,6 +82,7 @@ namespace GakumasPhotoMode
                 _lighting.Bind(material);
                 material.SetFloat("_SceneGiMode", 0);
                 if (s.gi != null && !s.gi.Bind(material, s.renderer, out var error)) throw new InvalidOperationException(error);
+                SceneBakedShadowInput.Bind(material, s.renderer, s.bakedShadow);
                 _commands.DrawRenderer(s.renderer, material, s.submesh, 0); SubmittedSurfaces++;
             }
             _commands.EndSample("Toolkit Forward+ current transparent geometry");
@@ -131,6 +132,9 @@ namespace GakumasPhotoMode
                     if (texture != null && (texture.dimension != TextureDimension.Tex2D || (texture is RenderTexture rt && (!rt.IsCreated() || rt.antiAliasing != 1))))
                         return "Transparent material requires created non-MSAA2D textures";
                 if (s.gi != null && !s.gi.Validate(r, mesh, out var error)) return error;
+                if (s.bakedShadow != null && !s.bakedShadow.Validate(r, mesh, out var bakedError)) return bakedError;
+                if (s.bakedShadow != null && s.bakedShadow.Enabled && s.bakedShadow.Resolve(r, out var bakedMap, out _, out _) && bakedMap == target)
+                    return "Baked shadow input cannot alias current camera output";
             }
             return null;
         }

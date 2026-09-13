@@ -9,6 +9,8 @@ Shader "Hidden/GakumasPhotoMode/SceneForwardLighting"
             Cull [_Cull] ZTest LEqual ZWrite Off
             Blend One [_DestinationBlend], One [_DestinationBlend]
             CGPROGRAM
+            #pragma multi_compile_local __ SCENE_BAKED_SHADOW_INPUT
+            #pragma multi_compile_local __ SCENE_BAKED_LIGHT_CHANNELS
             #pragma target 4.5
             #pragma vertex ForwardVertex
             #pragma fragment ForwardFragment

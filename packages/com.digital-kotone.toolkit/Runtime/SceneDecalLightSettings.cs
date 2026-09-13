@@ -31,6 +31,7 @@ namespace GakumasPhotoMode
         [Range(0, 1)] public float giWeight;
         [Range(0, 4)] public float backlightScale;
         public SceneLightShadowInput shadow = new SceneLightShadowInput();
+        public SceneBakedShadowChannel bakedShadowChannel;
     }
 
     [Serializable]

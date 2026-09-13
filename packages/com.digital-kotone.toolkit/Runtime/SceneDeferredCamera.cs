@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Experimental.Rendering;
 
 namespace GakumasPhotoMode
 {
@@ -31,6 +32,7 @@ namespace GakumasPhotoMode
             public MaterialInputs inputs = new MaterialInputs();
             [Range(0, 1)] public float alphaCutoff;
             public SceneGiInput gi = new SceneGiInput();
+            public SceneBakedShadowInput bakedShadow = new SceneBakedShadowInput();
             // Increment when vertex identity is reassigned without a topology/mesh change.
             public uint motionRevision;
             public TemporalPixelFlags temporalFlags;
@@ -70,6 +72,8 @@ namespace GakumasPhotoMode
         [Range(0, 4)] public float directionalDiffuseScale = 1, directionalSpecularScale = 1, directionalBacklight;
         public int GiTargetCount => _gi != null ? 1 : 0;
         public SceneDirectionalShadowSettings mainLightShadow = new SceneDirectionalShadowSettings();
+        public SceneBakedShadowChannel mainBakedShadowChannel;
+        public int BakedShadowTargetCount => _bakedMask != null ? 1 : 0;
         private SceneLightShadowAtlas _mainShadow;
         public int MainShadowTargetCount => _mainShadow?.Atlas != null ? 1 : 0;
         public int MainShadowCasterDrawCalls => _mainShadow == null ? 0 : _mainShadow.CasterDrawCalls;
@@ -132,6 +136,8 @@ namespace GakumasPhotoMode
         {
             public readonly RenderTexture albedoCoverage, normalGroup, mosDepth, emission;
             public readonly RenderTexture bakedDiffuseGi;
+            // Optional Point R8G8: R visibility byte, G contains GBA3:3:2.
+            public readonly RenderTexture bakedShadowMask;
             // Borrowed light-view depth atlas; valid only while this frame is current.
             public readonly RenderTexture lightShadowAtlas;
             public readonly RenderTexture mainLightShadowDepth;
@@ -148,6 +154,7 @@ namespace GakumasPhotoMode
                 var data = owner._output;
                 albedoCoverage = data[0]; normalGroup = data[1]; mosDepth = data[2]; emission = data[3];
                 bakedDiffuseGi = owner._gi;
+                bakedShadowMask = owner._bakedMask;
                 lightShadowAtlas = owner._decalLights?.ShadowAtlas;
                 mainLightShadowDepth = owner._mainShadow?.Atlas;
                 screenGeometry = owner._screenShadow?.Geometry; shadowOcclusion = owner._screenShadow?.Visibility;
@@ -168,10 +175,13 @@ namespace GakumasPhotoMode
         private RenderTexture _target;
         private RenderTexture _gi;
         private bool _usesGi;
+        private bool _usesBakedMask;
+        private RenderTexture _bakedMask;
         private int _prepared = -1, _rendered = -1, _materialCount;
         private bool Current => isActiveAndEnabled && sceneEnabled && _prepared == Time.frameCount &&
             _rendered == Time.frameCount && _output != null && _camera.targetTexture == _target && _target != null && _target.IsCreated() &&
             Created(_output) && (!_usesGi || (_gi != null && _gi.IsCreated())) && (_mainShadow?.Atlas == null || _mainShadow.Atlas.IsCreated()) &&
+            (!_usesBakedMask || (_bakedMask != null && _bakedMask.IsCreated())) &&
             (_decalLights?.ShadowAtlas == null || _decalLights.ShadowAtlas.IsCreated()) &&
             (_screenShadow?.Visibility == null || _screenShadow.IsCreated) &&
             (_motion?.Motion == null || _motion.IsCreated) &&
@@ -363,7 +373,8 @@ namespace GakumasPhotoMode
             }
             foreach (var rt in _gbuffer) { _commands.SetRenderTarget(rt); _commands.ClearRenderTarget(rt == _gbuffer[0], true, Color.clear); }
             if (_gi != null) { _commands.SetRenderTarget(_gi); _commands.ClearRenderTarget(false, true, Color.clear); }
-            SetTargets(_gbuffer, _usesGi);
+            if (_bakedMask != null) { _commands.SetRenderTarget(_bakedMask); _commands.ClearRenderTarget(false, true, Color.white); }
+            SetTargets(_gbuffer, _usesGi, _usesBakedMask);
             foreach (var surface in surfaces)
             {
                 var renderer = surface.renderer;
@@ -376,6 +387,8 @@ namespace GakumasPhotoMode
                 if (_usesGi && surface.gi != null && !surface.gi.Bind(material, renderer, out var giError))
                 { _commands.Clear(); UnavailableReason = giError; ReleaseResources(); return; }
                 if (surface.gi == null) material.SetFloat("_SceneGiMode", 0);
+                if (_usesBakedMask) material.EnableKeyword("SCENE_BAKED_SHADOW_PACKED");
+                SceneBakedShadowInput.Bind(material, renderer, surface.bakedShadow, _usesBakedMask);
                 _commands.DrawRenderer(renderer, material, surface.materialIndex, 0); SubmittedSurfaces++;
             }
             _output = _gbuffer;
@@ -407,8 +420,10 @@ namespace GakumasPhotoMode
             lighting.SetFloat("_HasBakedGi", _gi != null ? 1 : 0);
             lighting.SetVector("_DirectionalResponse", new Vector4(directionalDiffuseScale, directionalSpecularScale, directionalGiWeight, directionalBacklight));
             lighting.SetFloat("_GiBaseScale", giBaseScale);
+            if (_usesBakedMask) lighting.EnableKeyword("SCENE_BAKED_SHADOW_PACKED");
+            lighting.SetTexture("_PackedBakedShadow", _bakedMask); lighting.SetFloat("_MainBakedChannel", (int)mainBakedShadowChannel);
             if (screenResolved) _screenShadow.Bind(lighting); else _mainShadow?.BindMain(lighting);
-            _decalLights?.Record(_commands, _output, _camera, Quad(), _gi, !screenResolved);
+            _decalLights?.Record(_commands, _output, _camera, Quad(), _gi, !screenResolved, _bakedMask);
             lighting.SetFloat("_HasDecalLights", _decalLights?.Accumulation != null ? 1 : 0);
             lighting.SetTexture("_DecalLightAccumulation", _decalLights?.Accumulation != null ? (Texture)_decalLights.Accumulation : Texture2D.blackTexture);
             // Resolve replaces scene radiance once AND writes scene depth before host Forward actors.
@@ -433,7 +448,7 @@ namespace GakumasPhotoMode
 
         private string Validate()
         {
-            _usesGi = false;
+            _usesGi = _usesBakedMask = false;
             if (!sceneEnabled) return "Disabled";
             if (GraphicsSettings.currentRenderPipeline != null || _camera.actualRenderingPath != RenderingPath.Forward)
                 return "Requires Built-in Forward host";
@@ -480,7 +495,19 @@ namespace GakumasPhotoMode
                     if (!surface.gi.Validate(r, mesh, out var giError)) return giError;
                     _usesGi |= surface.gi.source != SceneGiSource.None;
                 }
+                if (surface.bakedShadow != null)
+                {
+                    if (!surface.bakedShadow.Validate(r, mesh, out var maskError)) return maskError;
+                    _usesBakedMask |= surface.bakedShadow.Enabled;
+                    if (surface.bakedShadow.Enabled && surface.bakedShadow.Resolve(r, out var map, out _, out _) && map is RenderTexture mask &&
+                        (mask == target || mask == _bakedMask || mask == _gi || (_gbuffer != null && Array.IndexOf(_gbuffer, mask) >= 0) || (_scratch != null && Array.IndexOf(_scratch, mask) >= 0)))
+                        return "Baked shadow input aliases an owned/current scene target";
+                }
             }
+            if (!SceneBakedShadowInput.ChannelValid(mainBakedShadowChannel)) return "Invalid scene main baked shadow channel";
+            if (_usesBakedMask && (SystemInfo.supportedRenderTargetCount < (_usesGi ? 6 : 5) ||
+                !SystemInfo.IsFormatSupported(GraphicsFormat.R8G8_UNorm, FormatUsage.Render) || !SystemInfo.IsFormatSupported(GraphicsFormat.R8G8_UNorm, FormatUsage.Sample)))
+                return "Packed baked shadows require linear RG8 rendering/sampling and five MRTs (six with GI)";
             if ((_usesGi && SystemInfo.supportedRenderTargetCount < 5) || !Unit(directionalGiWeight) ||
                 !Finite(giBaseScale) || giBaseScale < 0 || giBaseScale > 4 ||
                 !Finite(directionalBacklight) || directionalBacklight < 0 || directionalBacklight > 4 ||
@@ -529,12 +556,14 @@ namespace GakumasPhotoMode
         private Material NextMaterial()
         {
             while (_materials.Count <= _materialCount) _materials.Add(new Material(_shader) { hideFlags = HideFlags.HideAndDontSave });
-            var material = _materials[_materialCount++]; material.DisableKeyword("SCENE_GI_OUTPUT"); material.DisableKeyword("SCENE_MAIN_LIGHT_SHADOWS"); material.DisableKeyword("SCENE_SCREEN_SHADOW"); return material;
+            var material = _materials[_materialCount++]; material.DisableKeyword("SCENE_GI_OUTPUT"); material.DisableKeyword("SCENE_MAIN_LIGHT_SHADOWS"); material.DisableKeyword("SCENE_SCREEN_SHADOW");
+            material.DisableKeyword("SCENE_BAKED_SHADOW_INPUT"); material.DisableKeyword("SCENE_BAKED_SHADOW_PACKED"); return material;
         }
-        private void SetTargets(RenderTexture[] buffers, bool gi = false)
+        private void SetTargets(RenderTexture[] buffers, bool gi = false, bool bakedMask = false)
         {
-            var targets = new RenderTargetIdentifier[gi ? 5 : 4]; for (int i = 0; i < 4; i++) targets[i] = buffers[i];
-            if (gi) targets[4] = _gi;
+            var targets = new RenderTargetIdentifier[4 + (gi ? 1 : 0) + (bakedMask ? 1 : 0)]; for (int i = 0; i < 4; i++) targets[i] = buffers[i];
+            if (bakedMask) targets[4] = _bakedMask;
+            if (gi) targets[bakedMask ? 5 : 4] = _gi;
             _commands.SetRenderTarget(targets, buffers[0]);
         }
         private Mesh Quad()
@@ -557,6 +586,14 @@ namespace GakumasPhotoMode
                     name = "Toolkit scene baked diffuse GI", hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp
                 };
                 if (!_gi.Create()) return false;
+            }
+            if (!_usesBakedMask) ReleaseBakedMask();
+            else if (_bakedMask == null || !_bakedMask.IsCreated() || _bakedMask.width != t.width || _bakedMask.height != t.height)
+            {
+                ReleaseBakedMask(); _bakedMask = new RenderTexture(new RenderTextureDescriptor(t.width, t.height, GraphicsFormat.R8G8_UNorm, 0)) {
+                    name = "Toolkit packed baked shadow R8 GBA332", hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp
+                };
+                if (!_bakedMask.Create() || _bakedMask.graphicsFormat != GraphicsFormat.R8G8_UNorm) return false;
             }
             return Created(_gbuffer) && (!scratch || Created(_scratch));
         }
@@ -581,6 +618,7 @@ namespace GakumasPhotoMode
             ReleaseMotionBlur();
             ReleaseTemporalColor();
             ReleaseGi();
+            ReleaseBakedMask();
             _decalLights?.Dispose(); _decalLights = null;
             _mainShadow?.Dispose(); _mainShadow = null;
             _screenShadow?.Dispose(); _screenShadow = null; ScreenShadowGeometryDrawCalls = 0;
@@ -596,6 +634,7 @@ namespace GakumasPhotoMode
             ReleaseResources(); SubmittedSurfaces = SubmittedDecals = 0;
         }
         private void ReleaseGi() { if (_gi != null) { _gi.Release(); Destroy(_gi); } _gi = null; }
+        private void ReleaseBakedMask() { if (_bakedMask != null) { _bakedMask.Release(); Destroy(_bakedMask); } _bakedMask = null; }
         private void ReleaseTemporalColor()
         {
             if(_temporalVisibilityCommands!=null)

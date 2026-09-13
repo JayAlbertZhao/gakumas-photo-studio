@@ -6,6 +6,7 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
         CGINCLUDE
         #include "UnityCG.cginc"
         #include "SceneGi.hlsl"
+        #include "SceneBakedShadow.hlsl"
         sampler2D _AlbedoMap, _NormalMap, _MosMap, _EmissionMap, _HeightMap;
         sampler2D _G0, _G1, _G2, _G3;
         sampler2D _DecalLightAccumulation;
@@ -24,7 +25,14 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
         struct buffers {
             float4 albedo : SV_Target0; float4 normal : SV_Target1; float4 mos : SV_Target2; float4 emission : SV_Target3;
             #if defined(SCENE_GI_OUTPUT)
+            #if defined(SCENE_BAKED_SHADOW_PACKED)
+            float4 gi : SV_Target5;
+            #else
             float4 gi : SV_Target4;
+            #endif
+            #endif
+            #if defined(SCENE_BAKED_SHADOW_PACKED)
+            float2 bakedShadow : SV_Target4;
             #endif
         };
         struct screen { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
@@ -61,6 +69,9 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
             #if defined(SCENE_GI_OUTPUT)
             o.gi = 0;
             #endif
+            #if defined(SCENE_BAKED_SHADOW_PACKED)
+            o.bakedShadow = 1;
+            #endif
             return o;
         }
         ENDCG
@@ -73,6 +84,8 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
             #pragma vertex geometry
             #pragma fragment materialData
             #pragma multi_compile_local _ SCENE_GI_OUTPUT
+            #pragma multi_compile_local __ SCENE_BAKED_SHADOW_PACKED
+            #pragma multi_compile_local __ SCENE_BAKED_SHADOW_INPUT
             struct vertex { float4 pos : POSITION; float3 normal : NORMAL; float4 tangent : TANGENT; float2 uv : TEXCOORD0; float2 uv2 : TEXCOORD1; };
             struct geometryOut {
                 float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float3 normal : TEXCOORD1;
@@ -101,6 +114,9 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
                 o.emission = float4(clamp(tex2D(_EmissionMap, i.uv).rgb * _Emission, 0, 65504), 0);
                 #if defined(SCENE_GI_OUTPUT)
                 o.gi = SceneGi(i.uv2, n);
+                #endif
+                #if defined(SCENE_BAKED_SHADOW_PACKED)
+                o.bakedShadow = SceneBakedPack(SceneBakedSample(i.uv2), i.pos.xy);
                 #endif
                 return o;
             }
@@ -157,6 +173,7 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
             #pragma vertex fullscreen
             #pragma fragment lighting
             #pragma multi_compile_local __ SCENE_MAIN_LIGHT_SHADOWS SCENE_SCREEN_SHADOW
+            #pragma multi_compile_local __ SCENE_BAKED_SHADOW_PACKED
             #if defined(SCENE_MAIN_LIGHT_SHADOWS)
             #define SCENE_LIGHT_SHADOWS 1
             #define SCENE_SHADOW_ORTHOGRAPHIC 1
@@ -184,7 +201,18 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
                     direct += (1 - f0) * diffuse * _DirectionalResponse.x * _DirectionalResponse.w * _LightRadiance * saturate(-dot(n, l));
                 float4 gi = tex2D(_BakedDiffuseGi, i.uv);
                 if (_HasBakedGi > .5 && gi.a > .5) direct *= lerp(1, gi.rgb, _DirectionalResponse.z);
+                #if defined(SCENE_BAKED_SHADOW_PACKED)
+                float mainVisibility = SceneBakedSelect(SceneBakedUnpack(tex2D(_PackedBakedShadow, i.uv).rg), _MainBakedChannel);
                 #if defined(SCENE_SCREEN_SHADOW)
+                float2 screenVisibility = tex2D(_ScreenShadowOcclusion, i.uv).rg;
+                mainVisibility = min(mainVisibility, screenVisibility.r); ao *= screenVisibility.g;
+                #elif defined(SCENE_MAIN_LIGHT_SHADOWS)
+                SceneShadowData shadow; shadow.worldToShadow = _SingleShadowMatrix; shadow.atlasST = _SingleShadowST;
+                shadow.depth = _SingleShadowDepth; shadow.options = _SingleShadowOptions;
+                mainVisibility = min(mainVisibility, SceneLightVisibility(world, n, shadow));
+                #endif
+                direct *= mainVisibility;
+                #elif defined(SCENE_SCREEN_SHADOW)
                 float2 screenVisibility = tex2D(_ScreenShadowOcclusion, i.uv).rg;
                 direct *= screenVisibility.r; ao *= screenVisibility.g;
                 #elif defined(SCENE_MAIN_LIGHT_SHADOWS)

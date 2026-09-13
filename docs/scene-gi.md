@@ -81,7 +81,7 @@ GI RGB 表示不含当前表面 albedo、metallic、AO 或 emission 的单位反
 
 `(1-F0) * albedo * (1-metallic)/π * radiance * diffuseScale * backlightScale * saturate(-dot(N,L))`
 
-贴花灯还乘原有形状衰减和 Monitor RGB。背向项不创建第二个镜面高光，不受 specularScale 控制；diffuseScale=0 时关闭。主方向光使用 directionalDiffuseScale／directionalSpecularScale／directionalBacklight，贴花灯使用对应逐灯字段。材质 emission 不参加这些运算，AO 只影响基础间接项。烘焙中已有的软遮蔽和多次漫反射保持固定；动态挡光、ShadowMask 和运行时重新计算间接反弹仍未实现。
+贴花灯还乘原有形状衰减和 Monitor RGB。背向项不创建第二个镜面高光，不受 specularScale 控制；diffuseScale=0 时关闭。主方向光使用 directionalDiffuseScale／directionalSpecularScale／directionalBacklight，贴花灯使用对应逐灯字段。材质 emission 不参加这些运算，AO 只影响基础间接项。烘焙中已有的软遮蔽和多次漫反射保持固定；可选直接光遮蔽见 [实时光源阴影](scene-light-shadows.md) 与 [ShadowMask](scene-baked-shadows.md)。运行时重新计算间接反弹仍未实现。
 
 ## 所有权、成本与验证范围
 

@@ -62,6 +62,8 @@ Shader "Hidden/GakumasPhotoMode/HeavyFxLit"
             Name "JOINT_LIT_WORKING_GEOMETRY"
             Cull [_Cull] Blend One OneMinusSrcAlpha, One OneMinusSrcAlpha
             CGPROGRAM
+            #pragma multi_compile_local __ SCENE_BAKED_SHADOW_INPUT
+            #pragma multi_compile_local __ SCENE_BAKED_LIGHT_CHANNELS
             #pragma target 4.5
             #pragma multi_compile_local __ FX_LIT_LOCAL_SHADOWS
             #pragma multi_compile_local __ FX_LIT_MAIN_SHADOWS
@@ -75,6 +77,8 @@ Shader "Hidden/GakumasPhotoMode/HeavyFxLit"
             Name "JOINT_LIT_REPLAY"
             Cull [_Cull] Blend One OneMinusSrcAlpha, Zero One ColorMask RGB
             CGPROGRAM
+            #pragma multi_compile_local __ SCENE_BAKED_SHADOW_INPUT
+            #pragma multi_compile_local __ SCENE_BAKED_LIGHT_CHANNELS
             #pragma target 4.5
             #pragma multi_compile_local __ FX_LIT_LOCAL_SHADOWS
             #pragma multi_compile_local __ FX_LIT_MAIN_SHADOWS
@@ -88,6 +92,8 @@ Shader "Hidden/GakumasPhotoMode/HeavyFxLit"
             Name "JOINT_LIT_ADDITIONAL_MEDIUM"
             Cull [_Cull] Blend One One, Zero One ColorMask RGB
             CGPROGRAM
+            #pragma multi_compile_local __ SCENE_BAKED_SHADOW_INPUT
+            #pragma multi_compile_local __ SCENE_BAKED_LIGHT_CHANNELS
             #pragma target 4.5
             #pragma multi_compile_local __ FX_LIT_LOCAL_SHADOWS
             #pragma multi_compile_local __ FX_LIT_MAIN_SHADOWS

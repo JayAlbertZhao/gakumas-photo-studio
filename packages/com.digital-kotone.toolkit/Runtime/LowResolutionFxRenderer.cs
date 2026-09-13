@@ -101,7 +101,7 @@ namespace GakumasPhotoMode
                 if(shader==null || !shader.isSupported || !Supported(GraphicsFormat.R32G32B32A32_SFloat) || !Supported(GraphicsFormat.R32G32_SFloat) ||
                     !SystemInfo.IsFormatSupported(GraphicsFormat.R32G32B32A32_SFloat,FormatUsage.Blend))
                     return Fail("FX shader or float color/depth-range targets unavailable");
-                if(!lighting.Prepare(camera,source.width,source.height,settings.lighting,active,out reason))return Fail(reason);
+                if(!lighting.Prepare(camera,source.width,source.height,settings.lighting,active,out reason,Owns))return Fail(reason);
                 if(!Created || a.width!=source.width || a.height!=source.height) ReleaseTargets();
                 if(a==null) { a=Allocate(source.width,source.height,RenderTextureFormat.ARGBFloat,"HDR A"); b=Allocate(source.width,source.height,RenderTextureFormat.ARGBFloat,"HDR B"); }
                 for(int i=0;i<3;i++)

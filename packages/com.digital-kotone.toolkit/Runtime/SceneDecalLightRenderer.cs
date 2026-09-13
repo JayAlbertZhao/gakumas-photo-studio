@@ -17,6 +17,7 @@ namespace GakumasPhotoMode
         private readonly List<LightData> _data = new List<LightData>();
         private readonly List<SceneDecalLight> _visible = new List<SceneDecalLight>();
         private readonly SceneLightShadowAtlas _shadows = new SceneLightShadowAtlas();
+        private readonly SceneBakedShadowChannels _bakedChannels = new SceneBakedShadowChannels();
         public RenderTexture ShadowAtlas => _shadows.Atlas;
         public int ShadowMapCount => _shadows.MapCount;
         public int ShadowCasterDrawCalls => _shadows.CasterDrawCalls;
@@ -120,6 +121,7 @@ namespace GakumasPhotoMode
             if (shader == null || !shader.isSupported) { error = "Decal-light shader unavailable"; return false; }
             if (_material == null || Backend != selected) { ReleaseGpu(); _material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave }; }
             Backend = selected;
+            _bakedChannels.Prepare(_visible, Backend == SceneDecalLightBackend.Instanced);
             if (Backend == SceneDecalLightBackend.Instanced)
             {
                 int capacity = Mathf.NextPowerOfTwo(_data.Count);
@@ -140,10 +142,13 @@ namespace GakumasPhotoMode
 
         public void RecordShadows(CommandBuffer commands) => _shadows.Record(commands);
 
-        public void Record(CommandBuffer commands, RenderTexture[] buffers, Camera camera, Mesh quad, RenderTexture gi, bool recordShadows = true)
+        public void Record(CommandBuffer commands, RenderTexture[] buffers, Camera camera, Mesh quad, RenderTexture gi, bool recordShadows = true, RenderTexture bakedMask = null)
         {
             if (_data.Count == 0 || _material == null) return;
             if (recordShadows) _shadows.Record(commands); _shadows.Bind(_material);
+            _bakedChannels.Bind(_material);
+            if (bakedMask != null) _material.EnableKeyword("SCENE_BAKED_SHADOW_PACKED"); else _material.DisableKeyword("SCENE_BAKED_SHADOW_PACKED");
+            _material.SetTexture("_PackedBakedShadow", bakedMask);
             commands.SetRenderTarget(Accumulation); commands.ClearRenderTarget(false, true, Color.clear);
             for (int i = 0; i < 4; i++) _material.SetTexture("_G" + i, buffers[i]);
             var view = camera.worldToCameraMatrix; var projection = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);
@@ -168,6 +173,7 @@ namespace GakumasPhotoMode
                 var data = _data[index];
                 var block = new MaterialPropertyBlock();
                 _shadows.BindSingle(block, index);
+                _bakedChannels.BindSingle(block, index);
                 block.SetVector("_SinglePositionRange", data.positionRange); block.SetVector("_SingleAxisXLength", data.axisXLength);
                 block.SetVector("_SingleAxisYWidth", data.axisYWidth); block.SetVector("_SingleAxisZHeight", data.axisZHeight);
                 block.SetVector("_SingleRadianceShape", data.radianceShape); block.SetVector("_SingleUv", data.uv);
@@ -205,7 +211,7 @@ namespace GakumasPhotoMode
             if ((int)light.shape < 0 || (int)light.shape > 3 || !Range(light.range, .001f, 10000) || !Range(light.halfLength, 0, 10000) ||
                 !Range(light.halfSize.x, .001f, 10000) || !Range(light.halfSize.y, .001f, 10000) || !Range(light.areaSpread.x, 0, 10) || !Range(light.areaSpread.y, 0, 10) ||
                 !Range(light.falloffExponent, 1, 8) || !Range(light.diffuseScale, 0, 4) || !Range(light.specularScale, 0, 4) || light.receiverGroup < 0 || light.receiverGroup > 255) return false;
-            if (!Range(light.giWeight, 0, 1) || !Range(light.backlightScale, 0, 4)) return false;
+            if (!Range(light.giWeight, 0, 1) || !Range(light.backlightScale, 0, 4) || !SceneBakedShadowInput.ChannelValid(light.bakedShadowChannel)) return false;
             if (light.shape == SceneDecalLightShape.Spot && (!Range(light.spotOuterAngle, .1f, 179) ||
                 !Range(light.spotInnerAngle, 0, light.spotOuterAngle))) return false;
             for (int i = 0; i < 3; i++) if (!Range(light.position[i], -1e6f, 1e6f) || !Range(light.radiance[i], 0, 65504)) return false;
@@ -213,7 +219,7 @@ namespace GakumasPhotoMode
             float norm = Quaternion.Dot(light.rotation, light.rotation); return Finite(norm) && norm > 1e-8f;
         }
         private void ReleaseGpu()
-        { _shadows.Dispose(); ReleaseTarget(); _buffer?.Dispose(); _buffer = null; if (_material != null) UnityEngine.Object.Destroy(_material); _material = null; }
+        { _bakedChannels.Dispose(); _shadows.Dispose(); ReleaseTarget(); _buffer?.Dispose(); _buffer = null; if (_material != null) UnityEngine.Object.Destroy(_material); _material = null; }
         private void ReleaseTarget()
         { if (Accumulation != null) { Accumulation.Release(); UnityEngine.Object.Destroy(Accumulation); } Accumulation = null; }
         public void Dispose() { ReleaseGpu(); _data.Clear(); _visible.Clear(); _atlas = null; CulledLights = DrawCalls = 0; }
