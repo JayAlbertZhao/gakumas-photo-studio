@@ -57,7 +57,7 @@ pass.settings.surfaces = new[] {
 
 显式主方向光及 Spot／Point 六面阴影分别借助 [已有阴影生产器](scene-light-shadows.md)，主光与局部光使用独立图和参数。透明接收面不自动成为半透明 caster；caster 列表仍使用已有 opaque／cutout 契约。胶囊／面光源阴影请求仍被拒绝。
 
-组件命令位于 `BeforeForwardAlpha`：在 `SceneDeferredCamera` 与宿主 Forward opaque 之后、原生透明之前。它不会与宿主原生透明物体自动交错排序；同一需交错的透明集合应由同一宿主管理。默认摄影路径不添加本组件。TAA 的复杂透明历史、SSR／Planar 的透明反射、雾／体积光及 LowResolutionFx／HeavyFx 的分块光照接入仍是独立整合项，本阶段不能覆盖这些验收。
+组件命令位于 `BeforeForwardAlpha`：在 `SceneDeferredCamera` 与宿主 Forward opaque 之后、原生透明之前。它不会与宿主原生透明物体自动交错排序；同一需交错的透明集合应由同一宿主管理。默认摄影路径不添加本组件。LowResolutionFx／HeavyFx 已有独立的 [当前分块光照接入](fx-forward-lighting.md)，包含逐表面雾／介质输运和工作尺寸映射；该特效 API 保留 source alpha。相机透明组件自身不增加雾／介质绘制，TAA 的复杂透明历史及 SSR／Planar 的透明反射仍待整合。
 
 ## 证据边界
 

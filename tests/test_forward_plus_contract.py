@@ -21,11 +21,14 @@ class ForwardPlusContractTests(unittest.TestCase):
 
     def test_actual_compute_then_actual_current_geometry(self):
         camera = self.source('SceneForwardLightingCamera.cs')
-        self.assertIn('_commands.DispatchCompute(', camera)
+        resources = self.source('SceneForwardLightResources.cs')
+        self.assertIn('commands.DispatchCompute(', resources)
+        self.assertIn('_lighting.Record(_commands)', camera)
         self.assertIn('_commands.DrawRenderer(s.renderer, material, s.submesh, 0)', camera)
-        self.assertLess(camera.index('_commands.DispatchCompute('), camera.index('_commands.DrawRenderer('))
+        self.assertLess(camera.index('_lighting.Record(_commands)'), camera.index('_commands.DrawRenderer('))
         for forbidden in ('GetData(', 'AsyncGPUReadback', 'BakeMesh(', 'FindObjectsOfType'):
             self.assertNotIn(forbidden, camera)
+            self.assertNotIn(forbidden, resources)
 
     def test_all_light_bits_written_without_append_capacity_loss(self):
         compute = self.source('Resources/SceneForwardLightGrid.compute')
@@ -41,17 +44,19 @@ class ForwardPlusContractTests(unittest.TestCase):
 
     def test_bruteforce_fallback_keeps_same_fragment_evaluation(self):
         shader = self.source('Resources/SceneForwardLighting.hlsl')
-        camera = self.source('SceneForwardLightingCamera.cs')
+        resources = self.source('SceneForwardLightResources.cs')
         self.assertIn('ForwardLocal(word * 32 + bit', shader)
         self.assertIn('ForwardLocal(index', shader)
-        self.assertIn('settings.allowBruteForceFallback', camera)
-        self.assertIn('(long)_tilesX * _tilesY * _words', camera)
-        self.assertIn('elements * 4 <= (long)settings.maximumGridMiB', camera)
+        self.assertIn('settings.allowBruteForceFallback', resources)
+        self.assertIn('(long)tilesX * tilesY * words', resources)
+        self.assertIn('elements * 4 <= (long)settings.maximumGridMiB', resources)
 
     def test_owned_buffers_and_commands_release(self):
         camera = self.source('SceneForwardLightingCamera.cs')
-        self.assertIn('_lights?.Dispose(); _lights = null', camera)
-        self.assertIn('_tiles?.Dispose(); _tiles = null', camera)
+        resources = self.source('SceneForwardLightResources.cs')
+        self.assertIn('lights?.Dispose(); lights = null', resources)
+        self.assertIn('tiles?.Dispose(); tiles = null', resources)
+        self.assertIn('_lighting.Dispose()', camera)
         self.assertIn('_camera.RemoveCommandBuffer(', camera)
         self.assertIn('_commands?.Dispose(); _commands = null', camera)
 
@@ -70,7 +75,8 @@ class ForwardPlusContractTests(unittest.TestCase):
         self.assertIn('internal bool PrepareSnapshot(', snapshot)
         self.assertIn('return PrepareDeferred(camera, settings, out error)', snapshot)
         camera = self.source('SceneForwardLightingCamera.cs')
-        self.assertIn('_snapshot.PrepareSnapshot(', camera)
+        self.assertIn('_lighting.Prepare(_camera, settings, _camera.targetTexture.width, _camera.targetTexture.height', camera)
+        self.assertIn('snapshot.PrepareSnapshot(', self.source('SceneForwardLightResources.cs'))
         self.assertNotIn('RenderTexture.GetTemporary', camera)
         self.assertNotIn('new RenderTexture(', camera)
 

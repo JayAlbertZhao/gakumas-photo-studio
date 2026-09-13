@@ -47,7 +47,10 @@ namespace GakumasPhotoMode
         private readonly SceneLightShadowAtlas shadows=new SceneLightShadowAtlas("Toolkit joint medium shadows");
         private readonly LensFlareRenderer optics=new LensFlareRenderer();
         private readonly FogVolumeSettings viewOnly=new FogVolumeSettings{enabled=true};
-        private Material resolve, surfaceMaterial, mediumMaterial;
+        private readonly FxForwardLightingBinding surfaceLighting=new FxForwardLightingBinding(true);
+        private static readonly int MediumShadowMatrix=Shader.PropertyToID("_FxMediumShadowMatrix"), MediumShadowST=Shader.PropertyToID("_FxMediumShadowST"),
+            MediumShadowDepth=Shader.PropertyToID("_FxMediumShadowDepth"), MediumShadowOptions=Shader.PropertyToID("_FxMediumShadowOptions");
+        private Material resolve, surfaceMaterial, mediumMaterial, litSurfaceMaterial;
         private RenderTexture a,b,current,repair;
         private bool hasFrame, needsOptics;
         private uint generation;
@@ -56,6 +59,13 @@ namespace GakumasPhotoMode
         public int BatchCount => batches.Count;
         public int ShadowCasterDrawCalls => shadows.CasterDrawCalls;
         public long TargetBytes {get;private set;}
+        public int LightingBufferCount => surfaceLighting.BufferCount;
+        public long LightingBufferBytes => surfaceLighting.BufferBytes;
+        public int LightingTileCount => surfaceLighting.TileCount;
+        public int LightingSubmittedLights => surfaceLighting.SubmittedLights;
+        public int LightingShadowMapCount => surfaceLighting.ShadowMapCount;
+        public SceneForwardLightBackend LightingBackend => surfaceLighting.Backend;
+        public string LightingFallbackReason => surfaceLighting.FallbackReason;
         public int TargetCount
         {get{int count=a!=null?3:0;foreach(var s in scratch)if(s!=null)count+=2;return count+(optics.SharedVisibility!=null?1:0)+(shadows.Atlas!=null?1:0);}}
         public string UnavailableReason {get;private set;}
@@ -63,7 +73,7 @@ namespace GakumasPhotoMode
         {
             get
             {
-                if(a==null||!a.IsCreated()||b==null||!b.IsCreated()||repair==null||!repair.IsCreated()||(needsOptics&&!optics.SharedCreated)||(shadows.Atlas!=null&&!shadows.Atlas.IsCreated()))return false;
+                if(a==null||!a.IsCreated()||b==null||!b.IsCreated()||repair==null||!repair.IsCreated()||!surfaceLighting.IsCreated||(needsOptics&&!optics.SharedCreated)||(shadows.Atlas!=null&&!shadows.Atlas.IsCreated()))return false;
                 foreach(var s in scratch)if(s!=null&&(s.effect==null||!s.effect.IsCreated()||s.range==null||!s.range.IsCreated()))return false;
                 return true;
             }
@@ -128,6 +138,7 @@ namespace GakumasPhotoMode
                 if(shader==null||!shader.isSupported||!Supported(GraphicsFormat.R32G32B32A32_SFloat)||!Supported(GraphicsFormat.R32G32_SFloat)||!Supported(GraphicsFormat.R8_UNorm)||
                     !SystemInfo.IsFormatSupported(GraphicsFormat.R32G32B32A32_SFloat,FormatUsage.Blend)||(hasOptics&&!Supported(GraphicsFormat.R32_SFloat)))
                     return Fail("Joint shaders or float target/blend capabilities unavailable");
+                if(!surfaceLighting.Prepare(camera,source.width,source.height,hasGeometry?settings.geometry.lighting:null,surfaces,out reason))return Fail(reason);
                 if(!Created||a.width!=source.width||a.height!=source.height)ReleaseTargets();
                 if(a==null){a=Allocate(source.width,source.height,RenderTextureFormat.ARGBFloat,"HDR A");b=Allocate(source.width,source.height,RenderTextureFormat.ARGBFloat,"HDR B");repair=Allocate(source.width,source.height,RenderTextureFormat.R8,"current repair mask");}
                 if(!shadows.Prepare(shadowLights,hasMedium?settings.medium.shadows:null,false,out reason))return Fail(reason);
@@ -147,6 +158,8 @@ namespace GakumasPhotoMode
                 }
                 if(resolve==null)resolve=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
                 if(surfaceMaterial==null)surfaceMaterial=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
+                if(surfaceLighting.Active&&litSurfaceMaterial==null)litSurfaceMaterial=new Material(surfaceLighting.SurfaceShader){hideFlags=HideFlags.HideAndDontSave};
+                if(!surfaceLighting.Active&&litSurfaceMaterial!=null){UnityEngine.Object.Destroy(litSurfaceMaterial);litSurfaceMaterial=null;}
                 if(mediumMaterial==null)mediumMaterial=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
                 void Common(Material material,FxResolution resolution,int phase,Scratch targets,bool readEffect)
                 {
@@ -169,6 +182,15 @@ namespace GakumasPhotoMode
                 }
                 void Light(Material material,int index)
                 {
+                    if(material==litSurfaceMaterial)
+                    {
+                        if(index>=0&&shadows.Atlas!=null)
+                        {
+                            material.EnableKeyword("FX_MEDIUM_SHADOWS");material.SetTexture("_FxMediumShadowAtlas",shadows.Atlas);
+                            shadows.BindSingle(material,index,MediumShadowMatrix,MediumShadowST,MediumShadowDepth,MediumShadowOptions);
+                        }
+                        else material.DisableKeyword("FX_MEDIUM_SHADOWS");
+                    }
                     if(index<0){material.DisableKeyword("SCENE_LIGHT_SHADOWS");return;}
                     var light=lights[index];var forward=light.rotation.normalized*Vector3.forward;
                     shadows.Bind(material);shadows.BindSingle(material,index);
@@ -177,14 +199,14 @@ namespace GakumasPhotoMode
                     material.SetVector("_VolumeLightRadianceInner",new Vector4(light.linearRadiance.x,light.linearRadiance.y,light.linearRadiance.z,Mathf.Cos(light.innerAngle*Mathf.Deg2Rad*.5f)));
                     material.SetFloat("_VolumeFalloff",light.falloffExponent);
                 }
-                void Submit(LowResolutionFxSurface s,RenderTexture target,int pass)
+                void Submit(LowResolutionFxSurface s,RenderTexture target,Material material,int pass)
                 {
                     var commands=new CommandBuffer{name="Toolkit joint current surface"};
                     try
                     {
                         commands.SetRenderTarget(target);commands.SetViewport(new Rect(0,0,target.width,target.height));
-                        if(s.renderer!=null)commands.DrawRenderer(s.renderer,surfaceMaterial,s.submesh,pass);
-                        else commands.DrawMesh(s.mesh,s.localToWorld,surfaceMaterial,s.submesh,pass);
+                        if(s.renderer!=null)commands.DrawRenderer(s.renderer,material,s.submesh,pass);
+                        else commands.DrawMesh(s.mesh,s.localToWorld,material,s.submesh,pass);
                         Graphics.ExecuteCommandBuffer(commands);DrawCalls++;
                     }
                     finally{commands.Release();}
@@ -200,19 +222,21 @@ namespace GakumasPhotoMode
                     }
                     for(int index=batch.start;index<batch.end;index++)
                     {
-                        var s=surfaces[index];Common(surfaceMaterial,batch.resolution,phase,targets,phase==2);
-                        surfaceMaterial.SetTexture("_FxBackground",batch.distortion&&phase==2?current:Texture2D.blackTexture);
-                        surfaceMaterial.SetTexture("_FxTexture",s.texture!=null?s.texture:Texture2D.whiteTexture);
-                        surfaceMaterial.SetVector("_FxTextureST",s.textureST);
-                        surfaceMaterial.SetVector("_FxRadiance",new Vector4(s.linearRadiance.x,s.linearRadiance.y,s.linearRadiance.z,s.opacity));
-                        surfaceMaterial.SetVector("_FxSurface",new Vector4((int)s.blend,s.vertexColor?1:0,s.radialSoftness,s.softIntersectionDistance));
-                        surfaceMaterial.SetVector("_FxDistortion",new Vector4(s.distortionOffset.x,s.distortionOffset.y,s.distortionTextureScale.x,s.distortionTextureScale.y));
-                        surfaceMaterial.SetVector("_FxFlags",new Vector4(s.fog&&surfaceFog?1:0,s.texture!=null?1:0,0,0));
-                        surfaceMaterial.SetVector("_HeavyMedium",new Vector4(hasMedium?1:0,hasMedium&&settings.medium.attenuateBackground?1:0,lights.Count>0?1:0,s.fog?1:0));
-                        surfaceMaterial.SetFloat("_Cull",(int)s.cull);Light(surfaceMaterial,lights.Count>0?0:-1);
-                        Submit(s,target,batch.distortion?(phase==2?6:3):(phase==2?2:1));
+                        var s=surfaces[index];bool lit=FxForwardLightingBinding.Lit(s);var material=lit?litSurfaceMaterial:surfaceMaterial;
+                        Common(material,batch.resolution,phase,targets,phase==2);
+                        material.SetTexture("_FxBackground",batch.distortion&&phase==2?current:Texture2D.blackTexture);
+                        material.SetTexture("_FxTexture",s.texture!=null?s.texture:Texture2D.whiteTexture);
+                        material.SetVector("_FxTextureST",s.textureST);
+                        material.SetVector("_FxRadiance",new Vector4(s.linearRadiance.x,s.linearRadiance.y,s.linearRadiance.z,s.opacity));
+                        material.SetVector("_FxSurface",new Vector4((int)s.blend,s.vertexColor?1:0,s.radialSoftness,s.softIntersectionDistance));
+                        material.SetVector("_FxDistortion",new Vector4(s.distortionOffset.x,s.distortionOffset.y,s.distortionTextureScale.x,s.distortionTextureScale.y));
+                        material.SetVector("_FxFlags",new Vector4(s.fog&&surfaceFog?1:0,s.texture!=null?1:0,0,0));
+                        material.SetVector("_HeavyMedium",new Vector4(hasMedium?1:0,hasMedium&&settings.medium.attenuateBackground?1:0,lights.Count>0?1:0,s.fog?1:0));
+                        material.SetFloat("_Cull",(int)s.cull);Light(material,lights.Count>0?0:-1);
+                        if(lit)surfaceLighting.Bind(material,s);
+                        Submit(s,target,material,lit?(phase==2?1:0):(batch.distortion?(phase==2?6:3):(phase==2?2:1)));
                         if(!batch.distortion&&hasMedium&&s.fog&&s.blend==FxBlend.Alpha)
-                            for(int i=1;i<lights.Count;i++){Light(surfaceMaterial,i);Submit(s,target,11);}
+                            for(int i=1;i<lights.Count;i++){Light(material,i);if(lit)surfaceLighting.Bind(material,s);Submit(s,target,material,lit?2:11);}
                     }
                     if(batch.optics)
                     {optics.DrawShared(target,m=>Common(m,batch.resolution,phase,targets,phase==2));DrawCalls++;}
@@ -261,7 +285,7 @@ namespace GakumasPhotoMode
         private static int Divide(int value,int divisor)=>(value+divisor-1)/divisor;
         private bool Owns(RenderTexture t)
         {
-            if(t==null)return false;if(t==a||t==b||t==repair||t==optics.SharedVisibility||t==shadows.Atlas)return true;
+            if(t==null)return false;if(t==a||t==b||t==repair||t==optics.SharedVisibility||t==shadows.Atlas||surfaceLighting.Owns(t))return true;
             foreach(var s in scratch)if(s!=null&&(t==s.effect||t==s.range))return true;return false;
         }
         private static RenderTexture Allocate(int w,int h,RenderTextureFormat format,string name)
@@ -279,9 +303,9 @@ namespace GakumasPhotoMode
         }
         private void Release()
         {
-            ReleaseTargets();shadows.Dispose();optics.Dispose();needsOptics=false;
-            foreach(var material in new[]{resolve,surfaceMaterial,mediumMaterial})if(material!=null)UnityEngine.Object.Destroy(material);
-            resolve=surfaceMaterial=mediumMaterial=null;surfaces.Clear();batches.Clear();lights.Clear();shadowLights.Clear();DrawCalls=ReplayDrawCalls=0;
+            ReleaseTargets();shadows.Dispose();optics.Dispose();surfaceLighting.Dispose();needsOptics=false;
+            foreach(var material in new[]{resolve,surfaceMaterial,mediumMaterial,litSurfaceMaterial})if(material!=null)UnityEngine.Object.Destroy(material);
+            resolve=surfaceMaterial=mediumMaterial=litSurfaceMaterial=null;surfaces.Clear();batches.Clear();lights.Clear();shadowLights.Clear();DrawCalls=ReplayDrawCalls=0;
         }
         private bool Fail(string reason){Release();UnavailableReason=reason;return false;}
         public void Dispose(){generation++;Release();}

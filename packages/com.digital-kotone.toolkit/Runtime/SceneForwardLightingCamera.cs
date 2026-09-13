@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -13,36 +12,31 @@ namespace GakumasPhotoMode
         public LayerMask surfaceLayers;
         public SceneForwardLightingSettings settings = new SceneForwardLightingSettings();
         public string UnavailableReason { get; private set; }
-        public string FallbackReason { get; private set; }
-        public SceneForwardLightBackend Backend { get; private set; }
+        public string FallbackReason => _lighting.FallbackReason;
+        public SceneForwardLightBackend Backend => _lighting.Backend;
         public int SubmittedSurfaces { get; private set; }
-        public int SubmittedLights => _snapshot.PreparedLights.Count;
-        public int CulledLights => _snapshot.CulledLights;
-        public int TileCount { get; private set; }
-        public long GridBytes => _tiles == null ? 0 : (long)_tiles.count * 4;
-        public int AllocatedBuffers => (_lights != null ? 1 : 0) + (_tiles != null ? 1 : 0);
-        public int LocalShadowMapCount => _shadows.MapCount;
-        public int MainShadowMapCount => _mainShadow.MapCount;
+        public int SubmittedLights => _lighting.SubmittedLights;
+        public int CulledLights => _lighting.CulledLights;
+        public int TileCount => _lighting.TileCount;
+        public long GridBytes => _lighting.GridBytes;
+        public int AllocatedBuffers => _lighting.AllocatedBuffers;
+        public int LocalShadowMapCount => _lighting.LocalShadowMapCount;
+        public int MainShadowMapCount => _lighting.MainShadowMapCount;
         public ulong RenderSequence { get; private set; }
         // Fixture-only access is internal; production performs no readback.
-        internal ComputeBuffer TileBuffer => _tiles;
-        internal List<SceneDecalLightRenderer.LightData> LightSnapshot => _snapshot.PreparedLights;
+        internal ComputeBuffer TileBuffer => _lighting.TileBuffer;
+        internal List<SceneDecalLightRenderer.LightData> LightSnapshot => _lighting.LightSnapshot;
 
-        private readonly SceneDecalLightRenderer _snapshot = new SceneDecalLightRenderer();
-        private readonly SceneLightShadowAtlas _shadows = new SceneLightShadowAtlas("Toolkit Forward+ local shadows");
-        private readonly SceneLightShadowAtlas _mainShadow = new SceneLightShadowAtlas("Toolkit Forward+ directional shadows");
+        private readonly SceneForwardLightResources _lighting = new SceneForwardLightResources();
         private readonly List<Material> _materials = new List<Material>();
         private Camera _camera;
         private Shader _shader;
-        private ComputeShader _compute;
-        private ComputeBuffer _lights, _tiles;
         private CommandBuffer _commands;
-        private int _prepared = -1, _words, _tilesX, _tilesY, _kernel;
+        private int _prepared = -1;
 
         private void OnEnable()
         {
             _camera = GetComponent<Camera>(); _shader = Resources.Load<Shader>("SceneForwardLighting");
-            _compute = Resources.Load<ComputeShader>("SceneForwardLightGrid");
             _commands = new CommandBuffer { name = "Toolkit full-resolution transparent Forward+" };
             _camera.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, _commands);
         }
@@ -50,7 +44,7 @@ namespace GakumasPhotoMode
         private void OnPreCull()
         {
             if (_commands == null) return;
-            _commands.Clear(); _prepared = -1; SubmittedSurfaces = 0; FallbackReason = null;
+            _commands.Clear(); _prepared = -1; SubmittedSurfaces = 0;
             try
             {
                 UnavailableReason = Validate();
@@ -58,11 +52,7 @@ namespace GakumasPhotoMode
                 bool hasSurfaces = false;
                 foreach (var s in settings.surfaces) hasSurfaces |= Visible(s);
                 if (!hasSurfaces) { Release(); return; }
-                if (!_snapshot.PrepareSnapshot(_camera, settings.localLights, out var error) || !PrepareBuffers(out error))
-                { UnavailableReason = error; Release(); return; }
-                if (!_shadows.Prepare(_snapshot.PreparedSources, settings.localLights?.shadows, true, out error) ||
-                    !_mainShadow.PrepareDirectional(settings.lightDirection, settings.mainLightShadow,
-                        settings.lightRadiance != Vector3.zero && (settings.diffuseScale > 0 || settings.specularScale > 0), out error))
+                if (!_lighting.Prepare(_camera, settings, _camera.targetTexture.width, _camera.targetTexture.height, out var error))
                 { UnavailableReason = error; Release(); return; }
                 Record(); _prepared = Time.frameCount;
             }
@@ -72,57 +62,9 @@ namespace GakumasPhotoMode
             }
         }
 
-        private bool PrepareBuffers(out string error)
-        {
-            error = null; int count = _snapshot.PreparedLights.Count;
-            int capacity = Mathf.NextPowerOfTwo(Mathf.Max(1, count));
-            if (_lights == null || _lights.count != capacity)
-            {
-                _lights?.Dispose(); _lights = new ComputeBuffer(capacity, Marshal.SizeOf<SceneDecalLightRenderer.LightData>()) { name = "Toolkit Forward+ current lights" };
-            }
-            if (count > 0) _lights.SetData(_snapshot.PreparedLights);
-            else _lights.SetData(new[] { default(SceneDecalLightRenderer.LightData) });
-            _words = (count + 31) / 32;
-            var target = _camera.targetTexture;
-            _tilesX = (target.width + settings.tileSize - 1) / settings.tileSize;
-            _tilesY = (target.height + settings.tileSize - 1) / settings.tileSize;
-            long elements = (long)_tilesX * _tilesY * _words;
-            bool capable = SystemInfo.supportsComputeShaders && _compute != null;
-            bool fits = elements * 4 <= (long)settings.maximumGridMiB * 1024 * 1024;
-            Backend = settings.backend == SceneForwardLightBackend.Auto ? SceneForwardLightBackend.Tiled : settings.backend;
-            if (Backend == SceneForwardLightBackend.Tiled && (!capable || !fits))
-            {
-                string reason = !capable ? "Compute light-grid capability unavailable" : "Light-grid memory budget exceeded";
-                if (!settings.allowBruteForceFallback) { error = reason; return false; }
-                Backend = SceneForwardLightBackend.BruteForce; FallbackReason = reason;
-            }
-            TileCount = Backend == SceneForwardLightBackend.Tiled && count > 0 ? _tilesX * _tilesY : 0;
-            // Even the zero-light/brute variant binds a single initialized word; never read unbound resources.
-            int allocation = TileCount > 0 ? (int)elements : 1;
-            if (_tiles == null || _tiles.count != allocation)
-            { _tiles?.Dispose(); _tiles = new ComputeBuffer(allocation, 4) { name = "Toolkit Forward+ tile light bitsets" }; }
-            if (TileCount == 0) _tiles.SetData(new uint[] { 0 });
-            else _kernel = _compute.FindKernel("BuildTiles");
-            return true;
-        }
-
         private void Record()
         {
-            _mainShadow.Record(_commands); _shadows.Record(_commands);
-            if (TileCount > 0)
-            {
-                _commands.BeginSample("Toolkit Forward+ GPU tile construction");
-                _commands.SetComputeBufferParam(_compute, _kernel, "_SceneLights", _lights);
-                _commands.SetComputeBufferParam(_compute, _kernel, "_ForwardTiles", _tiles);
-                _commands.SetComputeIntParam(_compute, "_ForwardLightCount", SubmittedLights);
-                _commands.SetComputeIntParam(_compute, "_ForwardWords", _words);
-                _commands.SetComputeIntParam(_compute, "_ForwardTileSize", settings.tileSize);
-                _commands.SetComputeIntParam(_compute, "_ForwardTilesX", _tilesX);
-                _commands.SetComputeIntParam(_compute, "_ForwardTilesY", _tilesY);
-                _commands.SetComputeVectorParam(_compute, "_ForwardTarget", new Vector4(_camera.targetTexture.width, _camera.targetTexture.height, SystemInfo.graphicsUVStartsAtTop ? 1 : 0, 0));
-                _commands.DispatchCompute(_compute, _kernel, (_tilesX + 7) / 8, (_tilesY + 7) / 8, _words);
-                _commands.EndSample("Toolkit Forward+ GPU tile construction");
-            }
+            _lighting.Record(_commands);
             _commands.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
             _commands.BeginSample("Toolkit Forward+ current transparent geometry");
             var view = _camera.worldToCameraMatrix;
@@ -137,20 +79,7 @@ namespace GakumasPhotoMode
                 material.SetFloat("_Additive", s.additive ? 1 : 0);
                 material.SetFloat("_ReceiverGroup", s.receiverGroup); material.SetVector("_VertexScale", s.vertexScale);
                 material.SetMatrix("_ViewProjection", vp);
-                material.SetVector("_CameraPosition", view.inverse.MultiplyPoint(Vector3.zero));
-                material.SetVector("_CameraForward", view.inverse.MultiplyVector(Vector3.back).normalized);
-                material.SetFloat("_Orthographic", _camera.orthographic ? 1 : 0);
-                material.SetVector("_LightDirection", settings.lightDirection.normalized); material.SetVector("_LightRadiance", settings.lightRadiance);
-                material.SetVector("_AmbientIrradiance", settings.ambientIrradiance);
-                material.SetVector("_DirectionalResponse", new Vector4(settings.diffuseScale, settings.specularScale, settings.directionalGiWeight, settings.backlightScale));
-                material.SetFloat("_GiBaseScale", settings.giBaseScale);
-                material.SetBuffer("_SceneLights", _lights); material.SetBuffer("_ForwardTiles", _tiles);
-                material.SetInt("_ForwardLightCount", SubmittedLights); material.SetInt("_ForwardWords", _words);
-                material.SetInt("_ForwardTileSize", settings.tileSize); material.SetInt("_ForwardTilesX", _tilesX);
-                material.SetInt("_ForwardTiled", Backend == SceneForwardLightBackend.Tiled ? 1 : 0);
-                material.SetTexture("_LightAtlas", _snapshot.PreparedAtlas != null ? _snapshot.PreparedAtlas : Texture2D.whiteTexture);
-                _mainShadow.BindMain(material); material.SetTexture("_MainShadowAtlas", _mainShadow.Atlas);
-                _shadows.Bind(material);
+                _lighting.Bind(material);
                 material.SetFloat("_SceneGiMode", 0);
                 if (s.gi != null && !s.gi.Bind(material, s.renderer, out var error)) throw new InvalidOperationException(error);
                 _commands.DrawRenderer(s.renderer, material, s.submesh, 0); SubmittedSurfaces++;
@@ -211,15 +140,14 @@ namespace GakumasPhotoMode
         private void OnPostRender() { if (_prepared == Time.frameCount) RenderSequence++; }
         private void Release()
         {
-            _commands?.Clear(); _prepared = -1; SubmittedSurfaces = TileCount = 0;
-            _lights?.Dispose(); _lights = null; _tiles?.Dispose(); _tiles = null;
-            _snapshot.Dispose(); _shadows.Dispose(); _mainShadow.Dispose();
+            _commands?.Clear(); _prepared = -1; SubmittedSurfaces = 0;
+            _lighting.Dispose();
             foreach (var material in _materials) if (material != null) Destroy(material); _materials.Clear();
         }
         private void OnDisable()
         {
             if (_camera != null && _commands != null) _camera.RemoveCommandBuffer(CameraEvent.BeforeForwardAlpha, _commands);
-            Release(); _commands?.Dispose(); _commands = null; UnavailableReason = "Disabled"; FallbackReason = null;
+            Release(); _commands?.Dispose(); _commands = null; UnavailableReason = "Disabled";
         }
     }
 }

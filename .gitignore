@@ -53,6 +53,7 @@
 !/docs/code-map.md
 !/docs/fog-volumes.md
 !/docs/framework-techniques.md
+!/docs/fx-forward-lighting.md
 !/docs/gpu-face-deformation.md
 !/docs/hdr-monitor.md
 !/docs/heavy-fx.md
@@ -212,6 +213,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/FogVolumeRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/FogVolumeSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/FogVolumeSettings.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/FxForwardLightingBinding.cs
+!/packages/com.digital-kotone.toolkit/Runtime/FxForwardLightingBinding.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/FxSurfaceLighting.cs
+!/packages/com.digital-kotone.toolkit/Runtime/FxSurfaceLighting.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Gakumas.Toolkit.asmdef
 !/packages/com.digital-kotone.toolkit/Runtime/Gakumas.Toolkit.asmdef.meta
 !/packages/com.digital-kotone.toolkit/Runtime/GpuFaceDeformer.cs
@@ -314,10 +319,14 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolume.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolumeSurface.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolumeSurface.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/FxForwardSurface.hlsl
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/FxForwardSurface.hlsl.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/GpuFaceDeformer.compute
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/GpuFaceDeformer.compute.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/HeavyFx.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/HeavyFx.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/HeavyFxLit.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/HeavyFxLit.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/HeavyFxOptics.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/HeavyFxOptics.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/LensFlare.shader
@@ -326,6 +335,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/LensFlareShared.hlsl.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/LowResolutionFx.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/LowResolutionFx.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/LowResolutionFxLit.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/LowResolutionFxLit.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/LowResolutionFxShared.hlsl
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/LowResolutionFxShared.hlsl.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/MonitorCanvas.shader
@@ -420,6 +431,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SceneDepthData.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneDirectionalShadowSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneDirectionalShadowSettings.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SceneForwardLightResources.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SceneForwardLightResources.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneForwardLightingCamera.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneForwardLightingCamera.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneForwardLightingSettings.cs
@@ -488,6 +501,7 @@
 !/tests/test_fog_volume_contract.py
 !/tests/test_forward_plus_contract.py
 !/tests/test_framework_contract.py
+!/tests/test_fx_forward_contract.py
 !/tests/test_gpu_face_contract.py
 !/tests/test_heavy_fx_contract.py
 !/tests/test_lens_flare_contract.py
@@ -528,6 +542,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ForwardPlus.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Framework.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FxForward.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FxForward.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Gi.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Gi.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.GpuFace.cs

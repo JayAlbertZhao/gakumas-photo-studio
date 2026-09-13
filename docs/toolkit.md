@@ -33,6 +33,8 @@
 
 几何透明特效可用 `LowResolutionFxSettings`／`LowResolutionFxRenderer`：宿主显式排序 Full／Half／Quarter 表面，支持 Alpha／Additive／折射、当前深度引导与完整分辨率边缘重画。可提交网格、Renderer 或生成的粒子网格；贴图、蒙皮更新和生命周期由宿主管理。独立接口见 [分层透明特效](low-resolution-fx.md)。
 
+两种特效 renderer 可通过 `geometry.lighting` 与 `surface.lighting` 两级开关消费当前 Forward 光照，不改变原有未照明特效。PBR／GI 在实际工作分辨率执行，保留 source alpha、现有边缘重画、独立介质阴影与混合批次；见 [特效光照接口](fx-forward-lighting.md)。
+
 需要同时使用几何、连续体积与镜头效果时，可显式选择 `HeavyFxSettings`／`HeavyFxRenderer`。同尺寸相邻类型直接共用预乘效果附件，每批一个完整 R8 重画决策，保持几何顺序和折射边界；介质按各表面实际深度着色。它与各独立后处理桥接互斥，默认关闭。最小调用、内存及支持边界见 [联合重特效](heavy-fx.md)。
 
 | 需要做的事 | 入口 |

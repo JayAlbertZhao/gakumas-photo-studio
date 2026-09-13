@@ -2,7 +2,7 @@
 
 面向 Unity / Tuanjie 的实验性角色与场景运行工具包。包含角色装配、动画、表情、语音、转换后的剧情时间线和重建渲染；不包含 Photo Studio 应用或原版游戏资产。
 
-可选 `SceneForwardLightingCamera` 为全尺寸透明几何提供 GPU分块多灯照明、逐表面 GI、Monitor与光源阴影，消费已有场景／角色深度。默认不接入摄影应用，不改角色 Forward；接入条件、逐灯回退及低尺寸特效／移动端的未覆盖范围见 [场景透明 Forward+](../../docs/scene-forward-plus.md)。
+可选 `SceneForwardLightingCamera` 为全尺寸透明几何提供 GPU分块多灯照明、逐表面 GI、Monitor与光源阴影，消费已有场景／角色深度。[LowResolutionFx／HeavyFx 光照](../../docs/fx-forward-lighting.md) 复用该当前灯资源，在真实工作尺寸中照亮特效并组合介质。两者默认不接入摄影应用，不改角色 Forward；相机条件、逐灯回退及移动端未覆盖范围见 [场景透明 Forward+](../../docs/scene-forward-plus.md)。
 
 ## 接入
 

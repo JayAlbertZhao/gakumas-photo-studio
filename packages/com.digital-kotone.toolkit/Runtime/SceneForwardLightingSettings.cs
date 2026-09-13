@@ -24,9 +24,8 @@ namespace GakumasPhotoMode
     }
 
     [Serializable]
-    public sealed class SceneForwardLightingSettings
+    public class SceneForwardLightSettings
     {
-        public const int MaximumSurfaces = 256;
         public bool enabled;
         public SceneForwardLightBackend backend = SceneForwardLightBackend.Auto;
         public bool allowBruteForceFallback = true;
@@ -34,12 +33,18 @@ namespace GakumasPhotoMode
         public int tileSize = 16;
         [Range(1, 128)] public int maximumGridMiB = 32;
         public SceneDecalLightSettings localLights = new SceneDecalLightSettings();
-        public SceneForwardSurface[] surfaces = Array.Empty<SceneForwardSurface>();
         public Vector3 lightDirection = new Vector3(0, 0, -1);
         public Vector3 lightRadiance = Vector3.one;
         public Vector3 ambientIrradiance = Vector3.one * .1f;
         [Range(0, 4)] public float diffuseScale = 1, specularScale = 1, backlightScale, giBaseScale = 1;
         [Range(0, 1)] public float directionalGiWeight;
         public SceneDirectionalShadowSettings mainLightShadow = new SceneDirectionalShadowSettings();
+    }
+
+    [Serializable]
+    public sealed class SceneForwardLightingSettings : SceneForwardLightSettings
+    {
+        public const int MaximumSurfaces = 256;
+        public SceneForwardSurface[] surfaces = Array.Empty<SceneForwardSurface>();
     }
 }

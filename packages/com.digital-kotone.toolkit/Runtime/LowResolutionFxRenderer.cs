@@ -33,6 +33,7 @@ namespace GakumasPhotoMode
         private readonly Scratch[] scratch = new Scratch[3];
         private readonly bool[] needed = new bool[3];
         private readonly FogVolumeSettings viewOnly = new FogVolumeSettings { enabled=true };
+        private readonly FxForwardLightingBinding lighting = new FxForwardLightingBinding(false);
         private RenderTexture a, b, current;
         private Material resolve;
         private uint generation;
@@ -41,13 +42,20 @@ namespace GakumasPhotoMode
         public int BatchCount { get; private set; }
         public int EdgeReplayDraws { get; private set; }
         public long TargetBytes { get; private set; }
+        public int LightingBufferCount => lighting.BufferCount;
+        public long LightingBufferBytes => lighting.BufferBytes;
+        public int LightingTileCount => lighting.TileCount;
+        public int LightingSubmittedLights => lighting.SubmittedLights;
+        public int LightingShadowMapCount => lighting.ShadowMapCount;
+        public SceneForwardLightBackend LightingBackend => lighting.Backend;
+        public string LightingFallbackReason => lighting.FallbackReason;
         public int TargetCount { get { int count=a!=null?2:0; foreach(var s in scratch) if(s!=null) count+=2; return count; } }
         public string UnavailableReason { get; private set; }
         private bool Created
         {
             get
             {
-                if (a==null || !a.IsCreated() || b==null || !b.IsCreated()) return false;
+                if (a==null || !a.IsCreated() || b==null || !b.IsCreated() || !lighting.IsCreated) return false;
                 foreach(var s in scratch) if(s!=null && (s.effect==null || !s.effect.IsCreated() || s.depthRange==null || !s.depthRange.IsCreated())) return false;
                 return true;
             }
@@ -93,6 +101,7 @@ namespace GakumasPhotoMode
                 if(shader==null || !shader.isSupported || !Supported(GraphicsFormat.R32G32B32A32_SFloat) || !Supported(GraphicsFormat.R32G32_SFloat) ||
                     !SystemInfo.IsFormatSupported(GraphicsFormat.R32G32B32A32_SFloat,FormatUsage.Blend))
                     return Fail("FX shader or float color/depth-range targets unavailable");
+                if(!lighting.Prepare(camera,source.width,source.height,settings.lighting,active,out reason))return Fail(reason);
                 if(!Created || a.width!=source.width || a.height!=source.height) ReleaseTargets();
                 if(a==null) { a=Allocate(source.width,source.height,RenderTextureFormat.ARGBFloat,"HDR A"); b=Allocate(source.width,source.height,RenderTextureFormat.ARGBFloat,"HDR B"); }
                 for(int i=0;i<3;i++)
@@ -107,8 +116,13 @@ namespace GakumasPhotoMode
                 }
                 TargetBytes=bytes;
                 if(resolve==null) resolve=new Material(shader) { hideFlags=HideFlags.HideAndDontSave };
-                while(surfaces.Count<active.Count) surfaces.Add(new Material(shader) { hideFlags=HideFlags.HideAndDontSave });
+                while(surfaces.Count<active.Count) surfaces.Add(new Material(FxForwardLightingBinding.Lit(active[surfaces.Count])?lighting.SurfaceShader:shader) { hideFlags=HideFlags.HideAndDontSave });
                 while(surfaces.Count>active.Count) { UnityEngine.Object.Destroy(surfaces[surfaces.Count-1]); surfaces.RemoveAt(surfaces.Count-1); }
+                for(int i=0;i<active.Count;i++)
+                {
+                    var selected=FxForwardLightingBinding.Lit(active[i])?lighting.SurfaceShader:shader;
+                    if(surfaces[i].shader!=selected){UnityEngine.Object.Destroy(surfaces[i]);surfaces[i]=new Material(selected){hideFlags=HideFlags.HideAndDontSave};}
+                }
                 void Common(Material material, FxResolution resolution, int phase, Scratch targets, bool readEffects)
                 {
                     view.Apply(material);
@@ -145,6 +159,7 @@ namespace GakumasPhotoMode
                             material.SetVector("_FxFlags",new Vector4(s.fog && settings.fog!=null && settings.fog.enabled?1:0,s.texture!=null?1:0,0,0));
                             material.SetFloat("_Cull",(int)s.cull);
                             int pass=distortion?(phase==2?6:3):(phase==1?1:2);
+                            if(FxForwardLightingBinding.Lit(s)){lighting.Bind(material,s);pass=phase==1?0:1;}
                             if(s.renderer!=null) commands.DrawRenderer(s.renderer,material,s.submesh,pass);
                             else commands.DrawMesh(s.mesh,s.localToWorld,material,s.submesh,pass);
                             DrawCalls++; if(phase==2) EdgeReplayDraws++;
@@ -209,7 +224,7 @@ namespace GakumasPhotoMode
         private static bool Valid(RenderTexture t) => t!=null && t.IsCreated() && t.antiAliasing==1 && !t.useMipMap && !t.useDynamicScale && t.dimension==TextureDimension.Tex2D && t.volumeDepth==1;
         private bool Owns(RenderTexture t)
         {
-            if(t==null) return false; if(t==a || t==b) return true;
+            if(t==null) return false; if(t==a || t==b || lighting.Owns(t)) return true;
             foreach(var s in scratch) if(s!=null && (t==s.effect || t==s.depthRange)) return true; return false;
         }
         private bool Fail(string reason) { Release(); UnavailableReason=reason; return false; }
@@ -228,7 +243,7 @@ namespace GakumasPhotoMode
         }
         private void Release()
         {
-            ReleaseTargets(); if(resolve!=null) UnityEngine.Object.Destroy(resolve); resolve=null;
+            ReleaseTargets(); lighting.Dispose(); if(resolve!=null) UnityEngine.Object.Destroy(resolve); resolve=null;
             foreach(var m in surfaces) UnityEngine.Object.Destroy(m); surfaces.Clear(); active.Clear(); DrawCalls=BatchCount=EdgeReplayDraws=0;
         }
         public void Dispose() { generation++; Release(); }

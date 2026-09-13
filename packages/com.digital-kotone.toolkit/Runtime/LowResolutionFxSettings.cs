@@ -33,6 +33,8 @@ namespace GakumasPhotoMode
         public Vector2 distortionOffset;
         public Vector2 distortionTextureScale;
         public bool fog = true;
+        // Opt-in current PBR surface; the FX color remains an output-radiance multiplier.
+        public FxSurfaceLighting lighting = new FxSurfaceLighting();
     }
 
     [Serializable]
@@ -48,5 +50,6 @@ namespace GakumasPhotoMode
         [Range(1, 2048)] public int maximumTargetMiB = 512;
         // Per-surface fog, after the host has fogged its opaque background.
         public FogVolumeSettings fog = new FogVolumeSettings();
+        public SceneForwardLightSettings lighting = new SceneForwardLightSettings();
     }
 }

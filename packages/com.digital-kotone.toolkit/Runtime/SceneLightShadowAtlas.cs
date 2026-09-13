@@ -238,6 +238,14 @@ namespace GakumasPhotoMode
             material.SetVector("_SingleShadowST", data.atlasST); material.SetVector("_SingleShadowDepth", data.depth);
             material.SetVector("_SingleShadowOptions", data.options); material.SetVector("_ShadowDepthPlane", _depthPlane);
         }
+        // Alternate scalar consumers can isolate uniforms without copying values
+        // back out of a Material whose active shader variant may not contain them.
+        internal void BindSingle(Material material, int index, int matrix, int st, int depth, int options)
+        {
+            if (Atlas == null) return;
+            var data = _data[index]; material.SetMatrix(matrix, data.worldToShadow);
+            material.SetVector(st, data.atlasST); material.SetVector(depth, data.depth); material.SetVector(options, data.options);
+        }
         private static bool Range(float x, float min, float max) => !float.IsNaN(x) && !float.IsInfinity(x) && x >= min && x <= max;
         private static string ValidateCaster(SceneShadowCaster caster)
         {
