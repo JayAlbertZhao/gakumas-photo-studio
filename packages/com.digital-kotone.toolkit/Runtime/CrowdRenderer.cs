@@ -23,6 +23,7 @@ namespace GakumasPhotoMode
             }
         }
         private readonly CrowdSelection selection = new CrowdSelection();
+        private readonly CrowdLightsticks lightsticks = new CrowdLightsticks();
         private readonly SceneForwardLightResources lights = new SceneForwardLightResources();
         private CrowdPrototypeGeometry[] geometry = Array.Empty<CrowdPrototypeGeometry>();
         private Material[] near = Array.Empty<Material>(), far = Array.Empty<Material>(), capture = Array.Empty<Material>();
@@ -41,11 +42,12 @@ namespace GakumasPhotoMode
         public string FallbackReason { get; private set; }
         // Owned crowd buffers / four float atlases / atlas depth / eye target. Shared lighting has separate budgets.
         public long ResourceBytes { get; private set; }
-        public int AllocatedBuffers => selection.BufferCount + geometry.Length * (selection.IsCreated ? 6 : 0) + lights.AllocatedBuffers;
+        public int AllocatedBuffers => selection.BufferCount + geometry.Length * (selection.IsCreated ? 6 : 0) + lights.AllocatedBuffers + lightsticks.BufferCount;
         public int AllocatedTargets => (eye != null ? 1 : 0) + (atlas[0] != null ? 4 : 0) + lights.ShadowTargetCount;
         internal CrowdSelection Selection => selection;
         internal RenderTexture Atlas(int index) => atlas[index];
         internal ComputeBuffer CurrentVertices(int index) => geometry[index].Current;
+        internal ComputeBuffer CurrentLightstickRadiance => lightsticks.Radiance;
         internal Vector4[] PrototypeSpheres => (Vector4[])spheres.Clone();
 
         public bool TryRender(RenderTexture colorDepth, Camera view, CrowdDefinition source, CrowdSettings input, CrowdPose[] poses, out Frame frame)
@@ -72,7 +74,7 @@ namespace GakumasPhotoMode
                     Backend = CrowdBackend.Cpu; FallbackReason = "Crowd compute unavailable; explicit CPU pose/selection fallback";
                 }
                 int types = source.prototypes.Length;
-                long required = CrowdSelection.Bytes(source.instances.Length, types) +
+                long required = CrowdSelection.Bytes(source.instances.Length, types) + CrowdLightsticks.Bytes(source) +
                     (long)(input.captureResolution * 4) * (input.captureResolution * types) * 68 + (long)colorDepth.width * colorDepth.height * 4;
                 for (int i = 0; i < types; i++) required += CrowdPrototypeGeometry.EstimateBytes(MeshFor(source.prototypes[i], input.meshQuality));
                 Require(required <= (long)input.maximumResourceMiB * 1024 * 1024, "Crowd aggregate owned GPU resource budget exceeded before allocation");
@@ -103,6 +105,7 @@ namespace GakumasPhotoMode
                     arguments[i * 10 + 5] = quad.GetIndexCount(0);
                 }
                 selection.Prepare(view, source.instances, spheres, arguments, input.meshBudget);
+                lightsticks.Prepare(source, input.lightstickTimeSeconds);
                 for (int i = 0; i < types; i++) Bind(i);
                 return true;
             }
@@ -136,6 +139,14 @@ namespace GakumasPhotoMode
                 Require(mesh != null && mesh.isReadable && p.submesh >= 0 && p.submesh < mesh.subMeshCount && mesh.GetTopology(p.submesh) == MeshTopology.Triangles && mesh.GetIndexCount(p.submesh) > 0 &&
                     mesh.HasVertexAttribute(VertexAttribute.Normal) && (p.material.normalMap == null || mesh.HasVertexAttribute(VertexAttribute.Tangent)) &&
                     ((p.material.albedoMap == null && p.material.normalMap == null && p.material.mosMap == null && p.material.emissionMap == null) || mesh.HasVertexAttribute(VertexAttribute.TexCoord0)), "Crowd requires explicit selected readable triangle mesh and material UV/normal/tangent attributes");
+                if (p.lightstick != null && p.lightstick.enabled)
+                {
+                    var s = p.lightstick;
+                    Require(CrowdLightsticks.ValidMask(s.mask) && mesh.HasVertexAttribute(VertexAttribute.TexCoord0) &&
+                        (!(s.mask is RenderTexture mask) || mask != target && !Owns(mask)), "Crowd lightsticks require an independent created linear2D mask and mesh UV; target/atlas feedback is forbidden");
+                    Require(CrowdLightsticks.Tint(s.radiance) && CrowdLightsticks.Range(s.frequencyHz, 0, 100) &&
+                        CrowdLightsticks.Range(s.minimum, 0, 1) && CrowdLightsticks.Range(input.lightstickTimeSeconds, -1e9, 1e9), "Invalid crowd lightstick radiance/pulse/explicit clock");
+                }
                 foreach (var texture in new[] { p.material.albedoMap, p.material.normalMap, p.material.mosMap, p.material.emissionMap })
                     Require(texture == null || texture.dimension == TextureDimension.Tex2D && (!(texture is RenderTexture rt) || rt.IsCreated() && rt.antiAliasing == 1 && !Owns(rt)), "Crowd material requires independent created non-MSAA2D textures");
                 if (p.gi != null)
@@ -145,8 +156,13 @@ namespace GakumasPhotoMode
                 }
             }
             foreach (var item in source.instances)
+            {
                 Require(item != null && item.prototype >= 0 && item.prototype < source.prototypes.Length && Vector(item.position, -1e6f, 1e6f) && Range(item.yawDegrees, -1e6f, 1e6f) &&
                     Range(item.scale, .0001f, 1000) && Vector(item.tint, 0, 65504), "Invalid crowd placement, prototype, positive uniform scale or radiance tint");
+                var surface = source.prototypes[item.prototype].lightstick;
+                if (surface != null && surface.enabled)
+                    Require(CrowdLightsticks.Tint(item.lightstickTint) && CrowdLightsticks.Range(item.lightstickPhaseCycles, -1e6, 1e6), "Invalid crowd per-instance lightstick tint/phase");
+            }
         }
 
         private void Bind(int index)
@@ -154,6 +170,12 @@ namespace GakumasPhotoMode
             var p = definition.prototypes[index];
             SceneDeferredCamera.BindInputs(capture[index], p.material); capture[index].SetFloat("_Cull", (int)p.cull); capture[index].SetFloat("_Cutoff", p.alphaCutoff);
             capture[index].SetBuffer("_CrowdVertices", geometry[index].Current);
+            bool glow = p.lightstick != null && p.lightstick.enabled;
+            foreach (var m in new[] { capture[index], near[index], far[index] })
+            {
+                if (glow) { m.EnableKeyword("CROWD_LIGHTSTICKS"); m.SetTexture("_CrowdLightstickMask", p.lightstick.mask); }
+                else m.DisableKeyword("CROWD_LIGHTSTICKS");
+            }
             foreach (var m in new[] { near[index], far[index] })
             {
                 lights.Bind(m); m.SetMatrix("_CrowdView", camera.worldToCameraMatrix);
@@ -163,6 +185,7 @@ namespace GakumasPhotoMode
                 m.SetInt("_CrowdCapacity", selection.Capacity); m.SetInt("_CrowdType", index);
                 m.SetVector("_CrowdAtlasSize", new Vector4(atlas[0].width, atlas[0].height, settings.captureResolution, geometry.Length));
                 m.SetBuffer("_CrowdInstances", selection.Instances); m.SetBuffer("_CrowdIndices", selection.Indices); m.SetBuffer("_CrowdBounds", selection.Bounds); m.SetBuffer("_CrowdVertices", geometry[index].Current);
+                if (glow) m.SetBuffer("_CrowdLightstickRadiance", lightsticks.Radiance);
                 m.SetFloat("_SceneGiMode", 0); if (p.gi != null && !p.gi.Bind(m, null, out var error)) throw new ArgumentException(error);
             }
             SceneDeferredCamera.BindInputs(near[index], p.material); near[index].SetInt("_CrowdBucket", index * 2);
@@ -250,7 +273,7 @@ namespace GakumasPhotoMode
         { foreach (var m in near) Destroy(m); foreach (var m in far) Destroy(m); foreach (var m in capture) Destroy(m); near = far = capture = Array.Empty<Material>(); }
         private void Release()
         {
-            selection.Dispose(); lights.Dispose(); ReleaseGeometry(); ReleaseMaterials();
+            selection.Dispose(); lightsticks.Dispose(); lights.Dispose(); ReleaseGeometry(); ReleaseMaterials();
             for (int i = 0; i < 4; i++) ReleaseTarget(ref atlas[i]); ReleaseTarget(ref eye); Destroy(quad); quad = null;
             ResourceBytes = 0; definition = null; settings = null; camera = null; destination = null; spheres = null;
         }

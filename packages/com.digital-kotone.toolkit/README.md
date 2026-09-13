@@ -49,7 +49,7 @@ Package Manager 的 Samples 中提供相同用途的 **Minimal Character Host**�
 
 ## 控制入口
 
-`CrowdDefinition`／`CrowdRenderer`／`CrowdCamera` 提供独立群集渲染：显式原型与实例、共享当前骨／shape pose、GPU 最近模型预算、四向 runtime 材质图集及间接绘制。可直接消费自制网格，不需要初始化角色场景。默认摄影不启用；所有权、光照、深度次序与远景近似限制见 [Crowd 接入](../../docs/crowd.md)。
+`CrowdDefinition`／`CrowdRenderer`／`CrowdCamera` 提供独立群集渲染：显式原型与实例、共享当前骨／shape pose、GPU 最近模型预算、四向 runtime 材质图集及间接绘制。可直接消费自制网格，不需要初始化角色场景。默认摄影不启用；所有权、光照、深度次序与远景近似限制见 [Crowd 接入](../../docs/crowd.md)。可选 [观众荧光棒](../../docs/crowd-lightsticks.md) 用自制遮罩、独立实例辐射颜色及显式时钟驱动近景和四视图；不提供原版 shader 或自动手骨挂接。
 
 `GpuFaceDeformer` 可单独接收自己制作的 Mesh、稀疏差分、权重及骨矩阵，直接写入可绘制顶点缓冲；不依赖兼容角色格式。已有角色可设置 `FaceExpressionRenderer.GpuDeformationEnabled`，默认 false。输入布局、当前资源借用、CPU 回退及移动平台边界见 [GPU 面部形变](../../docs/gpu-face-deformation.md)。
 

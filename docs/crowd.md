@@ -18,6 +18,8 @@ Meshes, textures, definitions and transforms are borrowed. The module does not m
 
 ## Minimal integration
 
+For optional masked HDR emission on held geometry, see [authored audience lightsticks](crowd-lightsticks.md). Per-instance color and explicit timeline phases stay current in both near geometry and four-view impostors; the original body tint and ordinary emission are unchanged when disabled.
+
 ```csharp
 using GakumasPhotoMode;
 using UnityEngine;

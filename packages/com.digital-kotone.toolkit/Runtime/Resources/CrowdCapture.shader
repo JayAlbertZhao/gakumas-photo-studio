@@ -10,11 +10,15 @@ Shader "Hidden/GakumasPhotoMode/CrowdCapture"
             #pragma target 4.5
             #pragma vertex VertexProgram
             #pragma fragment FragmentProgram
+            #pragma multi_compile_local __ CROWD_LIGHTSTICKS
             #include "UnityCG.cginc"
             #include "SceneForwardLighting.hlsl"
             #include "CrowdShared.hlsl"
             float4x4 _CrowdCaptureVP;
             float3 _CrowdCaptureCenter,_CrowdCaptureDirection;
+            #if defined(CROWD_LIGHTSTICKS)
+            sampler2D _CrowdLightstickMask;
+            #endif
             struct Varying { float4 position:SV_POSITION;float3 local:TEXCOORD0;float3 normal:TEXCOORD1;float4 tangent:TEXCOORD2;float2 uv:TEXCOORD3; };
             Varying VertexProgram(uint id:SV_VertexID)
             {
@@ -33,7 +37,11 @@ Shader "Hidden/GakumasPhotoMode/CrowdCapture"
                 }
                 Targets o;o.albedo=float4(saturate(color.rgb*_Albedo),1);
                 o.normalDepth=float4(n,dot(input.local-_CrowdCaptureCenter,_CrowdCaptureDirection));
-                o.mos=float4(saturate(tex2D(_MosMap,input.uv).rgb*_Mos),1);o.emission=float4(clamp(tex2D(_EmissionMap,input.uv).rgb*_Emission,0,65504),1);return o;
+                o.mos=float4(saturate(tex2D(_MosMap,input.uv).rgb*_Mos),1);o.emission=float4(clamp(tex2D(_EmissionMap,input.uv).rgb*_Emission,0,65504),1);
+                #if defined(CROWD_LIGHTSTICKS)
+                o.emission.a=saturate(tex2D(_CrowdLightstickMask,input.uv).r);
+                #endif
+                return o;
             }
             ENDCG
         }

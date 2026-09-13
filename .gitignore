@@ -51,6 +51,7 @@
 !/docs/baseline.md
 !/docs/bokeh-depth-of-field.md
 !/docs/code-map.md
+!/docs/crowd-lightsticks.md
 !/docs/crowd.md
 !/docs/fog-volumes.md
 !/docs/forward-normal-basis.md
@@ -202,6 +203,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/CrowdCamera.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/CrowdDefinition.cs
 !/packages/com.digital-kotone.toolkit/Runtime/CrowdDefinition.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/CrowdLightsticks.cs
+!/packages/com.digital-kotone.toolkit/Runtime/CrowdLightsticks.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/CrowdPrototypeGeometry.cs
 !/packages/com.digital-kotone.toolkit/Runtime/CrowdPrototypeGeometry.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/CrowdRenderer.cs
@@ -563,6 +566,7 @@
 !/tests/test_bokeh_contract.py
 !/tests/test_color_grading_contract.py
 !/tests/test_crowd_contract.py
+!/tests/test_crowd_lightsticks_contract.py
 !/tests/test_documentation.py
 !/tests/test_examples.py
 !/tests/test_face_decal_contract.py
@@ -609,6 +613,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ColorGrading.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Crowd.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Crowd.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.CrowdLightsticks.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.CrowdLightsticks.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FaceDecals.cs

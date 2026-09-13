@@ -28,6 +28,7 @@ namespace GakumasPhotoMode
         public CullMode cull = CullMode.Back;
         public SceneDeferredCamera.MaterialInputs material = new SceneDeferredCamera.MaterialInputs();
         public SceneGiInput gi = new SceneGiInput();
+        public CrowdLightstickSurface lightstick = new CrowdLightstickSurface();
         public CrowdLighting lighting;
         [Range(0, 1)] public float alphaCutoff = .5f;
         [Range(0, 255)] public int receiverGroup = 1;
@@ -44,6 +45,8 @@ namespace GakumasPhotoMode
         public float scale = 1;
         public int prototype;
         public Vector3 tint = Vector3.one;
+        public Vector3 lightstickTint = Vector3.one;
+        public double lightstickPhaseCycles;
         public bool hidden;
     }
 
@@ -66,6 +69,8 @@ namespace GakumasPhotoMode
         [Range(0, CrowdDefinition.MaximumInstances)] public int meshBudget = 256;
         [Range(16, 512)] public int captureResolution = 128;
         [Range(1, 2048)] public int maximumResourceMiB = 256;
+        // Explicit absolute time; no automatic Time.time or frame accumulation.
+        public double lightstickTimeSeconds;
         public SceneForwardLightSettings lighting = new SceneForwardLightSettings { enabled = true };
     }
 }
