@@ -25,6 +25,8 @@
 
 空间重建可用 `FsrSettings`／`FsrRenderer`；`FsrCameraRenderer` 显式执行真实低分辨率 `Camera.Render()`，支持当前场景 TAA 和可选 Bloom 后／Diffusion 前桥接。完整输出及原生分辨率 UI 由宿主呈现，默认摄影路径不变。输入编码、四档比例、所有权、内存预算及 AMD 外部依赖见 [FSR1 接入](fsr.md)。
 
+水面可用 `SceneWaterSettings`／`SceneWaterRenderer`，在当前不透明颜色／深度之后显式合成。共享 Forward 灯光和 GI、当前 Planar、线性 Cube、光学吸收及波纹法线均由宿主绑定；没有隐式资产发现或全局材质修改。排序、回放、接收面图层、有限屏幕透射及生命周期见 [水面接入](scene-water.md)。
+
 独立后处理输入可用 `MotionBlurSettings`／`MotionBlurInput`／`MotionBlurRenderer`；实际相机通过 `SceneDeferredCamera.motionBlur` 和 `OriginalStyleRenderPipeline.sceneMotionBlurSource` 显式接入。曝光时间、当前深度／运动方向及借用输出约定见 [Motion Blur 接入](motion-blur.md)。
 
 距离与局部介质可用 `FogVolumeSettings`／`FogVolumeBinding`／`FogVolumeRenderer`；八球和距离雾共同积分，显式消费当前深度。独立透明材质可共用视图快照并按自身表面深度求雾，接入次序和后处理桥接限制见 [多介质雾](fog-volumes.md)。

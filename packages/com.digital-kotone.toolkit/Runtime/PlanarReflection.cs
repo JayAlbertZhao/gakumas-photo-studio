@@ -32,6 +32,9 @@ namespace GakumasPhotoMode
         {
             public SceneDepthData.Surface surface = new SceneDepthData.Surface();
             [Range(0, 1)] public float strength = 1;
+            // Explicit manual transparent hosts exclude their layers from native camera draws.
+            // Default false preserves the original receiver selection.
+            public bool allowExcludedLayer;
         }
 
         public bool reflectionsEnabled;
@@ -155,7 +158,7 @@ namespace GakumasPhotoMode
             {
                 if (receiver == null || !Active(receiver.surface) || !Range(receiver.strength, 0, 1) ||
                     receiver.strength == 0 || !receiver.surface.receiveReflections ||
-                    (_camera.cullingMask & (1 << receiver.surface.renderer.gameObject.layer)) == 0) continue;
+                    (!receiver.allowExcludedLayer && (_camera.cullingMask & (1 << receiver.surface.renderer.gameObject.layer)) == 0)) continue;
                 Material material = GetMaterial(_receiverMaterials, materialIndex++);
                 BindSurface(material, receiver.surface);
                 material.SetTexture("_PlanarCapture", _capture);

@@ -22,6 +22,8 @@
 
 [FSR1 空间重建](docs/fsr.md) 提供独立图像接口和实际低分辨率手动相机宿主，可消费场景 TAA，并把 UI 留在完整输出分辨率。默认关闭；不会替换摄影应用的现有超采样。AMD 算法来自包依赖，分发时保留 [第三方声明](packages/com.digital-kotone.toolkit/ThirdPartyNotices.md)。
 
+[独立水面](docs/scene-water.md) 接受当前场景颜色／深度、共享灯光、GI 与 Planar，提供可回放波纹法线、吸收和有前景保护的屏幕透射。使用显式渲染接口，不自动改变摄影应用的材质或后处理。
+
 ## 当前能做什么
 
 | 输入 | 支持情况 |

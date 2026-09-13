@@ -81,6 +81,7 @@
 !/docs/scene-reflection-resolve.md
 !/docs/scene-screen-shadow.md
 !/docs/scene-temporal-antialiasing.md
+!/docs/scene-water.md
 !/docs/screen-space-reflection.md
 !/docs/ssr-roughness.md
 !/docs/status.md
@@ -433,6 +434,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneScreenShadow.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneTemporalAntialiasing.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneTemporalAntialiasing.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneWater.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneWater.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ScreenSpaceReflection.compute
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ScreenSpaceReflection.compute.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ScreenSpaceReflection.shader
@@ -501,6 +504,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SceneTemporalAntialiasingRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneTemporalAntialiasingSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneTemporalAntialiasingSettings.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SceneWaterRenderer.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SceneWaterRenderer.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SceneWaterSettings.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SceneWaterSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/ScreenSpaceReflection.cs
 !/packages/com.digital-kotone.toolkit/Runtime/ScreenSpaceReflection.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SphereFogSettings.cs
@@ -556,6 +563,7 @@
 !/tests/test_vertex_locator_contract.py
 !/tests/test_volumetric_lighting_contract.py
 !/tests/test_volumetric_reconstruction_contract.py
+!/tests/test_water_contract.py
 !/tools/dcc/maya_performance.py
 !/tools/dcc/performance_authoring.py
 !/tools/import_private_resources.py
@@ -653,6 +661,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Volumetric.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VolumetricReconstruction.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VolumetricReconstruction.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Water.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Water.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingValidation.cs
