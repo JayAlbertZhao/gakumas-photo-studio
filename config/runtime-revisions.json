@@ -60,7 +60,7 @@
       "baseline_sha256": "08bc0a1eb0da8430850929da1a2ac27e3ae63426d06257c58fbfe6501ffa062d"
     },
     "unity/Assets/Scripts/PhotoModeApp.cs": {
-      "sha256": "524ecf40a90979ddf227773a4938ab3fd90a0612bd750067fdcd04d14f06e16c",
+      "sha256": "1f50525a9949d89d9e1eb39de02ca6039b905f4895084369df7acb2d44368672",
       "baseline_sha256": "0d8741b4550b6cef4185c7cb087b20747b2dbc3c52a03760b6c07ddc81d27e23"
     },
     "unity/Assets/Scripts/SupersamplePresenter.cs": {
@@ -107,7 +107,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "7e3feeb1dc39ad3d9dd0ce9ee376e8573208943f2ecfc691a709d082a116df85",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "9deac1c01bc8af601b4078a894060962e6059d786b33c7d498c4ded50ccea303",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "1e48d15f06401ba0abaecaf949c8d9a3f58de2c7bed4067a0d7561072fad9b8f",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
@@ -141,7 +141,7 @@
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs": "93267c4f15f0a7b3dcf3e1d3b1e07ced8258c9854d6ed1de91231a88aedce443",
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs.meta": "75aad888d4351b0776443c7e5751c3d105b6d12acf55d926068d065dfa837552",
     "packages/com.digital-kotone.toolkit/NOTICE.md": "81a4267084c7405793f975954b0b386565322e0d8b8c28a5a39ad3d49fbcc806",
-    "packages/com.digital-kotone.toolkit/README.md": "6ab562fd5de25b18fb61c0325f1f16bfd1f8d2bbc79d62850531e4a336a97f95",
+    "packages/com.digital-kotone.toolkit/README.md": "3e6a2e9bf92a5fcc6a3ec8538dab9531d7d2841dbeb22a34a3f87e9522a89482",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef": "6337904b37c3452d23c72a5c38b37d9e36a1de06dcfc262db792ddb141df3ccb",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef.meta": "b97945697274955dd36c6850061768b3522c5aa5768d95eb5401c2704ab0f013",
     "packages/com.digital-kotone.toolkit/Editor/ToolkitBuildPipeline.cs": "d82bdbb42be1669477bc12630ddddf5a7a7331bb04109dc879a9fcd76fe5f1d1",
@@ -449,7 +449,17 @@
     "packages/com.digital-kotone.toolkit/Runtime/MotionEffectSequence.cs": "4d86ae70033930719315fd71a26bb7de61cbd7203dd2c5fe9e5c8e78ea7743b9",
     "packages/com.digital-kotone.toolkit/Runtime/MotionEffectSequence.cs.meta": "b5d2bcf5766fcdd572e95f036f09cdab167933b99bfec9b845ee37325d308569",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionEffects.cs": "c21b67197ed7d4c5dc2cd461138a56d71818c77158fa788aa187ffa7b0a9cf5a",
-    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionEffects.cs.meta": "207e3e397263b03d5458c84c533a80c976f4a246638183f98b32737d3ba872a2"
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionEffects.cs.meta": "207e3e397263b03d5458c84c533a80c976f4a246638183f98b32737d3ba872a2",
+    "packages/com.digital-kotone.toolkit/Runtime/FaceExpressionRenderer.VertexLocators.cs": "5177727c43cbe2bbc4150911e47eff3e0a0e1720c384b156eee29e4ad478d96e",
+    "packages/com.digital-kotone.toolkit/Runtime/FaceExpressionRenderer.VertexLocators.cs.meta": "86fff865d87998f042c32b63bab7c9698a38c88fc1032e5cf20f19501d56c470",
+    "packages/com.digital-kotone.toolkit/Runtime/VertexDeformationSampler.cs": "2a1f8f025d2291bb0abd33276160f519042239e195f7ac87330ccc00d00d940e",
+    "packages/com.digital-kotone.toolkit/Runtime/VertexDeformationSampler.cs.meta": "c8025a701fe700a9cc26ff377a9c6427d59ba8d33da7b26af03410fbb9fe33c9",
+    "packages/com.digital-kotone.toolkit/Runtime/VertexLocatorRig.cs": "e88c9ddd85e4425977d75ea49f99442b40709de150395d35c47dcaf6c664de37",
+    "packages/com.digital-kotone.toolkit/Runtime/VertexLocatorRig.cs.meta": "42a09212f6cece29b8880926048618654ea3d4137a799f6266a71bf51e158861",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VertexLocators.cs": "846ae7bf6eeb441dc7f1f898b018c79cf035cf58cf6b0d6f3547b08338011266",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VertexLocators.cs.meta": "924e3410bba4ce1052c6b25e8eceb36e8009a510016a667a409662cb8da96699",
+    "unity/Assets/Applications/PhotoStudio/VertexLocatorCharacterValidation.cs": "a10a3c3dd5c10a1ed1834e35589616e495c7524654f85fca2cf4e51781cdcc04",
+    "unity/Assets/Applications/PhotoStudio/VertexLocatorCharacterValidation.cs.meta": "844220a7805cff745972037ec6e0192cba167c0748be8e7f0d46a976b0bb3ccd"
   },
   "relocations": {
     "unity/Assets/ActorAnimationStub/ActorAnimation.Runtime.asmdef": "packages/com.digital-kotone.toolkit/Runtime/Compatibility/ActorAnimationStub/ActorAnimation.Runtime.asmdef",

@@ -61,6 +61,7 @@ namespace GakumasPhotoMode
                 if (PlanarCharacterValidation.TryStart(this)) return;
                 if (GpuFaceCharacterValidation.TryStart(this)) return;
                 if (FaceDecalCharacterValidation.TryStart(this)) return;
+                if (VertexLocatorCharacterValidation.TryStart(this)) return;
                 if (commandLine.Contains("--hide-ui")) _showUi = false;
                 if (commandLine.Contains("--renderdoc-capture-and-quit"))
                 {

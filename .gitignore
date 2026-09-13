@@ -80,6 +80,7 @@
 !/docs/status.md
 !/docs/toolkit.md
 !/docs/user-guide.md
+!/docs/vertex-locators.md
 !/docs/volumetric-lighting.md
 !/docs/volumetric-reconstruction.md
 !/examples/01-single-motion.timeline.json
@@ -193,6 +194,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/FaceDecalRuntime.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/FaceExpressionRenderer.Gpu.cs
 !/packages/com.digital-kotone.toolkit/Runtime/FaceExpressionRenderer.Gpu.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/FaceExpressionRenderer.VertexLocators.cs
+!/packages/com.digital-kotone.toolkit/Runtime/FaceExpressionRenderer.VertexLocators.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/FaceExpressionRenderer.cs
 !/packages/com.digital-kotone.toolkit/Runtime/FaceExpressionRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/FaceMotionLibrary.cs
@@ -437,6 +440,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SupersamplePresenter.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/VertexDeformationSampler.cs
+!/packages/com.digital-kotone.toolkit/Runtime/VertexDeformationSampler.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/VertexLocatorRig.cs
+!/packages/com.digital-kotone.toolkit/Runtime/VertexLocatorRig.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingRenderer.Reconstruction.cs
 !/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingRenderer.Reconstruction.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingRenderer.cs
@@ -467,6 +474,7 @@
 !/tests/test_rendering_contract.py
 !/tests/test_studio.py
 !/tests/test_toolkit_contract.py
+!/tests/test_vertex_locator_contract.py
 !/tests/test_volumetric_lighting_contract.py
 !/tests/test_volumetric_reconstruction_contract.py
 !/tools/import_private_resources.py
@@ -544,6 +552,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SsrRoughness.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Temporal.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Temporal.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VertexLocators.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VertexLocators.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Volumetric.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Volumetric.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VolumetricReconstruction.cs
@@ -570,6 +580,8 @@
 !/unity/Assets/Applications/PhotoStudio/PlanarCharacterValidation.cs.meta
 !/unity/Assets/Applications/PhotoStudio/RenderDocCaptureBridge.cs
 !/unity/Assets/Applications/PhotoStudio/RenderDocCaptureBridge.cs.meta
+!/unity/Assets/Applications/PhotoStudio/VertexLocatorCharacterValidation.cs
+!/unity/Assets/Applications/PhotoStudio/VertexLocatorCharacterValidation.cs.meta
 !/unity/Assets/CampusCommonStub.meta
 !/unity/Assets/Editor/OriginalShaderResearchAssets.cs
 !/unity/Assets/Editor/OriginalShaderResearchAssets.cs.meta
