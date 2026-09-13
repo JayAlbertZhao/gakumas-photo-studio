@@ -58,6 +58,7 @@
 !/docs/lens-flares.md
 !/docs/low-resolution-fx.md
 !/docs/motion-blur.md
+!/docs/motion-effects.md
 !/docs/planar-reflection.md
 !/docs/release.md
 !/docs/rendering.md
@@ -234,6 +235,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/MotionBlurRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/MotionBlurSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/MotionBlurSettings.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/MotionEffectPlayable.cs
+!/packages/com.digital-kotone.toolkit/Runtime/MotionEffectPlayable.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/MotionEffectSequence.cs
+!/packages/com.digital-kotone.toolkit/Runtime/MotionEffectSequence.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/NaturalWindSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/NaturalWindSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/OrbitPhotoCamera.cs
@@ -457,6 +462,7 @@
 !/tests/test_local_assets.py
 !/tests/test_low_resolution_fx_contract.py
 !/tests/test_motion_blur_contract.py
+!/tests/test_motion_effect_contract.py
 !/tests/test_release.py
 !/tests/test_rendering_contract.py
 !/tests/test_studio.py
@@ -512,6 +518,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Monitor.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionBlur.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionBlur.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionEffects.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.MotionEffects.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Planar.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Planar.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.PointShadow.cs

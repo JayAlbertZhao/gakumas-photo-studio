@@ -51,6 +51,8 @@ Package Manager 的 Samples 中提供相同用途的 **Minimal Character Host**�
 
 `FaceDecalRenderer` 以当前接收面几何绘制自制投影贴花，拥有独立材质，不改角色共享材质或全局 shader 状态。可使用 `FaceDecalProjector` 的 AnimationClip 字段绑定或 `FaceDecalAnimation` 的显式时间采样，再通过默认关闭的 `FaceDecalLayer` 或宿主 command buffer／Planar 接入。坐标、混合、裁剪、生命周期与限制见 [可动画角色贴花](../../docs/animated-face-decals.md)。
 
+`MotionEffectSequence` 接受宿主的预制体、Transform 挂点、时间区间、种子与 TRS 偏移，独立管理实例和可重放的 Local 粒子。`MotionEffectGraph` 提供可显式 seek 的手动 Playable graph，Stop／Dispose 立即隐藏；也可把 `MotionEffectPlayable` 放入自己的 graph。默认摄影不创建这些对象，不改模板／共享材质或全局时间。支持范围、步进预算与尚未接入的顶点定位器／Maya 输入见 [MotionEffect](../../docs/motion-effects.md)。
+
 通过 `CharacterSceneRuntime` 的 `CharacterIds`、`Costumes`、`Motions` 获取当前清单；调用 `SelectCharacter(id)`、`SelectMotion(label)`、`SelectCostume(index)`、`SelectExpression(index)`、`SelectExpressionMotion(name)`、`PlayVoice(index)`。`SetPlaybackPaused(bool)` 管理当前摄影/剧情暂停，`EvaluateMotion(seconds)` 可手动采样已有动作。
 
 `Timeline` 暴露已有 StoryTimelinePlayer：`StartStory(seconds)`、`Seek(seconds, playVoice)`、`StopStory()`。`PreviewCamera`、`CharacterRoot`、`RenderControls` 供宿主接入相机/角色/光照控制。调用前先完成初始化；未初始化的清单和对象可能为 null。
