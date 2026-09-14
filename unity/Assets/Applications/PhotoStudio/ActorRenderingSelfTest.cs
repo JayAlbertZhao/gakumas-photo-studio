@@ -42,6 +42,7 @@ namespace GakumasPhotoMode
         private string _directory;
         private bool _tileOnly;
         private bool _tileSceneOnly;
+        private bool _tilePositionOnly;
         private Camera _camera;
         private RenderTexture _target;
         private Texture2D _readback;
@@ -57,8 +58,10 @@ namespace GakumasPhotoMode
             int index = Array.IndexOf(args, "--self-test-actor-rendering");
             bool tileOnly = false;
             bool tileSceneOnly = false;
+            bool tilePositionOnly = false;
             if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-render-pass"); tileOnly = index >= 0; }
             if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-scene"); tileSceneOnly = index >= 0; }
+            if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-position"); tilePositionOnly = index >= 0; }
             if (index < 0) return false;
             if (index + 1 >= args.Length || args[index + 1].StartsWith("--", StringComparison.Ordinal))
             {
@@ -72,6 +75,7 @@ namespace GakumasPhotoMode
                 var selfTest = owner.AddComponent<ActorRenderingSelfTest>();
                 selfTest._directory = directory; selfTest._tileOnly = tileOnly;
                 selfTest._tileSceneOnly = tileSceneOnly;
+                selfTest._tilePositionOnly = tilePositionOnly;
             }
             catch (Exception error)
             {
@@ -85,10 +89,10 @@ namespace GakumasPhotoMode
         {
             yield return null;
             var report = new Report { graphicsDevice = SystemInfo.graphicsDeviceVersion };
-            if (_tileOnly || _tileSceneOnly)
+            if (_tileOnly || _tileSceneOnly || _tilePositionOnly)
             {
                 Directory.CreateDirectory(_directory);
-                var tile = _tileSceneOnly ? VerifyTileScene(report) : VerifyTileRenderPass(report);
+                var tile = _tilePositionOnly ? VerifyTilePosition(report) : _tileSceneOnly ? VerifyTileScene(report) : VerifyTileRenderPass(report);
                 while (true)
                 {
                     bool more; object next = null;
@@ -833,7 +837,22 @@ namespace GakumasPhotoMode
                 report.accepted = report.error == null && report.checks.TrueForAll(check => check.accepted);
             }
             if (!string.IsNullOrEmpty(_directory) && Directory.Exists(_directory))
+            {
+                if(report.error==null)
+                {
+                    _owned.Clear();var fixture=VerifyTilePosition(report);
+                    while(true)
+                    {
+                        bool more;object next=null;
+                        try { more=fixture.MoveNext();if(more)next=fixture.Current; }
+                        catch(Exception error) { report.error=error.ToString();Debug.LogException(error);break; }
+                        if(!more)break;yield return next;
+                    }
+                    (fixture as IDisposable)?.Dispose();
+                    report.accepted=report.error==null&&report.checks.TrueForAll(check=>check.accepted);
+                }
                 File.WriteAllText(Path.Combine(_directory, "actor-synthetic.json"), JsonUtility.ToJson(report, true));
+            }
             Debug.Log("[ActorSelfTest] accepted=" + report.accepted + "; checks=" + report.checks.Count);
             Application.Quit(report.accepted ? 0 : 2);
         }

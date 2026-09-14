@@ -2,7 +2,7 @@
 
 `TileSceneRenderer` 是默认关闭、供自有 SRP 调用的场景消费者。输入复用 `SceneDeferredCamera.Surface`、`MaterialInputs`、`SceneGiInput` 和 `SceneBakedShadowInput`；不会切换摄影应用的 Built-in 管线，不修改已有 Deferred GBuffer ABI。
 
-当前接入普通不透明／cutout 表面、线性 RGB 切线法线、UV0 材质、UV2／Probe GI、四通道烘焙可见性及显式方向光 PBR／GI 乘色／背向漫反射。没有自动移植贴花、局部灯、实时阴影、薄叶、反射、Actor 或运动附件；薄叶输入明确拒绝。源讲演只提供技术布局，这些材质、编码和光照方程是本工具包的独立实现。
+当前接入普通不透明／cutout 表面、线性 RGB 切线法线、UV0 材质、UV2／Probe GI、四通道烘焙可见性及显式方向光 PBR／GI 乘色／背向漫反射。另有显式位置光照路径，见下节。没有自动移植贴花、薄叶、反射、Actor 或运动附件；薄叶输入明确拒绝。源讲演只提供技术布局，这些材质、编码和光照方程是本工具包的独立实现。
 
 ## 调用与所有权
 
@@ -10,7 +10,19 @@
 
 `TryPrepare(camera, settings, out frame, out error)` 不绘制、不分配输出、不修改 Camera；生成拥有独立材质的单次快照。宿主在有效 SRP context 中完成 Camera 设置后调用 `frame.TryRecord`，随后自行 `context.Submit`。材质参数已快照，网格、Renderer 当前几何、纹理和目标仍借用，必须保持有效且不被并发修改。等 GPU 不再使用本批资源后才 `frame.Dispose()`；提交返回或 `Budget` 均不代表 GPU 完成。快照不能重复记录；关闭、非法输入、能力不足返回具体错误，不偷偷回退默认相机。
 
-当前消费者限定桌面 Vulkan 与显式允许的 D3D11 仿真。方向光 PBR 只需要相机射线，使用有限 far-plane 端点，不读取深度附件；这不提供实际表面世界位置。位置相关局部光／实时阴影需要后续独立深度桥接，Metal／移动端仍待验收。
+当前消费者限定桌面 Vulkan 与显式允许的 D3D11 仿真。默认方向光 PBR 只需要相机射线，使用有限 far-plane 端点，不读取深度附件；这不提供实际表面世界位置。Metal／移动端仍待验收。
+
+## 显式位置光照
+
+设置 `positionLighting = true` 后，准备独立的当前几何深度预处理与位置光照。`localLights` 复用 Point／Capsule／Area／Spot 参数和源阴影配置，`mainLightShadow` 复用方向光阴影配置。`localLightBackend` 显式选择已有的 GPU 网格或 BruteForce；`allowLightFallback = false` 可禁止网格能力／预算不足时降级。该路径采用单次全屏求值、FP32 累加局部灯后量化，未宣称与讲演的实例化灯体绘制相同。`localLights.backend` 的 Scalar／Instanced 选择仅适用于既有 Deferred 消费者，不控制此处的网格。
+
+预处理使用同批 Renderer／submesh、当前蒙皮、顶点缩放、VP、UV0 cutout 与剔除配置，输出独立 `R32_SFloat` 正 eye depth，并有自己的 D32 遮挡测试。预处理完成后，主光照通过普通纹理精确像素读取重建世界位置；不会采样主 render pass 当前绑定的 D32。`frame.EyeDepth` 属于 frame，调用者只能在记录完成及必要的 GPU 同步后读取，不能释放或写入；frame 释放后失效。
+
+`Budget` 仍描述主 pass；`DepthBudget` 单独描述预处理，增加 32 color bits／32 depth bits、8 bytes/pixel，其中 4 bytes/pixel 深度色图需要保存。因此两组附件名义合计 36 bytes/pixel，受同一个 `maximumAttachmentMiB` 合并检查。灯表／网格的 `LightBufferBytes` 和阴影图有各自预算，不能用主 pass 的 256-bit 数字表示总资源成本。`LocalLightCount`、`LocalLightBackend`、`ShadowMapCount` 供宿主检查实际提交。
+
+材质、GI、烘焙遮罩继续来自主五 MRT。按像素解码 receiverGroup；烘焙和实时可见性取较小值。所有预处理、阴影与主 pass 记录后仍由调用者统一 Submit、负责 GPU 生命周期。开始记录辅助命令后的失败会消耗该单次 frame，不能重试半批工作。输入 `positionLighting = false` 却请求局部灯／实时阴影会明确拒绝，不静默丢灯。
+
+`localLights.atlas` 可借用显式 HDR 2D 纹理。现有 `HdrMonitor` 的有效性要求 Built-in，因此不能直接作为此 SRP 路径的动态生产者；其 SRP 生产／发布接入仍是开项，不将静态 atlas 对照记作实时 Monitor 验收。
 
 ## 五 MRT 与精度
 
@@ -35,4 +47,12 @@ G2 A 的 0 表示背景；有几何时为 `1 + receiverGroup + (hasGi ? 256 : 0)
 
 D3D11／Vulkan 的 56 份原生捕获检查了五 MRT、独立解码材质、几何深度、四个同像素光照输入、加法混合、G4 复用及真实蒙皮顶点变化。D3D11 捕获使用显式 `-force-gfx-direct`，并与正常线程输出分别核对；该诊断模式仍会出现四条退出时的 bound-color-surface 释放警告，不启用 RenderDoc 时也存在，未定位根因、不推荐作为生产模式。正常线程 D3D11／Vulkan 本模块运行没有这些警告。
 
-上述证据限于自制桌面内容，尚不证明完整角色／场景或所有 GI 导入变体、移动收益及长时间资源行为。局部灯、实时遮挡、贴花、反射、Actor 与运动等 tile 消费者继续保留为开项，未宣布框架全部追平。默认摄影路径保持原样。
+`--self-test-tile-position <输出目录>` 单独运行 54 组位置配置：透视／正交、倾斜表面的近／远深度、四种局部灯、网格／暴力对照、receiverGroup、HDR atlas、GI 乘色、110 灯累加、四种灯的当前遮挡与遮挡面移到接收面后方、方向阴影、强度与 baked/current min、缩放 cutout、移动透视相机。每组保存颜色、真实 eye depth、法线，逐像素检查独立射线／平面深度与灯光方程，同时检查附件预算、实际 backend／阴影图数和单次记录。
+
+数值验收先独立验证深度与法线，再使用已验证的存储值对照光照；CPU 相机射线不复用着色器的 inverse-VP 重建。深度绝对误差预算为 `2e-4`，法线在 `1e-6` 浮点计算预算内枚举相邻 Half 值；光照的 `2e-5 * max(1, abs(value))` 运算预算先传递到 packed HDR 转换，再检查离散格式值。可见性导致的精确零仍要求零。不删除量化边界像素，也不把这些工程验收预算当作形式化误差证明。
+
+本机编辑器版本的 CPU `ReadPixels` 对 packed HDR 正 subnormal 的解码与原生 GPU 字节不一致，因此位置测试先在 GPU 转为 RGBAFloat 再读回；原生捕获另行解码验证。该修正仅用于新测试的读回，不更改默认摄影或 GPU 光照逻辑。
+
+位置路径另有 108 份 D3D11／Vulkan 原生捕获：逐组核对真实 R32 生产者与光照输入的资源身份、整图深度／材质／GI／法线／位置光照、当前灯表与实际阴影绘制、五 MRT 和 G4 复用。Vulkan 检查了独立深度 pass 保存 R32 后再开始主 pass 的实际 load/store 与 subpass 布局。GPU Float 读回与原生 packed HDR 解码逐位相同。Direct 模式仍有上述四条释放警告；正常线程运行无新增释放警告。
+
+上述证据限于自制桌面内容，尚不证明完整角色／场景或所有 GI 导入变体、移动收益及长时间资源行为。贴花、反射、Actor、运动及实时 Monitor 的完整 tile 集成继续保留为开项；位置路径的蒙皮与复杂遮挡组合仍需生产内容验收，未宣布框架全部追平。默认摄影路径保持原样。

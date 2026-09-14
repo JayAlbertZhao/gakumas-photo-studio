@@ -25,6 +25,12 @@ namespace GakumasPhotoMode
             public float giBaseScale = 1, directionalGiWeight;
             public float directionalDiffuseScale = 1, directionalSpecularScale = 1, directionalBacklight;
             public SceneBakedShadowChannel mainBakedShadowChannel;
+            // Explicit opt-in: a real geometry prepass and existing local/current-shadow evaluation.
+            public bool positionLighting;
+            public SceneDecalLightSettings localLights;
+            public SceneDirectionalShadowSettings mainLightShadow;
+            public SceneForwardLightBackend localLightBackend = SceneForwardLightBackend.Auto;
+            public bool allowLightFallback = true;
             public int maximumAttachmentMiB = 128;
         }
 
@@ -36,23 +42,40 @@ namespace GakumasPhotoMode
             private readonly TileRenderPass _renderer = new TileRenderPass();
             private readonly List<Material> _materials = new List<Material>();
             private Mesh _quad;
+            private TileScenePositionResources _position;
             private bool _recorded, _disposed;
             public TileRenderPass.Submission Budget { get; private set; }
+            public TileRenderPass.Submission DepthBudget => _position != null ? _position.Budget : default;
+            // Owned by this frame. Consumers may read only after recording/completion; never release it.
+            public RenderTexture EyeDepth => _position?.EyeDepth;
+            public int LocalLightCount => _position?.LocalLightCount ?? 0;
+            public int ShadowMapCount => _position?.ShadowMapCount ?? 0;
+            public long LightBufferBytes => _position?.LightBufferBytes ?? 0;
+            public SceneForwardLightBackend LocalLightBackend => _position?.Backend ?? SceneForwardLightBackend.BruteForce;
             internal PreparedFrame() { }
             internal void Add(Material material) => _materials.Add(material);
+            internal void SetPosition(TileScenePositionResources position) => _position=position;
             internal void Initialize(TileRenderPass.Plan plan, Mesh quad, TileRenderPass.Submission budget)
             { _plan = plan; _quad = quad; Budget = budget; }
             public bool TryRecord(ScriptableRenderContext context, out TileRenderPass.Submission submission, out string error)
             {
                 submission = default;
                 if (_disposed || _recorded) { error = "Tile scene frame disposed or already recorded"; return false; }
+                if (_position != null)
+                {
+                    if (!TileRenderPass.Validate(_plan,out _,out error) || !_position.Validate(out error)) return false;
+                    if (GraphicsSettings.currentRenderPipeline == null) { error="Tile render passes require an explicitly selected SRP host"; return false; }
+                    // Once auxiliary commands begin this frame cannot be retried after a partial failure.
+                    _recorded=true;
+                    if (!_position.Record(context,out error)) return false;
+                }
                 if (!_renderer.TryRecord(context, _plan, out submission, out error)) return false;
                 _recorded = true; return true;
             }
             public void Dispose()
             {
                 if (_disposed) return;
-                _disposed = true; _renderer.Dispose();
+                _disposed = true; _renderer.Dispose(); _position?.Dispose(); _position=null;
                 foreach (var material in _materials) DestroyOwned(material);
                 _materials.Clear(); DestroyOwned(_quad); _quad = null; _plan = null;
             }
@@ -106,6 +129,13 @@ namespace GakumasPhotoMode
                 lighting.SetFloat("_GiBaseScale", settings.giBaseScale);
                 lighting.SetFloat("_MainBakedChannel", (int)settings.mainBakedShadowChannel);
                 var resolve = Material(); resolve.SetColor("_Background", settings.background);
+                TileScenePositionResources position=null;
+                if(settings.positionLighting)
+                {
+                    position=new TileScenePositionResources(); result.SetPosition(position);
+                    if(!position.Prepare(camera,settings,out error))return false;
+                    lighting=position.Lighting;
+                }
                 var plan = new TileRenderPass.Plan { enabled = true, backend = settings.backend,
                     width = settings.output.width, height = settings.output.height, depthAttachment = 5,
                     maximumAttachmentMiB = settings.maximumAttachmentMiB, maximumDraws = 4098,
@@ -127,6 +157,8 @@ namespace GakumasPhotoMode
                     }
                 };
                 if (!TileRenderPass.Validate(plan, out var budget, out error)) return false;
+                if(position!=null && budget.nominalBytes+position.Budget.nominalBytes>(long)settings.maximumAttachmentMiB*1048576)
+                { error="Tile scene combined main and depth attachment budget exceeded"; return false; }
                 result.Initialize(plan, quad, budget); quad = null; frame = result; return true;
             }
             catch (Exception exception) { error = "Tile scene preparation failed: " + exception.GetType().Name; return false; }
@@ -149,10 +181,23 @@ namespace GakumasPhotoMode
                 var endpoint=inverse*new Vector4(x,y,0,1);
                 if(!Finite(endpoint.w)||Mathf.Abs(endpoint.w)<1e-8f||!Finite(new Vector3(endpoint.x,endpoint.y,endpoint.z)/endpoint.w))
                     return "Tile scene requires finite camera-ray endpoints";
+                if(s.positionLighting)
+                {
+                    var near=inverse*new Vector4(x,y,1,1);
+                    if(!Finite(near.w)||Mathf.Abs(near.w)<1e-8f||!Finite(new Vector3(near.x,near.y,near.z)/near.w))
+                        return "Tile position requires finite near endpoints";
+                    var a=camera.worldToCameraMatrix*(endpoint/endpoint.w);var b=camera.worldToCameraMatrix*(near/near.w);
+                    if(!Finite(b.z)||Mathf.Abs(a.z-b.z)<1e-6f)return "Tile position requires distinct finite eye depths";
+                }
             }
+            if(!s.positionLighting && ((s.localLights!=null&&s.localLights.enabled) || (s.mainLightShadow!=null&&s.mainLightShadow.enabled)))
+                return "Local lights and current shadows require explicit positionLighting";
             if (s.output == null || s.output.graphicsFormat != GraphicsFormat.B10G11R11_UFloatPack32 ||
                 s.surfaces == null || s.surfaces.Length < 1 || s.surfaces.Length > 4096)
                 return "Tile scene requires packed HDR output and 1..4096 explicit surfaces";
+            if(s.positionLighting && (s.maximumAttachmentMiB<1 || s.maximumAttachmentMiB>512 ||
+                (long)s.output.width*s.output.height*36>(long)s.maximumAttachmentMiB*1048576))
+                return "Tile scene combined main and depth attachment budget exceeded";
             if (!Positive(s.lightRadiance) || !Positive(s.ambientIrradiance) || !Finite(s.lightDirection) ||
                 s.lightDirection.sqrMagnitude < 1e-8f || !Finite(s.lightDirection.sqrMagnitude) ||
                 !Range(s.giBaseScale,4) || !Range(s.directionalGiWeight,1) || !Range(s.directionalDiffuseScale,4) ||

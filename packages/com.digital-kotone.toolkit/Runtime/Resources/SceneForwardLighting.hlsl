@@ -1,5 +1,7 @@
+#if !defined(TOOLKIT_FORWARD_EVALUATION_ONLY)
 #include "UnityCG.cginc"
 #include "SceneGi.hlsl"
+#endif
 #if defined(TOOLKIT_FORWARD_LEAF)
 #include "VegetationLeaf.hlsl"
 #define FORWARD_LEAF_PARAMETER , float3 leafTau
@@ -82,10 +84,10 @@ float3 ForwardBrdf(float3 albedo, float3 mos, float3 n, float3 v, float3 l, floa
     return result;
 }
 
-float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo, float3 mos, float4 gi, float4 baked FORWARD_LEAF_PARAMETER)
+float3 ForwardLocalForReceiver(uint index, float3 world, float3 n, float3 v, float3 albedo, float3 mos, float4 gi, float4 baked, float receiverGroup FORWARD_LEAF_PARAMETER)
 {
     SceneLightData light = _SceneLights[index];
-    if (light.parameters.z > .5 && abs(_ReceiverGroup - light.parameters.z) > .1) return 0;
+    if (light.parameters.z > .5 && abs(receiverGroup - light.parameters.z) > .1) return 0;
     float3 delta = world - light.positionRange.xyz, source = light.positionRange.xyz;
     float2 atlasUv = light.uv.zw;
     float distanceToSource;
@@ -132,6 +134,8 @@ float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo,
     #endif
     return response * clamp(tex2Dlod(_LightAtlas, float4(atlasUv, 0, 0)).rgb, 0, 65504) * light.radianceShape.rgb * attenuation;
 }
+float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo, float3 mos, float4 gi, float4 baked FORWARD_LEAF_PARAMETER)
+{ return ForwardLocalForReceiver(index,world,n,v,albedo,mos,gi,baked,_ReceiverGroup FORWARD_LEAF_ARGUMENT); }
 // Existing specialized consumers retain the same unmasked contract.
 #if defined(TOOLKIT_FORWARD_LEAF)
 float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo, float3 mos, float4 gi, float4 baked)
@@ -140,6 +144,7 @@ float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo,
 float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo, float3 mos, float4 gi)
 { return ForwardLocal(index, world, n, v, albedo, mos, gi, 1); }
 
+#if !defined(TOOLKIT_FORWARD_EVALUATION_ONLY)
 struct ForwardInput { float4 vertex : POSITION; float3 normal : NORMAL; float4 tangent : TANGENT; float2 uv : TEXCOORD0; float2 uv2 : TEXCOORD1; };
 struct ForwardVarying { float4 position : SV_POSITION; float3 world : TEXCOORD0; float3 normal : TEXCOORD1; float4 tangent : TEXCOORD2; float2 uv : TEXCOORD3; float2 uv2 : TEXCOORD4; };
 ForwardVarying ForwardVertex(ForwardInput input)
@@ -214,3 +219,4 @@ float4 ForwardFragment(ForwardVarying input) : SV_Target
     float3 emission = clamp(tex2D(_EmissionMap, input.uv).rgb * _Emission, 0, 65504);
     return float4(clamp(direct + indirect + emission, 0, 65504) * alpha, _Additive > .5 ? 0 : alpha);
 }
+#endif
