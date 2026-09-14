@@ -107,7 +107,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "7e3feeb1dc39ad3d9dd0ce9ee376e8573208943f2ecfc691a709d082a116df85",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "9f647f21f2f83abc0ff71f2a78c877a214c76d8f1dbc3a7883556634df40b1d8",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "dde6150be14ba847a197831b7b64fe8b2725ad886f5c502e3bd1404488236850",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
@@ -141,7 +141,7 @@
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs": "93267c4f15f0a7b3dcf3e1d3b1e07ced8258c9854d6ed1de91231a88aedce443",
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs.meta": "75aad888d4351b0776443c7e5751c3d105b6d12acf55d926068d065dfa837552",
     "packages/com.digital-kotone.toolkit/NOTICE.md": "c86f588e2e56186e86505ab434ccc654fec9479845c88684cf2892cdc419ac71",
-    "packages/com.digital-kotone.toolkit/README.md": "44870756b54e9ac86050df66b99d0c228e8f81c1f995c3f9515e3233ebf4100b",
+    "packages/com.digital-kotone.toolkit/README.md": "d1d8c223d180792c5fec9aa3c3861784f72d1be1ece8241a1467b1f86e41380e",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef": "09057fee37220697785dec3f828e8e7e399358d91ac0bb28e8a86d34f1261df4",
     "packages/com.digital-kotone.toolkit/Editor/Gakumas.Toolkit.Editor.asmdef.meta": "b97945697274955dd36c6850061768b3522c5aa5768d95eb5401c2704ab0f013",
     "packages/com.digital-kotone.toolkit/Editor/ToolkitBuildPipeline.cs": "d82bdbb42be1669477bc12630ddddf5a7a7331bb04109dc879a9fcd76fe5f1d1",
@@ -623,7 +623,13 @@
     "unity/Assets/Resources/CrowdShadowReceiverReference.shader": "d797af36051c13c49ec98158bc4902ccf8b52006f1b61b6c7d41e6799229b4d6",
     "unity/Assets/Resources/CrowdShadowReceiverReference.shader.meta": "d85dcd762983b869cd6dab55640910768d892037c10e66419e940e4df161559d",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorMaps.cs": "5eea3dd25472cb154ca1218adda3786dbd40d29bb5fde2c0e57cb873f87c5c87",
-    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorMaps.cs.meta": "45095a37f0942a1b30c12969193267315bb962d3ea6ef86c8925fc14eccc6746"
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorMaps.cs.meta": "45095a37f0942a1b30c12969193267315bb962d3ea6ef86c8925fc14eccc6746",
+    "packages/com.digital-kotone.toolkit/Runtime/TileRenderPass.cs": "0b4d969d66d4c76d6ab59bf67ce22f183461660adda08d3863200ddacd540d4c",
+    "packages/com.digital-kotone.toolkit/Runtime/TileRenderPass.cs.meta": "200b6e8a5001e9ad50687d271868a9bb66777660baac9ad6375d5c9fe6b846ed",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePass.cs": "5899347cd36eceabff93fc2f68ff9a5ea61a64dc2f10c54581ec290e5e182528",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePass.cs.meta": "09e3a1e9109414197b5a2f0dfbfe7d93b7b7577e763bdb23e228290cba973bc5",
+    "unity/Assets/Resources/TileRenderPassReference.shader": "69c76d4748f92714f3d663280ce8c32006ded9995aa8d0448c1c105f476f0835",
+    "unity/Assets/Resources/TileRenderPassReference.shader.meta": "f096e6fe9c19968b44d7f9ce299917728e8669e3c617fe3a1d59333319598851"
   },
   "relocations": {
     "unity/Assets/ActorAnimationStub/ActorAnimation.Runtime.asmdef": "packages/com.digital-kotone.toolkit/Runtime/Compatibility/ActorAnimationStub/ActorAnimation.Runtime.asmdef",

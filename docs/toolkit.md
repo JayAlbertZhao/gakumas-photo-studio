@@ -19,6 +19,8 @@
 
 ## API 与宿主职责
 
+自有 SRP 可以独立使用 [TileRenderPass](tile-render-pass.md)：明确提供当前 context、五 MRT 或自己的附件布局、同像素输入、Draw 列表和 Load／Store 生命周期。模块只管理命令缓冲，不依赖角色数据或 Photo Studio，不切换宿主管线。当前为可选调度基础，尚未把所有 Built-in 场景／角色模块迁入 native subpass。
+
 来自讲演的框架技术覆盖、可选自然风、TAA 表面分类和自制网格编码接口见 [框架技术清单](framework-techniques.md)。这些模块不要求 Photo Studio UI；未实现的场景／移动端能力保留明确状态。
 
 群集可用 `CrowdDefinition`／`CrowdRenderer`／`CrowdCamera`：八类共享当前 pose、GPU 最近模型预算、四向动态材质捕获与间接绘制，不需要兼容角色格式或摄影 UI。默认关闭，模型与动画由宿主提供；生命周期、CPU 回退、原生深度次序及四视图近似边界见 [Crowd 接入](crowd.md)。可选 [观众荧光棒](crowd-lightsticks.md) 在同一当前几何上消费自制遮罩、独立实例颜色与显式时间；不自动发现手骨或携带观众资产。显式 [CrowdShadowSource](crowd-shadows.md) 用当前共享 pose 和 Low／High 几何向方向光／局部光投影，不复用主相机的可见列表或远景 billboard。

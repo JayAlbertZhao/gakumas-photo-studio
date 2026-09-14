@@ -40,6 +40,7 @@ namespace GakumasPhotoMode
         }
 
         private string _directory;
+        private bool _tileOnly;
         private Camera _camera;
         private RenderTexture _target;
         private Texture2D _readback;
@@ -53,6 +54,8 @@ namespace GakumasPhotoMode
         {
             string[] args = Environment.GetCommandLineArgs();
             int index = Array.IndexOf(args, "--self-test-actor-rendering");
+            bool tileOnly = false;
+            if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-render-pass"); tileOnly = index >= 0; }
             if (index < 0) return false;
             if (index + 1 >= args.Length || args[index + 1].StartsWith("--", StringComparison.Ordinal))
             {
@@ -63,7 +66,8 @@ namespace GakumasPhotoMode
             try
             {
                 string directory = Path.GetFullPath(args[index + 1]);
-                owner.AddComponent<ActorRenderingSelfTest>()._directory = directory;
+                var selfTest = owner.AddComponent<ActorRenderingSelfTest>();
+                selfTest._directory = directory; selfTest._tileOnly = tileOnly;
             }
             catch (Exception error)
             {
@@ -77,6 +81,25 @@ namespace GakumasPhotoMode
         {
             yield return null;
             var report = new Report { graphicsDevice = SystemInfo.graphicsDeviceVersion };
+            if (_tileOnly)
+            {
+                Directory.CreateDirectory(_directory);
+                var tile = VerifyTileRenderPass(report);
+                while (true)
+                {
+                    bool more; object next = null;
+                    try { more = tile.MoveNext(); if (more) next = tile.Current; }
+                    catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); break; }
+                    if (!more) break;
+                    yield return next;
+                }
+                (tile as IDisposable)?.Dispose();
+                report.accepted = report.error == null && report.checks.TrueForAll(check => check.accepted);
+                File.WriteAllText(Path.Combine(_directory,"actor-synthetic.json"),JsonUtility.ToJson(report,true));
+                Debug.Log("[ActorSelfTest] accepted="+report.accepted+"; checks="+report.checks.Count);
+                Application.Quit(report.accepted ? 0 : 2);
+                yield break;
+            }
             try
             {
                 Directory.CreateDirectory(_directory);
@@ -764,6 +787,21 @@ namespace GakumasPhotoMode
             {
                 _owned.Clear();
                 var fixture = VerifyActorAuthoredMaps(report);
+                while (true)
+                {
+                    bool more; object next = null;
+                    try { more = fixture.MoveNext(); if (more) next = fixture.Current; }
+                    catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); break; }
+                    if (!more) break;
+                    yield return next;
+                }
+                (fixture as IDisposable)?.Dispose();
+                report.accepted = report.error == null && report.checks.TrueForAll(check => check.accepted);
+            }
+            if (report.error == null)
+            {
+                _owned.Clear();
+                var fixture = VerifyTileRenderPass(report);
                 while (true)
                 {
                     bool more; object next = null;

@@ -94,6 +94,7 @@
 !/docs/screen-space-reflection.md
 !/docs/ssr-roughness.md
 !/docs/status.md
+!/docs/tile-render-pass.md
 !/docs/toolkit.md
 !/docs/user-guide.md
 !/docs/vegetation-leaf.md
@@ -571,6 +572,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SupersamplePresenter.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/TileRenderPass.cs
+!/packages/com.digital-kotone.toolkit/Runtime/TileRenderPass.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/VegetationLeafMaterial.cs
 !/packages/com.digital-kotone.toolkit/Runtime/VegetationLeafMaterial.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/VegetationWindDeformer.cs
@@ -625,6 +628,7 @@
 !/tests/test_rendering_contract.py
 !/tests/test_scene_sky_contract.py
 !/tests/test_studio.py
+!/tests/test_tile_render_pass_contract.py
 !/tests/test_toolkit_contract.py
 !/tests/test_vegetation_leaf_contract.py
 !/tests/test_vegetation_wind_contract.py
@@ -741,6 +745,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SsrRoughness.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Temporal.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Temporal.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePass.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePass.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VegetationLeaf.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VegetationLeaf.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VegetationWind.cs
@@ -799,6 +805,8 @@
 !/unity/Assets/Resources/FaceDeformationProbe.shader.meta
 !/unity/Assets/Resources/ResearchOriginalShaderPipeline.asset
 !/unity/Assets/Resources/ResearchOriginalShaderPipeline.asset.meta
+!/unity/Assets/Resources/TileRenderPassReference.shader
+!/unity/Assets/Resources/TileRenderPassReference.shader.meta
 !/unity/Assets/Scenes.meta
 !/unity/Assets/Scenes/PhotoMode.unity
 !/unity/Assets/Scenes/PhotoMode.unity.meta
