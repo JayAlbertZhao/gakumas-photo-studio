@@ -28,17 +28,21 @@ namespace GakumasPhotoMode
         public Material Material { get; private set; }
         private bool _disposed;
         public bool TryBind(HdrMonitor.Frame frame, MonitorEmissionSettings settings, out string error)
+            => TryBind(frame.IsCurrent, frame.texture, settings, out error);
+        public bool TryBind(SrpHdrMonitor.Frame frame, MonitorEmissionSettings settings, out string error)
+            => TryBind(frame.IsCurrent, frame.texture, settings, out error);
+        private bool TryBind(bool current, Texture texture, MonitorEmissionSettings settings, out string error)
         {
             error = null;
             if (_disposed) { error = "Monitor material disposed"; return false; }
-            if (!frame.IsCurrent || settings == null || !settings.IsValid) { Unbind(); error = "Invalid monitor frame or emission settings"; return false; }
+            if (!current || settings == null || !settings.IsValid) { Unbind(); error = "Invalid monitor frame or emission settings"; return false; }
             if (Material == null)
             {
                 Shader shader = Resources.Load<Shader>("MonitorEmission");
                 if (shader == null || !shader.isSupported) { error = "Monitor emission shader unavailable"; return false; }
                 Material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
             }
-            Material.SetTexture("_MonitorTex", frame.texture); Material.SetVector("_MonitorUV", settings.monitorUV);
+            Material.SetTexture("_MonitorTex", texture); Material.SetVector("_MonitorUV", settings.monitorUV);
             Material.SetFloat("_MonitorChannel", settings.uvChannel); Material.SetVector("_MonitorTint", settings.linearTint);
             Material.SetFloat("_MonitorIntensity", settings.intensity); Material.SetFloat("_Cull", (int)settings.cull);
             Material.SetTexture("_LedPattern", settings.ledPattern != null ? settings.ledPattern : Texture2D.whiteTexture);

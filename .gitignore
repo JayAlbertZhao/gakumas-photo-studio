@@ -569,6 +569,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/ScreenSpaceReflection.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SphereFogSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SphereFogSettings.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SrpHdrMonitor.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SrpHdrMonitor.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SsrRoughnessSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SsrRoughnessSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/StoryTimelinePlayer.cs
@@ -636,6 +638,7 @@
 !/tests/test_release.py
 !/tests/test_rendering_contract.py
 !/tests/test_scene_sky_contract.py
+!/tests/test_srp_monitor_contract.py
 !/tests/test_studio.py
 !/tests/test_tile_render_pass_contract.py
 !/tests/test_tile_scene_contract.py
@@ -749,6 +752,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ScreenShadow.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Spot.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Spot.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpMonitor.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpMonitor.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Ssr.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Ssr.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SsrRoughness.cs

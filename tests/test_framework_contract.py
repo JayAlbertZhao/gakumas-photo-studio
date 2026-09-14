@@ -250,7 +250,9 @@ class FrameworkContractTests(unittest.TestCase):
 
     def test_monitor_material_reads_radiance_without_second_opacity(self):
         source = (RUNTIME / 'MonitorEmissionMaterial.cs').read_text(encoding='utf-8')
-        self.assertIn('!frame.IsCurrent', source)
+        # Both typed frames delegate validity to the same reject-and-unbind path.
+        self.assertEqual(source.count('TryBind(frame.IsCurrent, frame.texture, settings, out error)'), 2)
+        self.assertIn('if (!current || settings == null || !settings.IsValid) { Unbind();', source)
         self.assertIn('public void Unbind()', source)
         self.assertNotIn('.sharedMaterial', source)
         shader = (RUNTIME / 'Resources/MonitorEmission.shader').read_text(encoding='utf-8')

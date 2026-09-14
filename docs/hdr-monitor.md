@@ -69,8 +69,42 @@ Frame 和 texture 为借用对象，不能写入、释放或更改其过滤／�
 
 专用 Camera 的 targetTexture、allowHDR、allowMSAA、renderingPath 在 finally 恢复；不覆盖其 view／projection／aspect，也不切全局质量或共享主材质。Camera 自己的 image effects／回调会照常执行，HDR 内容相机应避免曝光、tone mapping 或不受控的副作用。[Camera.Render](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/Camera.Render.html)
 
+## 显式 SRP 宿主
+
+`HdrMonitor` 仍只服务 Built-in。自选 SRP 使用独立的 `SrpHdrMonitor`；它不替换 PhotoStudio 管线，也不调用 `Camera.Render` 或 `context.Submit`。源相机必须禁用、SolidColor 清屏、完整固定视口、非 XR；目前只开放桌面 D3D11/Vulkan。源材质使用 `SRPDefaultUnlit`（包括 `MonitorCanvas` 和 `MonitorEmission`），不自动提供 URP Lit、灯光、后处理或 Built-in 相机回调。
+
+初始化时借用专用 Camera，创建 `SrpHdrMonitor(camera, settings)`，其中 `settings.enabled = true`；为 `PrepareCapture` 注册内容更新与 `Canvas.ForceUpdateCanvases()`。宿主每次分两步驱动：
+
+```csharp
+// 在进入 SRP Render / SubmitRenderRequest 之前；先更新 UI、布局和目标尺寸。
+bool prepared = monitor.TryPrepare(timelineSeconds, contentRevision);
+
+// 以下位于宿主自己的 SRP 回调内；不得在已打开的 render pass 中执行。
+if (prepared && monitor.TryRecord(context, out var frame))
+{
+    if (emission.TryBind(frame, emissionSettings, out var error))
+        surface.sharedMaterial = emission.Material;
+    else
+        emission.Unbind();
+    localLights.srpMonitor = monitor;
+}
+else
+    emission.Unbind(); // 本次不记录依赖新 Monitor 内容的场景消费者。
+// 成功或失败都恢复宿主相机状态；仅在上面的生产成功后记录对应消费者。
+context.SetupCameraProperties(sceneCamera);
+// 宿主统一 Submit，并在复用、更改借用资源或 Dispose 前保证 GPU 工作完成。
+```
+
+这两个代码片段属于不同调用时机。引擎可能在进入 SRP 回调之前建立 UGUI 批次；在回调内才改变顶点颜色／布局会晚一次捕获。`TryPrepare` 在临时 HDR 目标装到源 Camera 后执行内容事件，然后恢复相机；`TryRecord` 消费一次性准备结果。准备后不得修改相机、尺寸、调度策略或管线。材质内容与几何也由宿主保证在记录和完成期间保持有效。
+
+WhenDirty／FixedRate／EveryCall 规则与 Built-in 对齐。`RequestUpdate`、内容版本和时间倒退会触发捕获；跳帧不触发准备事件。`DidRecord`／`RenderSequence` 表示记录情况，**不表示 GPU 已完成**。录制真实 opaque／transparent 和相机 UI 后，以同格式 CopyTexture 发布到稳定的 ARGBHalf 纹理；发光材质与 Point／Capsule／Area 灯直接消费该纹理，RGB 不重复乘 UI alpha。`localLights.monitor` 与 `localLights.srpMonitor` 只能指定一个；均为空才使用 `atlas` 或白色默认值。
+
+模块拥有 capture／published 两张纹理与命令缓冲，相机、Canvas、材质和输出 Frame 都不转移所有权。`NominalColorBytes` 只计两张 Half 颜色纹理的 `width * height * 16` 字节，另有 capture depth/stencil 与复制成本。禁用配置会使 Frame 失效，但不会擅自释放可能仍在 GPU 队列中的资源；宿主等待完成后显式 Dispose。部分记录失败同样保留资源。下次真正记录使旧 Frame 失效，尺寸不变则 published 纹理对象稳定；上一帧反馈必须由宿主明确排序。
+
 ## 支持边界与验证
 
-当前限定 Built-in、固定完整视口、非 XR／动态分辨率、ARGBHalf 支持、1–4096 且不超过硬件限制的尺寸。源 Camera 必须 disabled，不能仅依赖模块帮忙停掉正在运行的相机。禁用组件立即释放；把 monitorEnabled 改为 false 时，应继续调用 TryUpdate 触发清理。RectMask2D 当前为硬边裁剪，没有软边 mask 支持。
+上文 Built-in 组件限定 Built-in、固定完整视口、非 XR／动态分辨率、ARGBHalf 支持、1–4096 且不超过硬件限制的尺寸。源 Camera 必须 disabled，不能仅依赖模块帮忙停掉正在运行的相机。禁用组件立即释放；把 monitorEnabled 改为 false 时，应继续调用 TryUpdate 触发清理。RectMask2D 当前为硬边裁剪，没有软边 mask 支持。
 
-已构建实际 UGUI 内容与发光网格的离屏 GPU 检查，覆盖 HDR 数值／UV 分区、alpha、材质与目标所有权、时间与错误输入。详见 [渲染记录](rendering.md)。视频编解码、原版完整舞台、移动设备／驱动、真实 GPU 帧时以及 Monitor 驱动的 decal lights 未据此验收；完整开项见 [技术清单](framework-techniques.md)。
+已构建实际 UGUI 内容与发光网格的离屏 GPU 检查，覆盖 HDR 数值／UV 分区、alpha、材质与目标所有权、时间与错误输入。详见 [渲染记录](rendering.md)。视频编解码、原版完整舞台、移动设备／驱动、真实 GPU 帧时未据此验收；完整开项见 [技术清单](framework-techniques.md)。
+
+SRP 独立入口 `--self-test-srp-monitor OUTPUT_DIRECTORY` 使用自制四区 UGUI，检查连续 HDR／alpha 变更、WorldSpace／ScreenSpaceCamera、真实发光网格、Point／Capsule／Area 采样与 110 灯 GPU 网格；覆盖准备时机、调度、旧帧失效、尺寸和错误恢复。桌面 D3D11／Vulkan 各 23 组场景的整幅 UI、发光与受光结果已执行；实际移动端和完整舞台仍开项。这个接口的两阶段设计来自实测：在 SRP 回调内改变 UGUI alpha 会读到上一批顶点颜色；改为先准备内容、再进入请求后，当前捕获恢复正确。

@@ -58,6 +58,8 @@ namespace GakumasPhotoMode
                 (int)settings.backend < 0 || (int)settings.backend > 2)
             { error = "Invalid decal-light collection, backend or batch size"; return false; }
             _batchSize = settings.batchSize;
+            if (settings.monitor != null && settings.srpMonitor != null)
+            { error = "Assign only one decal-light monitor producer"; return false; }
             var view = camera.worldToCameraMatrix; var vp = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true) * view;
             foreach (var light in settings.lights)
             {
@@ -96,6 +98,11 @@ namespace GakumasPhotoMode
             if (settings.monitor != null)
             {
                 if (!settings.monitor.TryGetFrame(out var frame)) { error = "Decal lights require a current published monitor frame"; return false; }
+                _atlas = frame.texture;
+            }
+            else if (settings.srpMonitor != null)
+            {
+                if (!settings.srpMonitor.TryGetFrame(out var frame)) { error = "Decal lights require a current recorded SRP monitor frame"; return false; }
                 _atlas = frame.texture;
             }
             else _atlas = settings.atlas != null ? settings.atlas : Texture2D.whiteTexture;

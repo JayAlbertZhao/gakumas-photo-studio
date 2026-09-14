@@ -45,7 +45,9 @@ namespace GakumasPhotoMode
         public SceneLightShadowSettings shadows = new SceneLightShadowSettings();
         // If assigned, a current published frame is required. The host updates it first.
         public HdrMonitor monitor;
-        // Used only without monitor; null is white. Use a linear texture for literal HDR radiance.
+        // Explicit SRP host source. Assign only one producer; the host records it first.
+        [NonSerialized] public SrpHdrMonitor srpMonitor;
+        // Used only without a monitor; null is white. Use a linear texture for literal HDR radiance.
         public Texture atlas;
     }
 }
