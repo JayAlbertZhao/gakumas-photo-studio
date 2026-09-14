@@ -23,6 +23,8 @@
 
 群集可用 `CrowdDefinition`／`CrowdRenderer`／`CrowdCamera`：八类共享当前 pose、GPU 最近模型预算、四向动态材质捕获与间接绘制，不需要兼容角色格式或摄影 UI。默认关闭，模型与动画由宿主提供；生命周期、CPU 回退、原生深度次序及四视图近似边界见 [Crowd 接入](crowd.md)。可选 [观众荧光棒](crowd-lightsticks.md) 在同一当前几何上消费自制遮罩、独立实例颜色与显式时间；不自动发现手骨或携带观众资产。
 
+静态植被可用 `VegetationWindDeformer` 生成自有当前风场网格。GPU 直接更新实际顶点流，供现有颜色、深度、阴影和运动快照读取；也有显式 CPU 后端。根部权重、叶片相位、世界位移和时间由宿主提供，不代替薄叶透射材质或制作资产。接口及 GPU／CPU 数据所有权见 [植被风场](vegetation-wind.md)。
+
 空间重建可用 `FsrSettings`／`FsrRenderer`；`FsrCameraRenderer` 显式执行真实低分辨率 `Camera.Render()`，支持当前场景 TAA 和可选 Bloom 后／Diffusion 前桥接。完整输出及原生分辨率 UI 由宿主呈现，默认摄影路径不变。输入编码、四档比例、所有权、内存预算及 AMD 外部依赖见 [FSR1 接入](fsr.md)。
 
 水面可用 `SceneWaterSettings`／`SceneWaterRenderer`，在当前不透明颜色／深度之后显式合成。共享 Forward 灯光和 GI、当前 Planar、线性 Cube、光学吸收及波纹法线均由宿主绑定；没有隐式资产发现或全局材质修改。排序、回放、接收面图层、有限屏幕透射及生命周期见 [水面接入](scene-water.md)。

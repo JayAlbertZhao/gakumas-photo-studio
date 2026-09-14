@@ -92,6 +92,7 @@
 !/docs/status.md
 !/docs/toolkit.md
 !/docs/user-guide.md
+!/docs/vegetation-wind.md
 !/docs/vertex-locators.md
 !/docs/volumetric-lighting.md
 !/docs/volumetric-reconstruction.md
@@ -465,6 +466,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/StudioFloor.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TemporalClassification.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TemporalClassification.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/VegetationWind.compute
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/VegetationWind.compute.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/VolumetricLighting.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/VolumetricLighting.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/VolumetricLightingShared.hlsl
@@ -545,6 +548,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SupersamplePresenter.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/VegetationWindDeformer.cs
+!/packages/com.digital-kotone.toolkit/Runtime/VegetationWindDeformer.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/VegetationWindSettings.cs
+!/packages/com.digital-kotone.toolkit/Runtime/VegetationWindSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/VertexDeformationSampler.cs
 !/packages/com.digital-kotone.toolkit/Runtime/VertexDeformationSampler.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/VertexLocatorRig.cs
@@ -590,6 +597,7 @@
 !/tests/test_scene_sky_contract.py
 !/tests/test_studio.py
 !/tests/test_toolkit_contract.py
+!/tests/test_vegetation_wind_contract.py
 !/tests/test_vertex_locator_contract.py
 !/tests/test_volumetric_lighting_contract.py
 !/tests/test_volumetric_reconstruction_contract.py
@@ -695,6 +703,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SsrRoughness.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Temporal.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Temporal.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VegetationWind.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VegetationWind.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VertexLocators.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VertexLocators.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Volumetric.cs

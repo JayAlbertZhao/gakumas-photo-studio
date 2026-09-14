@@ -1,0 +1,42 @@
+#pragma kernel DeformVegetation
+#pragma target 5.0
+struct VegetationRest { float4 position,normal,tangent,coefficients; };
+StructuredBuffer<VegetationRest> _VegetationRest;
+RWByteAddressBuffer _VegetationOutput0,_VegetationOutput1,_VegetationOutput2,_VegetationOutput3;
+int _VegetationCount,_VegetationAtRest;
+int4 _VegetationStrides,_VegetationChannels,_VegetationOffsets;
+float4 _VegetationRootHeight,_VegetationAxis,_VegetationWind,_VegetationFlutter,_VegetationClock;
+void Store(uint vertex,int channel,float4 value,int count)
+{
+    int stream=_VegetationChannels[channel]; if(stream<0)return;
+    uint offset=vertex*_VegetationStrides[stream]+_VegetationOffsets[channel];
+    for(int k=0;k<count;k++)
+    {
+        uint data=asuint(value[k]);
+        if(stream==0)_VegetationOutput0.Store(offset+k*4,data);
+        else if(stream==1)_VegetationOutput1.Store(offset+k*4,data);
+        else if(stream==2)_VegetationOutput2.Store(offset+k*4,data);
+        else _VegetationOutput3.Store(offset+k*4,data);
+    }
+}
+[numthreads(64,1,1)]
+void DeformVegetation(uint3 thread:SV_DispatchThreadID)
+{
+    uint id=thread.x;if(id>=(uint)_VegetationCount)return;VegetationRest v=_VegetationRest[id];
+    if(_VegetationAtRest==0)
+    {
+        precise float h=saturate(dot(v.position.xyz-_VegetationRootHeight.xyz,_VegetationAxis.xyz)*_VegetationRootHeight.w);
+        precise float profile=h*h*(3-2*h);
+        precise float wave=_VegetationClock.x*v.coefficients.w+_VegetationClock.y*v.coefficients.z;
+        precise float3 d=_VegetationWind.xyz*v.coefficients.x+_VegetationFlutter.xyz*(v.coefficients.y*wave);
+        precise float3 g=_VegetationAxis.xyz*(6*h*(1-h)*_VegetationRootHeight.w);
+        v.position.xyz+=d*profile;
+        v.normal.xyz=normalize(v.normal.xyz-g*(dot(d,v.normal.xyz)/(1+dot(d,g))));
+        if(_VegetationChannels.z>=0)
+        {
+            float3 t=v.tangent.xyz+d*dot(g,v.tangent.xyz);
+            v.tangent.xyz=normalize(t-v.normal.xyz*dot(v.normal.xyz,t));
+        }
+    }
+    Store(id,0,v.position,3);Store(id,1,v.normal,3);Store(id,2,v.tangent,4);
+}
