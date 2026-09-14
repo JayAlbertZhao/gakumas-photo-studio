@@ -21,7 +21,7 @@
 
 来自讲演的框架技术覆盖、可选自然风、TAA 表面分类和自制网格编码接口见 [框架技术清单](framework-techniques.md)。这些模块不要求 Photo Studio UI；未实现的场景／移动端能力保留明确状态。
 
-群集可用 `CrowdDefinition`／`CrowdRenderer`／`CrowdCamera`：八类共享当前 pose、GPU 最近模型预算、四向动态材质捕获与间接绘制，不需要兼容角色格式或摄影 UI。默认关闭，模型与动画由宿主提供；生命周期、CPU 回退、原生深度次序及四视图近似边界见 [Crowd 接入](crowd.md)。可选 [观众荧光棒](crowd-lightsticks.md) 在同一当前几何上消费自制遮罩、独立实例颜色与显式时间；不自动发现手骨或携带观众资产。
+群集可用 `CrowdDefinition`／`CrowdRenderer`／`CrowdCamera`：八类共享当前 pose、GPU 最近模型预算、四向动态材质捕获与间接绘制，不需要兼容角色格式或摄影 UI。默认关闭，模型与动画由宿主提供；生命周期、CPU 回退、原生深度次序及四视图近似边界见 [Crowd 接入](crowd.md)。可选 [观众荧光棒](crowd-lightsticks.md) 在同一当前几何上消费自制遮罩、独立实例颜色与显式时间；不自动发现手骨或携带观众资产。显式 [CrowdShadowSource](crowd-shadows.md) 用当前共享 pose 和 Low／High 几何向方向光／局部光投影，不复用主相机的可见列表或远景 billboard。
 
 静态植被可用 `VegetationWindDeformer` 生成自有当前风场网格。GPU 直接更新实际顶点流，供现有颜色、深度、阴影和运动快照读取；也有显式 CPU 后端。根部权重、叶片相位、世界位移和时间由宿主提供，不代替薄叶透射材质或制作资产。接口及 GPU／CPU 数据所有权见 [植被风场](vegetation-wind.md)。
 

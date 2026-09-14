@@ -54,7 +54,7 @@ if (!renderer.TryRender(yourHdrDepthTarget, yourCamera,
 
 The target's existing color and native depth are preserved, then crowd geometry is drawn into them. The caller controls ordering and must provide a meaningful current depth attachment. `Frame.linearEyeDepth` is a borrowed **crowd-only** depth texture, valid until the next prepare or disposal. A zero texel means no visible crowd fragment. It is not a complete scene depth texture and is not automatically merged into `_CameraDepthTexture`, TAA, SSR, fog, reflection or motion-history producers.
 
-The adapter draws at `CameraEvent.AfterForwardOpaque`, before ordinary transparency. Native depth occludes crowd fragments and receives their reconstructed depth. Local/directional shadow **receiving** uses current shared Forward-light resources. Instances are not automatically registered as thousands of `SceneShadowCaster` objects; crowd shadow casting and temporal/reflection integration remain explicit downstream work.
+The adapter draws at `CameraEvent.AfterForwardOpaque`, before ordinary transparency. Native depth occludes crowd fragments and receives their reconstructed depth. Local/directional shadow **receiving** uses current shared Forward-light resources. Optional [current crowd shadow geometry](crowd-shadows.md) registers a separate prepared source for directional/local shadow casting without creating thousands of `SceneShadowCaster` objects. It casts explicit Low/High geometry independently of view LOD. Temporal/reflection integration remains downstream work.
 
 ## GPU path and fallback
 

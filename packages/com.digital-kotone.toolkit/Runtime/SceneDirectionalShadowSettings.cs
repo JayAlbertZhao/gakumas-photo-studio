@@ -19,5 +19,7 @@ namespace GakumasPhotoMode
         public SceneShadowFilter filter = SceneShadowFilter.Hard;
         public int resolution = 512;
         public SceneShadowCaster[] casters = Array.Empty<SceneShadowCaster>();
+        [NonSerialized] public CrowdShadowSource[] crowds = Array.Empty<CrowdShadowSource>();
+        public int maxCrowdShadowTriangles = 4194304;
     }
 }

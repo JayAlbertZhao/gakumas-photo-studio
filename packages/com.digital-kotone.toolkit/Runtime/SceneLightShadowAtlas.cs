@@ -65,9 +65,10 @@ namespace GakumasPhotoMode
                 }
             }
             if (_indices.Count == 0) { Dispose(); return true; }
+            if (!ValidateCrowds(settings, _indices.Count, out error)) return false;
             if (extendedSamples > 0 && (settings == null || settings.maxExtendedSourceSamples < 1 || settings.maxExtendedSourceSamples > 256 ||
                 extendedSamples > settings.maxExtendedSourceSamples || settings.maxExtendedCasterDraws < 1 || settings.maxExtendedCasterDraws > 262144 ||
-                settings.casters == null || (long)_indices.Count * settings.casters.Length > settings.maxExtendedCasterDraws))
+                settings.casters == null || (long)_indices.Count * (settings.casters.Length + CrowdDrawCount) > settings.maxExtendedCasterDraws))
             { error = "Extended-source sample or caster-draw budget exceeded"; return false; }
             if (!PrepareAtlas(settings, out error)) return false;
             int size = Atlas.width;
@@ -81,7 +82,7 @@ namespace GakumasPhotoMode
                     // Point metadata keeps the 112-byte ABI. The translation matrix yields
                     // world-aligned light-relative vectors; options.w is first tile + 1.
                     _data[index] = new ShadowData {
-                        worldToShadow = Matrix4x4.Translate(-light.position), atlasST = new Vector4(1f / _grid, 1f / _grid, 0, 0),
+                        worldToShadow = Matrix4x4.Translate(-light.position), atlasST = new Vector4(1f / _grid, 1f / _grid, 0, input.stablePointTexels ? -1 : 0),
                         depth = new Vector4(input.nearPlane, light.range, input.depthBias, input.normalBias),
                         options = new Vector4(input.strength, (int)input.filter, 1f / size, tile + 1)
                     };
@@ -136,7 +137,9 @@ namespace GakumasPhotoMode
             if (Vector3.Cross(forward, up).sqrMagnitude < 1e-6f) { error = "Main shadow up must not be parallel to the light direction"; return false; }
             // Validate a requested configuration before pruning its zero contribution.
             _indices.Add(0); _data.Add(default); _lightCount = 1;
-            var atlasSettings = new SceneLightShadowSettings { tileResolution = settings.resolution, maxShadowedLights = 1, casters = settings.casters };
+            var atlasSettings = new SceneLightShadowSettings { tileResolution = settings.resolution, maxShadowedLights = 1, casters = settings.casters,
+                crowds = settings.crowds, maxCrowdShadowTriangles = settings.maxCrowdShadowTriangles };
+            if (!ValidateCrowds(atlasSettings, 1, out error)) return false;
             if (!ValidateAtlasSettings(atlasSettings, out error)) return false;
             if (!hasContribution || settings.strength == 0) { Dispose(); return true; }
             if (!PrepareAtlas(atlasSettings, out error)) return false;
@@ -203,6 +206,7 @@ namespace GakumasPhotoMode
         public void Record(CommandBuffer commands)
         {
             if (Atlas == null) return;
+            RecordCrowdGeometry(commands);
             commands.BeginSample("Toolkit light-source shadow depth");
             commands.SetRenderTarget(Atlas); commands.ClearRenderTarget(true, true, Color.white);
             int materialIndex = 0;
@@ -223,6 +227,12 @@ namespace GakumasPhotoMode
                     material.SetTexture("_ShadowAlphaMap", caster.alphaMap != null ? caster.alphaMap : Texture2D.whiteTexture);
                     material.SetVector("_ShadowUvST", caster.uvST); material.SetFloat("_ShadowAlpha", caster.alpha); material.SetFloat("_ShadowCutoff", caster.cutoff);
                     commands.DrawRenderer(renderer, material, caster.materialIndex, 0); CasterDrawCalls++;
+                }
+                foreach (var crowd in _crowds)
+                {
+                    crowd.RecordDraws(commands, _views[tile], new Vector4(-data.worldToShadow.m03, -data.worldToShadow.m13, -data.worldToShadow.m23, data.depth.x),
+                        _depthPlane, data.depth.y, data.options.w > 0, _orthographic);
+                    CasterDrawCalls += crowd.DrawCount;
                 }
             }
             commands.EndSample("Toolkit light-source shadow depth");
@@ -290,6 +300,7 @@ namespace GakumasPhotoMode
             ReleaseAtlas(); _buffer?.Dispose(); _buffer = null;
             foreach (var material in _materials) if (material != null) UnityEngine.Object.Destroy(material);
             _materials.Clear(); _data.Clear(); _mapData.Clear(); _indices.Clear(); _views.Clear(); _lightCount = 0; _casters = null; CasterDrawCalls = 0;
+            _crowds = Array.Empty<CrowdShadowSource>(); _crowdRevisions = Array.Empty<ulong>();
         }
     }
 }

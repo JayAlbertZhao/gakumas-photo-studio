@@ -21,6 +21,9 @@ namespace GakumasPhotoMode
         public bool extendedSourceCoverage;
         // Capsule: N midpoint sources. Area: N*N. Only read for these two shapes.
         [Range(1, 4)] public int extendedSamplesPerAxis = 2;
+        // Point only: opt into the same deterministic2^-20 face-edge addressing as
+        // finite sources. Default false preserves historical Point texel choices.
+        public bool stablePointTexels;
     }
 
     /// <summary>Explicit borrowed geometry; no inference from the renderer's material shader.</summary>
@@ -47,5 +50,9 @@ namespace GakumasPhotoMode
         [Range(1, 256)] public int maxExtendedSourceSamples = 64;
         [Range(1, 262144)] public int maxExtendedCasterDraws = 32768;
         public SceneShadowCaster[] casters = Array.Empty<SceneShadowCaster>();
+        // Explicit caller-owned prepared sources. No view-frustum/LOD selection is reused.
+        [NonSerialized] public CrowdShadowSource[] crowds = Array.Empty<CrowdShadowSource>();
+        // Sum of submitted crowd triangles across every atlas map, before atlas allocation.
+        public int maxCrowdShadowTriangles = 4194304;
     }
 }

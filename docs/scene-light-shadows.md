@@ -15,6 +15,10 @@ scene.decalLighting.shadows.casters = new[] {
 
 光源和 caster 的变换在每次宿主渲染前读取。接收器仍为 `SceneDeferredCamera.surfaces`；caster 不必是接收器，也不必在宿主相机可见层中。主方向光使用下方独立配置。Capsule／Area 还需显式选择 [有限光源覆盖模型](extended-source-shadows.md)：`shadow.extendedSourceCoverage=true`。未选择时保持旧有的拒绝行为；不会悄悄退化成无阴影。
 
+观众实例可通过 [CrowdShadowSource](crowd-shadows.md) 显式注册到 `shadows.crowds`，消费当前共享骨／shape pose 和 Low／High 几何，不依赖主相机可见列表或远景 billboard。普通 `casters` 可同时保留；宿主管理准备顺序和借用生命周期。
+
+Point 可显式设置 `shadow.stablePointTexels=true`，使用与有限源相同的整数 face texel 和 2^-20 边界约定；默认 false 保持旧 Point 图像兼容。此选项保留 112 字节阴影布局，也不保证两个不同坐标生产路径在不连续阴影边缘逐像素一致。相关独立坐标／光照验证与预算见 [观众投影](crowd-shadows.md)。
+
 ## Spot 几何与采样约定
 
 - Spot 局部 +Z 朝前，外锥完整角度作为透视 FOV，宽高比 1；near 为正轴向距离，far 为 light.range。灯光自身仍按径向球截断范围，不改为轴向衰减。

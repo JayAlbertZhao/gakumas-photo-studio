@@ -44,7 +44,7 @@ float ScenePointTap(float3 direction, float receiver, SceneShadowData data)
     uv = clamp(uv, start + halfTexel, start + data.atlasST.xy - halfTexel);
     if (data.atlasST.w < 0)
     {
-        // Extended sources use integer local texels. Non-power-of-two atlas grids
+        // Extended sources and opt-in stable Point sources use integer local texels. Non-power-of-two atlas grids
         // must not move an exact local edge to the preceding texel. Snap only a
         // 2^-20 normalized-face band so reconstructed/raster world ULPs agree.
         float resolution = round(data.atlasST.x / data.options.z);
