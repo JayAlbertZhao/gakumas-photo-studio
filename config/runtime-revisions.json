@@ -107,7 +107,7 @@
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "7e3feeb1dc39ad3d9dd0ce9ee376e8573208943f2ecfc691a709d082a116df85",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
-    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "fa5ab9a7d89104ebbdc34474bad33e1962092a42d080d7595ad469ff77aabc05",
+    "unity/Assets/Scripts/ActorRenderingSelfTest.cs": "9f647f21f2f83abc0ff71f2a78c877a214c76d8f1dbc3a7883556634df40b1d8",
     "unity/Assets/Scripts/ActorRenderingSelfTest.cs.meta": "dea9e09953b11443ba078438981879a36257f9d4251393739371d6378712dcba",
     "unity/Assets/Scripts/CapturedCameraState.cs": "d9c36f59655c740cac1bd21ae4e02f6a21c6424e0276c1fb7c5f4c2726a0aa25",
     "unity/Assets/Scripts/CapturedCameraState.cs.meta": "de7a89989069e6421cf305f388a5407ae6a201454ab22c97c1c55f81af3fffcb",
@@ -621,7 +621,9 @@
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.CrowdShadow.cs": "6eb94cd02f9445c7cc18ae534b9a437cc38b16f72badcba2b1a34c0a040f87a5",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.CrowdShadow.cs.meta": "fc57b9c08a43705d041c3434bf850422a230d8b1a4baf5df5a3109bb249784b6",
     "unity/Assets/Resources/CrowdShadowReceiverReference.shader": "d797af36051c13c49ec98158bc4902ccf8b52006f1b61b6c7d41e6799229b4d6",
-    "unity/Assets/Resources/CrowdShadowReceiverReference.shader.meta": "d85dcd762983b869cd6dab55640910768d892037c10e66419e940e4df161559d"
+    "unity/Assets/Resources/CrowdShadowReceiverReference.shader.meta": "d85dcd762983b869cd6dab55640910768d892037c10e66419e940e4df161559d",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorMaps.cs": "5eea3dd25472cb154ca1218adda3786dbd40d29bb5fde2c0e57cb873f87c5c87",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorMaps.cs.meta": "45095a37f0942a1b30c12969193267315bb962d3ea6ef86c8925fc14eccc6746"
   },
   "relocations": {
     "unity/Assets/ActorAnimationStub/ActorAnimation.Runtime.asmdef": "packages/com.digital-kotone.toolkit/Runtime/Compatibility/ActorAnimationStub/ActorAnimation.Runtime.asmdef",

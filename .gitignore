@@ -44,6 +44,7 @@
 !/config/source-baseline.json
 !/config/staging-manifest.example.json
 !/config/studio.example.json
+!/docs/actor-material-inputs.md
 !/docs/actor-planar-capture.md
 !/docs/animated-face-decals.md
 !/docs/assets.md
@@ -592,6 +593,7 @@
 !/packages/com.digital-kotone.toolkit/package.json
 !/public-files.json
 !/studio.py
+!/tests/test_actor_map_contract.py
 !/tests/test_baked_shadow_contract.py
 !/tests/test_baseline.py
 !/tests/test_bokeh_contract.py
@@ -637,6 +639,8 @@
 !/tools/verify_baseline.py
 !/tools/verify_local_assets.py
 !/unity/Assets/ActorAnimationStub.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorMaps.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorMaps.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorPlanar.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorPlanar.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.BakedGi.cs

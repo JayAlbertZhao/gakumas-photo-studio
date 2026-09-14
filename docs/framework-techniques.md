@@ -16,7 +16,7 @@
 | 编号 | 技术与来源 | 工具包现状 | 尚需完成的验收或实现 |
 | --- | --- | --- | --- |
 | A01 | 九类角色表面、深度／透明／stencil 规则；PPT 35–39 | ActorSurface / MaterialRepairer / ActorSupplemental 已有 | 全变体、多角度、不同服装动态对照 |
-| A02 | Def、肌肤／非肌肤双 Ramp、质感 Ramp、发高光；PPT 40–49 | 已有复现 | 对照各输入的数值、采样器及混合顺序 |
+| A02 | Def、肌肤／非肌肤双 Ramp、质感 Ramp、发高光；PPT 40–49 | 已有复现；新增 [自制材质输入约定](actor-material-inputs.md) 与 30 组、150 张全图独立数值对照，包含四类材质、Point／Bilinear、Clamp／Repeat、显式 mip 和讲演尺寸双 Ramp；原生纹理／采样器／混合阶段已核对 | 已验证本机 NVIDIA／D3D11 精度模型；压缩／sRGB 导入、透明头发覆盖、完整角色／服装／动作组合、其他驱动与原版画质仍待验证，不能由合成材质对照推导全部追平 |
 | A03 | UV2 Layer 同时控制颜色与 Def；PPT 50–51 | 已有材质路径及可逆控制 | 更广服装、动作和光照组合 |
 | A04 | 主光、附加光、rim、环境镜面；PPT 27–32 | 已有 | 独立自阴影／背景投影及附加光角度语义完整对照 |
 | A05 | 顶点 nibble 打包、专用描边法线；PPT 67–74 | runtime 解码与切线挤出、ActorVertexEncoding；新增显式 [描边向量自动生成](outline-authoring.md)：同位置分组、角度加权及独立网格／blend-frame tangent 副本 | 自制三角化、接缝和原生蒙皮整图有对照；Maya 导出插件、原 UVSet 交换格式、生产角色／服装及动态组合的视觉一致性仍待完成 |

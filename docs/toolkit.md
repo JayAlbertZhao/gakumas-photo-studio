@@ -35,6 +35,8 @@
 
 自制角色可通过 `ActorOutlineAuthoring.Generate` 计算分组平滑的物体空间描边向量，或用 `CreateMesh` 得到基础／blend-frame tangent 都已转换的独立网格。该调用不修改原 mesh 或普通着色法线；专用 tangent 的材质限制与副本所有权见 [描边向量制作](outline-authoring.md)。
 
+自制角色材质可直接使用 `MaterialRepairer.FallbackShader()` 返回的 ActorToon shader。Base／Shade／Def、双 Ramp、头发高光、顶点材质行及纹理采样设置见 [材质输入约定](actor-material-inputs.md)；不需要原版 shader 或贴图包，材质与纹理由宿主持有。
+
 独立后处理输入可用 `MotionBlurSettings`／`MotionBlurInput`／`MotionBlurRenderer`；实际相机通过 `SceneDeferredCamera.motionBlur` 和 `OriginalStyleRenderPipeline.sceneMotionBlurSource` 显式接入。曝光时间、当前深度／运动方向及借用输出约定见 [Motion Blur 接入](motion-blur.md)。
 
 距离与局部介质可用 `FogVolumeSettings`／`FogVolumeBinding`／`FogVolumeRenderer`；八球和距离雾共同积分，显式消费当前深度。独立透明材质可共用视图快照并按自身表面深度求雾，接入次序和后处理桥接限制见 [多介质雾](fog-volumes.md)。

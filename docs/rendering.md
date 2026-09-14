@@ -6,6 +6,14 @@
 
 以下按阶段逆序记录；旧阶段中的开项以较新的实现记录和 [技术清单](framework-techniques.md) 为准。
 
+### 自制角色材质：完整纹理与采样约定
+
+对照 PPT 40–49 补充 [材质输入指南](actor-material-inputs.md)，并用公开自制浮点贴图验证既有 ActorToon：30 组输入，每组实际渲染 authored diffuse、direct diffuse、specular、lit 与生产 final 五个阶段。覆盖普通／头发／脸／type1 变体、混合肌肤遮罩、材质行、头部响应、软硬发高光、Point／Bilinear 与 Clamp／Repeat、显式七级 mip 及 LOD bias，以及 1024×4／128×16 双 Ramp。150 张 64×64 整图与独立 CPU 方程比较，最大 RGBA 误差为 0.000002087，门槛保持 0.0003，不排除边界像素。
+
+此阶段补的是采样与混合顺序的验收缺口，未改生产 shader 或默认画面。最初的 Bilinear 夹具被质量设置提升为原生 Anisotropic 9；显式 `anisoLevel=0` 后，残差进一步定位到本机 NVIDIA／D3D11 的有限精度过滤权重。原生六张贴图的每级 texel、实际采样器和逐指令样本均独立核对，再确定 CPU 采样模型；未把 GPU 最终图像作为期望值。保留此前失败记录，另有强制各向异性变化及逐位恢复控制。六份实际 D3D11 捕获核对纹理／mip／采样指令／当前常量和整图输出，共 54 项条件。
+
+完整 Player 自检包含 16,123 项记录，新增的 333 项覆盖上述整图与控制；此前 15,790 项完整记录和 1,742 张预览逐位不变。其他 GPU 的精度模型、压缩／sRGB 导入、完整角色材质组合、透明覆盖与原版视觉一致性仍未由本阶段证明。
+
 ### 当前特效几何 Forward 光照与介质组合
 
 新增 [FX 光照接入](fx-forward-lighting.md)：`LowResolutionFxRenderer`／`HeavyFxRenderer` 在真实 Full／Half／Quarter 工作目标及全尺寸边缘重画中消费相同 Forward 材质和 GPU bitset。公共灯配置可复用，各 renderer 的当前灯缓冲和阴影仍独立持有。默认未照明特效和角色 Forward 不变，不修改共享材质或宿主 mask。
