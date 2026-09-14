@@ -41,7 +41,21 @@ float ScenePointTap(float3 direction, float receiver, SceneShadowData data)
     float2 start = float2(fmod(tile, grid), floor(tile / grid)) * data.atlasST.xy;
     float2 uv = (face.xy * .5 + .5) * data.atlasST.xy + start;
     float halfTexel = data.options.z * .5;
-    return receiver <= tex2Dlod(_LightShadowAtlas, float4(clamp(uv, start + halfTexel, start + data.atlasST.xy - halfTexel), 0, 0)).r;
+    uv = clamp(uv, start + halfTexel, start + data.atlasST.xy - halfTexel);
+    if (data.atlasST.w < 0)
+    {
+        // Extended sources use integer local texels. Non-power-of-two atlas grids
+        // must not move an exact local edge to the preceding texel. Snap only a
+        // 2^-20 normalized-face band so reconstructed/raster world ULPs agree.
+        float resolution = round(data.atlasST.x / data.options.z);
+        float2 coordinate = (face.xy * .5 + .5) * resolution;
+        float2 edge = round(coordinate);
+        coordinate = float2(abs(coordinate.x - edge.x) <= resolution / 1048576 ? edge.x : coordinate.x,
+                            abs(coordinate.y - edge.y) <= resolution / 1048576 ? edge.y : coordinate.y);
+        float2 pixel = clamp(floor(coordinate), 0, resolution - 1);
+        uv = (float2(fmod(tile, grid), floor(tile / grid)) * resolution + pixel + .5) * data.options.z;
+    }
+    return receiver <= tex2Dlod(_LightShadowAtlas, float4(uv, 0, 0)).r;
 }
 float ScenePointVisibility(float3 relative, SceneShadowData data)
 {
@@ -61,6 +75,27 @@ float ScenePointVisibility(float3 relative, SceneShadowData data)
 float SceneLightVisibility(float3 world, float3 normal, SceneShadowData data)
 {
     if (data.options.x <= 0) return 1;
+    #if !defined(SCENE_SHADOW_ORTHOGRAPHIC)
+    if (data.options.w < 0)
+    {
+        // Equal-length/equal-area geometric coverage of the finite source.
+        // Preserve the existing artistic BRDF/Monitor mapping outside this helper.
+        int nx = (int)data.atlasST.z, ny = (int)data.atlasST.w;
+        float visibility = 0;
+        float3 receiver = world + normal * data.depth.w;
+        [loop] for (int y = 0; y < ny; y++) [loop] for (int x = 0; x < nx; x++)
+        {
+            float3 source = data.worldToShadow[0].xyz + data.worldToShadow[1].xyz * (2 * (x + .5) / nx - 1)
+                + data.worldToShadow[2].xyz * (2 * (y + .5) / ny - 1);
+            SceneShadowData sampleData = data;
+            sampleData.options.w = -data.options.w + (y * nx + x) * 6;
+            sampleData.options.x = 1;
+            sampleData.atlasST.w = -1; // Extended-only deterministic texel addressing.
+            visibility += ScenePointVisibility(receiver - source, sampleData);
+        }
+        return lerp(1, visibility / (nx * ny), data.options.x);
+    }
+    #endif
     float4 projected = mul(data.worldToShadow, float4(world + normal * data.depth.w, 1));
     #if !defined(SCENE_SHADOW_ORTHOGRAPHIC)
     if (data.options.w > 0) return ScenePointVisibility(projected.xyz, data);

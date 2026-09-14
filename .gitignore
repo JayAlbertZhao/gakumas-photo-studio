@@ -53,6 +53,7 @@
 !/docs/code-map.md
 !/docs/crowd-lightsticks.md
 !/docs/crowd.md
+!/docs/extended-source-shadows.md
 !/docs/fog-volumes.md
 !/docs/forward-normal-basis.md
 !/docs/framework-techniques.md
@@ -512,6 +513,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SceneGtaoTemporalRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneGtaoTemporalSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneGtaoTemporalSettings.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SceneLightShadowAtlas.Extended.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SceneLightShadowAtlas.Extended.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneLightShadowAtlas.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneLightShadowAtlas.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneLightShadowSettings.cs
@@ -591,6 +594,7 @@
 !/tests/test_crowd_lightsticks_contract.py
 !/tests/test_documentation.py
 !/tests/test_examples.py
+!/tests/test_extended_source_shadow_contract.py
 !/tests/test_face_decal_contract.py
 !/tests/test_fog_volume_contract.py
 !/tests/test_forward_basis_contract.py
@@ -641,6 +645,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.CrowdLightsticks.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Deferred.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ExtendedShadow.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ExtendedShadow.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FaceDecals.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FaceDecals.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FogVolume.cs

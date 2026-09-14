@@ -69,7 +69,7 @@
 | 可选 HDR Monitor | `HdrMonitor`／`MonitorEmissionMaterial`；专用 UI 相机、HDR 纹理、显式更新调度与 UV 分区／LED 发光消费，见 [Monitor 接入](hdr-monitor.md) |
 | 可选场景 Deferred 与材质贴花 | `SceneDeferredCamera`；显式场景层、PBR GBuffer、分通道投影与 HDR／深度输出，宿主角色保留 Forward，见 [场景后端](scene-deferred.md) |
 | 可选全尺寸透明 Forward+ | `SceneForwardLightingCamera`；GPU分块光源 bitset、当前几何／材质／GI、独立光源阴影及预乘合成，保留逐灯回退与原角色 Forward，见 [透明接入](scene-forward-plus.md) |
-| 可选 Monitor 场景照明 | `SceneDecalLightSettings`；点／胶囊／面／Spot、UV 采样、GPU 实例化与 Scalar 对照，见 [贴花灯](scene-decal-lights.md)；Spot／Point 可选 [动态光源阴影](scene-light-shadows.md) |
+| 可选 Monitor 场景照明 | `SceneDecalLightSettings`；点／胶囊／面／Spot、UV 采样、GPU 实例化与 Scalar 对照，见 [贴花灯](scene-decal-lights.md)；Spot／Point 可选 [动态光源阴影](scene-light-shadows.md)，Capsule／Area 显式选择 [有限源覆盖](extended-source-shadows.md) |
 | 可选主方向光阴影 | `SceneDirectionalShadowSettings`；正交范围、独立轴向深度、显式 caster、PCF／bias 与 Spot 共存，见 [主方向光](scene-light-shadows.md#主方向光) |
 | 可选 ScreenShadow／环境遮蔽 | `SceneScreenShadowSettings`；显式几何预通道、RG8 主灯／环境可见性和世界胶囊半球积分；可选 `SceneGtaoSettings` 提供视轴 horizon 积分、Half 几何引导空间重建，默认关闭且默认分辨率 Full，见 [数据流](scene-screen-shadow.md) 与 [GTAO](scene-gtao.md) |
 | 可选场景运动对应 | `SceneMotionSettings`；实际 GPU 顶点快照、运动／上次深度／法线／表面身份；默认关闭，geometry shader 后端，见 [运动契约](scene-motion.md) |

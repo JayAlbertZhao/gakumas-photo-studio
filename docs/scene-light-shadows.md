@@ -13,7 +13,7 @@ scene.decalLighting.shadows.casters = new[] {
 };
 ```
 
-光源和 caster 的变换在每次宿主渲染前读取。接收器仍为 `SceneDeferredCamera.surfaces`；caster 不必是接收器，也不必在宿主相机可见层中。主方向光使用下方独立配置。Capsule／Area 阴影尚未实现：对这些场景灯形状显式请求阴影会拒绝场景帧，不会悄悄退化成无阴影。
+光源和 caster 的变换在每次宿主渲染前读取。接收器仍为 `SceneDeferredCamera.surfaces`；caster 不必是接收器，也不必在宿主相机可见层中。主方向光使用下方独立配置。Capsule／Area 还需显式选择 [有限光源覆盖模型](extended-source-shadows.md)：`shadow.extendedSourceCoverage=true`。未选择时保持旧有的拒绝行为；不会悄悄退化成无阴影。
 
 ## Spot 几何与采样约定
 
@@ -46,7 +46,7 @@ Spot、Point 与主方向光共用以下 caster 与借用状态约定；附加�
 
 `vertexScale` 是蒙皮后的局部顶点缩放，cull 默认 Back，可显式改 Off。禁用、inactive、forceRenderingOff 的 caster 不提交；不改这些借用状态，不创建 Unity Light，不写全局 shader 参数。PropertyBlock、非三角形、缺失 UV、无效子网格、奇异变换或未创建／MSAA alpha 纹理被明确拒绝。蒙皮流由 Unity 更新；离屏角色由调用方保证骨骼更新，例如在自己的角色上设置 `updateWhenOffscreen`。不保证任意原版 GPU 变形／发丝透明材质自动匹配。
 
-资源归宿主相机独占。`maxShadowedLights` 最多 16，统计光源而非面数；Spot 占一 tile，Point 占六 tile，最多 96 面。atlas 为 `ceil(sqrt(面数)) × tileResolution` 的正方形；每 tile 32–2048 的 2 次幂，atlas 边长上限为 4096 及设备限制的较小值。例如一个 Point／256 tile 的 atlas 为 768²，一个 Point／2048 tile 则超限拒绝。最多 1024 个登记 caster。超预算拒绝，不丢灯。每个面绘制全部启用 caster，没有 caster 空间剔除／静态缓存或时间摊销；成本随面数与 caster 数相乘。
+资源归宿主相机独占。`maxShadowedLights` 最多 16，统计光源而非面数；Spot 占一 tile，Point 占六 tile，仅这两类时最多 96 面。Capsule／Area 每个采样源也占六 tile，并受额外的 [采样数与绘制预算](extended-source-shadows.md) 限制。atlas 为 `ceil(sqrt(面数)) × tileResolution` 的正方形；每 tile 32–2048 的 2 次幂，atlas 边长上限为 4096 及设备限制的较小值。例如一个 Point／256 tile 的 atlas 为 768²，一个 Point／2048 tile 则超限拒绝。最多 1024 个登记 caster。超预算拒绝，不丢灯。每个面绘制全部启用 caster，没有 caster 空间剔除／静态缓存或时间摊销；成本随面数与 caster 数相乘。
 
 原灯数据保持 144 字节。仅存在可见且非零阴影灯时启用 shader 变体，Instanced 路径额外绑定每灯 112 字节的独立阴影矩阵／参数缓冲；Scalar 绑定等价逐灯参数。无阴影灯、强度为零、关闭或剔除后释放阴影目标／材质／缓冲。后端、尺寸及数量变化会刷新资源。没有阴影的旧路径不增加深度目标与采样。
 
@@ -93,4 +93,4 @@ resolution 为 32–2048 的 2 次幂，独立于宿主目标大小；最多 102
 
 Point 自检覆盖六轴、十二条边和八个三面角落，逐像素几何射线检查阴影内部；另检查六面逐 texel 射线径向深度、倾斜平面、球壳近平面、跨面 PCF 完整图像、移动源点／caster、Cutout、GI、单骨三组姿态、最近深度／提交顺序、多点与 Spot 的逐灯求和、跨相机资源及 16 灯／96 面预算。`GAKUMAS_SELFTEST_CAPTURE_POINT_SHADOW=1` 捕获六个真实遮挡片、一个 Point、一个 Spot 和主方向光的混合帧，用于检查实际视口、逐面深度、112／144 字节缓冲与消费绑定。只对本机 D3D11 做过原生验收。
 
-对应 PPT110–112 的场景实时光源遮挡基础及 PDF13–23 的光源阴影调度方向。未完成 PDF 的 Actor／ScreenShadow 完整调度、烘焙 ShadowMask 3:3:2 打包、Forward+／透明／角色接收器、其他光源形状、移动 Memoryless/subpass 与成本验收。PPT131 的体积 Spot 积分及体积中的动态 DepthShadow 仍待接入，不随本模块标记完成。
+对应 PPT110–112 的场景实时光源遮挡基础及 PDF13–23 的光源阴影调度方向。后续独立模块已提供 [ScreenShadow](scene-screen-shadow.md)、[烘焙 ShadowMask](scene-baked-shadows.md)、[Forward+](scene-forward-plus.md)、[特效表面光照](fx-forward-lighting.md) 和 [体积光照](volumetric-lighting.md)；它们各自记录输入与验收范围。原版 Actor／场景完整调度、生产内容组合、移动 Memoryless/subpass 与成本仍需单独完成，不能由一个光源阴影模块推导全部管线一致。
