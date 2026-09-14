@@ -19,6 +19,9 @@ namespace GakumasPhotoMode
             public RenderTexture output;
             // Optional Half4 world normal + independent coverage/group/GI metadata.
             public RenderTexture normalIdentity;
+            // Optional stored post-decal material exports. No extra tile attachments;
+            // exporting both adds eight bytes per pixel of nominal Store traffic.
+            public RenderTexture materialBase, materialMos;
             public Color background = Color.black;
             public Vector3 lightDirection = new Vector3(0, 0, -1);
             public Vector3 lightRadiance = Vector3.one, ambientIrradiance = Vector3.one * .1f;
@@ -48,7 +51,24 @@ namespace GakumasPhotoMode
             private readonly List<Material> _materials = new List<Material>();
             private Mesh _quad;
             private TileScenePositionResources _position;
-            private bool _recorded, _disposed;
+            private bool _recorded, _disposed, _complete;
+            public Camera Camera { get; private set; }
+            public Matrix4x4 WorldToCamera { get; private set; }
+            public Matrix4x4 GpuProjection { get; private set; }
+            private Matrix4x4 _projection;
+            public float NearClip { get; private set; }
+            public float FarClip { get; private set; }
+            public bool Orthographic { get; private set; }
+            public RenderTexture Color { get; private set; }
+            public RenderTexture NormalIdentity { get; private set; }
+            public RenderTexture MaterialBase { get; private set; }
+            public RenderTexture MaterialMos { get; private set; }
+            // Successful command recording, not GPU completion. Camera/borrowed target
+            // mutation invalidates the ticket; the host must also preserve their contents.
+            public bool IsRecorded => _complete && !_disposed && Camera!=null &&
+                Camera.worldToCameraMatrix==WorldToCamera && Camera.projectionMatrix==_projection &&
+                Camera.nearClipPlane==NearClip && Camera.farClipPlane==FarClip && Camera.orthographic==Orthographic &&
+                Color!=null && Color.IsCreated();
             public TileRenderPass.Submission Budget { get; private set; }
             public TileRenderPass.Submission DepthBudget => _position != null ? _position.Budget : default;
             // Owned by this frame. Consumers may read only after recording/completion; never release it.
@@ -61,6 +81,14 @@ namespace GakumasPhotoMode
             internal PreparedFrame() { }
             internal void Add(Material material) => _materials.Add(material);
             internal void SetPosition(TileScenePositionResources position) => _position=position;
+            internal void Snapshot(Camera camera, Settings settings)
+            {
+                Camera=camera; WorldToCamera=camera.worldToCameraMatrix; _projection=camera.projectionMatrix;
+                GpuProjection=GL.GetGPUProjectionMatrix(_projection,true); NearClip=camera.nearClipPlane;
+                FarClip=camera.farClipPlane; Orthographic=camera.orthographic;
+                Color=settings.output; NormalIdentity=settings.normalIdentity;
+                MaterialBase=settings.materialBase; MaterialMos=settings.materialMos;
+            }
             internal void Initialize(TileRenderPass.Plan plan, Mesh quad, TileRenderPass.Submission budget)
             { _plan = plan; _quad = quad; Budget = budget; }
             public bool TryRecord(ScriptableRenderContext context, out TileRenderPass.Submission submission, out string error)
@@ -76,7 +104,7 @@ namespace GakumasPhotoMode
                     if (!_position.Record(context,out error)) return false;
                 }
                 if (!_renderer.TryRecord(context, _plan, out submission, out error)) return false;
-                _recorded = true; return true;
+                _recorded = true; _complete = true; return true;
             }
             public void Dispose()
             {
@@ -95,6 +123,7 @@ namespace GakumasPhotoMode
             if (error != null) return false;
             int decalCount=TileSceneDecals.Count(settings.decals);
             var result = new PreparedFrame(); Mesh quad = null;
+            result.Snapshot(camera,settings);
             try
             {
                 var shader = Resources.Load<Shader>("TileScene");
@@ -153,8 +182,10 @@ namespace GakumasPhotoMode
                     width = settings.output.width, height = settings.output.height, depthAttachment = 5,
                     maximumAttachmentMiB = settings.maximumAttachmentMiB, maximumDraws = 4098+3*decalCount,
                     attachments = new[] {
-                        new TileRenderPass.Attachment { name="Tile scene base / mask R", format=GraphicsFormat.R8G8B8A8_SRGB },
-                        new TileRenderPass.Attachment { name="Tile scene MOS / mask GBA332", format=GraphicsFormat.R8G8B8A8_UNorm },
+                        new TileRenderPass.Attachment { name="Tile scene base / mask R", format=GraphicsFormat.R8G8B8A8_SRGB,
+                            target=settings.materialBase, store=settings.materialBase!=null },
+                        new TileRenderPass.Attachment { name="Tile scene MOS / mask GBA332", format=GraphicsFormat.R8G8B8A8_UNorm,
+                            target=settings.materialMos, store=settings.materialMos!=null },
                         new TileRenderPass.Attachment { name="Tile scene normal / identity", format=GraphicsFormat.R16G16B16A16_SFloat,
                             target=settings.normalIdentity, store=settings.normalIdentity!=null },
                         new TileRenderPass.Attachment { name="Tile scene emission / lighting", format=GraphicsFormat.B10G11R11_UFloatPack32 },

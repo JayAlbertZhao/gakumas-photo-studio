@@ -2,11 +2,11 @@
 
 `TileSceneRenderer` 是默认关闭、供自有 SRP 调用的场景消费者。输入复用 `SceneDeferredCamera.Surface`、`MaterialInputs`、`SceneGiInput` 和 `SceneBakedShadowInput`；不会切换摄影应用的 Built-in 管线，不修改已有 Deferred GBuffer ABI。
 
-当前接入普通不透明／cutout 表面、线性 RGB 切线法线、UV0 材质、UV2／Probe GI、四通道烘焙可见性及显式方向光 PBR／GI 乘色／背向漫反射。另有显式位置光照路径，以及 [几何法线／SSR 资格与原位材质贴花](tile-decals.md)。薄叶、反射、Actor 和运动附件尚未自动整合；薄叶输入明确拒绝。源讲演只提供技术布局，这些材质、编码和光照方程是本工具包的独立实现。
+当前接入普通不透明／cutout 表面、线性 RGB 切线法线、UV0 材质、UV2／Probe GI、四通道烘焙可见性及显式方向光 PBR／GI 乘色／背向漫反射。另有显式位置光照路径，以及 [几何法线／SSR 资格与原位材质贴花](tile-decals.md)。SSR／Probe 已有显式 [当前帧消费者](tile-reflections.md)；薄叶、Planar、Actor 和运动附件尚未自动整合；薄叶输入明确拒绝。源讲演只提供技术布局，这些材质、编码和光照方程是本工具包的独立实现。
 
 ## 调用与所有权
 
-创建 `TileSceneRenderer.Settings`，显式开启，指定表面及已创建的 `B10G11R11_UFloatPack32` 输出；可选提供 `R16G16B16A16_SFloat` 法线目标。固定单层 2D、完整视口、非 MSAA／mipmap／dynamic scale／random write，Linear 项目。输出不能与任何材质、GI 或烘焙遮罩输入别名。
+创建 `TileSceneRenderer.Settings`，显式开启，指定表面及已创建的 `B10G11R11_UFloatPack32` 输出；可选提供 `R16G16B16A16_SFloat` 法线目标，以及 `materialBase`（sRGB8）／`materialMos`（UNorm8）后续消费者导出。固定单层 2D、完整视口、非 MSAA／mipmap／dynamic scale／random write，Linear 项目。输出不能与任何材质、GI 或烘焙遮罩输入别名。
 
 `TryPrepare(camera, settings, out frame, out error)` 不绘制、不分配输出、不修改 Camera；生成拥有独立材质的单次快照。宿主在有效 SRP context 中完成 Camera 设置后调用 `frame.TryRecord`，随后自行 `context.Submit`。材质参数已快照，网格、Renderer 当前几何、纹理和目标仍借用，必须保持有效且不被并发修改。等 GPU 不再使用本批资源后才 `frame.Dispose()`；提交返回或 `Budget` 均不代表 GPU 完成。快照不能重复记录；关闭、非法输入、能力不足返回具体错误，不偷偷回退默认相机。
 
@@ -28,8 +28,8 @@
 
 | 附件 | 格式与内容 | 后续用途 |
 | --- | --- | --- |
-| G0 | sRGB8 RGB 基色、A 遮罩 R8 | 光照当前像素输入，transient |
-| G1 | UNorm8 MOS、A 遮罩 GBA332 | 光照当前像素输入，transient |
+| G0 | sRGB8 RGB 基色、A 遮罩 R8 | 光照当前像素输入，默认 transient、可选 Store |
+| G1 | UNorm8 MOS、A 遮罩 GBA332 | 光照当前像素输入，默认 transient、可选 Store |
 | G2 | Half4 世界法线、A 自主身份标记 | 可选保存，不写运动矢量 |
 | G3 | packed HDR 自发光，随后加方向／间接光 | 最终 resolve 输入，transient |
 | G4 | packed HDR GI | GI 消费后复用为最终输出 |
@@ -55,4 +55,4 @@ D3D11／Vulkan 的 56 份原生捕获检查了五 MRT、独立解码材质、几
 
 位置路径另有 108 份 D3D11／Vulkan 原生捕获：逐组核对真实 R32 生产者与光照输入的资源身份、整图深度／材质／GI／法线／位置光照、当前灯表与实际阴影绘制、五 MRT 和 G4 复用。Vulkan 检查了独立深度 pass 保存 R32 后再开始主 pass 的实际 load/store 与 subpass 布局。GPU Float 读回与原生 packed HDR 解码逐位相同。Direct 模式仍有上述四条释放警告；正常线程运行无新增释放警告。
 
-上述证据限于自制桌面内容，尚不证明完整角色／场景或所有 GI 导入变体、移动收益及长时间资源行为。材质贴花与实时 Monitor 的新增范围分别见 [贴花接入](tile-decals.md) 和 [Monitor](hdr-monitor.md)。反射、Actor、运动的完整 tile 整合，以及位置／贴花的蒙皮与复杂遮挡组合仍需继续完成，未宣布框架全部追平。默认摄影路径保持原样。
+上述证据限于自制桌面内容，尚不证明完整角色／场景或所有 GI 导入变体、移动收益及长时间资源行为。材质贴花与实时 Monitor 的新增范围分别见 [贴花接入](tile-decals.md) 和 [Monitor](hdr-monitor.md)。Planar、Actor、运动的完整 tile 整合，以及位置／贴花的蒙皮与复杂遮挡组合仍需继续完成，未宣布框架全部追平。默认摄影路径保持原样。

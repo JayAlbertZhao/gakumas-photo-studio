@@ -95,6 +95,7 @@
 !/docs/ssr-roughness.md
 !/docs/status.md
 !/docs/tile-decals.md
+!/docs/tile-reflections.md
 !/docs/tile-render-pass.md
 !/docs/tile-scene.md
 !/docs/toolkit.md
@@ -484,6 +485,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TemporalClassification.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileGeometryDepthId.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileGeometryDepthId.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/TileReflection.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/TileReflection.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileScene.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileScene.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileSceneDecal.hlsl
@@ -578,6 +581,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SphereFogSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SrpHdrMonitor.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SrpHdrMonitor.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SrpTileReflection.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SrpTileReflection.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SsrRoughnessSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SsrRoughnessSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/StoryTimelinePlayer.cs
@@ -650,6 +655,7 @@
 !/tests/test_srp_monitor_contract.py
 !/tests/test_studio.py
 !/tests/test_tile_decal_contract.py
+!/tests/test_tile_reflection_contract.py
 !/tests/test_tile_render_pass_contract.py
 !/tests/test_tile_scene_contract.py
 !/tests/test_toolkit_contract.py
@@ -776,6 +782,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePass.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePosition.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePosition.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TileReflection.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TileReflection.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TileScene.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TileScene.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VegetationLeaf.cs
