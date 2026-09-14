@@ -44,6 +44,7 @@ namespace GakumasPhotoMode
         private bool _tileSceneOnly;
         private bool _tilePositionOnly;
         private bool _srpMonitorOnly;
+        private bool _tileDecalOnly;
         private Camera _camera;
         private RenderTexture _target;
         private Texture2D _readback;
@@ -61,10 +62,12 @@ namespace GakumasPhotoMode
             bool tileSceneOnly = false;
             bool tilePositionOnly = false;
             bool srpMonitorOnly = false;
+            bool tileDecalOnly = false;
             if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-render-pass"); tileOnly = index >= 0; }
             if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-scene"); tileSceneOnly = index >= 0; }
             if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-position"); tilePositionOnly = index >= 0; }
             if (index < 0) { index = Array.IndexOf(args, "--self-test-srp-monitor"); srpMonitorOnly = index >= 0; }
+            if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-decal"); tileDecalOnly = index >= 0; }
             if (index < 0) return false;
             if (index + 1 >= args.Length || args[index + 1].StartsWith("--", StringComparison.Ordinal))
             {
@@ -80,6 +83,7 @@ namespace GakumasPhotoMode
                 selfTest._tileSceneOnly = tileSceneOnly;
                 selfTest._tilePositionOnly = tilePositionOnly;
                 selfTest._srpMonitorOnly = srpMonitorOnly;
+                selfTest._tileDecalOnly = tileDecalOnly;
             }
             catch (Exception error)
             {
@@ -93,10 +97,10 @@ namespace GakumasPhotoMode
         {
             yield return null;
             var report = new Report { graphicsDevice = SystemInfo.graphicsDeviceVersion };
-            if (_tileOnly || _tileSceneOnly || _tilePositionOnly || _srpMonitorOnly)
+            if (_tileOnly || _tileSceneOnly || _tilePositionOnly || _srpMonitorOnly || _tileDecalOnly)
             {
                 Directory.CreateDirectory(_directory);
-                var tile = _srpMonitorOnly ? VerifySrpMonitor(report) : _tilePositionOnly ? VerifyTilePosition(report) : _tileSceneOnly ? VerifyTileScene(report) : VerifyTileRenderPass(report);
+                var tile = _tileDecalOnly ? VerifyTileDecal(report) : _srpMonitorOnly ? VerifySrpMonitor(report) : _tilePositionOnly ? VerifyTilePosition(report) : _tileSceneOnly ? VerifyTileScene(report) : VerifyTileRenderPass(report);
                 while (true)
                 {
                     bool more; object next = null;
@@ -858,6 +862,19 @@ namespace GakumasPhotoMode
                 if(report.error==null)
                 {
                     _owned.Clear();var fixture=VerifySrpMonitor(report);
+                    while(true)
+                    {
+                        bool more;object next=null;
+                        try { more=fixture.MoveNext();if(more)next=fixture.Current; }
+                        catch(Exception error) { report.error=error.ToString();Debug.LogException(error);break; }
+                        if(!more)break;yield return next;
+                    }
+                    (fixture as IDisposable)?.Dispose();
+                    report.accepted=report.error==null&&report.checks.TrueForAll(check=>check.accepted);
+                }
+                if(report.error==null)
+                {
+                    _owned.Clear();var fixture=VerifyTileDecal(report);
                     while(true)
                     {
                         bool more;object next=null;

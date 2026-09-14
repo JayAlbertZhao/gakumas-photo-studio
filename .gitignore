@@ -94,6 +94,7 @@
 !/docs/screen-space-reflection.md
 !/docs/ssr-roughness.md
 !/docs/status.md
+!/docs/tile-decals.md
 !/docs/tile-render-pass.md
 !/docs/tile-scene.md
 !/docs/toolkit.md
@@ -481,8 +482,14 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/StudioFloor.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TemporalClassification.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TemporalClassification.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/TileGeometryDepthId.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/TileGeometryDepthId.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileScene.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileScene.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/TileSceneDecal.hlsl
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/TileSceneDecal.hlsl.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/TileSceneDecal.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/TileSceneDecal.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileScenePosition.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileScenePosition.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/VegetationLeaf.hlsl
@@ -581,6 +588,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/TileRenderPass.cs
 !/packages/com.digital-kotone.toolkit/Runtime/TileRenderPass.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/TileSceneDecals.cs
+!/packages/com.digital-kotone.toolkit/Runtime/TileSceneDecals.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/TileScenePositionResources.cs
 !/packages/com.digital-kotone.toolkit/Runtime/TileScenePositionResources.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/TileSceneRenderer.cs
@@ -640,6 +649,7 @@
 !/tests/test_scene_sky_contract.py
 !/tests/test_srp_monitor_contract.py
 !/tests/test_studio.py
+!/tests/test_tile_decal_contract.py
 !/tests/test_tile_render_pass_contract.py
 !/tests/test_tile_scene_contract.py
 !/tests/test_toolkit_contract.py
@@ -760,6 +770,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SsrRoughness.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Temporal.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Temporal.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TileDecal.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TileDecal.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePass.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePass.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePosition.cs

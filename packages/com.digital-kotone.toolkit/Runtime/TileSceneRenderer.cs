@@ -27,6 +27,11 @@ namespace GakumasPhotoMode
             public SceneBakedShadowChannel mainBakedShadowChannel;
             // Explicit opt-in: a real geometry prepass and existing local/current-shadow evaluation.
             public bool positionLighting;
+            // Optional unmapped geometry normals / SSR eligibility, also required by material decals.
+            public bool geometryDepthId;
+            public float reflectionSmoothnessThreshold = .5f;
+            public LayerMask reflectionExcludedLayers;
+            public SceneDeferredCamera.Decal[] decals = Array.Empty<SceneDeferredCamera.Decal>();
             public SceneDecalLightSettings localLights;
             public SceneDirectionalShadowSettings mainLightShadow;
             public SceneForwardLightBackend localLightBackend = SceneForwardLightBackend.Auto;
@@ -48,6 +53,7 @@ namespace GakumasPhotoMode
             public TileRenderPass.Submission DepthBudget => _position != null ? _position.Budget : default;
             // Owned by this frame. Consumers may read only after recording/completion; never release it.
             public RenderTexture EyeDepth => _position?.EyeDepth;
+            public RenderTexture GeometryDepthId => _position?.GeometryDepthId;
             public int LocalLightCount => _position?.LocalLightCount ?? 0;
             public int ShadowMapCount => _position?.ShadowMapCount ?? 0;
             public long LightBufferBytes => _position?.LightBufferBytes ?? 0;
@@ -87,11 +93,14 @@ namespace GakumasPhotoMode
         {
             frame = null; error = Validate(camera, settings);
             if (error != null) return false;
+            int decalCount=TileSceneDecals.Count(settings.decals);
             var result = new PreparedFrame(); Mesh quad = null;
             try
             {
                 var shader = Resources.Load<Shader>("TileScene");
                 if (shader == null || !shader.isSupported) { error = "Tile scene shader unavailable"; return false; }
+                var geometryShader=decalCount>0?Resources.Load<Shader>("TileSceneDecal"):shader;
+                if(geometryShader==null||!geometryShader.isSupported) { error="Tile scene decal shader unavailable";return false; }
                 Material Material()
                 {
                     var material = new Material(shader) { name = "Toolkit tile scene snapshot", hideFlags = HideFlags.HideAndDontSave };
@@ -102,7 +111,9 @@ namespace GakumasPhotoMode
                 var geometry = new List<TileRenderPass.Draw>();
                 foreach (var surface in settings.surfaces)
                 {
-                    var material = Material(); SceneDeferredCamera.BindInputs(material, surface.inputs);
+                    var material = decalCount>0?new Material(geometryShader) { name="Toolkit stamped tile geometry",hideFlags=HideFlags.HideAndDontSave }:Material();
+                    if(decalCount>0)result.Add(material);
+                    SceneDeferredCamera.BindInputs(material, surface.inputs);
                     material.SetMatrix("_ViewProjection", vp);
                     material.SetVector("_VertexScale", surface.vertexScale);
                     material.SetInt("_Cull", (int)surface.cull); material.SetFloat("_Cutoff", surface.alphaCutoff);
@@ -130,15 +141,17 @@ namespace GakumasPhotoMode
                 lighting.SetFloat("_MainBakedChannel", (int)settings.mainBakedShadowChannel);
                 var resolve = Material(); resolve.SetColor("_Background", settings.background);
                 TileScenePositionResources position=null;
-                if(settings.positionLighting)
+                if(settings.positionLighting || settings.geometryDepthId || decalCount>0)
                 {
                     position=new TileScenePositionResources(); result.SetPosition(position);
                     if(!position.Prepare(camera,settings,out error))return false;
-                    lighting=position.Lighting;
+                    if(settings.positionLighting)lighting=position.Lighting;
                 }
+                if(decalCount>0)geometry.AddRange(TileSceneDecals.Prepare(settings.decals,position.EyeDepth,position.GeometryDepthId,
+                    view,vp,quad,result));
                 var plan = new TileRenderPass.Plan { enabled = true, backend = settings.backend,
                     width = settings.output.width, height = settings.output.height, depthAttachment = 5,
-                    maximumAttachmentMiB = settings.maximumAttachmentMiB, maximumDraws = 4098,
+                    maximumAttachmentMiB = settings.maximumAttachmentMiB, maximumDraws = 4098+3*decalCount,
                     attachments = new[] {
                         new TileRenderPass.Attachment { name="Tile scene base / mask R", format=GraphicsFormat.R8G8B8A8_SRGB },
                         new TileRenderPass.Attachment { name="Tile scene MOS / mask GBA332", format=GraphicsFormat.R8G8B8A8_UNorm },
@@ -147,7 +160,7 @@ namespace GakumasPhotoMode
                         new TileRenderPass.Attachment { name="Tile scene emission / lighting", format=GraphicsFormat.B10G11R11_UFloatPack32 },
                         new TileRenderPass.Attachment { name="Tile scene GI / final color", format=GraphicsFormat.B10G11R11_UFloatPack32,
                             target=settings.output, store=true },
-                        new TileRenderPass.Attachment { name="Tile scene depth", format=GraphicsFormat.D32_SFloat }
+                        new TileRenderPass.Attachment { name="Tile scene depth", format=decalCount>0?GraphicsFormat.D32_SFloat_S8_UInt:GraphicsFormat.D32_SFloat }
                     }, subpasses = new[] {
                         new TileRenderPass.Subpass { name="Tile scene material and baked inputs", colors=new[]{0,1,2,3,4}, draws=geometry.ToArray() },
                         new TileRenderPass.Subpass { name="Tile scene directional PBR", colors=new[]{3}, inputs=new[]{0,1,2,4}, depthReadOnly=true,
@@ -168,6 +181,18 @@ namespace GakumasPhotoMode
         private static string Validate(Camera camera, Settings s)
         {
             if (s == null || !s.enabled) return "Tile scene disabled";
+            string decalError=TileSceneDecals.Validate(s.decals);
+            if(decalError!=null)return decalError;
+            int decalCount=TileSceneDecals.Count(s.decals);
+            bool depthId=s.geometryDepthId||decalCount>0,needsPosition=s.positionLighting||depthId;
+            if(depthId && !Range(s.reflectionSmoothnessThreshold,1))return "Invalid geometry DepthID smoothness threshold";
+            if(decalCount>0 && (!SystemInfo.supportsSeparatedRenderTargetsBlend ||
+                !SystemInfo.IsFormatSupported(GraphicsFormat.D32_SFloat_S8_UInt,FormatUsage.Render)))
+                return "Tile decals require independent MRT blending and depth/stencil support";
+            if(decalCount>0)
+                foreach(var format in new[]{GraphicsFormat.R8G8B8A8_SRGB,GraphicsFormat.R8G8B8A8_UNorm,
+                    GraphicsFormat.R16G16B16A16_SFloat,GraphicsFormat.B10G11R11_UFloatPack32})
+                    if(!SystemInfo.IsFormatSupported(format,FormatUsage.Blend))return "Tile decal attachment does not support blending";
             // Keep the consumer's platform contract limited to its tested desktop paths.
             if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Vulkan && SystemInfo.graphicsDeviceType != GraphicsDeviceType.Direct3D11)
                 return "Tile scene currently supports desktop Vulkan or explicit D3D11 emulation";
@@ -181,7 +206,7 @@ namespace GakumasPhotoMode
                 var endpoint=inverse*new Vector4(x,y,0,1);
                 if(!Finite(endpoint.w)||Mathf.Abs(endpoint.w)<1e-8f||!Finite(new Vector3(endpoint.x,endpoint.y,endpoint.z)/endpoint.w))
                     return "Tile scene requires finite camera-ray endpoints";
-                if(s.positionLighting)
+                if(needsPosition)
                 {
                     var near=inverse*new Vector4(x,y,1,1);
                     if(!Finite(near.w)||Mathf.Abs(near.w)<1e-8f||!Finite(new Vector3(near.x,near.y,near.z)/near.w))
@@ -195,8 +220,8 @@ namespace GakumasPhotoMode
             if (s.output == null || s.output.graphicsFormat != GraphicsFormat.B10G11R11_UFloatPack32 ||
                 s.surfaces == null || s.surfaces.Length < 1 || s.surfaces.Length > 4096)
                 return "Tile scene requires packed HDR output and 1..4096 explicit surfaces";
-            if(s.positionLighting && (s.maximumAttachmentMiB<1 || s.maximumAttachmentMiB>512 ||
-                (long)s.output.width*s.output.height*36>(long)s.maximumAttachmentMiB*1048576))
+            if(needsPosition && (s.maximumAttachmentMiB<1 || s.maximumAttachmentMiB>512 ||
+                (long)s.output.width*s.output.height*(36+(depthId?4:0)+(decalCount>0?4:0))>(long)s.maximumAttachmentMiB*1048576))
                 return "Tile scene combined main and depth attachment budget exceeded";
             if (!Positive(s.lightRadiance) || !Positive(s.ambientIrradiance) || !Finite(s.lightDirection) ||
                 s.lightDirection.sqrMagnitude < 1e-8f || !Finite(s.lightDirection.sqrMagnitude) ||

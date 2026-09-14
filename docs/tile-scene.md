@@ -2,7 +2,7 @@
 
 `TileSceneRenderer` 是默认关闭、供自有 SRP 调用的场景消费者。输入复用 `SceneDeferredCamera.Surface`、`MaterialInputs`、`SceneGiInput` 和 `SceneBakedShadowInput`；不会切换摄影应用的 Built-in 管线，不修改已有 Deferred GBuffer ABI。
 
-当前接入普通不透明／cutout 表面、线性 RGB 切线法线、UV0 材质、UV2／Probe GI、四通道烘焙可见性及显式方向光 PBR／GI 乘色／背向漫反射。另有显式位置光照路径，见下节。没有自动移植贴花、薄叶、反射、Actor 或运动附件；薄叶输入明确拒绝。源讲演只提供技术布局，这些材质、编码和光照方程是本工具包的独立实现。
+当前接入普通不透明／cutout 表面、线性 RGB 切线法线、UV0 材质、UV2／Probe GI、四通道烘焙可见性及显式方向光 PBR／GI 乘色／背向漫反射。另有显式位置光照路径，以及 [几何法线／SSR 资格与原位材质贴花](tile-decals.md)。薄叶、反射、Actor 和运动附件尚未自动整合；薄叶输入明确拒绝。源讲演只提供技术布局，这些材质、编码和光照方程是本工具包的独立实现。
 
 ## 调用与所有权
 
@@ -22,7 +22,7 @@
 
 材质、GI、烘焙遮罩继续来自主五 MRT。按像素解码 receiverGroup；烘焙和实时可见性取较小值。所有预处理、阴影与主 pass 记录后仍由调用者统一 Submit、负责 GPU 生命周期。开始记录辅助命令后的失败会消耗该单次 frame，不能重试半批工作。输入 `positionLighting = false` 却请求局部灯／实时阴影会明确拒绝，不静默丢灯。
 
-`localLights.atlas` 可借用显式 HDR 2D 纹理。现有 `HdrMonitor` 的有效性要求 Built-in，因此不能直接作为此 SRP 路径的动态生产者；其 SRP 生产／发布接入仍是开项，不将静态 atlas 对照记作实时 Monitor 验收。
+`localLights.atlas` 可借用显式 HDR 2D 纹理。动态内容可显式绑定 `localLights.srpMonitor`，使用 [SrpHdrMonitor 的 prepare-before-SRP／record](hdr-monitor.md)；现有 `HdrMonitor` 仍要求 Built-in，不直接用于这个 SRP 路径。已有真实 UGUI → HDR 发布 → 发光网格／Point／Capsule／Area 与网格灯的对照，完整舞台与视频输入仍需单独验收。
 
 ## 五 MRT 与精度
 
@@ -55,4 +55,4 @@ D3D11／Vulkan 的 56 份原生捕获检查了五 MRT、独立解码材质、几
 
 位置路径另有 108 份 D3D11／Vulkan 原生捕获：逐组核对真实 R32 生产者与光照输入的资源身份、整图深度／材质／GI／法线／位置光照、当前灯表与实际阴影绘制、五 MRT 和 G4 复用。Vulkan 检查了独立深度 pass 保存 R32 后再开始主 pass 的实际 load/store 与 subpass 布局。GPU Float 读回与原生 packed HDR 解码逐位相同。Direct 模式仍有上述四条释放警告；正常线程运行无新增释放警告。
 
-上述证据限于自制桌面内容，尚不证明完整角色／场景或所有 GI 导入变体、移动收益及长时间资源行为。贴花、反射、Actor、运动及实时 Monitor 的完整 tile 集成继续保留为开项；位置路径的蒙皮与复杂遮挡组合仍需生产内容验收，未宣布框架全部追平。默认摄影路径保持原样。
+上述证据限于自制桌面内容，尚不证明完整角色／场景或所有 GI 导入变体、移动收益及长时间资源行为。材质贴花与实时 Monitor 的新增范围分别见 [贴花接入](tile-decals.md) 和 [Monitor](hdr-monitor.md)。反射、Actor、运动的完整 tile 整合，以及位置／贴花的蒙皮与复杂遮挡组合仍需继续完成，未宣布框架全部追平。默认摄影路径保持原样。
