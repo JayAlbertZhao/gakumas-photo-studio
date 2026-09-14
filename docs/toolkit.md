@@ -27,6 +27,8 @@
 
 `VegetationLeafMaterial` 为上述当前网格或自制静态／蒙皮表面提供可选 [薄叶材质](vegetation-leaf.md)：显式厚度／吸收、双面法线和漫反射／透射分配，消费当前 GI、主光、局部灯、Monitor 及阴影。Deferred 使用独立附件，Forward+ 直接求值，不修改默认摄影或挪用原 GBuffer 通道。
 
+闭合凸体可用 `ConvexRefractionShape` 和 `SceneRefractionRenderer` 实现 [独立钻石／玻璃折射](scene-refraction.md)：原生网格、多界面 Snell／Fresnel、全内反射、自制 RGB 色散与世界长度吸收，消费显式当前 HDR Cube。输出包含未追完的能量系数与首个可见深度；远环境模型、有限追踪预算和复杂介质边界均显式保留，不自动接管摄影材质。
+
 空间重建可用 `FsrSettings`／`FsrRenderer`；`FsrCameraRenderer` 显式执行真实低分辨率 `Camera.Render()`，支持当前场景 TAA 和可选 Bloom 后／Diffusion 前桥接。完整输出及原生分辨率 UI 由宿主呈现，默认摄影路径不变。输入编码、四档比例、所有权、内存预算及 AMD 外部依赖见 [FSR1 接入](fsr.md)。
 
 水面可用 `SceneWaterSettings`／`SceneWaterRenderer`，在当前不透明颜色／深度之后显式合成。共享 Forward 灯光和 GI、当前 Planar、线性 Cube、光学吸收及波纹法线均由宿主绑定；没有隐式资产发现或全局材质修改。排序、回放、接收面图层、有限屏幕透射及生命周期见 [水面接入](scene-water.md)。

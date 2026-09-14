@@ -52,7 +52,7 @@ if (water.TryRender(opaqueColor, new FogVolumeDepth(opaqueEyeDepth),
 
 输入要求固定、线性、非 MSAA、非 XR 的 2D HDR，最大每轴 4096。深度接受 RFloat／RHalf 线性眼深度，或显式 Device 深度。每次调用使旧 `Frame` 失效，失败／关闭释放所有自有资源；结果不允许作为同实例下一次输入。调用结束恢复活动渲染目标。两张完整尺寸 RGBAFloat 颜色目标合计 `width * height * 32` 字节，灯光 bitset／buffer 和阴影附件另计。
 
-运行时不读回 GPU、不自动发现材质、不 CPU BakeMesh。桌面验收与当前待完成项目记录于 [技术清单](framework-techniques.md)。钻石折射、真实制作水面／完整舞台、位移顶点与时域数据、折射后的雾／体积光、多层相交、SSR 水面接收、移动内存与实机帧时仍是独立缺口。
+运行时不读回 GPU、不自动发现材质、不 CPU BakeMesh。桌面验收与当前待完成项目记录于 [技术清单](framework-techniques.md)。独立的多界面凸体光学见 [钻石／玻璃折射](scene-refraction.md)，它不改变本水面的薄表面模型。真实制作水面／完整舞台、位移顶点与时域数据、折射后的雾／体积光、多层相交、SSR 水面接收、移动内存与实机帧时仍是独立缺口。
 
 桌面验收包含透视／正交的独立整图 Schlick／吸收参考、当前局部灯光、正负变换切线奇偶性、三组原生蒙皮／blendshape 对照、真实前景深度保护、Planar／Cube 覆盖合成、GI／两套阴影、显式时间回放及两层顺序合成。另有独立四采样点屏幕透射参考、相反 Y 轴负对照、63×41 的 Float／Half／RGB111110 输入，以及 513×289 的水平水池场景。
 

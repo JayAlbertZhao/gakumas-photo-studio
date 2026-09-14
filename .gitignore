@@ -83,6 +83,7 @@
 !/docs/scene-light-shadows.md
 !/docs/scene-motion.md
 !/docs/scene-reflection-resolve.md
+!/docs/scene-refraction.md
 !/docs/scene-screen-shadow.md
 !/docs/scene-sky.md
 !/docs/scene-temporal-antialiasing.md
@@ -199,6 +200,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Compatibility/VLStub/VLIKStub.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Compatibility/VLStub/vl-unity.Runtime.asmdef
 !/packages/com.digital-kotone.toolkit/Runtime/Compatibility/VLStub/vl-unity.Runtime.asmdef.meta
+!/packages/com.digital-kotone.toolkit/Runtime/ConvexRefractionShape.cs
+!/packages/com.digital-kotone.toolkit/Runtime/ConvexRefractionShape.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/CrossCharacterCostumeAssembler.cs
 !/packages/com.digital-kotone.toolkit/Runtime/CrossCharacterCostumeAssembler.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/CrowdCamera.cs
@@ -443,6 +446,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneMotionBlurGuide.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneReflectionResolve.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneReflectionResolve.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneRefraction.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneRefraction.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneScreenShadow.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneScreenShadow.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/SceneSkybox.shader
@@ -519,6 +524,10 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SceneMotionSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneReflectionResolve.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneReflectionResolve.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SceneRefractionRenderer.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SceneRefractionRenderer.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SceneRefractionSettings.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SceneRefractionSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneScreenShadowRenderer.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SceneScreenShadowRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SceneScreenShadowSettings.cs
@@ -577,6 +586,7 @@
 !/tests/test_baseline.py
 !/tests/test_bokeh_contract.py
 !/tests/test_color_grading_contract.py
+!/tests/test_convex_refraction_contract.py
 !/tests/test_crowd_contract.py
 !/tests/test_crowd_lightsticks_contract.py
 !/tests/test_documentation.py
@@ -689,6 +699,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.PointShadow.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ReflectionResolve.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ReflectionResolve.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Refraction.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Refraction.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneCompute.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneCompute.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneDepth.cs
