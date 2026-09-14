@@ -10,6 +10,10 @@
 
 新增可复用的 [TileRenderPass](tile-render-pass.md)，对应 PDF 11–12／22／27 的调度部分：五种实际 MRT、同像素输入、跨 subpass 保留、G2／G4 角色复用、外部 Clear／Load／Store 与 transient 描述符。默认不启用，不切换摄影应用的 Built-in 管线；现有角色、场景 shader 和材质 ABI 保持不变。完整生产 Deferred／Actor／反射／运动接入仍需继续实现。
 
+后续 [Tile 场景消费者](tile-scene.md) 已接入真实网格／当前单骨蒙皮、UV0 材质、法线、UV2／SH GI、内联四通道烘焙遮罩及方向光 PBR。28 组自制材质配置有整图 CPU 对照，也调用既有 `SceneDeferredCamera` 检查同一输入语义；两条路径分别按自身格式验证，不要求 packed HDR 与旧 Half GBuffer 逐位相同。56 份 D3D11／Vulkan 原生捕获核对了材质、几何深度、当前像素输入、混合、附件复用和蒙皮顶点变化。
+
+原生检查发现本机 D3D11 仿真的 depth input 槽为空，而仅测方向光颜色会掩盖它，因为同一射线上的点有相同观察方向。当前消费者直接使用相机射线，不再声明读取表面深度；通用调度器将 depth input 限定为只读 Vulkan，其他后端需显式深度桥接。Direct 诊断模式仍有退出附件警告，未作为无警告生产路径推荐；正常线程路径另行验收。
+
 自制调度夹具在桌面 D3D11 和 Vulkan 各执行 100 条命名检查，包含 24 张整图预览、奇数尺寸、变换／深度／cutout、绘制次序、Mesh／Renderer、跨 pass Load 和失效／借用条件。完整 Player 套件增加至 16,223 条记录；此前 16,123 条完整记录和 1,772 张 PNG 逐位不变。错误逻辑深度 clear、输入索引交换，以及误把所有低精度写入当作最近偶数舍入的失败证据均保留；非整数格式使用预先推导的离散量化集合，不修改精确用例或拟合全局误差阈值。
 
 18 份实际 D3D11／Vulkan GPU 捕获核对 466 个附件、格式、状态、指令和独立全图条件。Vulkan 确认真实 Begin／NextSubpass／End、256-bit 保守颜色布局、transient image usage、原生 Store／Discard、Load 和 preserve 列表。D3D11 的 RenderDoc 线程捕获出现序列化损坏，原始失败文件保留；验收捕获仅在诊断进程中用单线程参数执行，正常多线程运行另行验证，不改变项目设置。Vulkan 使用正常线程模式。Direct 模式退出的三条目标绑定释放警告仍是已知开项，详见模块说明；不能记为生命周期全部解决。捕获没有测量移动 tile 驻留、带宽或净帧时；调度 shader 的通道方程也不代表 PBR／角色视觉追平。

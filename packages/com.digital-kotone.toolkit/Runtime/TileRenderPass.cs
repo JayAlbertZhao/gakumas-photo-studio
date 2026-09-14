@@ -228,8 +228,8 @@ namespace GakumasPhotoMode
                 {
                     if (index < 0 || index >= initialized.Length || !inputs.Add(index) || colors.Contains(index) || !initialized[index])
                     { error = "Invalid, duplicate, uninitialized or simultaneous read/write input attachment"; return false; }
-                    if (index == plan.depthAttachment && (!subpass.depthReadOnly || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal))
-                    { error = "Depth input requires read-only depth and a supported backend; Metal needs a color depth attachment"; return false; }
+                    if (index == plan.depthAttachment && (!subpass.depthReadOnly || SystemInfo.graphicsDeviceType != GraphicsDeviceType.Vulkan))
+                    { error = "Depth input requires read-only Vulkan; D3D11 emulation is not validated; Metal needs a color depth attachment"; return false; }
                     used[index] = true;
                 }
                 if (plan.depthAttachment >= 0) used[plan.depthAttachment] = true;

@@ -95,6 +95,7 @@
 !/docs/ssr-roughness.md
 !/docs/status.md
 !/docs/tile-render-pass.md
+!/docs/tile-scene.md
 !/docs/toolkit.md
 !/docs/user-guide.md
 !/docs/vegetation-leaf.md
@@ -480,6 +481,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/StudioFloor.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TemporalClassification.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TemporalClassification.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/TileScene.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/TileScene.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/VegetationLeaf.hlsl
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/VegetationLeaf.hlsl.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/VegetationWind.compute
@@ -574,6 +577,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/TileRenderPass.cs
 !/packages/com.digital-kotone.toolkit/Runtime/TileRenderPass.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/TileSceneRenderer.cs
+!/packages/com.digital-kotone.toolkit/Runtime/TileSceneRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/VegetationLeafMaterial.cs
 !/packages/com.digital-kotone.toolkit/Runtime/VegetationLeafMaterial.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/VegetationWindDeformer.cs
@@ -629,6 +634,7 @@
 !/tests/test_scene_sky_contract.py
 !/tests/test_studio.py
 !/tests/test_tile_render_pass_contract.py
+!/tests/test_tile_scene_contract.py
 !/tests/test_toolkit_contract.py
 !/tests/test_vegetation_leaf_contract.py
 !/tests/test_vegetation_wind_contract.py
@@ -747,6 +753,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Temporal.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePass.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePass.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TileScene.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TileScene.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VegetationLeaf.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VegetationLeaf.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.VegetationWind.cs

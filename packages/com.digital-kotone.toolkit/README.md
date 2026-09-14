@@ -8,6 +8,8 @@
 
 自有 SRP 宿主可独立调用 `TileRenderPass`，提供当前渲染 context、附件描述符与显式绘制列表，使用同像素 input attachment、跨 subpass 保留和附件角色复用。默认关闭、默认要求 native API；D3D11 仿真需明确允许。它不切换摄影管线，也不等于完整移动 Deferred 后端，见 [调度与所有权](../../docs/tile-render-pass.md)。
 
+`TileSceneRenderer.TryPrepare` 可将既有 `SceneDeferredCamera.Surface` 材质、GI／烘焙遮罩和显式方向光转为拥有独立材质的单次 SRP 绘制快照，复用 GI 附件输出场景颜色。输出纹理和几何仍借用，宿主在 GPU 完成后释放快照；默认不启用，不修改摄影管线。支持范围、紧凑格式精度及剩余消费者见 [Tile 场景接入](../../docs/tile-scene.md)。
+
 可选框架扩展：`NaturalWindSettings`、`TemporalClassification`、`ActorVertexEncoding`。来源页码、最小调用及支持边界见 [框架技术清单](../../docs/framework-techniques.md)。风和 TAA 分类均需显式启用，不改变默认角色行为。
 
 `SceneTemporalAntialiasingSettings` 提供显式场景运动驱动的 HDR 颜色 TAA、可见性／分类保护及同相机后处理桥接，默认关闭并保留旧摄影 shader。依赖实际 GPU motion，不自动加投影 jitter；八张 float4 目标属于桌面正确性后端。最小调用、颜色／深度／历史所有权及未覆盖范围见 [颜色 TAA 接入](../../docs/scene-temporal-antialiasing.md)。

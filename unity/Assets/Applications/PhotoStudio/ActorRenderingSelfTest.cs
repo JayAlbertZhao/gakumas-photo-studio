@@ -41,6 +41,7 @@ namespace GakumasPhotoMode
 
         private string _directory;
         private bool _tileOnly;
+        private bool _tileSceneOnly;
         private Camera _camera;
         private RenderTexture _target;
         private Texture2D _readback;
@@ -55,7 +56,9 @@ namespace GakumasPhotoMode
             string[] args = Environment.GetCommandLineArgs();
             int index = Array.IndexOf(args, "--self-test-actor-rendering");
             bool tileOnly = false;
+            bool tileSceneOnly = false;
             if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-render-pass"); tileOnly = index >= 0; }
+            if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-scene"); tileSceneOnly = index >= 0; }
             if (index < 0) return false;
             if (index + 1 >= args.Length || args[index + 1].StartsWith("--", StringComparison.Ordinal))
             {
@@ -68,6 +71,7 @@ namespace GakumasPhotoMode
                 string directory = Path.GetFullPath(args[index + 1]);
                 var selfTest = owner.AddComponent<ActorRenderingSelfTest>();
                 selfTest._directory = directory; selfTest._tileOnly = tileOnly;
+                selfTest._tileSceneOnly = tileSceneOnly;
             }
             catch (Exception error)
             {
@@ -81,10 +85,10 @@ namespace GakumasPhotoMode
         {
             yield return null;
             var report = new Report { graphicsDevice = SystemInfo.graphicsDeviceVersion };
-            if (_tileOnly)
+            if (_tileOnly || _tileSceneOnly)
             {
                 Directory.CreateDirectory(_directory);
-                var tile = VerifyTileRenderPass(report);
+                var tile = _tileSceneOnly ? VerifyTileScene(report) : VerifyTileRenderPass(report);
                 while (true)
                 {
                     bool more; object next = null;
@@ -802,6 +806,21 @@ namespace GakumasPhotoMode
             {
                 _owned.Clear();
                 var fixture = VerifyTileRenderPass(report);
+                while (true)
+                {
+                    bool more; object next = null;
+                    try { more = fixture.MoveNext(); if (more) next = fixture.Current; }
+                    catch (Exception error) { report.error = error.ToString(); Debug.LogException(error); break; }
+                    if (!more) break;
+                    yield return next;
+                }
+                (fixture as IDisposable)?.Dispose();
+                report.accepted = report.error == null && report.checks.TrueForAll(check => check.accepted);
+            }
+            if (report.error == null)
+            {
+                _owned.Clear();
+                var fixture = VerifyTileScene(report);
                 while (true)
                 {
                     bool more; object next = null;
