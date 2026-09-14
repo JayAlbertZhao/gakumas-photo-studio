@@ -61,6 +61,10 @@ float _UseExactViewRimBasis;
 float4 _CapturedSH0, _CapturedSH1, _CapturedSH2, _CapturedSH3;
 float4 _CapturedSH4, _CapturedSH5, _CapturedSH6;
 float _UseCapturedAmbientSH;
+// Opt-in full Forward host input. Missing uniforms keep ordinary Built-in SH.
+float _UseActorForwardAmbientSH;
+float4 _ActorForwardSH0, _ActorForwardSH1, _ActorForwardSH2, _ActorForwardSH3;
+float4 _ActorForwardSH4, _ActorForwardSH5, _ActorForwardSH6;
 float _UseBump, _UseAnisotropic, _UseReflection, _UseEmission;
 float _BumpScale, _AnisotropicScale, _UseAlphaClip, _Cutoff;
 float _SrcBlend, _DstBlend;
@@ -404,6 +408,18 @@ float3 CapturedActorSH(float3 normal)
                                 dot(_CapturedSH4, quadratic),
                                 dot(_CapturedSH5, quadratic));
     return max(firstOrder + secondOrder + _CapturedSH6.rgb * difference, 0.0);
+}
+
+float3 ActorForwardAmbientSH(float3 normal)
+{
+    // Unity's packed linear-space L0/L1/L2 coefficient convention. Kept separate
+    // from the engine-owned UnityLighting buffer for explicit DrawRenderer hosts.
+    float4 n = float4(normal, 1.0);
+    float4 quadratic = normal.yzzx * normal.xyzz;
+    float difference = normal.x * normal.x - normal.y * normal.y;
+    float3 firstOrder = float3(dot(_ActorForwardSH0, n), dot(_ActorForwardSH1, n), dot(_ActorForwardSH2, n));
+    float3 secondOrder = float3(dot(_ActorForwardSH3, quadratic), dot(_ActorForwardSH4, quadratic), dot(_ActorForwardSH5, quadratic));
+    return max(firstOrder + secondOrder + _ActorForwardSH6.rgb * difference, 0.0);
 }
 
 float3 ApplyOriginalFaceDecals(float3 surfaceColor, float3 worldPosition)
@@ -866,7 +882,9 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     // Populated archive constants alone do not own scene lighting. Studio and
     // ADV actors use the ambient/light probe Unity supplies to their renderer.
     capturedSHValid = _UseCapturedAmbientSH > 0.5 ? capturedSHValid : 0.0;
-    float3 ambient = lerp(max(ShadeSH9(float4(n, 1.0)), 0.0),
+    float3 probeAmbient = _UseActorForwardAmbientSH > 0.5
+        ? ActorForwardAmbientSH(n) : max(ShadeSH9(float4(n, 1.0)), 0.0);
+    float3 ambient = lerp(probeAmbient,
                           CapturedActorSH(n),
                           capturedSHValid);
     float metallic = isSkin ? 0.0 : saturate(definition.b);

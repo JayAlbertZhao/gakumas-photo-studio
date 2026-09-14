@@ -59,6 +59,7 @@ namespace GakumasPhotoMode
                 if (ActorRenderingSelfTest.TryStart(gameObject)) { enabled = false; return; }
                 Initialize(BundleCatalog.DefaultStagingRoot);
                 if (PlanarCharacterValidation.TryStart(this)) return;
+                if (SrpActorCharacterValidation.TryStart(this)) return;
                 if (GpuFaceCharacterValidation.TryStart(this)) return;
                 if (FaceDecalCharacterValidation.TryStart(this)) return;
                 if (VertexLocatorCharacterValidation.TryStart(this)) return;

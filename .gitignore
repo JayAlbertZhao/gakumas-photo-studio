@@ -92,6 +92,7 @@
 !/docs/scene-temporal-antialiasing.md
 !/docs/scene-water.md
 !/docs/screen-space-reflection.md
+!/docs/srp-actor-forward.md
 !/docs/ssr-roughness.md
 !/docs/status.md
 !/docs/tile-decals.md
@@ -122,6 +123,10 @@
 !/packages/com.digital-kotone.toolkit/Editor/ToolkitBuildPipeline.cs.meta
 !/packages/com.digital-kotone.toolkit/NOTICE.md
 !/packages/com.digital-kotone.toolkit/README.md
+!/packages/com.digital-kotone.toolkit/Runtime/ActorForwardDrawSet.cs
+!/packages/com.digital-kotone.toolkit/Runtime/ActorForwardDrawSet.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/ActorForwardParameters.cs
+!/packages/com.digital-kotone.toolkit/Runtime/ActorForwardParameters.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/ActorHeadLightingDriver.cs
 !/packages/com.digital-kotone.toolkit/Runtime/ActorHeadLightingDriver.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/ActorMaterialEffectRuntime.cs
@@ -328,6 +333,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/QuartzLegAndRotationDeformationSystem.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorDataReplacement.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorDataReplacement.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorForwardDepth.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorForwardDepth.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorOutline.cginc
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorOutline.cginc.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/ActorPlanarCapture.shader
@@ -582,6 +589,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/ScreenSpaceReflection.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SphereFogSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SphereFogSettings.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SrpActorForward.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SrpActorForward.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SrpHdrMonitor.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SrpHdrMonitor.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SrpTilePlanarReflection.cs
@@ -657,6 +666,7 @@
 !/tests/test_release.py
 !/tests/test_rendering_contract.py
 !/tests/test_scene_sky_contract.py
+!/tests/test_srp_actor_contract.py
 !/tests/test_srp_monitor_contract.py
 !/tests/test_studio.py
 !/tests/test_tile_decal_contract.py
@@ -774,6 +784,14 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ScreenShadow.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Spot.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Spot.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpActor.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpActor.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpActorGuards.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpActorGuards.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpActorLayers.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpActorLayers.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpActorReflection.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpActorReflection.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpMonitor.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpMonitor.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Ssr.cs
@@ -828,6 +846,8 @@
 !/unity/Assets/Applications/PhotoStudio/PlanarCharacterValidation.cs.meta
 !/unity/Assets/Applications/PhotoStudio/RenderDocCaptureBridge.cs
 !/unity/Assets/Applications/PhotoStudio/RenderDocCaptureBridge.cs.meta
+!/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs
+!/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs.meta
 !/unity/Assets/Applications/PhotoStudio/VertexLocatorCharacterValidation.cs
 !/unity/Assets/Applications/PhotoStudio/VertexLocatorCharacterValidation.cs.meta
 !/unity/Assets/CampusCommonStub.meta

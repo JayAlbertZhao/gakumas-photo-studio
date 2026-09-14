@@ -17,6 +17,10 @@ namespace GakumasPhotoMode
             public SceneDeferredCamera.Surface[] surfaces = Array.Empty<SceneDeferredCamera.Surface>();
             // Exact packed HDR final color. Alpha is implicitly one, including background.
             public RenderTexture output;
+            // Optional exact D32S8 depth-only external target. Stores current raster
+            // depth for later Forward consumers; null retains the transient default.
+            // The host owns this texture and its GPU-completion lifetime.
+            public RenderTexture depthStencil;
             // Optional Half4 world normal + independent coverage/group/GI metadata.
             public RenderTexture normalIdentity;
             // Optional stored post-decal material exports. No extra tile attachments;
@@ -51,7 +55,7 @@ namespace GakumasPhotoMode
             private readonly List<Material> _materials = new List<Material>();
             private Mesh _quad;
             private TileScenePositionResources _position;
-            private bool _recorded, _disposed, _complete;
+            private bool _recorded, _disposed, _complete, _storedDepth;
             public Camera Camera { get; private set; }
             public Matrix4x4 WorldToCamera { get; private set; }
             public Matrix4x4 GpuProjection { get; private set; }
@@ -60,6 +64,7 @@ namespace GakumasPhotoMode
             public float FarClip { get; private set; }
             public bool Orthographic { get; private set; }
             public RenderTexture Color { get; private set; }
+            public RenderTexture DepthStencil { get; private set; }
             public RenderTexture NormalIdentity { get; private set; }
             public RenderTexture MaterialBase { get; private set; }
             public RenderTexture MaterialMos { get; private set; }
@@ -68,7 +73,7 @@ namespace GakumasPhotoMode
             public bool IsRecorded => _complete && !_disposed && Camera!=null &&
                 Camera.worldToCameraMatrix==WorldToCamera && Camera.projectionMatrix==_projection &&
                 Camera.nearClipPlane==NearClip && Camera.farClipPlane==FarClip && Camera.orthographic==Orthographic &&
-                Color!=null && Color.IsCreated();
+                Color!=null && Color.IsCreated() && (!_storedDepth || (DepthStencil!=null && DepthStencil.IsCreated()));
             public TileRenderPass.Submission Budget { get; private set; }
             public TileRenderPass.Submission DepthBudget => _position != null ? _position.Budget : default;
             // Owned by this frame. Consumers may read only after recording/completion; never release it.
@@ -87,6 +92,7 @@ namespace GakumasPhotoMode
                 GpuProjection=GL.GetGPUProjectionMatrix(_projection,true); NearClip=camera.nearClipPlane;
                 FarClip=camera.farClipPlane; Orthographic=camera.orthographic;
                 Color=settings.output; NormalIdentity=settings.normalIdentity;
+                DepthStencil=settings.depthStencil;_storedDepth=settings.depthStencil!=null;
                 MaterialBase=settings.materialBase; MaterialMos=settings.materialMos;
             }
             internal void Initialize(TileRenderPass.Plan plan, Mesh quad, TileRenderPass.Submission budget)
@@ -191,7 +197,8 @@ namespace GakumasPhotoMode
                         new TileRenderPass.Attachment { name="Tile scene emission / lighting", format=GraphicsFormat.B10G11R11_UFloatPack32 },
                         new TileRenderPass.Attachment { name="Tile scene GI / final color", format=GraphicsFormat.B10G11R11_UFloatPack32,
                             target=settings.output, store=true },
-                        new TileRenderPass.Attachment { name="Tile scene depth", format=decalCount>0?GraphicsFormat.D32_SFloat_S8_UInt:GraphicsFormat.D32_SFloat }
+                        new TileRenderPass.Attachment { name="Tile scene depth", format=(decalCount>0||settings.depthStencil!=null)?GraphicsFormat.D32_SFloat_S8_UInt:GraphicsFormat.D32_SFloat,
+                            target=settings.depthStencil,store=settings.depthStencil!=null }
                     }, subpasses = new[] {
                         new TileRenderPass.Subpass { name="Tile scene material and baked inputs", colors=new[]{0,1,2,3,4}, draws=geometry.ToArray() },
                         new TileRenderPass.Subpass { name="Tile scene directional PBR", colors=new[]{3}, inputs=new[]{0,1,2,4}, depthReadOnly=true,
@@ -217,6 +224,9 @@ namespace GakumasPhotoMode
             int decalCount=TileSceneDecals.Count(s.decals);
             bool depthId=s.geometryDepthId||decalCount>0,needsPosition=s.positionLighting||depthId;
             if(depthId && !Range(s.reflectionSmoothnessThreshold,1))return "Invalid geometry DepthID smoothness threshold";
+            if(s.depthStencil!=null && (s.depthStencil.graphicsFormat!=GraphicsFormat.None ||
+                s.depthStencil.depthStencilFormat!=GraphicsFormat.D32_SFloat_S8_UInt || !SystemInfo.IsFormatSupported(GraphicsFormat.D32_SFloat_S8_UInt,FormatUsage.Render)))
+                return "Stored scene hardware depth requires an exact D32S8 depth-only target";
             if(decalCount>0 && (!SystemInfo.supportsSeparatedRenderTargetsBlend ||
                 !SystemInfo.IsFormatSupported(GraphicsFormat.D32_SFloat_S8_UInt,FormatUsage.Render)))
                 return "Tile decals require independent MRT blending and depth/stencil support";
@@ -252,7 +262,7 @@ namespace GakumasPhotoMode
                 s.surfaces == null || s.surfaces.Length < 1 || s.surfaces.Length > 4096)
                 return "Tile scene requires packed HDR output and 1..4096 explicit surfaces";
             if(needsPosition && (s.maximumAttachmentMiB<1 || s.maximumAttachmentMiB>512 ||
-                (long)s.output.width*s.output.height*(36+(depthId?4:0)+(decalCount>0?4:0))>(long)s.maximumAttachmentMiB*1048576))
+                (long)s.output.width*s.output.height*(36+(depthId?4:0)+((decalCount>0||s.depthStencil!=null)?4:0))>(long)s.maximumAttachmentMiB*1048576))
                 return "Tile scene combined main and depth attachment budget exceeded";
             if (!Positive(s.lightRadiance) || !Positive(s.ambientIrradiance) || !Finite(s.lightDirection) ||
                 s.lightDirection.sqrMagnitude < 1e-8f || !Finite(s.lightDirection.sqrMagnitude) ||

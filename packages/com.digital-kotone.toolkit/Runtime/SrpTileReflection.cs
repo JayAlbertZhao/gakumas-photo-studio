@@ -36,6 +36,7 @@ namespace GakumasPhotoMode
             public readonly ulong sequence;
             public readonly RenderTexture color, rawReflection, reflection, response, radiance, visibility;
             public bool IsCurrent => owner!=null && owner.Current(sequence);
+            internal bool Matches(TileSceneRenderer.PreparedFrame scene,ulong value)=>IsCurrent&&sequence==value&&ReferenceEquals(owner.source,scene);
             public int DepthLevelCount => IsCurrent ? owner.depth.Count : 0;
             public RenderTexture GetDepthLevel(int level) => IsCurrent && level>=0 && level<owner.depth.Count ? owner.depth[level] : null;
             internal Frame(SrpTileReflection value)

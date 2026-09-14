@@ -47,6 +47,7 @@ namespace GakumasPhotoMode
         private bool _tileDecalOnly;
         private bool _tileReflectionOnly;
         private bool _tilePlanarOnly;
+        private bool _srpActorOnly;
         private Camera _camera;
         private RenderTexture _target;
         private Texture2D _readback;
@@ -67,6 +68,7 @@ namespace GakumasPhotoMode
             bool tileDecalOnly = false;
             bool tileReflectionOnly = false;
             bool tilePlanarOnly = false;
+            bool srpActorOnly = false;
             if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-render-pass"); tileOnly = index >= 0; }
             if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-scene"); tileSceneOnly = index >= 0; }
             if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-position"); tilePositionOnly = index >= 0; }
@@ -74,6 +76,7 @@ namespace GakumasPhotoMode
             if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-decal"); tileDecalOnly = index >= 0; }
             if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-reflection"); tileReflectionOnly = index >= 0; }
             if (index < 0) { index = Array.IndexOf(args, "--self-test-tile-planar"); tilePlanarOnly = index >= 0; }
+            if (index < 0) { index = Array.IndexOf(args, "--self-test-srp-actor"); srpActorOnly = index >= 0; }
             if (index < 0) return false;
             if (index + 1 >= args.Length || args[index + 1].StartsWith("--", StringComparison.Ordinal))
             {
@@ -92,6 +95,7 @@ namespace GakumasPhotoMode
                 selfTest._tileDecalOnly = tileDecalOnly;
                 selfTest._tileReflectionOnly = tileReflectionOnly;
                 selfTest._tilePlanarOnly = tilePlanarOnly;
+                selfTest._srpActorOnly = srpActorOnly;
             }
             catch (Exception error)
             {
@@ -105,10 +109,10 @@ namespace GakumasPhotoMode
         {
             yield return null;
             var report = new Report { graphicsDevice = SystemInfo.graphicsDeviceVersion };
-            if (_tileOnly || _tileSceneOnly || _tilePositionOnly || _srpMonitorOnly || _tileDecalOnly || _tileReflectionOnly || _tilePlanarOnly)
+            if (_tileOnly || _tileSceneOnly || _tilePositionOnly || _srpMonitorOnly || _tileDecalOnly || _tileReflectionOnly || _tilePlanarOnly || _srpActorOnly)
             {
                 Directory.CreateDirectory(_directory);
-                var tile = _tilePlanarOnly ? VerifyTilePlanar(report) : _tileReflectionOnly ? VerifyTileReflection(report) : _tileDecalOnly ? VerifyTileDecal(report) : _srpMonitorOnly ? VerifySrpMonitor(report) : _tilePositionOnly ? VerifyTilePosition(report) : _tileSceneOnly ? VerifyTileScene(report) : VerifyTileRenderPass(report);
+                var tile = _srpActorOnly ? VerifySrpActor(report) : _tilePlanarOnly ? VerifyTilePlanar(report) : _tileReflectionOnly ? VerifyTileReflection(report) : _tileDecalOnly ? VerifyTileDecal(report) : _srpMonitorOnly ? VerifySrpMonitor(report) : _tilePositionOnly ? VerifyTilePosition(report) : _tileSceneOnly ? VerifyTileScene(report) : VerifyTileRenderPass(report);
                 while (true)
                 {
                     bool more; object next = null;
@@ -909,6 +913,19 @@ namespace GakumasPhotoMode
                 if(report.error==null)
                 {
                     _owned.Clear();var fixture=VerifyTilePlanar(report);
+                    while(true)
+                    {
+                        bool more;object next=null;
+                        try { more=fixture.MoveNext();if(more)next=fixture.Current; }
+                        catch(Exception error) { report.error=error.ToString();Debug.LogException(error);break; }
+                        if(!more)break;yield return next;
+                    }
+                    (fixture as IDisposable)?.Dispose();
+                    report.accepted=report.error==null&&report.checks.TrueForAll(check=>check.accepted);
+                }
+                if(report.error==null)
+                {
+                    _owned.Clear();var fixture=VerifySrpActor(report);
                     while(true)
                     {
                         bool more;object next=null;
