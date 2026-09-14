@@ -1,5 +1,13 @@
 #include "UnityCG.cginc"
 #include "SceneGi.hlsl"
+#if defined(TOOLKIT_FORWARD_LEAF)
+#include "VegetationLeaf.hlsl"
+#define FORWARD_LEAF_PARAMETER , float3 leafTau
+#define FORWARD_LEAF_ARGUMENT , leafTau
+#else
+#define FORWARD_LEAF_PARAMETER
+#define FORWARD_LEAF_ARGUMENT
+#endif
 #define SCENE_LIGHT_INSTANCED
 #include "SceneBakedShadow.hlsl"
 #if defined(SCENE_LIGHT_SHADOWS)
@@ -47,7 +55,7 @@ float4x4 _ViewProjection;
 float3 ForwardNormal(float3 n) { return n * rsqrt(max(dot(n, n), 1e-12)); }
 
 // Same independently authored BRDF contract as scene decal lights, evaluated at this fragment's geometry.
-float3 ForwardBrdf(float3 albedo, float3 mos, float3 n, float3 v, float3 l, float4 response)
+float3 ForwardBrdf(float3 albedo, float3 mos, float3 n, float3 v, float3 l, float4 response FORWARD_LEAF_PARAMETER)
 {
     float3 h = ForwardNormal(v + l);
     float nl = saturate(dot(n, l)), nv = saturate(dot(n, v)), nh = saturate(dot(n, h)), vh = saturate(dot(v, h));
@@ -67,10 +75,14 @@ float3 ForwardBrdf(float3 albedo, float3 mos, float3 n, float3 v, float3 l, floa
     #endif
     float3 result = ((1 - f) * albedo * ((1 - mos.r) / UNITY_PI) * response.x + distribution * visibility * f * response.y) * nl;
     if (response.w > 0) result += (1 - f0) * albedo * ((1 - mos.r) / UNITY_PI) * response.x * response.w * saturate(-dot(n, l));
+    #if defined(TOOLKIT_FORWARD_LEAF)
+    if (_LeafEnabled > .5) result = LeafDiffuse(albedo*((1-mos.r)/UNITY_PI),f,f0,nl,saturate(-dot(n,l)),response.x,response.w,leafTau) +
+        distribution * visibility * f * response.y * nl;
+    #endif
     return result;
 }
 
-float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo, float3 mos, float4 gi, float4 baked)
+float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo, float3 mos, float4 gi, float4 baked FORWARD_LEAF_PARAMETER)
 {
     SceneLightData light = _SceneLights[index];
     if (light.parameters.z > .5 && abs(_ReceiverGroup - light.parameters.z) > .1) return 0;
@@ -104,7 +116,10 @@ float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo,
         if (cosine < light.parameters.y) return 0;
         attenuation *= light.parameters.x > light.parameters.y ? saturate((cosine - light.parameters.y) / (light.parameters.x - light.parameters.y)) : 1;
     }
-    float3 response = ForwardBrdf(albedo, mos, n, v, ForwardNormal(source - world), light.response);
+    float3 response = ForwardBrdf(albedo, mos, n, v, ForwardNormal(source - world), light.response FORWARD_LEAF_ARGUMENT);
+    #if defined(TOOLKIT_FORWARD_LEAF)
+    if (_LeafEnabled > .5) n = LeafShadowNormal(n,source-world);
+    #endif
     if (gi.a > .5 && light.response.z > 0) response *= lerp(1, gi.rgb, light.response.z);
     #if defined(SCENE_BAKED_SHADOW_INPUT) && defined(SCENE_BAKED_LIGHT_CHANNELS)
     float maskVisibility = SceneBakedSelect(baked, _SceneBakedChannels[index]);
@@ -118,6 +133,10 @@ float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo,
     return response * clamp(tex2Dlod(_LightAtlas, float4(atlasUv, 0, 0)).rgb, 0, 65504) * light.radianceShape.rgb * attenuation;
 }
 // Existing specialized consumers retain the same unmasked contract.
+#if defined(TOOLKIT_FORWARD_LEAF)
+float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo, float3 mos, float4 gi, float4 baked)
+{ return ForwardLocal(index,world,n,v,albedo,mos,gi,baked,0); }
+#endif
 float3 ForwardLocal(uint index, float3 world, float3 n, float3 v, float3 albedo, float3 mos, float4 gi)
 { return ForwardLocal(index, world, n, v, albedo, mos, gi, 1); }
 
@@ -148,17 +167,28 @@ float4 ForwardFragment(ForwardVarying input) : SV_Target
         n = ForwardNormal(t * map.x + b * map.y + n * map.z);
     }
     float3 v = ForwardNormal(lerp(_CameraPosition - input.world, -_CameraForward, _Orthographic));
+    #if defined(TOOLKIT_FORWARD_LEAF)
+    float3 leafTau = 0;
+    if (_LeafEnabled > .5) { leafTau = LeafTransmission(input.uv); n *= LeafFacing(input.normal,v); }
+    #endif
     float4 gi = SceneGi(input.uv2, n);
+    #if defined(TOOLKIT_FORWARD_LEAF)
+    if (_LeafEnabled > .5) gi.rgb = lerp(gi.rgb,SceneGi(input.uv2,-n).rgb,leafTau);
+    #endif
     float4 baked = SceneBakedSample(input.uv2);
-    float3 direct = ForwardBrdf(albedo, mos, n, v, _LightDirection, _DirectionalResponse) * _LightRadiance;
+    float3 direct = ForwardBrdf(albedo, mos, n, v, _LightDirection, _DirectionalResponse FORWARD_LEAF_ARGUMENT) * _LightRadiance;
+    float3 shadowNormal = n;
+    #if defined(TOOLKIT_FORWARD_LEAF)
+    if (_LeafEnabled > .5) shadowNormal = LeafShadowNormal(n,_LightDirection);
+    #endif
     if (gi.a > .5) direct *= lerp(1, gi.rgb, _DirectionalResponse.z);
     #if defined(SCENE_MAIN_LIGHT_SHADOWS)
     ForwardMainShadowData shadow; shadow.worldToShadow = _SingleShadowMatrix; shadow.atlasST = _SingleShadowST;
     shadow.depth = _SingleShadowDepth; shadow.options = _SingleShadowOptions;
     #if defined(SCENE_BAKED_SHADOW_INPUT)
-    direct *= min(ForwardMainVisibility(input.world, n, shadow), SceneBakedSelect(baked, _MainBakedChannel));
+    direct *= min(ForwardMainVisibility(input.world, shadowNormal, shadow), SceneBakedSelect(baked, _MainBakedChannel));
     #else
-    direct *= ForwardMainVisibility(input.world, n, shadow);
+    direct *= ForwardMainVisibility(input.world, shadowNormal, shadow);
     #endif
     #elif defined(SCENE_BAKED_SHADOW_INPUT)
     direct *= SceneBakedSelect(baked, _MainBakedChannel);
@@ -173,12 +203,12 @@ float4 ForwardFragment(ForwardVarying input) : SV_Target
             [loop] while (mask != 0)
             {
                 uint bit = firstbitlow(mask); mask &= mask - 1;
-                direct += ForwardLocal(word * 32 + bit, input.world, n, v, albedo, mos, gi, baked);
+                direct += ForwardLocal(word * 32 + bit, input.world, n, v, albedo, mos, gi, baked FORWARD_LEAF_ARGUMENT);
             }
         }
     }
     else [loop] for (uint index = 0; index < (uint)_ForwardLightCount; index++)
-        direct += ForwardLocal(index, input.world, n, v, albedo, mos, gi, baked);
+        direct += ForwardLocal(index, input.world, n, v, albedo, mos, gi, baked FORWARD_LEAF_ARGUMENT);
     float3 indirect = albedo * ((1 - mos.r) / UNITY_PI) * _AmbientIrradiance * mos.g;
     if (gi.a > .5) indirect = albedo * (1 - mos.r) * gi.rgb * _GiBaseScale * mos.g;
     float3 emission = clamp(tex2D(_EmissionMap, input.uv).rgb * _Emission, 0, 65504);

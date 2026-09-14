@@ -20,6 +20,7 @@ namespace GakumasPhotoMode
         [Range(0, 255)] public int receiverGroup = 1;
         public SceneGiInput gi = new SceneGiInput();
         public SceneBakedShadowInput bakedShadow = new SceneBakedShadowInput();
+        public VegetationLeafMaterial leaf;
         // Alpha uses premultiplied over; additive does not change destination alpha.
         public bool additive;
     }

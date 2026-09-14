@@ -14,6 +14,7 @@ Shader "Hidden/GakumasPhotoMode/SceneForwardLighting"
             #pragma target 4.5
             #pragma vertex ForwardVertex
             #pragma fragment ForwardFragment
+            #pragma multi_compile_local __ TOOLKIT_FORWARD_LEAF
             #pragma multi_compile_local __ SCENE_LIGHT_SHADOWS
             #pragma multi_compile_local __ SCENE_MAIN_LIGHT_SHADOWS
             #include "SceneForwardLighting.hlsl"

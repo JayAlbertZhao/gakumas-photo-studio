@@ -7,6 +7,8 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
         #include "UnityCG.cginc"
         #include "SceneGi.hlsl"
         #include "SceneBakedShadow.hlsl"
+        #include "VegetationLeaf.hlsl"
+        sampler2D _LeafTransmission;
         sampler2D _AlbedoMap, _NormalMap, _MosMap, _EmissionMap, _HeightMap;
         sampler2D _G0, _G1, _G2, _G3;
         sampler2D _DecalLightAccumulation;
@@ -33,6 +35,15 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
             #endif
             #if defined(SCENE_BAKED_SHADOW_PACKED)
             float2 bakedShadow : SV_Target4;
+            #endif
+            #if defined(SCENE_LEAF_OUTPUT)
+            #if defined(SCENE_GI_OUTPUT) && defined(SCENE_BAKED_SHADOW_PACKED)
+            float4 leaf : SV_Target6;
+            #elif defined(SCENE_GI_OUTPUT) || defined(SCENE_BAKED_SHADOW_PACKED)
+            float4 leaf : SV_Target5;
+            #else
+            float4 leaf : SV_Target4;
+            #endif
             #endif
         };
         struct screen { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
@@ -72,6 +83,9 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
             #if defined(SCENE_BAKED_SHADOW_PACKED)
             o.bakedShadow = 1;
             #endif
+            #if defined(SCENE_LEAF_OUTPUT)
+            o.leaf = 0;
+            #endif
             return o;
         }
         ENDCG
@@ -86,16 +100,23 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
             #pragma multi_compile_local _ SCENE_GI_OUTPUT
             #pragma multi_compile_local __ SCENE_BAKED_SHADOW_PACKED
             #pragma multi_compile_local __ SCENE_BAKED_SHADOW_INPUT
+            #pragma multi_compile_local __ SCENE_LEAF_OUTPUT
             struct vertex { float4 pos : POSITION; float3 normal : NORMAL; float4 tangent : TANGENT; float2 uv : TEXCOORD0; float2 uv2 : TEXCOORD1; };
             struct geometryOut {
                 float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float3 normal : TEXCOORD1;
                 float3 tangent : TEXCOORD2; float sign : TEXCOORD3; float depth : TEXCOORD4;
                 float2 uv2 : TEXCOORD5;
+                #if defined(SCENE_LEAF_OUTPUT)
+                float3 world : TEXCOORD6;
+                #endif
             };
             geometryOut geometry(vertex v)
             {
                 geometryOut o; v.pos.xyz *= _VertexScale;
                 float4 world = mul(unity_ObjectToWorld, v.pos); o.pos = mul(_ViewProjection, world);
+                #if defined(SCENE_LEAF_OUTPUT)
+                o.world = world.xyz;
+                #endif
                 o.depth = -mul(_View, world).z; o.uv = v.uv * _UvST.xy + _UvST.zw;
                 o.uv2 = v.uv2;
                 o.normal = UnityObjectToWorldNormal(v.normal / _VertexScale);
@@ -109,14 +130,28 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
                 float3 n = safeNormal(i.normal), t = safeNormal(i.tangent - n * dot(n, i.tangent));
                 float3 map = mappedNormal(i.uv);
                 n = safeNormal(map.x * t + map.y * cross(n, t) * i.sign + map.z * n);
+                #if defined(SCENE_LEAF_OUTPUT)
+                float3 tau = 0;
+                if (_LeafEnabled > .5)
+                {
+                    tau = LeafTransmission(i.uv);
+                    n *= LeafFacing(i.normal, lerp(_CameraPosition-i.world, -_CameraForward, _Orthographic));
+                }
+                #endif
                 buffers o; o.albedo = float4(saturate(base.rgb * _Albedo), 1);
                 o.normal = float4(n, _ReceiverGroup); o.mos = float4(saturate(tex2D(_MosMap, i.uv).rgb * _Mos), i.depth);
                 o.emission = float4(clamp(tex2D(_EmissionMap, i.uv).rgb * _Emission, 0, 65504), 0);
                 #if defined(SCENE_GI_OUTPUT)
                 o.gi = SceneGi(i.uv2, n);
+                #if defined(SCENE_LEAF_OUTPUT)
+                if (_LeafEnabled > .5) o.gi.rgb = lerp(o.gi.rgb, SceneGi(i.uv2,-n).rgb, tau);
+                #endif
                 #endif
                 #if defined(SCENE_BAKED_SHADOW_PACKED)
                 o.bakedShadow = SceneBakedPack(SceneBakedSample(i.uv2), i.pos.xy);
+                #endif
+                #if defined(SCENE_LEAF_OUTPUT)
+                o.leaf = float4(tau, _LeafEnabled);
                 #endif
                 return o;
             }
@@ -172,9 +207,10 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
             #pragma target 4.0
             #pragma vertex fullscreen
             #pragma fragment lighting
-            #pragma multi_compile_local __ SCENE_MAIN_LIGHT_SHADOWS SCENE_SCREEN_SHADOW
+            #pragma multi_compile_local __ SCENE_MAIN_LIGHT_SHADOWS SCENE_SCREEN_SHADOW SCENE_LEAF_SCREEN_SHADOW
             #pragma multi_compile_local __ SCENE_BAKED_SHADOW_PACKED
-            #if defined(SCENE_MAIN_LIGHT_SHADOWS)
+            #pragma multi_compile_local __ SCENE_LEAF_LIGHTING
+            #if defined(SCENE_MAIN_LIGHT_SHADOWS) || defined(SCENE_LEAF_SCREEN_SHADOW)
             #define SCENE_LIGHT_SHADOWS 1
             #define SCENE_SHADOW_ORTHOGRAPHIC 1
             #include "SceneLightShadow.hlsl"
@@ -199,26 +235,52 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
                 // Art-directed inverse-vector diffuse only; not a second specular light or a bounce solver.
                 if (_DirectionalResponse.w > 0)
                     direct += (1 - f0) * diffuse * _DirectionalResponse.x * _DirectionalResponse.w * _LightRadiance * saturate(-dot(n, l));
+                float3 shadowNormal = n;
+                #if defined(SCENE_LEAF_LIGHTING)
+                float4 leaf = tex2D(_LeafTransmission, i.uv);
+                if (leaf.a > .5)
+                {
+                    direct = (LeafDiffuse(diffuse,f,f0,nl,saturate(-dot(n,l)),_DirectionalResponse.x,_DirectionalResponse.w,leaf.rgb) +
+                        distribution * visibility * f * _DirectionalResponse.y * nl) * _LightRadiance;
+                    shadowNormal = LeafShadowNormal(n,l);
+                }
+                #endif
                 float4 gi = tex2D(_BakedDiffuseGi, i.uv);
                 if (_HasBakedGi > .5 && gi.a > .5) direct *= lerp(1, gi.rgb, _DirectionalResponse.z);
                 #if defined(SCENE_BAKED_SHADOW_PACKED)
                 float mainVisibility = SceneBakedSelect(SceneBakedUnpack(tex2D(_PackedBakedShadow, i.uv).rg), _MainBakedChannel);
-                #if defined(SCENE_SCREEN_SHADOW)
+                #if defined(SCENE_SCREEN_SHADOW) || defined(SCENE_LEAF_SCREEN_SHADOW)
                 float2 screenVisibility = tex2D(_ScreenShadowOcclusion, i.uv).rg;
+                #if defined(SCENE_LEAF_SCREEN_SHADOW) && defined(SCENE_LEAF_LIGHTING)
+                if (leaf.a > .5)
+                {
+                    SceneShadowData leafShadow; leafShadow.worldToShadow = _SingleShadowMatrix; leafShadow.atlasST = _SingleShadowST;
+                    leafShadow.depth = _SingleShadowDepth; leafShadow.options = _SingleShadowOptions;
+                    screenVisibility.r = SceneLightVisibility(world,shadowNormal,leafShadow);
+                }
+                #endif
                 mainVisibility = min(mainVisibility, screenVisibility.r); ao *= screenVisibility.g;
                 #elif defined(SCENE_MAIN_LIGHT_SHADOWS)
                 SceneShadowData shadow; shadow.worldToShadow = _SingleShadowMatrix; shadow.atlasST = _SingleShadowST;
                 shadow.depth = _SingleShadowDepth; shadow.options = _SingleShadowOptions;
-                mainVisibility = min(mainVisibility, SceneLightVisibility(world, n, shadow));
+                mainVisibility = min(mainVisibility, SceneLightVisibility(world, shadowNormal, shadow));
                 #endif
                 direct *= mainVisibility;
-                #elif defined(SCENE_SCREEN_SHADOW)
+                #elif defined(SCENE_SCREEN_SHADOW) || defined(SCENE_LEAF_SCREEN_SHADOW)
                 float2 screenVisibility = tex2D(_ScreenShadowOcclusion, i.uv).rg;
+                #if defined(SCENE_LEAF_SCREEN_SHADOW) && defined(SCENE_LEAF_LIGHTING)
+                if (leaf.a > .5)
+                {
+                    SceneShadowData leafShadow; leafShadow.worldToShadow = _SingleShadowMatrix; leafShadow.atlasST = _SingleShadowST;
+                    leafShadow.depth = _SingleShadowDepth; leafShadow.options = _SingleShadowOptions;
+                    screenVisibility.r = SceneLightVisibility(world,shadowNormal,leafShadow);
+                }
+                #endif
                 direct *= screenVisibility.r; ao *= screenVisibility.g;
                 #elif defined(SCENE_MAIN_LIGHT_SHADOWS)
                 SceneShadowData shadow; shadow.worldToShadow = _SingleShadowMatrix; shadow.atlasST = _SingleShadowST;
                 shadow.depth = _SingleShadowDepth; shadow.options = _SingleShadowOptions;
-                direct *= SceneLightVisibility(world, n, shadow);
+                direct *= SceneLightVisibility(world, shadowNormal, shadow);
                 #endif
                 float3 indirect = diffuse * _AmbientIrradiance * ao;
                 // Baked response already includes Lambert integration, unlike legacy incident ambientIrradiance.
@@ -241,18 +303,30 @@ Shader "Hidden/GakumasPhotoMode/SceneDeferred"
             #pragma target 4.0
             #pragma vertex prepassVertex
             #pragma fragment prepassFragment
+            #pragma multi_compile_local __ SCENE_LEAF_OUTPUT
             struct PrepassInput { float4 position : POSITION; float3 normal : NORMAL; float2 uv : TEXCOORD0; };
-            struct PrepassOutput { float4 position : SV_POSITION; float3 normal : TEXCOORD0; float2 uv : TEXCOORD1; float depth : TEXCOORD2; };
+            struct PrepassOutput {
+                float4 position : SV_POSITION; float3 normal : TEXCOORD0; float2 uv : TEXCOORD1; float depth : TEXCOORD2;
+                #if defined(SCENE_LEAF_OUTPUT)
+                float3 world : TEXCOORD3;
+                #endif
+            };
             PrepassOutput prepassVertex(PrepassInput input)
             {
                 PrepassOutput o; input.position.xyz *= _VertexScale;
                 float4 world = mul(unity_ObjectToWorld, input.position); o.position = mul(_ViewProjection, world);
+                #if defined(SCENE_LEAF_OUTPUT)
+                o.world = world.xyz;
+                #endif
                 o.depth = -mul(_View, world).z; o.uv = input.uv * _UvST.xy + _UvST.zw;
                 o.normal = UnityObjectToWorldNormal(input.normal / _VertexScale); return o;
             }
             float4 prepassFragment(PrepassOutput input) : SV_Target
             {
                 clip(tex2D(_AlbedoMap, input.uv).a * _Alpha - _Cutoff);
+                #if defined(SCENE_LEAF_OUTPUT)
+                if (_LeafEnabled > .5) input.normal *= LeafFacing(input.normal,lerp(_CameraPosition-input.world,-_CameraForward,_Orthographic));
+                #endif
                 return float4(safeNormal(input.normal), input.depth);
             }
             ENDCG

@@ -1,6 +1,10 @@
 #include "UnityCG.cginc"
 #include "SceneLightShadow.hlsl"
 #include "SceneBakedShadow.hlsl"
+#if defined(SCENE_LEAF_LIGHTING)
+#include "VegetationLeaf.hlsl"
+sampler2D _LeafTransmission;
+#endif
 struct SceneLightData
 {
     float4 positionRange, axisXLength, axisYWidth, axisZHeight;
@@ -60,7 +64,11 @@ float3 LightWorld(float2 uv, float depth)
     float da = -mul(_LightView, a).z, db = -mul(_LightView, b).z;
     return lerp(a.xyz, b.xyz, (depth - da) / (db - da));
 }
-float3 LightBrdf(float3 albedo, float3 mos, float3 n, float3 v, float3 l, float4 response)
+float3 LightBrdf(float3 albedo, float3 mos, float3 n, float3 v, float3 l, float4 response
+    #if defined(SCENE_LEAF_LIGHTING)
+    , float4 leaf
+    #endif
+    )
 {
     float3 h = LightNormal(v + l);
     float nl = saturate(dot(n, l)), nv = saturate(dot(n, v)), nh = saturate(dot(n, h)), vh = saturate(dot(v, h));
@@ -71,6 +79,10 @@ float3 LightBrdf(float3 albedo, float3 mos, float3 n, float3 v, float3 l, float4
     float3 f0 = lerp(.04, albedo, mos.r), f = f0 + (1 - f0) * pow(1 - vh, 5);
     float3 result = ((1 - f) * albedo * ((1 - mos.r) / UNITY_PI) * response.x + distribution * visibility * f * response.y) * nl;
     if (response.w > 0) result += (1 - f0) * albedo * ((1 - mos.r) / UNITY_PI) * response.x * response.w * saturate(-dot(n, l));
+    #if defined(SCENE_LEAF_LIGHTING)
+    if (leaf.a > .5) result = LeafDiffuse(albedo*((1-mos.r)/UNITY_PI),f,f0,nl,saturate(-dot(n,l)),response.x,response.w,leaf.rgb) +
+        distribution * visibility * f * response.y * nl;
+    #endif
     return result;
 }
 float4 LightFrag(LightVarying input) : SV_Target
@@ -120,7 +132,17 @@ float4 LightFrag(LightVarying input) : SV_Target
     float3 view = LightNormal(lerp(_LightCameraPosition - world, -_LightCameraForward, _LightOrthographic));
     float3 atlas = clamp(tex2Dlod(_LightAtlas, float4(atlasUv, 0, 0)).rgb, 0, 65504);
     // Float32 accumulation, then the host clamps once after adding all lighting and emission.
-    float3 response = LightBrdf(albedo.rgb, mos.rgb, n, view, direction, light.response);
+    #if defined(SCENE_LEAF_LIGHTING)
+    float4 leaf = tex2D(_LeafTransmission,input.uv);
+    #endif
+    float3 response = LightBrdf(albedo.rgb, mos.rgb, n, view, direction, light.response
+        #if defined(SCENE_LEAF_LIGHTING)
+        , leaf
+        #endif
+        );
+    #if defined(SCENE_LEAF_LIGHTING)
+    if (leaf.a > .5) n = LeafShadowNormal(n,direction);
+    #endif
     if (_LightHasGi > .5 && light.response.z > 0)
     {
         float4 gi = tex2D(_LightGi, input.uv); if (gi.a > .5) response *= lerp(1, gi.rgb, light.response.z);

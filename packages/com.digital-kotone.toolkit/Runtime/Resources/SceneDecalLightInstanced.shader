@@ -13,6 +13,7 @@ Shader "Hidden/GakumasPhotoMode/SceneDecalLightInstanced"
             #pragma vertex LightVert
             #pragma fragment LightFrag
             #pragma multi_compile_local __ SCENE_LIGHT_SHADOWS
+            #pragma multi_compile_local __ SCENE_LEAF_LIGHTING
             #define SCENE_LIGHT_INSTANCED 1
             #include "SceneDecalLight.hlsl"
             ENDCG

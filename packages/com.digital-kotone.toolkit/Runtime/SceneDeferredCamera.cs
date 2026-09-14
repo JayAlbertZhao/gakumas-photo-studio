@@ -33,6 +33,7 @@ namespace GakumasPhotoMode
             [Range(0, 1)] public float alphaCutoff;
             public SceneGiInput gi = new SceneGiInput();
             public SceneBakedShadowInput bakedShadow = new SceneBakedShadowInput();
+            public VegetationLeafMaterial leaf;
             // Increment when vertex identity is reassigned without a topology/mesh change.
             public uint motionRevision;
             public TemporalPixelFlags temporalFlags;
@@ -62,6 +63,8 @@ namespace GakumasPhotoMode
         public bool sceneEnabled;
         public LayerMask sceneLayers;
         public Surface[] surfaces = Array.Empty<Surface>();
+        [Range(1,512)] public int maximumLeafResourceMiB = 128;
+        public long LeafResourceBytes => _leafTransmission == null ? 0 : (long)_leafTransmission.width * _leafTransmission.height * 8;
         public Decal[] decals = Array.Empty<Decal>();
         // Linear incident radiance, explicit inputs rather than ambient global state.
         public Vector3 lightDirection = new Vector3(0, 0, -1);
@@ -138,6 +141,8 @@ namespace GakumasPhotoMode
             public readonly RenderTexture bakedDiffuseGi;
             // Optional Point R8G8: R visibility byte, G contains GBA3:3:2.
             public readonly RenderTexture bakedShadowMask;
+            // Optional RGB thin-sheet transmission and A material-presence marker.
+            public readonly RenderTexture leafTransmission;
             // Borrowed light-view depth atlas; valid only while this frame is current.
             public readonly RenderTexture lightShadowAtlas;
             public readonly RenderTexture mainLightShadowDepth;
@@ -155,6 +160,7 @@ namespace GakumasPhotoMode
                 albedoCoverage = data[0]; normalGroup = data[1]; mosDepth = data[2]; emission = data[3];
                 bakedDiffuseGi = owner._gi;
                 bakedShadowMask = owner._bakedMask;
+                leafTransmission = owner._leafTransmission;
                 lightShadowAtlas = owner._decalLights?.ShadowAtlas;
                 mainLightShadowDepth = owner._mainShadow?.Atlas;
                 screenGeometry = owner._screenShadow?.Geometry; shadowOcclusion = owner._screenShadow?.Visibility;
@@ -177,11 +183,14 @@ namespace GakumasPhotoMode
         private bool _usesGi;
         private bool _usesBakedMask;
         private RenderTexture _bakedMask;
+        private bool _usesLeaf;
+        private RenderTexture _leafTransmission;
         private int _prepared = -1, _rendered = -1, _materialCount;
         private bool Current => isActiveAndEnabled && sceneEnabled && _prepared == Time.frameCount &&
             _rendered == Time.frameCount && _output != null && _camera.targetTexture == _target && _target != null && _target.IsCreated() &&
             Created(_output) && (!_usesGi || (_gi != null && _gi.IsCreated())) && (_mainShadow?.Atlas == null || _mainShadow.Atlas.IsCreated()) &&
             (!_usesBakedMask || (_bakedMask != null && _bakedMask.IsCreated())) &&
+            (!_usesLeaf || (_leafTransmission != null && _leafTransmission.IsCreated())) &&
             (_decalLights?.ShadowAtlas == null || _decalLights.ShadowAtlas.IsCreated()) &&
             (_screenShadow?.Visibility == null || _screenShadow.IsCreated) &&
             (_motion?.Motion == null || _motion.IsCreated) &&
@@ -366,6 +375,7 @@ namespace GakumasPhotoMode
                     material.SetMatrix("_ViewProjection", vp); material.SetMatrix("_View", view);
                     material.SetVector("_VertexScale", surface.vertexScale); material.SetFloat("_Cull", (int)surface.cull);
                     material.SetFloat("_Cutoff", surface.alphaCutoff);
+                    BindLeaf(material,surface,view);
                     _commands.DrawRenderer(renderer, material, surface.materialIndex, 3); ScreenShadowGeometryDrawCalls++;
                 }
                 _commands.EndSample("Toolkit scene geometry-only prepass");
@@ -374,7 +384,8 @@ namespace GakumasPhotoMode
             foreach (var rt in _gbuffer) { _commands.SetRenderTarget(rt); _commands.ClearRenderTarget(rt == _gbuffer[0], true, Color.clear); }
             if (_gi != null) { _commands.SetRenderTarget(_gi); _commands.ClearRenderTarget(false, true, Color.clear); }
             if (_bakedMask != null) { _commands.SetRenderTarget(_bakedMask); _commands.ClearRenderTarget(false, true, Color.white); }
-            SetTargets(_gbuffer, _usesGi, _usesBakedMask);
+            if (_leafTransmission != null) { _commands.SetRenderTarget(_leafTransmission); _commands.ClearRenderTarget(false, true, Color.clear); }
+            SetTargets(_gbuffer, _usesGi, _usesBakedMask, _usesLeaf);
             foreach (var surface in surfaces)
             {
                 var renderer = surface.renderer;
@@ -383,6 +394,7 @@ namespace GakumasPhotoMode
                 material.SetMatrix("_ViewProjection", vp); material.SetMatrix("_View", view);
                 material.SetVector("_VertexScale", surface.vertexScale); material.SetFloat("_Cull", (int)surface.cull);
                 material.SetFloat("_Cutoff", surface.alphaCutoff); material.SetFloat("_ReceiverGroup", surface.receiverGroup);
+                BindLeaf(material,surface,view);
                 if (_usesGi) material.EnableKeyword("SCENE_GI_OUTPUT"); else material.DisableKeyword("SCENE_GI_OUTPUT");
                 if (_usesGi && surface.gi != null && !surface.gi.Bind(material, renderer, out var giError))
                 { _commands.Clear(); UnavailableReason = giError; ReleaseResources(); return; }
@@ -423,7 +435,16 @@ namespace GakumasPhotoMode
             if (_usesBakedMask) lighting.EnableKeyword("SCENE_BAKED_SHADOW_PACKED");
             lighting.SetTexture("_PackedBakedShadow", _bakedMask); lighting.SetFloat("_MainBakedChannel", (int)mainBakedShadowChannel);
             if (screenResolved) _screenShadow.Bind(lighting); else _mainShadow?.BindMain(lighting);
-            _decalLights?.Record(_commands, _output, _camera, Quad(), _gi, !screenResolved, _bakedMask);
+            if (_usesLeaf)
+            {
+                lighting.EnableKeyword("SCENE_LEAF_LIGHTING"); lighting.SetTexture("_LeafTransmission", _leafTransmission);
+                if (screenResolved && _mainShadow?.Atlas != null)
+                {
+                    _mainShadow.BindMain(lighting); lighting.DisableKeyword("SCENE_MAIN_LIGHT_SHADOWS");
+                    lighting.DisableKeyword("SCENE_SCREEN_SHADOW"); lighting.EnableKeyword("SCENE_LEAF_SCREEN_SHADOW");
+                }
+            }
+            _decalLights?.Record(_commands, _output, _camera, Quad(), _gi, !screenResolved, _bakedMask, _leafTransmission);
             lighting.SetFloat("_HasDecalLights", _decalLights?.Accumulation != null ? 1 : 0);
             lighting.SetTexture("_DecalLightAccumulation", _decalLights?.Accumulation != null ? (Texture)_decalLights.Accumulation : Texture2D.blackTexture);
             // Resolve replaces scene radiance once AND writes scene depth before host Forward actors.
@@ -448,7 +469,7 @@ namespace GakumasPhotoMode
 
         private string Validate()
         {
-            _usesGi = _usesBakedMask = false;
+            _usesGi = _usesBakedMask = _usesLeaf = false;
             if (!sceneEnabled) return "Disabled";
             if (GraphicsSettings.currentRenderPipeline != null || _camera.actualRenderingPath != RenderingPath.Forward)
                 return "Requires Built-in Forward host";
@@ -495,6 +516,16 @@ namespace GakumasPhotoMode
                     if (!surface.gi.Validate(r, mesh, out var giError)) return giError;
                     _usesGi |= surface.gi.source != SceneGiSource.None;
                 }
+                if (surface.leaf != null && surface.leaf.enabled)
+                {
+                    if (!surface.leaf.Validate(out var leafError)) return leafError;
+                    if (surface.leaf.thicknessMap != null && !mesh.HasVertexAttribute(VertexAttribute.TexCoord0)) return "Leaf thickness map requires UV0";
+                    var map = surface.leaf.thicknessMap;
+                    if (map != null && (map == target || map == _leafTransmission || map == _bakedMask || map == _gi ||
+                        (_gbuffer != null && Array.IndexOf(_gbuffer,map) >= 0) || (_scratch != null && Array.IndexOf(_scratch,map) >= 0)))
+                        return "Leaf thickness input aliases an owned/current scene target";
+                    _usesLeaf = true;
+                }
                 if (surface.bakedShadow != null)
                 {
                     if (!surface.bakedShadow.Validate(r, mesh, out var maskError)) return maskError;
@@ -505,6 +536,10 @@ namespace GakumasPhotoMode
                 }
             }
             if (!SceneBakedShadowInput.ChannelValid(mainBakedShadowChannel)) return "Invalid scene main baked shadow channel";
+            if (_usesLeaf && (maximumLeafResourceMiB < 1 || maximumLeafResourceMiB > 512 ||
+                (long)target.width * target.height * 8 > (long)maximumLeafResourceMiB * 1048576 ||
+                SystemInfo.supportedRenderTargetCount < 5 + (_usesGi ? 1 : 0) + (_usesBakedMask ? 1 : 0)))
+                return "Leaf attachment requires its declared byte budget and five MRTs (six/seven with GI/baked mask)";
             if (_usesBakedMask && (SystemInfo.supportedRenderTargetCount < (_usesGi ? 6 : 5) ||
                 !SystemInfo.IsFormatSupported(GraphicsFormat.R8G8_UNorm, FormatUsage.Render) || !SystemInfo.IsFormatSupported(GraphicsFormat.R8G8_UNorm, FormatUsage.Sample)))
                 return "Packed baked shadows require linear RG8 rendering/sampling and five MRTs (six with GI)";
@@ -553,17 +588,27 @@ namespace GakumasPhotoMode
         }
         private static void BindBuffers(Material m, RenderTexture[] buffers)
         { for (int i = 0; i < 4; i++) m.SetTexture("_G" + i, buffers[i]); }
+        private void BindLeaf(Material material, Surface surface, Matrix4x4 view)
+        {
+            if (!_usesLeaf) return;
+            material.EnableKeyword("SCENE_LEAF_OUTPUT"); VegetationLeafMaterial.Bind(material,surface.leaf);
+            material.SetVector("_CameraPosition",view.inverse.MultiplyPoint(Vector3.zero));
+            material.SetVector("_CameraForward",view.inverse.MultiplyVector(Vector3.back).normalized);
+            material.SetFloat("_Orthographic",_camera.orthographic ? 1 : 0);
+        }
         private Material NextMaterial()
         {
             while (_materials.Count <= _materialCount) _materials.Add(new Material(_shader) { hideFlags = HideFlags.HideAndDontSave });
             var material = _materials[_materialCount++]; material.DisableKeyword("SCENE_GI_OUTPUT"); material.DisableKeyword("SCENE_MAIN_LIGHT_SHADOWS"); material.DisableKeyword("SCENE_SCREEN_SHADOW");
-            material.DisableKeyword("SCENE_BAKED_SHADOW_INPUT"); material.DisableKeyword("SCENE_BAKED_SHADOW_PACKED"); return material;
+            material.DisableKeyword("SCENE_BAKED_SHADOW_INPUT"); material.DisableKeyword("SCENE_BAKED_SHADOW_PACKED");
+            material.DisableKeyword("SCENE_LEAF_OUTPUT"); material.DisableKeyword("SCENE_LEAF_LIGHTING"); material.DisableKeyword("SCENE_LEAF_SCREEN_SHADOW"); return material;
         }
-        private void SetTargets(RenderTexture[] buffers, bool gi = false, bool bakedMask = false)
+        private void SetTargets(RenderTexture[] buffers, bool gi = false, bool bakedMask = false, bool leaf = false)
         {
-            var targets = new RenderTargetIdentifier[4 + (gi ? 1 : 0) + (bakedMask ? 1 : 0)]; for (int i = 0; i < 4; i++) targets[i] = buffers[i];
+            var targets = new RenderTargetIdentifier[4 + (gi ? 1 : 0) + (bakedMask ? 1 : 0) + (leaf ? 1 : 0)]; for (int i = 0; i < 4; i++) targets[i] = buffers[i];
             if (bakedMask) targets[4] = _bakedMask;
             if (gi) targets[bakedMask ? 5 : 4] = _gi;
+            if (leaf) targets[targets.Length-1] = _leafTransmission;
             _commands.SetRenderTarget(targets, buffers[0]);
         }
         private Mesh Quad()
@@ -586,6 +631,14 @@ namespace GakumasPhotoMode
                     name = "Toolkit scene baked diffuse GI", hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp
                 };
                 if (!_gi.Create()) return false;
+            }
+            if (!_usesLeaf) ReleaseLeaf();
+            else if (_leafTransmission == null || !_leafTransmission.IsCreated() || _leafTransmission.width != t.width || _leafTransmission.height != t.height)
+            {
+                ReleaseLeaf(); _leafTransmission = new RenderTexture(t.width,t.height,0,RenderTextureFormat.ARGBHalf,RenderTextureReadWrite.Linear) {
+                    name = "Toolkit current vegetation leaf transmission", hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp
+                };
+                if (!_leafTransmission.Create() || _leafTransmission.format != RenderTextureFormat.ARGBHalf) return false;
             }
             if (!_usesBakedMask) ReleaseBakedMask();
             else if (_bakedMask == null || !_bakedMask.IsCreated() || _bakedMask.width != t.width || _bakedMask.height != t.height)
@@ -619,6 +672,7 @@ namespace GakumasPhotoMode
             ReleaseTemporalColor();
             ReleaseGi();
             ReleaseBakedMask();
+            ReleaseLeaf();
             _decalLights?.Dispose(); _decalLights = null;
             _mainShadow?.Dispose(); _mainShadow = null;
             _screenShadow?.Dispose(); _screenShadow = null; ScreenShadowGeometryDrawCalls = 0;
@@ -635,6 +689,7 @@ namespace GakumasPhotoMode
         }
         private void ReleaseGi() { if (_gi != null) { _gi.Release(); Destroy(_gi); } _gi = null; }
         private void ReleaseBakedMask() { if (_bakedMask != null) { _bakedMask.Release(); Destroy(_bakedMask); } _bakedMask = null; }
+        private void ReleaseLeaf() { if (_leafTransmission != null) { _leafTransmission.Release(); Destroy(_leafTransmission); } _leafTransmission = null; }
         private void ReleaseTemporalColor()
         {
             if(_temporalVisibilityCommands!=null)

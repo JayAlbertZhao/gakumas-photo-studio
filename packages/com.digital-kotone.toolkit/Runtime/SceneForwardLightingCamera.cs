@@ -83,6 +83,8 @@ namespace GakumasPhotoMode
                 material.SetFloat("_SceneGiMode", 0);
                 if (s.gi != null && !s.gi.Bind(material, s.renderer, out var error)) throw new InvalidOperationException(error);
                 SceneBakedShadowInput.Bind(material, s.renderer, s.bakedShadow);
+                if (s.leaf != null && s.leaf.enabled) material.EnableKeyword("TOOLKIT_FORWARD_LEAF"); else material.DisableKeyword("TOOLKIT_FORWARD_LEAF");
+                VegetationLeafMaterial.Bind(material,s.leaf);
                 _commands.DrawRenderer(s.renderer, material, s.submesh, 0); SubmittedSurfaces++;
             }
             _commands.EndSample("Toolkit Forward+ current transparent geometry");
@@ -132,6 +134,12 @@ namespace GakumasPhotoMode
                     if (texture != null && (texture.dimension != TextureDimension.Tex2D || (texture is RenderTexture rt && (!rt.IsCreated() || rt.antiAliasing != 1))))
                         return "Transparent material requires created non-MSAA2D textures";
                 if (s.gi != null && !s.gi.Validate(r, mesh, out var error)) return error;
+                if (s.leaf != null && s.leaf.enabled)
+                {
+                    if (!s.leaf.Validate(out var leafError)) return leafError;
+                    if (s.leaf.thicknessMap != null && !mesh.HasVertexAttribute(VertexAttribute.TexCoord0)) return "Leaf thickness map requires UV0";
+                    if (s.leaf.thicknessMap == target) return "Leaf thickness input cannot alias current camera output";
+                }
                 if (s.bakedShadow != null && !s.bakedShadow.Validate(r, mesh, out var bakedError)) return bakedError;
                 if (s.bakedShadow != null && s.bakedShadow.Enabled && s.bakedShadow.Resolve(r, out var bakedMap, out _, out _) && bakedMap == target)
                     return "Baked shadow input cannot alias current camera output";

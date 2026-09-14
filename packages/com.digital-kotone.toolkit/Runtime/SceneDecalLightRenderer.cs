@@ -142,13 +142,15 @@ namespace GakumasPhotoMode
 
         public void RecordShadows(CommandBuffer commands) => _shadows.Record(commands);
 
-        public void Record(CommandBuffer commands, RenderTexture[] buffers, Camera camera, Mesh quad, RenderTexture gi, bool recordShadows = true, RenderTexture bakedMask = null)
+        public void Record(CommandBuffer commands, RenderTexture[] buffers, Camera camera, Mesh quad, RenderTexture gi, bool recordShadows = true, RenderTexture bakedMask = null, RenderTexture leafTransmission = null)
         {
             if (_data.Count == 0 || _material == null) return;
             if (recordShadows) _shadows.Record(commands); _shadows.Bind(_material);
             _bakedChannels.Bind(_material);
             if (bakedMask != null) _material.EnableKeyword("SCENE_BAKED_SHADOW_PACKED"); else _material.DisableKeyword("SCENE_BAKED_SHADOW_PACKED");
             _material.SetTexture("_PackedBakedShadow", bakedMask);
+            if (leafTransmission != null) _material.EnableKeyword("SCENE_LEAF_LIGHTING"); else _material.DisableKeyword("SCENE_LEAF_LIGHTING");
+            _material.SetTexture("_LeafTransmission", leafTransmission);
             commands.SetRenderTarget(Accumulation); commands.ClearRenderTarget(false, true, Color.clear);
             for (int i = 0; i < 4; i++) _material.SetTexture("_G" + i, buffers[i]);
             var view = camera.worldToCameraMatrix; var projection = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);
