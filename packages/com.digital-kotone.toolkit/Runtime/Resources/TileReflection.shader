@@ -8,6 +8,8 @@ Shader "Hidden/GakumasPhotoMode/TileReflection"
         #include "UnityCG.cginc"
         Texture2D<float> _TileDepth;
         Texture2D<float4> _TileGeometry, _TileNormal, _TileBase, _TileMos, _TileReflection, _TileResponse, _TileRadiance;
+        Texture2D<float4> _TilePlanar;
+        float _TilePlanarAvailable;
         sampler2D _MainTex;
         samplerCUBE _TileProbe;
         float4 _TileSize, _TileOptions, _TileDistortion, _TileProbeOptions, _TileProbeDecode;
@@ -95,13 +97,19 @@ Shader "Hidden/GakumasPhotoMode/TileReflection"
                 float3 geometric=SafeNormal(_TileGeometry.Load(int3(p,0)).rgb*2-1);
                 float3 delta=mul((float3x3)_TileView,shading-geometric);
                 float2 uv=i.uv+delta.xz*_TileDistortion.xy;
-                float4 ssr=0;
+                float4 ssr=0,planar=0;
                 if(all(uv>=0)&&all(uv<1))
                 {
                     int2 q=Pixel(uv); float other=_TileNormal.Load(int3(q,0)).a;
-                    if(other>.5 && abs(Group(other)-Group(n.a))<.25)ssr=_TileReflection.Load(int3(q,0));
+                    if(other>.5 && abs(Group(other)-Group(n.a))<.25)
+                    {
+                        ssr=_TileReflection.Load(int3(q,0));
+                        if(_TilePlanarAvailable>.5)planar=_TilePlanar.Load(int3(q,0));
+                    }
                 }
-                return float4(clamp(lerp(probe,ssr.rgb,saturate(ssr.a)),0,65504),1);
+                float3 radiance=lerp(probe,ssr.rgb,saturate(ssr.a));
+                if(_TilePlanarAvailable>.5)radiance=lerp(radiance,planar.rgb,saturate(planar.a));
+                return float4(clamp(radiance,0,65504),1);
             }
             ENDCG
         }

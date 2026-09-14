@@ -95,6 +95,7 @@
 !/docs/ssr-roughness.md
 !/docs/status.md
 !/docs/tile-decals.md
+!/docs/tile-planar-reflections.md
 !/docs/tile-reflections.md
 !/docs/tile-render-pass.md
 !/docs/tile-scene.md
@@ -485,6 +486,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TemporalClassification.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileGeometryDepthId.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileGeometryDepthId.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/TilePlanarReflection.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/TilePlanarReflection.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileReflection.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileReflection.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/TileScene.shader
@@ -581,6 +584,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SphereFogSettings.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SrpHdrMonitor.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SrpHdrMonitor.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/SrpTilePlanarReflection.cs
+!/packages/com.digital-kotone.toolkit/Runtime/SrpTilePlanarReflection.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SrpTileReflection.cs
 !/packages/com.digital-kotone.toolkit/Runtime/SrpTileReflection.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/SsrRoughnessSettings.cs
@@ -655,6 +660,7 @@
 !/tests/test_srp_monitor_contract.py
 !/tests/test_studio.py
 !/tests/test_tile_decal_contract.py
+!/tests/test_tile_planar_contract.py
 !/tests/test_tile_reflection_contract.py
 !/tests/test_tile_render_pass_contract.py
 !/tests/test_tile_scene_contract.py
@@ -780,6 +786,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TileDecal.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePass.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePass.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePlanar.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePlanar.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePosition.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TilePosition.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.TileReflection.cs
@@ -844,6 +852,8 @@
 !/unity/Assets/Resources/FaceDeformationProbe.shader.meta
 !/unity/Assets/Resources/ResearchOriginalShaderPipeline.asset
 !/unity/Assets/Resources/ResearchOriginalShaderPipeline.asset.meta
+!/unity/Assets/Resources/TilePlanarSamplingReference.shader
+!/unity/Assets/Resources/TilePlanarSamplingReference.shader.meta
 !/unity/Assets/Resources/TileRenderPassReference.shader
 !/unity/Assets/Resources/TileRenderPassReference.shader.meta
 !/unity/Assets/Scenes.meta

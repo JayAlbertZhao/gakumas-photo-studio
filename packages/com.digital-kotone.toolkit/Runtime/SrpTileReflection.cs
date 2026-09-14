@@ -57,6 +57,7 @@ namespace GakumasPhotoMode
         private ComputeShader compute;
         private CommandBuffer commands;
         private TileSceneRenderer.PreparedFrame source;
+        private SrpTilePlanarReflection.Frame? planarSource;
         private ulong lastSequence,revision;
         private Matrix4x4 historyView,historyProjection;
         private bool disposed,ready,history,historyOrtho,filteredActive;
@@ -64,16 +65,28 @@ namespace GakumasPhotoMode
         public SrpTileReflection(Camera camera,Settings settings) { Camera=camera; Configuration=settings; }
         public void ResetHistory() { history=false; ready=false; UsedHistory=false; }
         private bool Current(ulong sequence) => !disposed && ready && sequence==lastSequence &&
-            Configuration!=null && Configuration.enabled && source!=null && source.IsRecorded && TargetsAlive();
+            Configuration!=null && Configuration.enabled && source!=null && source.IsRecorded && TargetsAlive() &&
+            (!planarSource.HasValue || planarSource.Value.Matches(source,sequence));
 
         /// <summary>One monotonic positive sequence and one fresh Tile ticket per call. Change
         /// sceneRevision on discontinuous topology/content changes; skipped sequences/camera
         /// cuts/resize reset history. This returns recorded work, not completed GPU work.</summary>
         public bool TryRecord(ScriptableRenderContext context,TileSceneRenderer.PreparedFrame scene,
             ulong sequence,ulong sceneRevision,out Frame frame,out string error)
+            => Record(context,scene,sequence,sceneRevision,null,out frame,out error);
+
+        /// <summary>Accepts only a current real Planar producer ticket for this exact Tile
+        /// scene and sequence. An invalid supplied ticket is rejected, not silently ignored.</summary>
+        public bool TryRecord(ScriptableRenderContext context,TileSceneRenderer.PreparedFrame scene,
+            ulong sequence,ulong sceneRevision,SrpTilePlanarReflection.Frame planar,out Frame frame,out string error)
+            => Record(context,scene,sequence,sceneRevision,planar,out frame,out error);
+
+        private bool Record(ScriptableRenderContext context,TileSceneRenderer.PreparedFrame scene,
+            ulong sequence,ulong sceneRevision,SrpTilePlanarReflection.Frame? planar,out Frame frame,out string error)
         {
             frame=default; error=Validate(scene,sequence);
             if(error!=null)return false;
+            if(planar.HasValue && !planar.Value.Matches(scene,sequence)) { error="Tile reflection requires the matching current Planar ticket";return false; }
             try
             {
                 if(!Allocate(scene.Color.width,scene.Color.height,out error))return false;
@@ -99,12 +112,14 @@ namespace GakumasPhotoMode
                 utility.SetVector("_TileProbeOptions",new Vector4(s.probe!=null?1:0,s.decodeProbeHdr?1:0,
                     s.probe!=null?Mathf.Min(s.probeMaximumMip,s.probe.mipmapCount-1):0,0));
                 utility.SetVector("_TileProbeDecode",s.probeDecode);
+                Texture planarTexture=planar.HasValue?(Texture)planar.Value.reflection:Texture2D.blackTexture;
+                utility.SetTexture("_TilePlanar",planarTexture);utility.SetFloat("_TilePlanarAvailable",planar.HasValue?1:0);
                 // Tile background is zero eye depth; the SSR min hierarchy requires far.
                 commands.Blit(scene.EyeDepth,depth[0],utility,0);
                 for(int level=1;level<depth.Count;level++)commands.Blit(depth[level-1],depth[level],reduce,1);
                 commands.Blit(scene.MaterialMos,visibility,utility,1);
                 trace.SetTexture("_SsrNormalMask",scene.GeometryDepthId); trace.SetTexture("_SsrVisibility",visibility);
-                trace.SetTexture("_SsrPlanarCoverage",Texture2D.blackTexture); trace.SetFloat("_SsrPlanarAvailable",0);
+                trace.SetTexture("_SsrPlanarCoverage",planarTexture); trace.SetFloat("_SsrPlanarAvailable",planar.HasValue?1:0);
                 trace.SetTexture("_SsrHistoryColor",historyColor); trace.SetTexture("_SsrHistoryDepth",historyDepth);
                 for(int level=0;level<15;level++)trace.SetTexture("_SsrDepth"+level,depth[Mathf.Min(level,depth.Count-1)]);
                 trace.SetMatrix("_SsrInverseProjection",projection.inverse); trace.SetMatrix("_SsrProjection",projection);
@@ -129,7 +144,7 @@ namespace GakumasPhotoMode
                 // Never copy the resolved output: no recursive reflections or character history.
                 commands.Blit(scene.Color,historyColor); commands.CopyTexture(depth[0],historyDepth);
                 context.ExecuteCommandBuffer(commands); commands.Clear();
-                source=scene; lastSequence=sequence; revision=sceneRevision; history=true; ready=true;
+                source=scene; planarSource=planar; lastSequence=sequence; revision=sceneRevision; history=true; ready=true;
                 historyView=view; historyProjection=projection; historyOrtho=scene.Orthographic;
                 frame=new Frame(this); return true;
             }
@@ -164,7 +179,7 @@ namespace GakumasPhotoMode
                 new[]{"_SsrSize","_SsrTrace","_SsrFrame","_SsrHistory"};
             foreach(string vector in vectors)
                 commands.SetComputeVectorParam(compute,vector,trace.GetVector(vector));
-            commands.SetComputeFloatParam(compute,"_SsrPlanarAvailable",0);
+            commands.SetComputeFloatParam(compute,"_SsrPlanarAvailable",trace.GetFloat("_SsrPlanarAvailable"));
             commands.SetComputeTextureParam(compute,kernel,"_SsrOutput",target);
             commands.DispatchCompute(compute,kernel,(width+7)/8,(height+7)/8,1);
         }

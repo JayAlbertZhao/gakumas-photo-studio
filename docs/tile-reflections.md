@@ -33,6 +33,8 @@ if (!reflections.TryRecord(context, preparedScene, sequence, sceneRevision,
 
 `sequence` 从正数单调增加，一次记录需要一张新 Tile ticket。拓扑／内容不连续时修改 `sceneRevision`；序号跳跃、相机切换投影类型、大幅平移／旋转、尺寸或执行后端变化会冷启动。`ResetHistory()` 可显式清空历史。连续轻微相机运动使用前帧 view／projection 及深度一致性检查。
 
+可先用 [SrpTilePlanarReflection](tile-planar-reflections.md) 对同一 Tile ticket／sequence 执行真实镜像捕获，再调用带 `planarFrame` 参数的 `TryRecord` 重载。当前覆盖会排除 SSR trace／过滤，resolve 在相同扰动像素与接收组中混合 Planar → SSR → Probe。旧重载不启用 Planar；新重载拒绝无效、跨帧或异源票据，不接受任意代用纹理。消费者有效性同时依赖借用的 Planar 票据。
+
 返回 frame 的 `IsCurrent` 表示当前记录的借用结果，**不是 GPU 完成信号**。调用者负责 Submit、GPU 同步以及输入／输出内容的生命周期；在上一批不再使用资源之前，不得再次记录、改写参数所依赖的纹理、调整尺寸或 Dispose。两次调用之间复用内部纹理，旧 ticket 失效。禁止借用结果当作下一帧 Tile 附件；需要跨帧保留结果时自行在 GPU 完成前安排独立复制。相机、Tile frame 被销毁或失效后，相应 ticket 也失效。
 
 ## 数据与画质约定
@@ -53,4 +55,4 @@ if (!reflections.TryRecord(context, preparedScene, sequence, sceneRevision,
 
 原生 G0 保存的是 sRGB8 码点。引擎 Blit／ReadPixels 的浮点转换与标准 EOTF 在当前配置最大相差约 0.001679；所有像素重新编码后与原始码点一致。原生材质方程的独立检查使用原始字节的标准 EOTF，不以放宽后的浮点图替代实际输入。其他 Half4／R32 输出与相应原生字段逐位一致；MOS／几何 UNorm8 的读回只有浮点表示误差。
 
-桌面测试不能替代整套应用集成：SRP Planar／Actor／运动附件与原生生产场景仍需继续接入，移动、Metal、RenderPass 带宽收益和完整讲演画质尚未验收。现有 Direct 诊断模式退出警告也没有因此关闭。
+后续 [SRP Planar 验收](tile-planar-reflections.md) 补充了真实镜像覆盖和统一 resolve。桌面测试不能替代整套应用集成：完整 Actor／运动附件与原生生产场景仍需继续接入，移动、Metal、RenderPass 带宽收益和完整讲演画质尚未验收。现有 Direct 诊断模式退出警告也没有因此关闭。

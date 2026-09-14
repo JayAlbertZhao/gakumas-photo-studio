@@ -24,9 +24,12 @@ namespace GakumasPhotoMode
         }
         private PhotoModeApp _app;
         private string _directory;
+        private bool _srp;
         public static bool TryStart(PhotoModeApp app)
         {
             string[] args = Environment.GetCommandLineArgs(); int index = Array.IndexOf(args, "--validate-planar-character");
+            bool srp=false;
+            if(index<0) { index=Array.IndexOf(args,"--validate-srp-planar-character");srp=index>=0; }
             if (index < 0) return false;
             try
             {
@@ -34,6 +37,7 @@ namespace GakumasPhotoMode
                     throw new ArgumentException("--validate-planar-character requires --photo-mode and an output directory");
                 var validation = app.gameObject.AddComponent<PlanarCharacterValidation>();
                 validation._app = app; validation._directory = Path.GetFullPath(args[index + 1]);
+                validation._srp=srp;
             }
             catch (Exception error) { Debug.LogError("[PlanarCharacterValidation] " + error.Message); Application.Quit(3); }
             return true;
@@ -44,6 +48,11 @@ namespace GakumasPhotoMode
             var report = new Report { graphicsDevice = SystemInfo.graphicsDeviceVersion, costume = _app.CurrentCostume };
             GameObject host = null, mirror = null; RenderTexture target = null; Material mirrorMaterial = null;
             var set = new ActorPlanarCaptureSet(); var previousOffscreen = new Dictionary<SkinnedMeshRenderer, bool>();
+            var oldGraphics=GraphicsSettings.renderPipelineAsset;var oldQuality=QualitySettings.renderPipeline;
+            TilePassTestAsset pipeline=null;SrpTilePlanarReflection srpPlanar=null;SrpTileReflection resolver=null;
+            var sceneFrames=new List<TileSceneRenderer.PreparedFrame>();var srpTargets=new List<RenderTexture>();
+            SrpTilePlanarReflection.Frame planarFrame=default;SrpTileReflection.Frame resolvedFrame=default;
+            RenderTexture srpCapture=null;ulong sequence=0;
             bool wasPaused = _app.IsPlaybackPaused;
             try
             {
@@ -67,8 +76,31 @@ namespace GakumasPhotoMode
                 mirror = GameObject.CreatePrimitive(PrimitiveType.Quad); mirror.layer = 29; mirror.transform.localScale = Vector3.one * distance * 3;
                 mirrorMaterial = new Material(Resources.Load<Shader>("StudioAccent")); mirror.GetComponent<Renderer>().sharedMaterial = mirrorMaterial;
                 var planar = host.AddComponent<PlanarReflection>(); planar.reflectionsEnabled = true; planar.reflectedLayers = ~0;
+                if(_srp)planar.enabled=false;
                 planar.resolutionScale = 1; planar.maximumRoughnessMip = 0;
                 planar.receivers = new[] { new PlanarReflection.Receiver { surface = new SceneDepthData.Surface { renderer = mirror.GetComponent<Renderer>() } } };
+                TileSceneRenderer.Settings sceneSettings=null;
+                if(_srp)
+                {
+                    report.schema="photo-studio.srp-planar-character.v1";
+                    RenderTexture Target(UnityEngine.Experimental.Rendering.GraphicsFormat format,string name)
+                    {
+                        var value=new RenderTexture(new RenderTextureDescriptor(512,512,format,0)) { name=name,filterMode=FilterMode.Point };
+                        srpTargets.Add(value);if(!value.Create())throw new InvalidOperationException(name);return value;
+                    }
+                    var color=Target(UnityEngine.Experimental.Rendering.GraphicsFormat.B10G11R11_UFloatPack32,"Actual character Tile scene");
+                    var normal=Target(UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat,"Actual character Tile normal");
+                    var mos=Target(UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_UNorm,"Actual character Tile MOS");
+                    var materialBase=Target(UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_SRGB,"Actual character Tile base");
+                    camera.targetTexture=color;
+                    sceneSettings=new TileSceneRenderer.Settings { enabled=true,backend=TileRenderPass.BackendPolicy.AllowEmulation,geometryDepthId=true,
+                        output=color,normalIdentity=normal,materialMos=mos,materialBase=materialBase,lightRadiance=Vector3.zero,ambientIrradiance=Vector3.zero,
+                        surfaces=new[]{new SceneDeferredCamera.Surface { renderer=mirror.GetComponent<Renderer>(),receiverGroup=7,cull=CullMode.Off,
+                            inputs=new SceneDeferredCamera.MaterialInputs { albedo=Vector3.one,mos=Vector3.one } }} };
+                    srpPlanar=new SrpTilePlanarReflection(camera,new SrpTilePlanarReflection.Settings { enabled=true,receiverGroup=7,resolutionScale=1,maximumRoughnessMip=0 });
+                    resolver=new SrpTileReflection(camera,new SrpTileReflection.Settings { enabled=true,sceneOnlyInput=true,normalDistortion=Vector2.zero });
+                    pipeline=ScriptableObject.CreateInstance<TilePassTestAsset>();GraphicsSettings.renderPipelineAsset=pipeline;QualitySettings.renderPipeline=pipeline;
+                }
                 void Check(string name, bool accepted, float value = 0) => report.checks.Add(new Check { name = name, accepted = accepted, value = value });
                 void View(float angle)
                 {
@@ -78,14 +110,41 @@ namespace GakumasPhotoMode
                     camera.transform.position = center - normal * distance * .3f;
                     camera.transform.LookAt(center - normal * distance * 1.2f);
                 }
+                Color[] DrawCurrent()
+                {
+                    if(!_srp)
+                    {
+                        planar.reflectedSurfaces=set.Draws;camera.Render();
+                        if(!planar.TryGetReflection(camera,512,512,out _))throw new InvalidOperationException(planar.UnavailableReason);
+                        return Read((RenderTexture)typeof(PlanarReflection).GetField("_capture",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(planar));
+                    }
+                    var configuration=srpPlanar.Configuration;configuration.planePoint=planar.planePoint;configuration.planeNormal=planar.planeNormal;configuration.draws=set.Draws;
+                    if(!TileSceneRenderer.TryPrepare(camera,sceneSettings,out var scene,out var reason))throw new InvalidOperationException(reason);
+                    sceneFrames.Add(scene);sequence++;
+                    RenderPipeline.SubmitRenderRequest(camera,new TilePassTestRequest { record=context=>{
+                        if(!scene.TryRecord(context,out _,out var error))throw new InvalidOperationException(error);
+                        if(!srpPlanar.TryRecord(context,scene,sequence,out planarFrame,out error))throw new InvalidOperationException(error);
+                        if(!resolver.TryRecord(context,scene,sequence,1,planarFrame,out resolvedFrame,out error))throw new InvalidOperationException(error);
+                    }});
+                    srpCapture=planarFrame.capture;return Read(srpCapture);
+                }
                 Color[] Render(string name)
                 {
                     if (!set.TryRefresh(renderers, camera.worldToCameraMatrix * PlanarReflection.ReflectionMatrix(planar.planePoint, planar.planeNormal), lighting, out var error)) throw new InvalidOperationException(error);
-                    planar.reflectedSurfaces = set.Draws; camera.Render();
-                    if (!planar.TryGetReflection(camera, 512, 512, out _)) throw new InvalidOperationException(planar.UnavailableReason);
-                    var capture = (RenderTexture)typeof(PlanarReflection).GetField("_capture", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(planar);
-                    Color[] pixels = Read(capture);
+                    Color[] pixels=DrawCurrent();
                     if (name != null) Save(name, pixels);
+                    if(_srp && name!=null)
+                    {
+                        var projection=Read(planarFrame.reflection);var trace=Read(resolvedFrame.rawReflection);var radiance=Read(resolvedFrame.radiance);
+                        int covered=0,missed=0;float resolveError=0;
+                        for(int p=0;p<projection.Length;p++)if(projection[p].a>1e-5f)
+                        {
+                            covered++;if(trace[p].a!=0)missed++;
+                            for(int c=0;c<3;c++)resolveError=Mathf.Max(resolveError,Mathf.Abs(radiance[p][c]-projection[p][c]*projection[p].a));
+                        }
+                        Check(name+"-actual-srp-projection-priority",covered>1000&&missed==0&&resolveError<.01f,resolveError);
+                        Save(name+"-projected",projection);Save(name+"-resolved",Read(resolvedFrame.color));
+                    }
                     return pixels;
                 }
                 string sourceBefore = Snapshot(renderers);
@@ -108,12 +167,12 @@ namespace GakumasPhotoMode
                 _app.EvaluateMotion(0); Color[] restored = Render("mirror-motion-restored");
                 Check("motion-seek-restores-capture", Difference(front, restored) == 0, Difference(front, restored));
                 foreach (var draw in set.Draws) { draw.material.SetTexture("_CapShade", Texture2D.whiteTexture); draw.material.SetTexture("_CapRampAdd", Texture2D.blackTexture); draw.material.SetTexture("_CapHighlight", Texture2D.blackTexture); }
-                camera.Render(); var raw = (RenderTexture)typeof(PlanarReflection).GetField("_capture", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(planar);
-                Color[] detailOff = Read(raw); Save("mirror-detail-negative-control", detailOff);
+                Color[] detailOff=DrawCurrent(); Save("mirror-detail-negative-control", detailOff);
                 Check("authored-shade-hair-material-details-affect-capture", Difference(restored, detailOff) > 100, Difference(restored, detailOff));
                 Check("refresh-recovers-owned-material-overrides", Difference(restored, Render(null)) == 0);
-                set.TryRefresh(Array.Empty<Renderer>(), Matrix4x4.identity, lighting, out _); planar.reflectedSurfaces = set.Draws; camera.Render();
-                Check("empty-character-releases-capture-and-materials", set.MaterialCount == 0 && !planar.TryGetReflection(camera, 512, 512, out _));
+                set.TryRefresh(Array.Empty<Renderer>(), Matrix4x4.identity, lighting, out _); planar.reflectedSurfaces = set.Draws;
+                if(_srp)Check("empty-character-clears-capture-and-releases-materials",DrawCurrent().All(p=>p==Color.clear)&&set.MaterialCount==0);
+                else { camera.Render();Check("empty-character-releases-capture-and-materials",set.MaterialCount==0&&!planar.TryGetReflection(camera,512,512,out _)); }
                 Check("rebind-real-character-recovers", Difference(restored, Render(null)) == 0);
                 set.Dispose(); Check("dispose-removes-borrowed-draws", set.MaterialCount == 0 && set.Draws.Length == 0);
                 report.accepted = report.checks.All(c => c.accepted);
@@ -122,13 +181,18 @@ namespace GakumasPhotoMode
             finally
             {
                 set.Dispose(); foreach (var pair in previousOffscreen) if (pair.Key != null) pair.Key.updateWhenOffscreen = pair.Value;
+                resolver?.Dispose();srpPlanar?.Dispose();foreach(var frame in sceneFrames)frame.Dispose();
+                if(_srp) { GraphicsSettings.renderPipelineAsset=oldGraphics;QualitySettings.renderPipeline=oldQuality; }
+                if(pipeline!=null)Destroy(pipeline);
+                if(_srp&&host!=null)host.GetComponent<Camera>().targetTexture=null;
+                foreach(var value in srpTargets) { value.Release();Destroy(value); }
                 _app.SetPlaybackPaused(wasPaused);
                 if (host != null) { host.GetComponent<Camera>().targetTexture = null; Destroy(host); }
                 if (mirror != null) Destroy(mirror);
                 if (mirrorMaterial != null) Destroy(mirrorMaterial);
                 if (target != null) { target.Release(); Destroy(target); }
             }
-            try { File.WriteAllText(Path.Combine(_directory, "planar-character.json"), JsonUtility.ToJson(report, true)); }
+            try { File.WriteAllText(Path.Combine(_directory, _srp?"srp-planar-character.json":"planar-character.json"), JsonUtility.ToJson(report, true)); }
             catch (Exception error) { report.accepted = false; Debug.LogException(error); }
             Debug.Log("[PlanarCharacterValidation] accepted=" + report.accepted + "; checks=" + report.checks.Count);
             Application.Quit(report.accepted ? 0 : 2);

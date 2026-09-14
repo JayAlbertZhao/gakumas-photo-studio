@@ -116,7 +116,9 @@ namespace GakumasPhotoMode
                             Vector3 ng=new Vector3(geometry[p].r*2-1,geometry[p].g*2-1,geometry[p].b*2-1).normalized;
                             Vector3 delta=camera.worldToCameraMatrix.MultiplyVector(n-ng);
                             float u=(p%width+.5f)/width+delta.x*settings.normalDistortion.x;
-                            float v=(p/width+.5f)/height+delta.z*settings.normalDistortion.y*(SystemInfo.graphicsUVStartsAtTop?-1:1);
+                            // The resolve perturbs texture UVs directly; projection Y
+                            // conversion has already happened in reconstruction.
+                            float v=(p/width+.5f)/height+delta.z*settings.normalDistortion.y;
                             Color reflection=Color.clear;
                             if(u>=0&&u<1&&v>=0&&v<1)
                             { int q=(int)(v*height)*width+(int)(u*width);if(normals[q].a>.5f&&(normals[q].a-1)%256+1==group)reflection=reflected[q]; }

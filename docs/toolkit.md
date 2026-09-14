@@ -23,6 +23,8 @@
 
 [TileSceneRenderer](tile-scene.md) 在该调度器上消费现有场景材质、GI 和烘焙遮罩输入，执行五 MRT、方向光 PBR 和 GI 附件到最终颜色的复用。它提供单次材质快照，目标仍归宿主管理；只接入明确支持的场景子集，不自动移植局部灯、反射、角色或运动模块。
 
+在当前 Tile pass 结束后，可按需接入 [SrpTilePlanarReflection](tile-planar-reflections.md) 与 [SrpTileReflection](tile-reflections.md)。前者显式捕获角色／发光 Draw 的镜像与覆盖，后者消费同源票据执行 Planar／SSR／Probe 选择及当前材质响应。两者默认关闭，不依赖 Photo Studio UI；宿主负责顺序、场景历史内容、Submit 和 GPU 生命周期。
+
 来自讲演的框架技术覆盖、可选自然风、TAA 表面分类和自制网格编码接口见 [框架技术清单](framework-techniques.md)。这些模块不要求 Photo Studio UI；未实现的场景／移动端能力保留明确状态。
 
 群集可用 `CrowdDefinition`／`CrowdRenderer`／`CrowdCamera`：八类共享当前 pose、GPU 最近模型预算、四向动态材质捕获与间接绘制，不需要兼容角色格式或摄影 UI。默认关闭，模型与动画由宿主提供；生命周期、CPU 回退、原生深度次序及四视图近似边界见 [Crowd 接入](crowd.md)。可选 [观众荧光棒](crowd-lightsticks.md) 在同一当前几何上消费自制遮罩、独立实例颜色与显式时间；不自动发现手骨或携带观众资产。显式 [CrowdShadowSource](crowd-shadows.md) 用当前共享 pose 和 Low／High 几何向方向光／局部光投影，不复用主相机的可见列表或远景 billboard。
