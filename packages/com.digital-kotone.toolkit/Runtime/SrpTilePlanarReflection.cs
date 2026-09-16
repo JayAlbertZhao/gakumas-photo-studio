@@ -131,7 +131,7 @@ namespace GakumasPhotoMode
         {
             var s=Configuration;
             if(disposed || s==null || !s.enabled)return "SRP Tile Planar disabled or disposed";
-            if(GraphicsSettings.currentRenderPipeline==null || Camera==null || scene==null || !scene.IsRecorded || scene.Camera!=Camera)
+            if(GraphicsSettings.currentRenderPipeline==null || Camera==null || scene==null || !scene.SceneContentAvailable || scene.Camera!=Camera)
                 return "SRP Tile Planar requires the current successfully recorded matching camera scene";
             if(sequence==0 || sequence<=lastSequence || ReferenceEquals(source,scene))return "SRP Tile Planar requires a fresh scene and monotonic positive sequence";
             if(Camera.stereoEnabled || Camera.allowDynamicResolution || Camera.rect!=new Rect(0,0,1,1) || QualitySettings.activeColorSpace!=ColorSpace.Linear)

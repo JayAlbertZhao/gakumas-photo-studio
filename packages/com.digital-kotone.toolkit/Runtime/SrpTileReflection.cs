@@ -189,7 +189,7 @@ namespace GakumasPhotoMode
             var s=Configuration;
             if(disposed || s==null || !s.enabled)return "Tile reflections disabled or disposed";
             if(!s.sceneOnlyInput)return "Declare scene-only input before actors and indirect specular";
-            if(GraphicsSettings.currentRenderPipeline==null || Camera==null || scene==null || !scene.IsRecorded || scene.Camera!=Camera)
+            if(GraphicsSettings.currentRenderPipeline==null || Camera==null || scene==null || !scene.SceneContentAvailable || scene.Camera!=Camera)
                 return "Tile reflections require the matching successfully recorded SRP scene";
             if(QualitySettings.activeColorSpace!=ColorSpace.Linear || Camera.stereoEnabled || Camera.allowDynamicResolution || Camera.rect!=new Rect(0,0,1,1))
                 return "Tile reflections require Linear, fixed-size full viewport without XR";

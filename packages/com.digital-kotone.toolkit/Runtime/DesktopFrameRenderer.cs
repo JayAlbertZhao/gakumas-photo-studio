@@ -15,6 +15,8 @@ namespace GakumasPhotoMode
             public bool enabled;
             public readonly TileSceneRenderer.Settings scene = new TileSceneRenderer.Settings();
             public readonly ActorForwardDrawSet.Settings actors = new ActorForwardDrawSet.Settings();
+            // Opt-in destructive scene attachment reuse; defaults preserve scene inputs.
+            public SrpActorForward.Storage actorStorage;
             public readonly SceneDirectionalShadowSettings selfShadow = new SceneDirectionalShadowSettings();
             public Vector3 selfShadowDirection = new Vector3(.6f, 1, .7f);
             public readonly SrpTilePlanarReflection.Settings planar = new SrpTilePlanarReflection.Settings();
@@ -62,6 +64,9 @@ namespace GakumasPhotoMode
         /// does not indicate GPU completion. Submit/complete before retiring.</summary>
         public bool HasPendingWork => phase != Phase.Idle && !disposed;
         public bool UsedReflectionHistory => reflection.UsedHistory;
+        /// <summary>Owned Actor targets only; excludes borrowed scene storage and
+        /// driver overhead. A nominal allocation count, not measured VRAM or traffic.</summary>
+        public long ActorNominalTextureBytes => actor.NominalTextureBytes;
         private enum Phase { Idle, Recording, Opaque, Finishing, Complete, Failed }
         private Phase phase;
         private readonly SrpActorShadow shadow = new SrpActorShadow();
@@ -114,6 +119,7 @@ namespace GakumasPhotoMode
             try
             {
                 var s = Configuration;
+                actor.Configuration.storage = s.actorStorage;
                 if (!TileSceneRenderer.TryPrepare(Camera, s.scene, out scene, out error)) return Fail(error);
                 if (s.selfShadow.enabled)
                 {

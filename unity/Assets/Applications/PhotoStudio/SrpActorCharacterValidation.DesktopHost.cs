@@ -96,6 +96,17 @@ namespace GakumasPhotoMode
                 Check("dof-positive-control",Changed(front,noDof,.001f)>100,Changed(front,noDof,.001f));
                 Run("all-restored");var final=Run("all-restored-warm");
                 Check("all-controls-restore-whole-color",MaximumDifference(front,final)<.00001f,MaximumDifference(front,final));
+                foreach(int angle in new[]{0,90,180})
+                {
+                    View(angle);string label="storage-view-"+angle;
+                    s.actorStorage=SrpActorForward.Storage.SeparateHalf;Run(label+"-half-cold",.7f);var half=Run(label+"-half",.7f);
+                    s.actorStorage=SrpActorForward.Storage.SeparatePacked;Run(label+"-packed-cold",.7f);var packed=Run(label+"-packed",.7f);
+                    s.actorStorage=SrpActorForward.Storage.ReuseScenePacked;Run(label+"-reuse-cold",.7f);var reuse=Run(label+"-reuse",.7f);
+                    Check(label+"-reuse-exact-packed-control",MaximumDifference(packed,reuse)==0,MaximumDifference(packed,reuse));
+                    Check(label+"-packed-precision-difference-metric",Finite(MaximumDifference(half,packed)),MaximumDifference(half,packed));
+                    s.actorStorage=SrpActorForward.Storage.SeparateHalf;Run(label+"-restored-cold",.7f);var restoredStorage=Run(label+"-restored",.7f);
+                    Check(label+"-default-restored",MaximumDifference(half,restoredStorage)<.00001f,MaximumDifference(half,restoredStorage));
+                }
                 example.Shutdown();Check("shutdown-preserves-character",SourceSnapshot(renderers)==sourceBefore&&renderers.All(r=>r!=null&&r.enabled));
                 Check("shutdown-restores-pipeline",GraphicsSettings.renderPipelineAsset==previousGraphics&&QualitySettings.renderPipeline==previousQuality);
             }

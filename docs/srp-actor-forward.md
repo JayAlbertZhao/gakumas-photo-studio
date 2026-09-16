@@ -49,7 +49,7 @@ from the exact same scene preparation and sequence. An arbitrary HDR texture or 
 ticket from another scene/frame is not accepted. The scene must itself remain free
 of actors and indirect specular already added by the reflection resolver.
 
-The Actor pass owns a separate RGBAHalf + D32S8 output and R32 eye-depth export,
+By default the Actor pass owns a separate RGBAHalf + D32S8 output and R32 eye-depth export,
 nominally 20 bytes per pixel. Scene depth is copied without an eye-depth
 unprojection/reprojection roundtrip: that roundtrip can reject coincident geometry
 at `LEqual`. The destination stencil is cleared independently; scene receiver bits
@@ -58,6 +58,39 @@ read inputs. A scene depth-only Store adds eight nominal stored bytes per pixel;
 selecting D32S8 instead of transient D32 increases the scene attachment budget by
 four bytes per pixel. These are format budgets, not measured GPU residency or
 bandwidth savings.
+
+## Optional packed scene attachment reuse
+
+`SrpActorForward.Settings.storage` (or `DesktopFrameRenderer.Settings.actorStorage`)
+selects storage explicitly. The default remains `SeparateHalf`.
+
+| Policy | Actor color | Owned nominal bytes/pixel | Scene color/depth contents |
+| --- | --- | ---: | --- |
+| `SeparateHalf` | RGBAHalf | 20 | Preserved |
+| `SeparatePacked` | B10G11R11 packed HDR | 16 | Preserved |
+| `ReuseScenePacked` | The exact scene GBuffer4/output texture | 4 | Consumed in place |
+
+Reuse borrows **both** scene color and its stored D32S8 depth; only the R32
+current eye-depth export is allocated. Record every scene-only Planar/SSR/history
+reader first. If reflections are enabled, their resolved color is copied to the
+reused color without sampling either active attachment. Otherwise color stays in
+place. Scene stencil is reset without changing raster depth, then the same full
+Actor draws execute. Effects/DOF/grading consume current Actor color/depth as usual.
+
+After consumption `scene.SceneContentAvailable` is false: new scene-only readers
+and a second Actor consumer reject it. `scene.IsRecorded` still describes valid
+recorded work, not unchanged contents. Previously recorded reflection tickets
+retain independent outputs. Do not treat the reused color as a scene-only image
+or refill either target until queued work completes. Disposal never releases
+borrowed targets. Material/property-block sampling of either reused attachment
+is rejected.
+
+`SeparatePacked` supplies a same-format control for reuse. Packed HDR has no alpha
+channel (sampled alpha is one), no negative values and less precision than RGBAHalf;
+this is an explicit quality/storage choice, not a bit-identical replacement for
+the default. The 12 bytes/pixel avoided versus separate packed targets are nominal
+owned allocations, not measured VRAM, bandwidth, frame-time or mobile savings.
+GBuffer2 motion/depth/material-ID Half4 and full temporal integration remain open.
 
 ## Materials, lighting and lifetime
 
@@ -165,8 +198,8 @@ costumes/APIs; see [Actor shadows](actor-shadows.md) for its actual coverage and
 negative controls. Broader characters, face-decal/normal-map combinations and
 production lighting remain separate coverage work.
 
-PDF27's motion/depth/material-ID Half4 and original
-GBuffer4 storage reuse are still separate open integration work: the current R32
-eye-depth export and separate HDR output do not implement them. See the complete
+The optional packed path now reuses the actual GBuffer4 and stored hardware depth;
+PDF27's GBuffer2 motion/depth/material-ID Half4 remains open. The current R32
+eye-depth export does not implement that layout. See the complete
 [technique inventory](framework-techniques.md), [Tile scene](tile-scene.md),
 [Tile reflections](tile-reflections.md), and [SRP Planar](tile-planar-reflections.md).

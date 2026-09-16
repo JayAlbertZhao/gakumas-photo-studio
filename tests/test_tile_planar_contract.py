@@ -11,7 +11,7 @@ class TilePlanarContractTests(unittest.TestCase):
 
     def test_explicit_srp_recording_without_recursive_camera(self):
         text=self.source()
-        for value in ('public bool enabled;', '!scene.IsRecorded', 'scene.Camera!=Camera', 'sequence<=lastSequence', 'ReferenceEquals(source,scene)'):
+        for value in ('public bool enabled;', '!scene.SceneContentAvailable', 'scene.Camera!=Camera', 'sequence<=lastSequence', 'ReferenceEquals(source,scene)'):
             self.assertIn(value,text)
         for value in ('Camera.Render(', 'context.Submit(', 'SetViewProjectionMatrices(', 'GL.invertCulling=', 'GraphicsSettings.renderPipelineAsset='):
             self.assertNotIn(value,text)

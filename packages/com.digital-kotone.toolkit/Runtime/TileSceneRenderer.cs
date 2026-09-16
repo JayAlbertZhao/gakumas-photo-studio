@@ -56,6 +56,17 @@ namespace GakumasPhotoMode
             private Mesh _quad;
             private TileScenePositionResources _position;
             private bool _recorded, _disposed, _complete, _storedDepth;
+            private bool _sceneAttachmentsConsumed;
+            /// <summary>False once an explicit in-place Actor consumer takes ownership
+            /// of the scene color/depth contents. Recorded work remains valid, but no
+            /// further scene-only reader may be scheduled from this ticket.</summary>
+            public bool SceneContentAvailable => IsRecorded && !_sceneAttachmentsConsumed;
+            internal bool TryConsumeSceneAttachments()
+            {
+                if (!SceneContentAvailable) return false;
+                _sceneAttachmentsConsumed = true;
+                return true;
+            }
             public Camera Camera { get; private set; }
             public Matrix4x4 WorldToCamera { get; private set; }
             public Matrix4x4 GpuProjection { get; private set; }

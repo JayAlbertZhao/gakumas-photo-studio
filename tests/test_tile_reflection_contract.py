@@ -11,7 +11,7 @@ class TileReflectionContractTests(unittest.TestCase):
 
     def test_explicit_host_and_content_contract(self):
         source=self.source()
-        for value in ('public bool enabled;', 'sceneOnlyInput', '!scene.IsRecorded', 'scene.Camera!=Camera', 'sequence<=lastSequence', 'ReferenceEquals(scene,source)'):
+        for value in ('public bool enabled;', 'sceneOnlyInput', '!scene.SceneContentAvailable', 'scene.Camera!=Camera', 'sequence<=lastSequence', 'ReferenceEquals(scene,source)'):
             self.assertIn(value,source)
         for value in ('Camera.Render(', 'context.Submit(', 'Graphics.Blit(', 'GraphicsSettings.renderPipelineAsset='):
             self.assertNotIn(value,source)

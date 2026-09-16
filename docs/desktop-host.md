@@ -43,6 +43,12 @@ Scene 列表不得包含 Actor，以免把角色写进场景反射历史。Plana
 法线／身份、SRGB8 base 和 UNorm8 MOS。沿用各模块的格式、尺寸和工作量限制，
 不自动修复不兼容输入或猜测原版 MaterialID。
 
+`Settings.actorStorage` 默认 `SeparateHalf`，保留原有独立 Actor 输出。显式选择
+`ReuseScenePacked` 可在反射历史完成后原位消费场景 GBuffer4 和 D32S8；后处理仍使用
+当前 Actor 深度。该选择有 packed HDR 的精度／无 alpha 限制，不能继续把被覆盖的纹理
+当作场景输入。`SeparatePacked` 是同格式独立输出对照；所有权、失效规则和名义内存
+预算见 [Actor 存储策略](srp-actor-forward.md#optional-packed-scene-attachment-reuse)。
+
 宿主在有效 SRP context 内完成以下顺序：
 
 1. `TryRecord(context, sequence, sceneRevision, out opaque, out error)`：场景准备、
@@ -70,7 +76,7 @@ Scene 列表不得包含 Actor，以免把角色写进场景反射历史。Plana
 ## 覆盖边界
 
 目前是桌面显式离屏协调器。它没有自动接入全部 Motion／TAA／Motion Blur／Bloom／
-FSR／Diffusion，也没有实现 PDF 中 Actor Half4 运动附件或原位 GBuffer4 复用。
+FSR／Diffusion；PDF 中 Actor Half4 运动附件仍未实现。GBuffer4／硬件深度原位复用已有显式可选路径，不改变默认存储。
 各模块单独存在，不意味着已进入这条整帧路径。
 
 示例的 primitive 角色只能说明模块如何接入；不证明真实头发／面部贴花／复杂透明

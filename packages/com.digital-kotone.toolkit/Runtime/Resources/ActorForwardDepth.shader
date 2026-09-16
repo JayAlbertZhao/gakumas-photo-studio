@@ -71,5 +71,28 @@ Shader "Hidden/GakumasPhotoMode/ActorForwardDepth"
             }
             ENDCG
         }
+        Pass
+        {
+            Name "COPY_REFLECTED_COLOR_WITHOUT_DEPTH_FEEDBACK"
+            ZWrite Off
+            CGPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vertex
+            #pragma fragment CopyColor
+            float4 CopyColor(Varying i):SV_Target { return _ActorSourceColor.Load(int3(Pixel(i.uv),0)); }
+            ENDCG
+        }
+        Pass
+        {
+            Name "RESET_SCENE_STENCIL_PRESERVE_RASTER_DEPTH"
+            ZWrite Off ColorMask 0
+            Stencil { Ref 0 Comp Always Pass Replace WriteMask 255 }
+            CGPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vertex
+            #pragma fragment ClearStencil
+            float4 ClearStencil(Varying i):SV_Target { return 0; }
+            ENDCG
+        }
     }
 }

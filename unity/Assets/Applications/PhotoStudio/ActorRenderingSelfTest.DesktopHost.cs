@@ -190,7 +190,12 @@ namespace GakumasPhotoMode
                 Check("optional-producers-disabled",!bare.selfShadow.HasValue&&!bare.reflections.HasValue&&!bare.planar.HasValue);
                 Check("disabled-post-finish",host.TryFinishAfterSubmission(bare,0,out var bareFinal,out _)&&bareFinal.IsCurrent);
                 Check("disabled-post-exact-passthrough",Difference(bareInput,Read(bareFinal.color))==0&&bareFinal.color==bare.actors.color);
-                host.RetireAfterGpuCompletion();host.Dispose();
+                host.RetireAfterGpuCompletion();
+                // Appended storage controls keep every prior fixture unchanged.
+                s.effects.enabled=true;s.depthOfField.enabled=true;s.colorGrade=lut;
+                VerifyDesktopStorage(report,host,camera,s,ref sequence);
+                host.Dispose();
+                Check("storage-dispose-preserves-borrowed-scene",s.scene.output.IsCreated()&&s.scene.depthStencil.IsCreated());
                 RenderPipeline.SubmitRenderRequest(camera,new TilePassTestRequest { record=context=>Check("disposed-host-rejects-record",!host.TryRecord(context,++sequence,1,out _,out _)) });
             }
             finally
@@ -199,6 +204,91 @@ namespace GakumasPhotoMode
                 foreach(var value in _owned)if(value!=null)Destroy(value);_owned.Clear();
             }
             VerifyDesktopExample(report);
+        }
+
+        private void VerifyDesktopStorage(Report report,DesktopFrameRenderer host,Camera camera,DesktopFrameRenderer.Settings settings,ref ulong sequence)
+        {
+            void Check(string n,bool ok,float v=0)=>FrameworkCheck(report,"desktop-storage-"+n,ok,v);
+            float Difference(Color[] a,Color[] b){float e=0;for(int p=0;p<a.Length;p++)for(int c=0;c<4;c++)e=Mathf.Max(e,Mathf.Abs(a[p][c]-b[p][c]));return e;}
+            ulong serial=sequence;
+            Color[] Run(string name,SrpActorForward.Storage storage,out Color[] depth,bool reset=true)
+            {
+                settings.actorStorage=storage;if(reset)host.ResetHistoryAfterGpuCompletion();
+                bool reuse=storage==SrpActorForward.Storage.ReuseScenePacked;
+                DesktopFrameRenderer.OpaqueFrame opaque=default;
+                bool capture=Environment.GetEnvironmentVariable("GAKUMAS_SELFTEST_CAPTURE_DESKTOP_STORAGE_CASE")==name;
+                bool began=capture&&RenderDocCaptureBridge.BeginOffscreenCapture();
+                RenderPipeline.SubmitRenderRequest(camera,new TilePassTestRequest { record=context=>{
+                    if(!host.TryRecord(context,++serial,1,out opaque,out var why))throw new InvalidOperationException(why);
+                    var scene=opaque.Scene;
+                    Check(name+"-scene-content-state",scene.IsRecorded&&scene.SceneContentAvailable!=reuse);
+                    Check(name+"-exact-color-alias",(opaque.actors.color==settings.scene.output)==reuse);
+                    if(reuse)
+                    {
+                        using var lateReflection=new SrpTileReflection(camera,settings.reflections);
+                        using var latePlanar=new SrpTilePlanarReflection(camera,settings.planar);
+                        using var lateActor=new SrpActorForward(camera,new SrpActorForward.Settings { enabled=true });
+                        if(!ActorForwardDrawSet.TryPrepare(camera,settings.actors,out var draws,out why))throw new InvalidOperationException(why);
+                        using(draws)
+                        {
+                            Check(name+"-reject-late-scene-reflection",!lateReflection.TryRecord(context,scene,serial+1,1,out _,out _));
+                            Check(name+"-reject-late-scene-planar",!latePlanar.TryRecord(context,scene,serial+1,out _,out _));
+                            Check(name+"-reject-second-actor-consumer",!lateActor.TryRecord(context,scene,draws,serial+1,out _,out _));
+                        }
+                    }
+                }});
+                Check(name+"-scene-only-history-state",host.UsedReflectionHistory==(settings.reflections.enabled&&!reset));
+                var expectedFormat=storage==SrpActorForward.Storage.SeparateHalf?GraphicsFormat.R16G16B16A16_SFloat:GraphicsFormat.B10G11R11_UFloatPack32;
+                Check(name+"-exact-native-format",opaque.actors.color.graphicsFormat==expectedFormat);
+                long pixels=(long)settings.scene.output.width*settings.scene.output.height;
+                Check(name+"-owned-attachment-budget",host.ActorNominalTextureBytes==pixels*(reuse?4:storage==SrpActorForward.Storage.SeparateHalf?20:16),host.ActorNominalTextureBytes);
+                depth=ReadSceneTarget(opaque.actors.eyeDepth);
+                if(!host.TryFinishAfterSubmission(opaque,.75,out var frame,out var error))throw new InvalidOperationException(error);
+                var result=ReadSceneTarget(frame.color);
+                if(capture)Check(name+"-native-capture",began&&RenderDocCaptureBridge.EndOffscreenCapture());
+                Check(name+"-post-chain-current",frame.IsCurrent&&opaque.IsCurrent);
+                SaveSsrPreview("desktop-storage-"+name,result,settings.scene.output.width,settings.scene.output.height,false);
+                using(var writer=new BinaryWriter(File.Create(Path.Combine(_directory,"desktop-storage-"+name+".raw"))))
+                    foreach(var p in result)for(int c=0;c<4;c++)writer.Write(p[c]);
+                host.RetireAfterGpuCompletion();
+                Check(name+"-borrowed-targets-survive-retirement",settings.scene.output.IsCreated()&&settings.scene.depthStencil.IsCreated()&&!frame.IsCurrent);
+                return result;
+            }
+            // A material input must not alias either destructive output, even if
+            // it was valid while preparing the scene. Failure must not consume it.
+            foreach(var feedback in new[]{settings.scene.output,settings.scene.depthStencil})
+            {
+                settings.actorStorage=SrpActorForward.Storage.ReuseScenePacked;
+                var old= settings.actors.configureMaterial;
+                try
+                {
+                    settings.actors.configureMaterial=(r,i,m)=>{old?.Invoke(r,i,m);m.SetTexture("_MainTex",feedback);};
+                    RenderPipeline.SubmitRenderRequest(camera,new TilePassTestRequest { record=context=>{
+                        bool ok=host.TryRecord(context,++serial,1,out _,out var error);
+                        Check((feedback==settings.scene.output?"color":"depth")+"-material-feedback-rejected",!ok&&error!=null&&error.Contains("sample"));
+                    }});
+                    ReadSceneTarget(settings.scene.output);host.RetireAfterGpuCompletion();
+                }
+                finally { settings.actors.configureMaterial=old; }
+            }
+            foreach(bool reflections in new[]{false,true})
+            {
+                settings.reflections.enabled=reflections;settings.planar.enabled=reflections;
+                string prefix=reflections?"reflections":"direct";
+                var half=Run(prefix+"-half",SrpActorForward.Storage.SeparateHalf,out var halfDepth);
+                var packed=Run(prefix+"-packed",SrpActorForward.Storage.SeparatePacked,out var packedDepth);
+                var reused=Run(prefix+"-reuse",SrpActorForward.Storage.ReuseScenePacked,out var reusedDepth);
+                Check(prefix+"-reuse-whole-post-color-exact-packed-control",Difference(packed,reused)==0,Difference(packed,reused));
+                Check(prefix+"-reuse-whole-depth-exact",Difference(halfDepth,reusedDepth)==0&&Difference(packedDepth,reusedDepth)==0,Difference(halfDepth,reusedDepth));
+                Check(prefix+"-packed-precision-is-visible-metric",!float.IsNaN(Difference(half,packed)),Difference(half,packed));
+                var repeated=Run(prefix+"-reuse-repeat",SrpActorForward.Storage.ReuseScenePacked,out _,false);
+                Check(prefix+"-reuse-repeat-exact",Difference(reused,repeated)==0,Difference(reused,repeated));
+                var restored=Run(prefix+"-half-restored",SrpActorForward.Storage.SeparateHalf,out _);
+                Check(prefix+"-default-restored-exact",Difference(half,restored)==0,Difference(half,restored));
+            }
+            // Leave the compositor borrowing actual scene targets for Dispose coverage.
+            Run("reuse-before-dispose",SrpActorForward.Storage.ReuseScenePacked,out _);
+            settings.actorStorage=SrpActorForward.Storage.SeparateHalf;sequence=serial;
         }
 
         // Measure all eight filter weights at the actual post-FX/DOF coordinates.

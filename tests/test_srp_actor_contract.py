@@ -8,6 +8,22 @@ RUNTIME = ROOT / 'packages/com.digital-kotone.toolkit/Runtime'
 
 
 class SrpActorContractTests(unittest.TestCase):
+    def test_packed_reuse_is_opt_in_and_consumes_only_scene_contents(self):
+        source = (RUNTIME / 'SrpActorForward.cs').read_text(encoding='utf-8')
+        self.assertIn('enum Storage { SeparateHalf, SeparatePacked, ReuseScenePacked }', source)
+        self.assertIn('draws.sampled.Contains(scene.Color)', source)
+        self.assertIn('draws.sampled.Contains(scene.DepthStencil)', source)
+        self.assertIn('borrowedColor?null:color,eyeDepth', source)
+        self.assertLess(source.index('scene.TryConsumeSceneAttachments()'), source.index('context.ExecuteCommandBuffer(commands)'))
+        scene = (RUNTIME / 'TileSceneRenderer.cs').read_text(encoding='utf-8')
+        self.assertIn('SceneContentAvailable => IsRecorded && !_sceneAttachmentsConsumed', scene)
+        for name in ('SrpActorForward.cs', 'SrpTileReflection.cs', 'SrpTilePlanarReflection.cs'):
+            self.assertIn('!scene.SceneContentAvailable', (RUNTIME / name).read_text(encoding='utf-8'))
+        shader = (RUNTIME / 'Resources/ActorForwardDepth.shader').read_text(encoding='utf-8')
+        self.assertIn('RESET_SCENE_STENCIL_PRESERVE_RASTER_DEPTH', shader)
+        self.assertIn('ZWrite Off ColorMask 0', shader)
+        self.assertIn('Ref 0 Comp Always Pass Replace WriteMask 255', shader)
+
     def test_all_full_surface_uniforms_are_material_or_explicit_inputs(self):
         shader = (RUNTIME / 'Resources/PhotoModeFallback.shader').read_text(encoding='utf-8')
         properties = set(re.findall(r'^\s*(?:\[[^\]]+\]\s*)*(_\w+)\s*\(', shader, re.M))
