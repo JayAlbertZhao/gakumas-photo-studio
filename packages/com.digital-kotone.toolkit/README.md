@@ -133,6 +133,11 @@ SSR.backend 或独立 SceneDepthData.hierarchyBackend 可选择 `SceneShaderBack
 
 `MotionBlurRenderer` 接收宿主拥有的当前 HDR、可见运动／当前正深度和采样间隔，提供默认关闭的 tile／双方向深度重建。`SceneDeferredCamera` 可用实际 GPU 几何对应和 framebuffer 可见性生产 guide，显式后处理桥接位于 DOF 后、Bloom 前；不自动登记角色或支持任意透明层。曝光、jitter、生命周期、桌面验证和附件成本见 [Motion Blur](../../docs/motion-blur.md)。
 
+`BloomRenderer` 和 `DiffusionRenderer` 接收调用方的线性 HDR，无相机或私有配置依赖。
+`DesktopFrameRenderer` 可显式组合 Bloom → FSR → Diffusion → 调色，所有新增效果
+默认关闭。Diffusion 采用自主五点二项式核，半径按最终输出像素指定；格式、预算、
+借用帧生命周期与模型边界见 [自主 Diffusion](../../docs/desktop-host.md#可选自主-diffusion)。
+
 `FogVolumeRenderer` 通过不可变 `FogVolumeBinding` 消费宿主自己的 HDR／设备或线性深度，联合处理距离介质和最多八个球；默认不启用。透明表面共用同一绑定，先求不透明雾，再按自身深度求雾并覆盖混合。示范表面使用显式线性 Vector 颜色，不自动接管已有透明材质。使用与边界见 [多介质雾](../../docs/fog-volumes.md)。
 
 `VolumetricLightingRenderer` 在有限均匀介质内积分最多 16 个聚光灯，消费显式当前深度并独立生成已登记几何的动态阴影。支持透视／正交／偏轴、相函数、质量档和 Hard／PCF 遮挡；默认不启用，不自动处理已有透明层。输入／资源所有权和使用示例见 [体积光](../../docs/volumetric-lighting.md)。

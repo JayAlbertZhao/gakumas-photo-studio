@@ -19,7 +19,9 @@ P04 的 Motion Blur 现已可选接入 [桌面整帧宿主](desktop-host.md#可�
 P03 新增不依赖私有 profile 的 [自主 Bloom](desktop-host.md#可选自主-bloom)，以明确的
 软阈值、归一化金字塔和一次 HDR 合成接入 Motion Blur 后。自制桌面数值参考和
 原生资源链已验证；其模型与旧摄影累加金字塔分别保留，不推导原版公式或整体画质相同。
-后续 Diffusion 整帧接入仍待完成。
+新增独立 [Diffusion](desktop-host.md#可选自主-diffusion)，在 FSR 后、调色前以明确的
+完整输出像素半径、归一化二项式核与正向 HDR 扩散合成。PPT 仅公布功能、PDF 公布
+顺序；该核和参数是本项目自己的选择，不包含旧摄影私有 profile。
 
 O01 的 [整帧 FSR](desktop-host.md#可选整帧-fsr) 使用实际低尺寸几何与前置后处理，
 再放大并执行全尺寸调色。复用 AMD EASU／RCAS，另提供显式、默认关闭的近等亮度

@@ -37,6 +37,7 @@ namespace GakumasPhotoMode
             // HDR reconstruction is after Bloom and before full-size grading/UI.
             public readonly FsrSettings fsr=new FsrSettings {encoding=FsrInputEncoding.LinearHdr};
             public Vector2Int fsrOutputSize;
+            public readonly DiffusionRenderer.Settings diffusion=new DiffusionRenderer.Settings();
             public int motionBlurMaximumMiB=256;
             // Applied raster jitter, also used with temporal disabled.
             public Vector2 motionBlurJitterUv;
@@ -71,6 +72,7 @@ namespace GakumasPhotoMode
             public readonly FrameMotionBlur.Frame? motionBlur;
             public readonly BloomRenderer.Frame? bloom;
             public readonly FsrRenderer.Frame? fsr;
+            public readonly DiffusionRenderer.Frame? diffusion;
             // Depth remains at the geometry resolution; it is not upscaled color.
             public Vector2Int RenderSize=>new Vector2Int(eyeDepth.width,eyeDepth.height);
             public Vector2Int OutputSize=>new Vector2Int(color.width,color.height);
@@ -83,6 +85,7 @@ namespace GakumasPhotoMode
                 motionBlur=value.motionBlurFrame;
                 bloom=value.bloomFrame;
                 fsr=value.fsrFrame;
+                diffusion=value.diffusionFrame;
             }
         }
 
@@ -99,6 +102,7 @@ namespace GakumasPhotoMode
         public long MotionBlurNominalTextureBytes=>motionBlur.NominalTextureBytes;
         public long BloomNominalTextureBytes=>bloom.NominalTextureBytes;
         public long FsrEstimatedTargetBytes=>fsr.EstimatedTargetBytes;
+        public long DiffusionNominalTextureBytes=>diffusion.NominalTextureBytes;
         public long MotionNominalTextureBytes=>actor.MotionNominalTextureBytes+actor.SceneMotionNominalTextureBytes;
         private enum Phase { Idle, Recording, Opaque, Finishing, Complete, Failed }
         private Phase phase;
@@ -112,6 +116,7 @@ namespace GakumasPhotoMode
         private readonly FrameMotionBlur motionBlur=new FrameMotionBlur();
         private readonly BloomRenderer bloom=new BloomRenderer();
         private readonly FsrRenderer fsr=new FsrRenderer();
+        private readonly DiffusionRenderer diffusion=new DiffusionRenderer();
         private readonly ColorGradingRenderer grade = new ColorGradingRenderer();
         private TileSceneRenderer.PreparedFrame scene;
         private ActorForwardDrawSet.PreparedFrame draws;
@@ -125,6 +130,7 @@ namespace GakumasPhotoMode
         private FrameMotionBlur.Frame? motionBlurFrame;
         private BloomRenderer.Frame? bloomFrame;
         private FsrRenderer.Frame? fsrFrame;
+        private DiffusionRenderer.Frame? diffusionFrame;
         private ColorGradingRenderer.Frame? gradeFrame;
         private RenderTexture finalColor;
         private ulong sequence;
@@ -153,6 +159,7 @@ namespace GakumasPhotoMode
             (!motionBlurFrame.HasValue || motionBlurFrame.Value.IsCurrent) &&
             (!bloomFrame.HasValue || bloomFrame.Value.IsCurrent) &&
             (!fsrFrame.HasValue || fsrFrame.Value.IsCurrent) &&
+            (!diffusionFrame.HasValue || diffusionFrame.Value.IsCurrent) &&
             (!gradeFrame.HasValue || gradeFrame.Value.IsCurrent);
 
         public bool TryRecord(ScriptableRenderContext context, ulong value, ulong sceneRevision,
@@ -265,6 +272,11 @@ namespace GakumasPhotoMode
                     {error=fsr.UnavailableReason;return Fail(error);}
                     fsrFrame=current;finalColor=current.color;
                 }
+                if(s.diffusion.enabled)
+                {
+                    if(!diffusion.TryRender(finalColor,s.diffusion,out var current)){error=diffusion.UnavailableReason;return Fail(error);}
+                    diffusionFrame=current;finalColor=current.color;
+                }
                 if (s.colorGrade != null)
                 {
                     if (!grade.TryRender(finalColor, s.colorGrade, out var current))
@@ -293,6 +305,13 @@ namespace GakumasPhotoMode
             if (s.colorGrade != null && !s.colorGrade.IsValid) return "Invalid caller-owned color LUT";
             if (s.depthOfField.enabled && !s.depthOfField.IsValid) return "Invalid depth-of-field settings";
             if(s.bloom.enabled&&!s.bloom.IsValid)return "Invalid authored bloom settings or budget";
+            if(s.diffusion.enabled)
+            {
+                if(!s.diffusion.IsValid)return "Invalid authored diffusion settings or budget";
+                int w=s.fsr.enabled?s.fsrOutputSize.x:s.scene.output!=null?s.scene.output.width:0;
+                int h=s.fsr.enabled?s.fsrOutputSize.y:s.scene.output!=null?s.scene.output.height:0;
+                if(w<1||h<1||s.diffusion.EstimateTargetBytes(w,h)>s.diffusion.maximumMiB*1048576L)return "Desktop diffusion target memory budget exceeded";
+            }
             if(s.fsr.enabled)
             {
                 if(s.fsr.encoding!=FsrInputEncoding.LinearHdr||!s.fsr.TryGetRenderSize(s.fsrOutputSize,out var renderSize)||
@@ -324,6 +343,7 @@ namespace GakumasPhotoMode
             bloomFrame=null;
             bloom.RetireFrame();
             fsrFrame=null;fsr.RetireFrame();
+            diffusionFrame=null;diffusion.RetireFrame();
             actorFrame = default; finalColor = null; phase = Phase.Idle;
         }
         public void ResetHistoryAfterGpuCompletion()
@@ -334,7 +354,7 @@ namespace GakumasPhotoMode
             if (disposed) return;
             RetireAfterGpuCompletion(); disposed = true;
             shadow.Dispose(); actor.Dispose(); planar.Dispose(); reflection.Dispose();
-            effects.Dispose(); temporal.Dispose(); dof.Dispose(); motionBlur.Dispose(); bloom.Dispose(); fsr.Dispose(); grade.Dispose();
+            effects.Dispose(); temporal.Dispose(); dof.Dispose(); motionBlur.Dispose(); bloom.Dispose(); fsr.Dispose(); diffusion.Dispose(); grade.Dispose();
         }
     }
 }

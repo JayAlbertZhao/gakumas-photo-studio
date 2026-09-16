@@ -94,7 +94,7 @@ class DesktopHostContract(unittest.TestCase):
                  'planar.TryRecord(', 'reflection.TryRecord(', 'actor.TryRecord(']
         positions = [SOURCE.index(x) for x in order]
         self.assertEqual(positions, sorted(positions))
-        post = [SOURCE.index(x) for x in ('effects.TryRender(', 'temporal.TryRender(', 'dof.TryRender(', 'motionBlur.TryRender(', 'bloom.TryRender(', 'fsr.TryRender(', 'grade.TryRender(')]
+        post = [SOURCE.index(x) for x in ('effects.TryRender(', 'temporal.TryRender(', 'dof.TryRender(', 'motionBlur.TryRender(', 'bloom.TryRender(', 'fsr.TryRender(', 'diffusion.TryRender(', 'grade.TryRender(')]
         self.assertEqual(post, sorted(post))
         self.assertIn('new FogVolumeDepth(actorFrame.eyeDepth)', SOURCE)
         self.assertNotIn('new Material(', SOURCE)
@@ -156,6 +156,28 @@ class DesktopHostContract(unittest.TestCase):
                       'hdr-extreme-no-half-overflow', 'lost-pyramid-invalidates-ticket',
                       'after-motion-blur-independent-whole-hdr'):
             self.assertIn(token, fixture)
+
+    def test_authored_diffusion_has_explicit_full_pixel_radius_and_no_private_state(self):
+        renderer = (RUNTIME / 'DiffusionRenderer.cs').read_text(encoding='utf-8')
+        shader = (RUNTIME / 'Resources/AuthoredDiffusion.shader').read_text(encoding='utf-8')
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopDiffusion.cs').read_text(encoding='utf-8')
+        for token in ('public bool enabled;', 'Owns(source)', 'var block=new MaterialPropertyBlock()',
+                      'settings.radiusPixels/source.width', 'settings.radiusPixels/source.height',
+                      'source.memorylessMode!=RenderTextureMemoryless.None', 'RetireFrame()'):
+            self.assertIn(token, renderer)
+        for token in ('Captured', 'Story', 'File.Read', 'Time.', 'Graphics.Blit', 'sampler2D'):
+            self.assertNotIn(token, renderer + shader)
+        self.assertIn('source.a', shader)
+        self.assertIn('diffusionFrame.Value.IsCurrent', SOURCE)
+        self.assertIn('diffusion.RetireFrame()', SOURCE)
+        for token in ('independent-double-whole-hdr', 'independent-double-blur', 'no-op-exact',
+                      'constant-hdr-and-negative-base-exact', 'low-resolution-radius-countermodel-rejected',
+                      'after-fsr-independent-whole-hdr', 'grade-after-diffusion-exact',
+                      'lost-child-invalidates-host', 'host-budget-before-record', 'terminal-dispose'):
+            self.assertIn(token, fixture)
+        for path in (RUNTIME / 'DiffusionRenderer.cs.meta', RUNTIME / 'Resources/AuthoredDiffusion.shader.meta',
+                     ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopDiffusion.cs.meta'):
+            self.assertRegex(path.read_text(encoding='utf-8'), r'(?m)^guid: [0-9a-f]{32}\r?$')
 
     def test_motion_blur_fixture_checks_current_geometry_clock_and_filter_order(self):
         fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopMotionBlur.cs').read_text(encoding='utf-8')
