@@ -3,6 +3,7 @@
 #include "UnityCG.cginc"
 #include "Lighting.cginc"
 #include "AutoLight.cginc"
+#include "ActorForwardShadow.cginc"
 
 sampler2D _MainTex, _ShadeTex, _DefTex, _RampTex, _LayerTex;
 sampler2D _HighlightTex, _RampAddTex, _BumpMap, _AnisotropicMap;
@@ -596,6 +597,7 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
     #endif
     float capturedShadow = CapturedActorShadow(input.worldPosition, definition.r);
     float shadow = lerp(unityShadow, capturedShadow, saturate(_UseCapturedActorShadow));
+    if (_UseActorForwardShadow > .5) shadow = ActorForwardShadowVisibility(input.worldPosition, normalize(input.worldNormal));
     if (_FaceDebugMode > 11.5 && _FaceDebugMode < 12.5)
         return float4(shadow.xxx, 1.0);
     // Bound type-6 PS 0FFEAF8D uniquely multiplies the shadow blend

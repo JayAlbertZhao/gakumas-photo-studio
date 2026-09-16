@@ -90,8 +90,11 @@ The legacy bridge normalizes only the exact 2D black placeholder used by the old
 host for a disabled environment array. Active arrays and other incompatible
 texture dimensions still fail validation. A CPU global snapshot does not capture
 per-renderer SH or an automatic Built-in screen-shadow map. Shadows must be supplied
-through the explicit shadow texture/matrix inputs; this module does not create an
-automatic shadow pass or discover scene lights.
+through the explicit shadow texture/matrix inputs, or a current
+[`SrpActorShadow.Frame`](actor-shadows.md) in `actorSettings.selfShadow`. Record
+that producer before preparing Actor draws, using the same composition sequence.
+Its direction/strength is independent of the Actor toon light and scene drop-shadow
+light. This module does not discover scene lights or automatically fit shadows.
 
 `configureMaterial(Renderer renderer, int submesh, Material ownedMaterial)` can
 configure per-renderer/submesh shading after the common inputs are applied. It is
@@ -156,8 +159,11 @@ distributed. All 40 actual-character color fields matched exactly in these runs.
 Some skinned side/front-view eye-depth fields differed by up to `9.54e-7` world
 units, below the fixture's existing `1e-5` threshold; all-character depth is not
 claimed bit-identical. Selected native captures separately compare raw depth and
-stencil bytes. Broader characters, dynamic shadows, face-decal/normal-map combinations
-and production lighting remain separate coverage work.
+stencil bytes. The opt-in `--validate-actor-shadows` extension separately exercises
+current geometry, moving poses and independent self-shadow controls with both
+costumes/APIs; see [Actor shadows](actor-shadows.md) for its actual coverage and
+negative controls. Broader characters, face-decal/normal-map combinations and
+production lighting remain separate coverage work.
 
 PDF27's motion/depth/material-ID Half4 and original
 GBuffer4 storage reuse are still separate open integration work: the current R32

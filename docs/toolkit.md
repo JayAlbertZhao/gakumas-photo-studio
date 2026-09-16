@@ -27,6 +27,8 @@
 
 场景反射／历史之后可接入 [SrpActorForward](srp-actor-forward.md)：完整 ActorToon 与补充描边／前发覆盖，复用当前场景实际深度进行遮挡；显式光照、逐 renderer 球谐与材质快照，不调用普通 Camera.Render 或接管宿主管线。该桌面桥接单独分配 HDR／depth，并未完成原管线的运动 Half4 和 GBuffer4 原位复用；默认摄影路径不变。
 
+角色自阴影可选用 [SrpActorShadow](actor-shadows.md)：`ActorShadowInputs` 捕获当前材质／MPB、服装缩放、cutout 与淡出，分别供角色自阴影和背景场景光投影消费。卡通主光、自阴影方向／强度和背景投影光保持独立；宿主显式提交、等待 GPU 并管理当前帧票据，不自动接管相机或修改源材质。
+
 来自讲演的框架技术覆盖、可选自然风、TAA 表面分类和自制网格编码接口见 [框架技术清单](framework-techniques.md)。这些模块不要求 Photo Studio UI；未实现的场景／移动端能力保留明确状态。
 
 群集可用 `CrowdDefinition`／`CrowdRenderer`／`CrowdCamera`：八类共享当前 pose、GPU 最近模型预算、四向动态材质捕获与间接绘制，不需要兼容角色格式或摄影 UI。默认关闭，模型与动画由宿主提供；生命周期、CPU 回退、原生深度次序及四视图近似边界见 [Crowd 接入](crowd.md)。可选 [观众荧光棒](crowd-lightsticks.md) 在同一当前几何上消费自制遮罩、独立实例颜色与显式时间；不自动发现手骨或携带观众资产。显式 [CrowdShadowSource](crowd-shadows.md) 用当前共享 pose 和 Low／High 几何向方向光／局部光投影，不复用主相机的可见列表或远景 billboard。

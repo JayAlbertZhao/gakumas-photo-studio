@@ -37,6 +37,8 @@ namespace GakumasPhotoMode
         public Texture alphaMap;
         public Vector4 uvST = new Vector4(1, 1, 0, 0);
         [Range(0, 1)] public float alpha = 1, cutoff;
+        // Null preserves the generic caster path and property-block rejection.
+        public ActorShadowCoverage actorCoverage;
     }
 
     [Serializable]

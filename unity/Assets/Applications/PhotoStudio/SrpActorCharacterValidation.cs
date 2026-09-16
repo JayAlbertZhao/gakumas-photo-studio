@@ -44,6 +44,8 @@ namespace GakumasPhotoMode
             var oldGraphics=GraphicsSettings.renderPipelineAsset;var oldQuality=QualitySettings.renderPipeline;var oldActive=RenderTexture.active;
             bool oldPaused=app.IsPlaybackPaused;var previousOffscreen=new Dictionary<SkinnedMeshRenderer,bool>();
             var scenes=new List<TileSceneRenderer.PreparedFrame>();var preparations=new List<ActorForwardDrawSet.PreparedFrame>();SrpActorForward actor=null;
+            bool shadowControls=Environment.GetCommandLineArgs().Contains("--validate-actor-shadows");
+            SrpActorShadow selfShadow=shadowControls?new SrpActorShadow():null;
             void Check(string name,bool accepted,float value=0)=>report.checks.Add(new Check { name=name,accepted=accepted,value=value });
             try
             {
@@ -92,6 +94,13 @@ namespace GakumasPhotoMode
                 var main=new Dictionary<(Renderer,int),Material>();var supplements=new Dictionary<(Renderer,int),Material>();
                 var baseInputs=ActorForwardParameters.CaptureCurrentGlobals();baseInputs.SetFloat("_FaceDebugMode",0);
                 var settings=new ActorForwardDrawSet.Settings { renderers=renderers,parameters=baseInputs };
+                var selfDirection=new Vector3(.6f,1,.7f).normalized;
+                float shadowRadius=Mathf.Max(1,bounds.extents.magnitude);
+                var shadowSettings=new SceneDirectionalShadowSettings { enabled=true, halfSize=Vector2.one*shadowRadius*1.4f,
+                    nearPlane=.01f,farPlane=shadowRadius*4,resolution=Size,depthBias=.002f,filter=SceneShadowFilter.Pcf3x3 };
+                // Half a light texel compensates curvature between neighboring
+                // triangle planes; keep the explicit world-unit bias visible.
+                shadowSettings.normalBias=shadowSettings.halfSize.x/shadowSettings.resolution;
                 bool detailsOff=false;bool ambientEnabled=false;
                 settings.configureMaterial=(r,index,m)=>{
                     if(m.shader.name=="GakumasPhotoMode/ActorToon")main[(r,index)]=m;else supplements[(r,index)]=m;
@@ -119,8 +128,28 @@ namespace GakumasPhotoMode
                     baseInputs.SetVector("_ActorOutlineParameters",new Vector4(.04f,.12f,1f/3,Mathf.Tan(15.5f*Mathf.Deg2Rad)/Mathf.Tan(camera.fieldOfView*.5f*Mathf.Deg2Rad)));
                     if(ambientEnabled){baseInputs.SetFloat("_UseCapturedAmbientSH",0);baseInputs.SetVector("_ActorLightingScales",new Vector4(1,1,1,0));}
                     main.Clear();supplements.Clear();
+                    sequence++;
+                    if(shadowControls)
+                    {
+                        if(!ActorShadowInputs.TryCapture(renderers,Shader.GetGlobalFloat("_CapturedActorTextureLodBias"),out var casters,out var captureError))throw new InvalidOperationException(captureError);
+                        shadowSettings.casters=casters;shadowSettings.origin=center+selfDirection*shadowRadius*2;
+                        GraphicsSettings.renderPipelineAsset=pipeline;QualitySettings.renderPipeline=pipeline;
+                        Exception shadowFailure=null;
+                        RenderPipeline.SubmitRenderRequest(camera,new TilePassTestRequest { record=context=>{
+                            try
+                            {
+                                if(!selfShadow.TryRecord(context,selfDirection,shadowSettings,sequence,out var shadowFrame,out var error))throw new InvalidOperationException(error);
+                                settings.selfShadow=shadowFrame;
+                            }
+                            catch(Exception e){shadowFailure=e;}
+                        }});
+                        if(shadowFailure!=null)throw shadowFailure;
+                        Check(name+"-current-self-shadow",settings.selfShadow.HasValue&&settings.selfShadow.Value.IsCurrent&&
+                            (shadowSettings.strength==0?selfShadow.CasterDrawCalls==0:selfShadow.CasterDrawCalls>0),selfShadow.CasterDrawCalls);
+                        if(settings.selfShadow.Value.depth!=null)Save(name+"-shadow",Read(settings.selfShadow.Value.depth));
+                    }
                     if(!ActorForwardDrawSet.TryPrepare(camera,settings,out var draws,out var why))throw new InvalidOperationException(why);preparations.Add(draws);
-                    if(!TileSceneRenderer.TryPrepare(camera,sceneSettings,out var scene,out why))throw new InvalidOperationException(why);scenes.Add(scene);sequence++;
+                    if(!TileSceneRenderer.TryPrepare(camera,sceneSettings,out var scene,out why))throw new InvalidOperationException(why);scenes.Add(scene);
                     report.draws=draws.DrawCount;report.materials=draws.MaterialCount;
                     GraphicsSettings.renderPipelineAsset=pipeline;QualitySettings.renderPipeline=pipeline;
                     bool requested=Environment.GetEnvironmentVariable("GAKUMAS_SELFTEST_CAPTURE_SRP_ACTOR")=="1"&&Environment.GetEnvironmentVariable("GAKUMAS_SELFTEST_CAPTURE_SRP_ACTOR_CASE")==name;
@@ -192,13 +221,25 @@ namespace GakumasPhotoMode
                 Check("authored-material-details-positive-control",Changed(restored,simplified,.001f)>100,Changed(restored,simplified,.001f));
                 Check("owned-detail-override-restores",MaximumDifference(restored,Run("details-restored"))==0);
                 ambientEnabled=true;var ambient=Run("explicit-renderer-ambient");Check("ambient-probe-positive-control",Changed(restored,ambient,.001f)>100,Changed(restored,ambient,.001f));
+                if(shadowControls)
+                {
+                    var light=Shader.GetGlobalVector("_CapturedLightDirection");
+                    shadowSettings.strength=0;var clear=Run("self-shadow-zero");
+                    Check("self-shadow-full-material-positive-control",Changed(ambient,clear,.001f)>100,Changed(ambient,clear,.001f));
+                    shadowSettings.strength=1;selfDirection=new Vector3(-.6f,.8f,.7f).normalized;
+                    var turned=Run("self-shadow-direction");
+                    Check("self-shadow-direction-full-material-positive-control",Changed(ambient,turned,.001f)>100,Changed(ambient,turned,.001f));
+                    Check("self-shadow-does-not-change-toon-global",Shader.GetGlobalVector("_CapturedLightDirection")==light);
+                    selfDirection=new Vector3(.6f,1,.7f).normalized;
+                    Check("self-shadow-restore-whole-color",MaximumDifference(ambient,Run("self-shadow-restored"))==0);
+                }
                 actor.Dispose();Check("dispose-keeps-original-character",!current.IsCurrent&&actor.NominalTextureBytes==0&&SourceSnapshot(renderers)==sourceBefore&&output.IsCreated());
                 report.accepted=report.checks.All(c=>c.accepted);
             }
             catch(Exception error){report.error=error.ToString();Debug.LogException(error);}
             finally
             {
-                actor?.Dispose();foreach(var p in preparations)p.Dispose();foreach(var s in scenes)s.Dispose();
+                actor?.Dispose();foreach(var p in preparations)p.Dispose();foreach(var s in scenes)s.Dispose();selfShadow?.Dispose();
                 foreach(var pair in previousOffscreen)if(pair.Key!=null)pair.Key.updateWhenOffscreen=pair.Value;app.SetPlaybackPaused(oldPaused);
                 GraphicsSettings.renderPipelineAsset=oldGraphics;QualitySettings.renderPipeline=oldQuality;RenderTexture.active=oldActive;
                 foreach(var value in owned)if(value is GameObject go){var c=go.GetComponent<Camera>();if(c!=null)c.targetTexture=null;}

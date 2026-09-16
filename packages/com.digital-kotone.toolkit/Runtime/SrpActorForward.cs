@@ -66,6 +66,7 @@ namespace GakumasPhotoMode
             if(GraphicsSettings.currentRenderPipeline==null||Camera==null||scene==null||!scene.IsRecorded||scene.Camera!=Camera||draws==null||!draws.IsValid||draws.Camera!=Camera)
                 return "Requires a recorded current scene and matching full Actor draw preparation";
             if(value==0||value<=sequence||ReferenceEquals(source,scene))return "Requires a fresh scene and monotonic positive sequence";
+            if(draws.selfShadow.HasValue&&draws.selfShadow.Value.sequence!=value)return "Actor shadow must match the composition sequence";
             if((color!=null&&draws.sampled.Contains(color))||(eyeDepth!=null&&draws.sampled.Contains(eyeDepth)))return "Actor materials must not sample their current output";
             if(reflected.HasValue&&!reflected.Value.Matches(scene,value))return "Reflection output must match the exact scene and sequence";
             if(QualitySettings.activeColorSpace!=ColorSpace.Linear||Camera.stereoEnabled||Camera.allowDynamicResolution||Camera.rect!=new Rect(0,0,1,1))return "Requires Linear fixed-size full viewport without XR";

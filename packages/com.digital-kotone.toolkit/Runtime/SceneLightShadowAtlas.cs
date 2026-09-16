@@ -23,6 +23,7 @@ namespace GakumasPhotoMode
         private SceneShadowCaster[] _casters;
         private ComputeBuffer _buffer;
         private Shader _shader;
+        private Shader _actorShader;
         private readonly string _name;
         private bool _orthographic;
         private Vector4 _depthPlane;
@@ -175,6 +176,13 @@ namespace GakumasPhotoMode
             _shader = Resources.Load<Shader>("SceneLightShadowCaster");
             if (_shader == null || !_shader.isSupported || !SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RFloat))
             { error = "Light-source shadow shader or RFloat target unavailable"; return false; }
+            foreach (var caster in settings.casters) if (caster.actorCoverage != null)
+            {
+                _actorShader = Resources.Load<Shader>("ActorLightShadowCaster");
+                if (_actorShader == null || !_actorShader.isSupported)
+                { error = "Actor shadow caster shader unavailable"; return false; }
+                break;
+            }
             _casters = settings.casters; _tileSize = settings.tileResolution; _grid = Mathf.CeilToInt(Mathf.Sqrt(_indices.Count));
             int size = _grid * _tileSize;
             if (size > Mathf.Min(SystemInfo.maxTextureSize, 4096)) { error = "Light-source shadow atlas exceeds texture limit"; return false; }
@@ -201,6 +209,11 @@ namespace GakumasPhotoMode
             int count = _indices.Count * _casters.Length;
             while (_materials.Count < count) _materials.Add(new Material(_shader) { hideFlags = HideFlags.HideAndDontSave });
             while (_materials.Count > count) { int last = _materials.Count - 1; UnityEngine.Object.Destroy(_materials[last]); _materials.RemoveAt(last); }
+            for (int i = 0; i < count; i++)
+            {
+                var shader = _casters[i % _casters.Length].actorCoverage != null ? _actorShader : _shader;
+                if (_materials[i].shader != shader) _materials[i].shader = shader;
+            }
         }
 
         public void Record(CommandBuffer commands)
@@ -226,6 +239,12 @@ namespace GakumasPhotoMode
                     material.SetVector("_ShadowVertexScale", caster.vertexScale); material.SetFloat("_Cull", (int)caster.cull);
                     material.SetTexture("_ShadowAlphaMap", caster.alphaMap != null ? caster.alphaMap : Texture2D.whiteTexture);
                     material.SetVector("_ShadowUvST", caster.uvST); material.SetFloat("_ShadowAlpha", caster.alpha); material.SetFloat("_ShadowCutoff", caster.cutoff);
+                    if (caster.actorCoverage != null)
+                    {
+                        var coverage = caster.actorCoverage;
+                        material.SetFloat("_ShadowCull", (int)caster.cull);
+                        material.SetVector("_ShadowActorCoverage", new Vector4(coverage.alphaClip ? 1 : 0, coverage.fade, coverage.textureLodBias, 0));
+                    }
                     commands.DrawRenderer(renderer, material, caster.materialIndex, 0); CasterDrawCalls++;
                 }
                 foreach (var crowd in _crowds)
@@ -274,7 +293,7 @@ namespace GakumasPhotoMode
             material.SetVector(st, data.atlasST); material.SetVector(depth, data.depth); material.SetVector(options, data.options);
         }
         private static bool Range(float x, float min, float max) => !float.IsNaN(x) && !float.IsInfinity(x) && x >= min && x <= max;
-        private static string ValidateCaster(SceneShadowCaster caster)
+        internal static string ValidateCaster(SceneShadowCaster caster)
         {
             if (caster == null || caster.renderer == null) return "Missing shadow caster renderer";
             var renderer = caster.renderer;
@@ -283,7 +302,15 @@ namespace GakumasPhotoMode
                 caster.materialIndex >= renderer.sharedMaterials.Length || mesh.GetTopology(caster.materialIndex) != MeshTopology.Triangles ||
                 !mesh.HasVertexAttribute(VertexAttribute.Position) || (caster.alphaMap != null && !mesh.HasVertexAttribute(VertexAttribute.TexCoord0)))
                 return "Shadow caster requires a MeshRenderer/SkinnedMeshRenderer triangle submesh and matching attributes/material slot";
-            if (renderer.HasPropertyBlock()) return "Shadow caster property blocks are not supported; supply explicit inputs";
+            if (renderer.HasPropertyBlock())
+            {
+                if (caster.actorCoverage == null) return "Shadow caster property blocks are not supported; supply explicit inputs";
+                var block = new MaterialPropertyBlock(); renderer.GetPropertyBlock(block, caster.materialIndex);
+                if (block.isEmpty) renderer.GetPropertyBlock(block);
+                foreach (var key in ActorShadowInputs.Reserved) if (block.HasProperty(key)) return "Reserved actor shadow property block: " + key;
+            }
+            if (caster.actorCoverage != null && (!Range(caster.actorCoverage.fade, 0, 1) || !Range(caster.actorCoverage.textureLodBias, -16, 16)))
+                return "Invalid actor shadow coverage";
             if ((int)caster.cull < 0 || (int)caster.cull > 2 || !Range(caster.alpha, 0, 1) || !Range(caster.cutoff, 0, 1)) return "Invalid shadow caster cull/alpha";
             for (int i = 0; i < 3; i++) if (!Range(caster.vertexScale[i], -1e6f, 1e6f) || Mathf.Abs(caster.vertexScale[i]) < 1e-6f) return "Invalid shadow caster vertex scale";
             for (int i = 0; i < 4; i++) if (!Range(caster.uvST[i], -1e6f, 1e6f)) return "Invalid shadow caster UV transform";
@@ -295,6 +322,19 @@ namespace GakumasPhotoMode
             return null;
         }
         private void ReleaseAtlas() { if (Atlas != null) { Atlas.Release(); UnityEngine.Object.Destroy(Atlas); } Atlas = null; }
+        internal void BindActor(Material material, bool receiverPlaneBias)
+        {
+            material.SetFloat("_UseActorForwardShadow", Atlas != null ? 1 : 0);
+            material.SetFloat("_UseCapturedActorShadow", 0);
+            material.SetTexture("_ActorForwardShadowMap", Atlas);
+            if (Atlas == null) return;
+            var data = _data[0];
+            material.SetMatrix("_ActorForwardShadowMatrix", data.worldToShadow);
+            material.SetVector("_ActorForwardShadowPlane", _depthPlane);
+            material.SetVector("_ActorForwardShadowDepth", data.depth);
+            var options = data.options; options.w = receiverPlaneBias ? 1 : 0;
+            material.SetVector("_ActorForwardShadowOptions", options);
+        }
         public void Dispose()
         {
             ReleaseAtlas(); _buffer?.Dispose(); _buffer = null;

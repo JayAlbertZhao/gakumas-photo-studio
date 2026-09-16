@@ -17,7 +17,7 @@ namespace GakumasPhotoMode
             "_CapturedType5OutputScale _UseCapturedDirectSpecular _UseCapturedReceiverNormal _UseExactViewRimBasis _UseCapturedAmbientSH _UseActorForwardAmbientSH "+
             "_ActorEnvironmentIntensity _CapturedSkinSaturation _CapturedEyeCubeTransformMode _CapturedActorCubeTransformMode _UseCapturedEnvironmentBasis "+
             "_UseCapturedEyeEnvironmentArray _UseCapturedActorEnvironmentArray _UseCapturedType1ActorEnvironmentArray _FaceDecalCount "+
-            "_UseCapturedActorShadow _UseExactCapturedActorShadowMatrix _CapturedActorShadowStrength _CapturedActorShadowUseOffset _CapturedActorFacePartsShadowStrength").Split(' ');
+            "_UseActorForwardShadow _UseCapturedActorShadow _UseExactCapturedActorShadowMatrix _CapturedActorShadowStrength _CapturedActorShadowUseOffset _CapturedActorFacePartsShadowStrength").Split(' ');
         private static readonly string[] Vectors=(
             "_ActorMatcapParameters _ActorLightingScales _ActorKeyColor _ActorRimColor _ActorEyeHighlightColor _CapturedLightDirection _CapturedLightColor "+
             "_CapturedShadeTint _CapturedShadeAdditive _CapturedCameraUp _CapturedRimDirection _CapturedRimViewDirection _CapturedRimParameters "+
@@ -25,7 +25,7 @@ namespace GakumasPhotoMode
             "_HeadDirection _HeadUpDirection _HeadRightDirection _HeadPosition _ActorFillDirection _ActorFillColor _ActorRimLightDirection _ActorRimLightColor "+
             "_CapturedActorShadowTexelSize _ActorOutlineParameters _ActorForwardSH0 _ActorForwardSH1 _ActorForwardSH2 _ActorForwardSH3 _ActorForwardSH4 _ActorForwardSH5 _ActorForwardSH6").Split(' ');
         private static readonly string[] ProbeNames={"unity_SHAr","unity_SHAg","unity_SHAb","unity_SHBr","unity_SHBg","unity_SHBb","unity_SHC"};
-        private static readonly string[] Textures={"_ActorEnvironmentCube","_ActorEyeEnvironmentCube","_ActorEnvironmentArray","_ActorEyeEnvironmentArray","_CapturedActorShadowTex"};
+        private static readonly string[] Textures={"_ActorEnvironmentCube","_ActorEyeEnvironmentCube","_ActorEnvironmentArray","_ActorEyeEnvironmentArray","_CapturedActorShadowTex","_ActorForwardShadowMap"};
         private static readonly string[] VectorArrays={"_ActorAdditionalPositions","_ActorAdditionalColors","_ActorAdditionalDirections","_ActorAdditionalSpots","_FaceDecalUvScaleBias","_FaceDecalFade"};
         private readonly Dictionary<string,float> floats=new Dictionary<string,float>();
         private readonly Dictionary<string,Vector4> vectors=new Dictionary<string,Vector4>();
@@ -95,12 +95,13 @@ namespace GakumasPhotoMode
         /// stays borrowed. New hosts can construct neutral inputs and configure them directly.</summary>
         public static ActorForwardParameters CaptureCurrentGlobals()
         {
-            var p=new ActorForwardParameters();foreach(var n in Floats)if(n!="_UseActorForwardAmbientSH")p.SetFloat(n,Shader.GetGlobalFloat(n));
+            var p=new ActorForwardParameters();foreach(var n in Floats)if(n!="_UseActorForwardAmbientSH"&&n!="_UseActorForwardShadow")p.SetFloat(n,Shader.GetGlobalFloat(n));
             // CPU globals cannot recover Unity's current per-renderer probe binding.
             // Keep the explicit neutral probe until the host supplies one.
             foreach(var n in Vectors)if(!n.StartsWith("_ActorForwardSH",StringComparison.Ordinal))p.SetVector(n,Shader.GetGlobalVector(n));
             foreach(var n in Textures)
             {
+                if(n=="_ActorForwardShadowMap")continue; // A current producer ticket is an explicit host input.
                 var value=Shader.GetGlobalTexture(n);
                 // The legacy host explicitly binds a 2D black placeholder while
                 // array sampling is disabled. Normalize only that exact sentinel;

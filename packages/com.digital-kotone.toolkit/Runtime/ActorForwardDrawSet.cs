@@ -15,6 +15,7 @@ namespace GakumasPhotoMode
         {
             public Renderer[] renderers=Array.Empty<Renderer>();
             public ActorForwardParameters parameters=new ActorForwardParameters();
+            public SrpActorShadow.Frame? selfShadow;
             public bool outlines=true,hairCover=true;
             public int maximumDraws=1024;
             // Applied to owned main/supplemental materials, e.g. explicit per-renderer SH.
@@ -59,13 +60,14 @@ namespace GakumasPhotoMode
             internal float near,far;
             internal Rect viewport;
             public Camera Camera { get; internal set; }
+            internal SrpActorShadow.Frame? selfShadow;
             public int DrawCount=>draws.Count;
             public int MaterialCount=>materials.Count;
             public bool IsValid
             {
                 get
                 {
-                    if(disposed||Camera==null||!Camera.worldToCameraMatrix.Equals(view)||!Camera.projectionMatrix.Equals(projection)||
+                    if(disposed||(selfShadow.HasValue&&!selfShadow.Value.IsCurrent)||Camera==null||!Camera.worldToCameraMatrix.Equals(view)||!Camera.projectionMatrix.Equals(projection)||
                         Camera.cullingMask!=cullingMask||Camera.rect!=viewport||Camera.orthographic!=orthographic||Camera.nearClipPlane!=near||Camera.farClipPlane!=far||
                         Camera.allowDynamicResolution!=dynamicResolution||Camera.stereoEnabled!=stereo||Camera.targetTexture!=target||
                         (hadTarget&&(target==null||!target.IsCreated()||target.width!=targetWidth||target.height!=targetHeight)))return false;
@@ -84,7 +86,7 @@ namespace GakumasPhotoMode
             if(camera==null||settings==null||settings.renderers==null||settings.renderers.Length>4096||settings.parameters==null||settings.maximumDraws<1||settings.maximumDraws>4096||
                 !ActorForwardParameters.Finite(camera.worldToCameraMatrix)||!ActorForwardParameters.Finite(camera.projectionMatrix))
             { error="Invalid Actor Forward inputs";return false; }
-            var result=new PreparedFrame { Camera=camera,view=camera.worldToCameraMatrix,projection=camera.projectionMatrix,
+            var result=new PreparedFrame { Camera=camera,selfShadow=settings.selfShadow,view=camera.worldToCameraMatrix,projection=camera.projectionMatrix,
                 target=camera.targetTexture,hadTarget=camera.targetTexture!=null,cullingMask=camera.cullingMask,viewport=camera.rect,
                 orthographic=camera.orthographic,near=camera.nearClipPlane,far=camera.farClipPlane,dynamicResolution=camera.allowDynamicResolution,stereo=camera.stereoEnabled };
             if(result.hadTarget){result.targetWidth=result.target.width;result.targetHeight=result.target.height;}
@@ -128,6 +130,7 @@ namespace GakumasPhotoMode
                         {
                             var material=new Material(target) { name="Toolkit full Actor Forward snapshot",hideFlags=HideFlags.HideAndDontSave };
                             result.materials.Add(material);material.CopyPropertiesFromMaterial(source);settings.parameters.Apply(material);
+                            if(settings.selfShadow.HasValue)settings.selfShadow.Value.Bind(material);
                             settings.configureMaterial?.Invoke(renderer,submesh,material);
                             if(material.shader!=target||material.renderQueue!=source.renderQueue)throw new ArgumentException("Actor configuration changed shader or queue");
                             foreach(var key in FixedInputs)if(material.GetFloat(key)!=source.GetFloat(key))throw new ArgumentException("Actor configuration changed fixed input: "+key);
