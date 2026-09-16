@@ -93,5 +93,56 @@ Shader "Hidden/GakumasPhotoMode/SceneMotion"
             float4 frag(Pixel input):SV_Target { return input.value; }
             ENDCG
         }
+        Pass
+        {
+            Name "SCENE_JOINED_HALF4_MOTION"
+            Cull [_Cull] ZWrite Off ZTest LEqual Blend Off
+            CGPROGRAM
+            #pragma target 4.5
+            #pragma vertex VertexHalf4
+            #pragma fragment FragmentHalf4
+            #include "UnityCG.cginc"
+            Texture2D<float4> _PreviousVertices;
+            float4x4 _ViewProjection,_PreviousViewProjection,_PreviousView,_CurrentView;
+            float4 _UvST,_VertexTextureSize;
+            float3 _VertexScale;
+            float _HistoryValid,_SurfaceIdentity,_Alpha,_Cutoff,_TemporalFlags;
+            sampler2D _AlphaMap;
+            struct InputHalf4 {float4 position:POSITION;float2 uv:TEXCOORD0;uint id:SV_VertexID;};
+            struct VaryingHalf4 {float4 position:SV_POSITION;float2 uv:TEXCOORD0;float4 currentClip:TEXCOORD1;float4 previousClip:TEXCOORD2;float2 depths:TEXCOORD3;};
+            VaryingHalf4 VertexHalf4(InputHalf4 v)
+            {
+                VaryingHalf4 o;v.position.xyz*=_VertexScale;
+                float4 world=mul(unity_ObjectToWorld,v.position);
+                o.position=mul(_ViewProjection,world);o.currentClip=o.position;
+                o.uv=v.uv*_UvST.xy+_UvST.zw;o.previousClip=0;o.depths=float2(-mul(_CurrentView,world).z,0);
+                if(_HistoryValid>.5)
+                {
+                    uint index=v.id*2,width=(uint)_VertexTextureSize.z;
+                    float4 old=_PreviousVertices.Load(int3(index%width,index/width,0));
+                    o.previousClip=mul(_PreviousViewProjection,old);o.depths.y=-mul(_PreviousView,old).z;
+                }
+                return o;
+            }
+            struct ResultHalf4 {float4 motion:SV_Target0;float expectedDepth:SV_Target1;};
+            ResultHalf4 FragmentHalf4(VaryingHalf4 i)
+            {
+                clip(tex2D(_AlphaMap,i.uv).a*_Alpha-_Cutoff);
+                ResultHalf4 o;o.expectedDepth=0;float2 velocity=0;uint flags=(uint)_TemporalFlags&6u;
+                if(_HistoryValid>.5&&i.previousClip.w>1e-6&&i.depths.y>0&&i.depths.y<=65504)
+                {
+                    velocity=(i.currentClip.xy/i.currentClip.w-i.previousClip.xy/i.previousClip.w)*.5;
+                    #if UNITY_UV_STARTS_AT_TOP
+                    velocity.y=-velocity.y;
+                    #endif
+                    o.expectedDepth=i.depths.y;flags|=8u;
+                }
+                // Scene IDs have bit0 clear; Actor IDs use bit0 set. Both namespaces
+                // retain127IDs and exact Half integer storage, without collisions.
+                o.motion=float4(velocity,min(max(i.depths.x,0),65504),((uint)_SurfaceIdentity<<4)|flags);
+                return o;
+            }
+            ENDCG
+        }
     }
 }

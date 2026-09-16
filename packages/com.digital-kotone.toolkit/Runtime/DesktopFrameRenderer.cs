@@ -17,6 +17,14 @@ namespace GakumasPhotoMode
             public readonly ActorForwardDrawSet.Settings actors = new ActorForwardDrawSet.Settings();
             // Opt-in destructive scene attachment reuse; defaults preserve scene inputs.
             public SrpActorForward.Storage actorStorage;
+            public readonly SceneMotionSettings actorMotion=new SceneMotionSettings();
+            public uint actorMotionRevision;
+            public int actorMotionMaximumMiB=256;
+            public bool allowImmutableUnreadableMotionMeshes;
+            public bool includeSceneMotion,reuseSceneMotionStorage;
+            public int sceneMotionMaximumMiB=128;
+            public readonly FrameTemporalAntialiasing.Settings temporal=new FrameTemporalAntialiasing.Settings();
+            public int temporalMaximumMiB=256;
             public readonly SceneDirectionalShadowSettings selfShadow = new SceneDirectionalShadowSettings();
             public Vector3 selfShadowDirection = new Vector3(.6f, 1, .7f);
             public readonly SrpTilePlanarReflection.Settings planar = new SrpTilePlanarReflection.Settings();
@@ -50,11 +58,13 @@ namespace GakumasPhotoMode
             public readonly ulong sequence;
             public readonly RenderTexture color, eyeDepth;
             public readonly OpaqueFrame opaque;
+            public readonly FrameTemporalAntialiasing.Frame? temporal;
             public bool IsCurrent => owner != null && owner.CurrentFinal(sequence);
             internal Frame(DesktopFrameRenderer value)
             {
                 owner = value; sequence = value.sequence; color = value.finalColor;
                 eyeDepth = value.actorFrame.eyeDepth; opaque = new OpaqueFrame(value);
+                temporal=value.temporalFrame;
             }
         }
 
@@ -67,6 +77,8 @@ namespace GakumasPhotoMode
         /// <summary>Owned Actor targets only; excludes borrowed scene storage and
         /// driver overhead. A nominal allocation count, not measured VRAM or traffic.</summary>
         public long ActorNominalTextureBytes => actor.NominalTextureBytes;
+        public long TemporalNominalTextureBytes => temporal.NominalTextureBytes;
+        public long MotionNominalTextureBytes=>actor.MotionNominalTextureBytes+actor.SceneMotionNominalTextureBytes;
         private enum Phase { Idle, Recording, Opaque, Finishing, Complete, Failed }
         private Phase phase;
         private readonly SrpActorShadow shadow = new SrpActorShadow();
@@ -74,6 +86,7 @@ namespace GakumasPhotoMode
         private readonly SrpTileReflection reflection;
         private readonly SrpTilePlanarReflection planar;
         private readonly HeavyFxRenderer effects = new HeavyFxRenderer();
+        private readonly FrameTemporalAntialiasing temporal=new FrameTemporalAntialiasing();
         private readonly BokehDepthOfFieldRenderer dof = new BokehDepthOfFieldRenderer();
         private readonly ColorGradingRenderer grade = new ColorGradingRenderer();
         private TileSceneRenderer.PreparedFrame scene;
@@ -83,6 +96,7 @@ namespace GakumasPhotoMode
         private SrpTileReflection.Frame? reflectionFrame;
         private SrpTilePlanarReflection.Frame? planarFrame;
         private HeavyFxRenderer.Frame? effectFrame;
+        private FrameTemporalAntialiasing.Frame? temporalFrame;
         private BokehDepthOfFieldRenderer.Frame? dofFrame;
         private ColorGradingRenderer.Frame? gradeFrame;
         private RenderTexture finalColor;
@@ -107,6 +121,7 @@ namespace GakumasPhotoMode
         private bool CurrentFinal(ulong value) => phase == Phase.Complete && CurrentOpaque(value) &&
             finalColor != null && finalColor.IsCreated() &&
             (!effectFrame.HasValue || effectFrame.Value.IsCurrent) &&
+            (!temporalFrame.HasValue || temporalFrame.Value.IsCurrent) &&
             (!dofFrame.HasValue || dofFrame.Value.IsCurrent) &&
             (!gradeFrame.HasValue || gradeFrame.Value.IsCurrent);
 
@@ -120,6 +135,15 @@ namespace GakumasPhotoMode
             {
                 var s = Configuration;
                 actor.Configuration.storage = s.actorStorage;
+                actor.Configuration.motion.enabled=s.actorMotion.enabled;
+                actor.Configuration.motion.maximumTrackedVertices=s.actorMotion.maximumTrackedVertices;
+                actor.Configuration.motion.cameraCutDistance=s.actorMotion.cameraCutDistance;
+                actor.Configuration.motion.cameraCutAngle=s.actorMotion.cameraCutAngle;
+                actor.Configuration.motionRevision=s.actorMotionRevision;
+                actor.Configuration.motionMaximumMiB=s.actorMotionMaximumMiB;
+                actor.Configuration.allowImmutableUnreadableMotionMeshes=s.allowImmutableUnreadableMotionMeshes;
+                actor.Configuration.includeSceneMotion=s.includeSceneMotion;actor.Configuration.reuseSceneMotionStorage=s.reuseSceneMotionStorage;
+                actor.Configuration.sceneMotionMaximumMiB=s.sceneMotionMaximumMiB;
                 if (!TileSceneRenderer.TryPrepare(Camera, s.scene, out scene, out error)) return Fail(error);
                 if (s.selfShadow.enabled)
                 {
@@ -131,7 +155,7 @@ namespace GakumasPhotoMode
                 var settings = new ActorForwardDrawSet.Settings {
                     renderers = a.renderers, parameters = a.parameters, outlines = a.outlines,
                     hairCover = a.hairCover, maximumDraws = a.maximumDraws,
-                    configureMaterial = a.configureMaterial, selfShadow = shadowFrame ?? a.selfShadow
+                    configureMaterial = a.configureMaterial, selfShadow = shadowFrame ?? a.selfShadow,temporalFlags=a.temporalFlags
                 };
                 if (!ActorForwardDrawSet.TryPrepare(Camera, settings, out draws, out error)) return Fail(error);
                 if (!scene.TryRecord(context, out _, out error)) return Fail(error);
@@ -159,8 +183,8 @@ namespace GakumasPhotoMode
         }
 
         /// <summary>Call only after the host has submitted the matching context.
-        /// Immediate FX/DOF/grading commands follow the queued opaque work. They do
-        /// not supply motion/TAA or change scene reflection history. No UI is drawn.</summary>
+        /// Immediate FX, opt-in temporal resolve, DOF and grading commands follow
+        /// queued opaque work. Scene reflection history is independent. No UI is drawn.</summary>
         public bool TryFinishAfterSubmission(OpaqueFrame input, double timeSeconds, out Frame frame, out string error)
         {
             frame = default; error = null;
@@ -178,6 +202,12 @@ namespace GakumasPhotoMode
                     else if (effects.UnavailableReason != null) { error = effects.UnavailableReason; return Fail(error); }
                     // An enabled but empty effects list is an explicit no-op.
                 }
+                if(s.temporal.enabled)
+                {
+                    if(!temporal.TryRender(actorFrame,finalColor,s.temporal,s.temporalMaximumMiB,out var current,out error))return Fail(error);
+                    temporalFrame=current;finalColor=current.color;
+                }
+                else temporal.ResetHistory();
                 if (s.depthOfField.enabled)
                 {
                     if (!dof.TryRender(finalColor, actorFrame.eyeDepth, s.depthOfField, out var current))
@@ -211,6 +241,8 @@ namespace GakumasPhotoMode
                 if (surface != null && actors.Contains(surface.renderer)) return "Actor geometry must not enter scene-only reflection history";
             if (s.colorGrade != null && !s.colorGrade.IsValid) return "Invalid caller-owned color LUT";
             if (s.depthOfField.enabled && !s.depthOfField.IsValid) return "Invalid depth-of-field settings";
+            if(s.temporal.enabled&&(!s.actorMotion.enabled||!s.temporal.IsValid||s.temporalMaximumMiB<1||s.temporalMaximumMiB>2048))
+                return "Temporal resolve requires enabled Actor motion, valid settings and budget";
             return null;
         }
         private bool Fail(string error) { phase = Phase.Failed; finalColor = null; return false; }
@@ -220,21 +252,21 @@ namespace GakumasPhotoMode
         public void RetireAfterGpuCompletion()
         {
             if (disposed) return;
-            if (phase == Phase.Failed) reflection.ResetHistory();
+            if (phase == Phase.Failed) { reflection.ResetHistory();actor.ResetMotionHistoryAfterGpuCompletion();temporal.ResetHistory(); }
             draws?.Dispose(); draws = null; scene?.Dispose(); scene = null;
             shadowFrame = null; planarFrame = null; reflectionFrame = null;
-            effectFrame = null; dofFrame = null; gradeFrame = null;
+            effectFrame = null; temporalFrame=null; dofFrame = null; gradeFrame = null;
             actorFrame = default; finalColor = null; phase = Phase.Idle;
         }
         public void ResetHistoryAfterGpuCompletion()
-        { RetireAfterGpuCompletion(); reflection.ResetHistory(); }
+        { RetireAfterGpuCompletion(); reflection.ResetHistory();actor.ResetMotionHistoryAfterGpuCompletion();temporal.ResetHistory(); }
         /// <summary>Dispose only after submitted GPU work no longer uses these resources.</summary>
         public void Dispose()
         {
             if (disposed) return;
             RetireAfterGpuCompletion(); disposed = true;
             shadow.Dispose(); actor.Dispose(); planar.Dispose(); reflection.Dispose();
-            effects.Dispose(); dof.Dispose(); grade.Dispose();
+            effects.Dispose(); temporal.Dispose(); dof.Dispose(); grade.Dispose();
         }
     }
 }

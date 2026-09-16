@@ -90,7 +90,8 @@ channel (sampled alpha is one), no negative values and less precision than RGBAH
 this is an explicit quality/storage choice, not a bit-identical replacement for
 the default. The 12 bytes/pixel avoided versus separate packed targets are nominal
 owned allocations, not measured VRAM, bandwidth, frame-time or mobile savings.
-GBuffer2 motion/depth/material-ID Half4 and full temporal integration remain open.
+An opt-in GBuffer2 motion/depth/identity Half4 and temporal consumer are described
+below. Full production-content and platform acceptance remain open.
 
 ## Materials, lighting and lifetime
 
@@ -198,8 +199,91 @@ costumes/APIs; see [Actor shadows](actor-shadows.md) for its actual coverage and
 negative controls. Broader characters, face-decal/normal-map combinations and
 production lighting remain separate coverage work.
 
-The optional packed path now reuses the actual GBuffer4 and stored hardware depth;
-PDF27's GBuffer2 motion/depth/material-ID Half4 remains open. The current R32
-eye-depth export does not implement that layout. See the complete
+The optional packed path reuses the actual GBuffer4 and stored hardware depth.
+An additional opt-in motion path can reuse GBuffer2 after its scene-only readers;
+its independent layout and limits are documented below. See the complete
 [technique inventory](framework-techniques.md), [Tile scene](tile-scene.md),
 [Tile reflections](tile-reflections.md), and [SRP Planar](tile-planar-reflections.md).
+
+## Optional motion and temporal resolve
+
+`Settings.motion.enabled` enables actual GPU clip-position snapshots of the full
+ordered Actor draw stream, including deformation and outline vertex processing.
+The default Actor shaders and disabled path remain unchanged. The motion shader
+includes the same independently implemented surface/outline functions; it is not
+an original-game shader or a reduced replacement for the color pass.
+
+`Frame.motionDepthIdentity` is Half4: RG is current-minus-previous texture UV,
+B is current eye depth, and A is an exactly representable packed integer:
+`(identity << 4) | flags | validHistory8 | actorBit1`. Flags are `ExcludeTaa=2`
+and `NoJitter=4`; the scene namespace has bit 0 clear. Each namespace reserves
+127 identities. Actor identity is per renderer/submesh/pass; IDs remain reserved
+until motion is disabled or its producer is recreated. Resetting history alone
+does not recycle IDs. This layout is an independent contract, not an assertion
+about the original game's material IDs.
+
+An additional R32 `expectedPreviousDepth` supports disocclusion checks. The
+implementation therefore does not claim identical attachment count or mobile
+bandwidth to the reference pipeline. It requires desktop geometry shaders and
+independently blended MRTs; desktop acceptance does not establish mobile support.
+
+`includeSceneMotion` adds explicit readable scene geometry to the same motion
+attachments. `reuseSceneMotionStorage` independently borrows the scene's stored
+Half4 normal attachment after the scene-only readers have been recorded. New
+scene-only consumers are rejected after destructive reuse; already recorded
+commands remain valid. Borrowed textures are never released by the motion owner.
+
+Readable topology is checked for correspondence. For imported GPU-only Actor
+meshes, `allowImmutableUnreadableMotionMeshes` is an explicit host promise;
+in-place topology changes require a new `motionRevision`. Scene motion still
+requires readable triangle topology. Sequence gaps, geometry changes, explicit
+revisions and detected camera cuts invalidate the corresponding history.
+
+`FrameTemporalAntialiasing` is a separate opt-in post-FX HDR consumer. It validates
+same-frame resources and feedback hazards, reprojects against identity and depth,
+clips history to a current-inclusive variance box, and blends with luminance
+weights. The current-inclusive bounds preserve stationary sparse HDR highlights.
+Blended hair and current FX changes conservatively bypass history. There is no
+normal-rejection claim for this Half4 layout. The host supplies projection jitter
+and resets on seeks/cuts; no implicit camera mutation or clock is used.
+
+See [desktop integration](desktop-host.md#可选整帧运动与-taa) for the complete
+FX → TAA → DOF → grading order, allocation budgets and opt-in configuration.
+Moving-pixel controls establish active correspondence, not an exhaustive
+deformation oracle or absence of temporal artifacts in every character/stage.
+The generated desktop fixture also checks two-bone skinning, blend-shape deltas,
+nonuniform root scale, wardrobe scale, perspective/off-axis projection, and
+outline extrusion against independent CPU correspondence. Back-facing test
+geometry isolates the outline identity from the main surface; bone, blend-shape
+and authored width changes must retain the previous extruded position. These
+controls use authored vertices/weights, not `BakeMesh` or the motion producer's
+clip atlas. A nonzero packed outline depth offset also has an independent
+previous-eye-depth control. Their current scope is a small generated mesh and
+one uniform packed offset, not every imported rig or outline encoding.
+
+The temporal extension is a desktop opt-in preview, not a claim of bit-identical
+shading on every backend. A bounded real-character Vulkan control has reproduced
+a one-half-ULP blue-channel difference between
+motion-disabled and motion-enabled shading (`1.52587890625e-5` in that sample).
+The same-frame repeats of each path are exact, and native replay retains the
+difference. A separate same-input Float32 control isolates a two-Float32-ULP
+difference at one affected channel (`9.313225746154785e-10`); explicit Float32
+texture upload/load preserves those values, and GPU conversion to Half reproduces
+both complete Half images exactly in that control. CPU nearest-even conversion
+does not reproduce that sample. This bounds the observed arithmetic/storage
+effect on this device; it does not establish a general driver rounding rule or
+identify the originating fragment operation. Neither the exact-color gate nor
+the ordinary Forward tolerance has been relaxed; retained failing controls
+remain failures. Keep motion disabled if exact old-path color is required.
+The corresponding D3D11 control covered all 16 subpixel offsets without a color
+difference; this does not establish all-device or all-character equivalence.
+
+For local diagnosis, set `GAKUMAS_SELFTEST_ACTOR_PRECISION_SWEEP=1` when running
+the character fixture. It scans at most 16 rear-view projection offsets at one
+fixed pose, stops at the first difference, and saves the camera matrices,
+channel/value pair, full images and repeated controls. No animation frame elapses
+between a control and its motion-enabled pair. This switch is not used by the
+default app and does not suppress a failing validation result.
+At the first mismatch it also saves same-input Float32/Half shading controls,
+repeated Float32 draws and explicit Float32 upload/load/attachment-conversion
+controls. These diagnostics do not alter the default material shaders.

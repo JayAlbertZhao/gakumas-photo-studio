@@ -16,11 +16,21 @@ namespace GakumasPhotoMode
     {
         [Serializable] private sealed class Check { public string name;public bool accepted;public float value; }
         [Serializable] private sealed class Geometry { public string renderer;public int vertices,submeshes;public bool skinned; }
+        [Serializable] private sealed class PrecisionSample
+        {
+            public int sample,differentChannels,firstX=-1,firstY=-1,firstChannel=-1;
+            public Vector2 pixelOffset;public Matrix4x4 view,projection;
+            public float maximumDifference,firstControl,firstMotion;
+            public bool float32Measured;public int float32DifferentChannels;
+            public float float32MaximumDifference,float32ControlAtFirst,float32MotionAtFirst;
+            public float halfCopyControlAtFirst,halfCopyMotionAtFirst;
+        }
         [Serializable] private sealed class Report
         {
             public string schema="photo-studio.srp-actor-character.v1",graphicsDevice,costume,error;
             public bool accepted;public int renderers,draws,materials;public int[] materialTypes;
             public List<Geometry> geometry=new List<Geometry>();public List<Check> checks=new List<Check>();
+            public List<PrecisionSample> precisionSweep=new List<PrecisionSample>();
         }
         private const int Size=512;
         private PhotoModeApp app;private string directory;
@@ -232,6 +242,180 @@ namespace GakumasPhotoMode
                     Check("self-shadow-does-not-change-toon-global",Shader.GetGlobalVector("_CapturedLightDirection")==light);
                     selfDirection=new Vector3(.6f,1,.7f).normalized;
                     Check("self-shadow-restore-whole-color",MaximumDifference(ambient,Run("self-shadow-restored"))==0);
+                }
+                // Appended opt-in motion controls preserve all existing ordinary
+                // Forward evidence, including real outline/hair/stencil coverage.
+                using(var temporal=new FrameTemporalAntialiasing())
+                {
+                    // Local bundle topology is immutable throughout these controls;
+                    // do not rewrite/reimport user assets to manufacture readability.
+                    actor.Configuration.allowImmutableUnreadableMotionMeshes=true;
+                    var temporalSettings=new FrameTemporalAntialiasing.Settings {enabled=true};
+                    foreach(int angle in new[]{0,90,180})
+                    {
+                        View(angle);app.EvaluateMotion(.7f);string label="temporal-view-"+angle;
+                        actor.Configuration.motion.enabled=false;var control=Run(label+"-disabled");
+                        actor.Configuration.motion.enabled=true;var cold=Run(label+"-cold");
+                        Check(label+"-motion-mrt-retains-real-color",MaximumDifference(control,cold)==0,MaximumDifference(control,cold));
+                        if(!temporal.TryRender(current,current.color,temporalSettings,128,out var coldFrame,out var why))throw new InvalidOperationException(why);
+                        var coldTemporal=Read(coldFrame.color);var coldGuide=Read(coldFrame.metadata);
+                        Check(label+"-cold-temporal-preserves-real-color",MaximumDifference(cold,coldTemporal)==0,MaximumDifference(cold,coldTemporal));
+                        var warm=Run(label+"-stationary");var motionPixels=Read(current.motionDepthIdentity);
+                        int visibleMotion=0,validMotion=0;float motionError=0;
+                        foreach(var p in motionPixels)if(p.a>0)
+                        {visibleMotion++;if(((int)p.a&8)!=0)validMotion++;motionError=Mathf.Max(motionError,Mathf.Abs(p.r),Mathf.Abs(p.g));}
+                        Check(label+"-real-history-coverage",visibleMotion>1000&&visibleMotion==validMotion,validMotion);
+                        Check(label+"-real-stationary-zero-motion",motionError<.00004f,motionError);
+                        if(!temporal.TryRender(current,current.color,temporalSettings,128,out var warmFrame,out why))throw new InvalidOperationException(why);
+                        var resolved=Read(warmFrame.color);var guide=Read(warmFrame.metadata);
+                        int reused=guide.Count(p=>p.a>0);Check(label+"-real-color-consumes-history",reused>1000,reused);
+                        Check(label+"-real-stationary-color-stable",MaximumDifference(warm,resolved)<.00005f,MaximumDifference(warm,resolved));
+                        Save(label+"-motion",motionPixels);Save(label+"-temporal",resolved);Save(label+"-temporal-guide",guide);
+                        app.EvaluateMotion(.72f);var deformed=Run(label+"-deformed");motionPixels=Read(current.motionDepthIdentity);
+                        int moving=motionPixels.Count(p=>((int)p.a&8)!=0&&(Mathf.Abs(p.r)+Mathf.Abs(p.g))>.00001f);
+                        Check(label+"-real-deformation-motion-positive",moving>100,moving);
+                        if(!temporal.TryRender(current,current.color,temporalSettings,128,out var deformedFrame,out why))throw new InvalidOperationException(why);
+                        resolved=Read(deformedFrame.color);guide=Read(deformedFrame.metadata);
+                        Check(label+"-real-deformed-temporal-finite",resolved.All(p=>Finite(p.r)&&Finite(p.g)&&Finite(p.b)&&Finite(p.a)));
+                        Save(label+"-deformed-motion",motionPixels);Save(label+"-deformed-temporal",resolved);Save(label+"-deformed-guide",guide);
+                    }
+                    actor.Configuration.motion.enabled=false;
+                }
+                // Diagnostic-only bounded subpixel sweep. All pairs execute in
+                // this same synchronous frame/pose; never accept a later process
+                // merely because its startup dynamics happen to avoid a delta.
+                if(Environment.GetEnvironmentVariable("GAKUMAS_SELFTEST_ACTOR_PRECISION_SWEEP")=="1")
+                {
+                    View(180);app.EvaluateMotion(.7f);
+                    var originalProjection=camera.projectionMatrix;
+                    Color[] PrecisionDraw(string name,GraphicsFormat format,bool temporalPass)
+                    {
+                        // Diagnostic copies of the SAME current full materials.
+                        // Half-format controls must reproduce the production
+                        // images before Float32 differences can be attributed.
+                        var target=Target(format,name,GraphicsFormat.D32_SFloat_S8_UInt);
+                        var motionTarget=temporalPass?Target(GraphicsFormat.R16G16B16A16_SFloat,name+" motion"):null;
+                        var priorTarget=temporalPass?Target(GraphicsFormat.R32_SFloat,name+" prior depth"):null;
+                        var ordered=new List<(Renderer renderer,int submesh,Material material,string pass)>();
+                        var mains=main.OrderBy(pair=>pair.Value.renderQueue)
+                            .ThenBy(pair=>pair.Value.renderQueue>2500?camera.worldToCameraMatrix.MultiplyPoint(pair.Key.Item1.bounds.center).z:0)
+                            .ThenBy(pair=>pair.Key.Item1.GetInstanceID()).ThenBy(pair=>pair.Key.Item2).ToArray();
+                        foreach(var pair in mains)if(pair.Value.renderQueue<=2500)ordered.Add((pair.Key.Item1,pair.Key.Item2,pair.Value,"ACTOR_FORWARD_HDR"));
+                        void AddSupplement(string pass,bool hair)
+                        {
+                            foreach(var r in renderers)for(int i=0;i<sources[r].Length;i++)
+                            {
+                                var source=sources[r][i];if((source.GetFloat("_ShaderType")==8)!=hair||!supplements.TryGetValue((r,i),out var material))continue;
+                                if(pass=="ACTOR_OUTLINE"&&(source.GetFloat("_OutlineEnabled")<=.5f||!source.GetShaderPassEnabled("ActorOutline")))continue;
+                                if(pass=="ACTOR_HAIR_COVER"&&!source.GetShaderPassEnabled("ActorHairCover"))continue;
+                                ordered.Add((r,i,material,pass));
+                            }
+                        }
+                        if(settings.outlines)AddSupplement("ACTOR_OUTLINE",false);
+                        if(settings.hairCover)AddSupplement("ACTOR_HAIR_COVER",true);
+                        if(settings.outlines)AddSupplement("ACTOR_OUTLINE",true);
+                        foreach(var pair in mains)if(pair.Value.renderQueue>2500)ordered.Add((pair.Key.Item1,pair.Key.Item2,pair.Value,"ACTOR_FORWARD_HDR"));
+                        using var commands=new CommandBuffer {name="Bounded Actor color precision diagnostic"};
+                        commands.SetRenderTarget(target);commands.ClearRenderTarget(true,true,new Color(emission.x,emission.y,emission.z,1));
+                        if(temporalPass)
+                        {
+                            commands.SetRenderTarget(motionTarget);commands.ClearRenderTarget(false,true,Color.clear);
+                            commands.SetRenderTarget(priorTarget);commands.ClearRenderTarget(false,true,Color.clear);
+                            commands.SetRenderTarget(new[]{new RenderTargetIdentifier(target),new RenderTargetIdentifier(motionTarget),new RenderTargetIdentifier(priorTarget)},target);
+                        }
+                        commands.SetViewport(new Rect(0,0,Size,Size));
+                        foreach(var draw in ordered)
+                        {
+                            var material=draw.material;var pass=draw.pass;
+                            if(temporalPass)
+                            {
+                                material=Own(new Material(Resources.Load<Shader>("ActorTemporal")));material.CopyPropertiesFromMaterial(draw.material);
+                                material.SetFloat("_ActorMotionHistory",0);material.SetFloat("_ActorMotionIdentity",1);material.SetFloat("_ActorMotionFlags",0);
+                                material.SetTexture("_ActorPreviousClip",Texture2D.blackTexture);material.SetVector("_ActorClipSize",new Vector4(2,2,0,0));
+                                material.SetVector("_ActorMotionSize",new Vector4(Size,Size,0,0));
+                                var inverse=GL.GetGPUProjectionMatrix(camera.projectionMatrix,true).inverse;
+                                material.SetMatrix("_ActorMotionInverseProjection",inverse);material.SetMatrix("_ActorPreviousInverseProjection",inverse);
+                                pass=(pass=="ACTOR_FORWARD_HDR"?"ACTOR_FORWARD":pass)+"_TEMPORAL";
+                            }
+                            int index=material.FindPass(pass);if(index<0)throw new InvalidOperationException("Missing precision pass "+pass);
+                            commands.DrawRenderer(draw.renderer,material,draw.submesh,index);
+                        }
+                        bool requested=Environment.GetEnvironmentVariable("GAKUMAS_SELFTEST_CAPTURE_SRP_ACTOR")=="1"&&Environment.GetEnvironmentVariable("GAKUMAS_SELFTEST_CAPTURE_SRP_ACTOR_CASE")==name;
+                        bool began=requested&&RenderDocCaptureBridge.BeginOffscreenCapture();
+                        try
+                        {
+                            RenderPipeline.SubmitRenderRequest(camera,new TilePassTestRequest {record=context=>{context.SetupCameraProperties(camera);context.ExecuteCommandBuffer(commands);}});
+                            var pixels=Read(target);Save(name,pixels);return pixels;
+                        }
+                        finally{if(requested)Check(name+"-native-capture",began&&RenderDocCaptureBridge.EndOffscreenCapture());}
+                    }
+                    Color[] PrecisionCopy(string name,Color[] source,GraphicsFormat format)
+                    {
+                        // Calibrate conversion through a full-precision texture
+                        // Load; do not assume CPU Half round-to-nearest matches
+                        // this device's attachment conversion behavior.
+                        var texture=Own(new Texture2D(Size,Size,TextureFormat.RGBAFloat,false,true));texture.SetPixels(source);texture.Apply();
+                        var copy=Own(new Material(Resources.Load<Shader>("ActorForwardDepth")));
+                        copy.SetTexture("_ActorSourceColor",texture);copy.SetVector("_ActorTargetSize",new Vector4(Size,Size,0,0));
+                        var target=Target(format,name);
+                        using var commands=new CommandBuffer {name="Explicit Float32 load and attachment conversion control"};
+                        commands.SetRenderTarget(target);commands.SetViewport(new Rect(0,0,Size,Size));commands.DrawMesh(quad,Matrix4x4.identity,copy,0,2);
+                        Graphics.ExecuteCommandBuffer(commands);var pixels=Read(target);Save(name,pixels);return pixels;
+                    }
+                    try
+                    {
+                        for(int sample=0;sample<16;sample++)
+                        {
+                            var offset=new Vector2(sample/16f-.5f,((sample*3)%16)/16f-.5f);
+                            var projection=originalProjection;
+                            // Perspective clip.w=-view.z, so changing m02/m12
+                            // by -2*UV applies a constant positive NDC offset.
+                            projection.m02-=2*offset.x/Size;projection.m12-=2*offset.y/Size;
+                            camera.projectionMatrix=projection;
+                            string label="precision-rear-"+sample;
+                            actor.Configuration.motion.enabled=false;var control=Run(label+"-disabled");
+                            actor.Configuration.motion.enabled=true;var motion=Run(label+"-motion");
+                            var observation=new PrecisionSample {sample=sample,pixelOffset=offset,
+                                view=camera.worldToCameraMatrix,projection=projection,
+                                maximumDifference=MaximumDifference(control,motion)};
+                            for(int p=0;p<control.Length;p++)for(int c=0;c<4;c++)if(control[p][c]!=motion[p][c])
+                            {
+                                observation.differentChannels++;
+                                if(observation.firstX<0){observation.firstX=p%Size;observation.firstY=p/Size;
+                                    observation.firstChannel=c;observation.firstControl=control[p][c];observation.firstMotion=motion[p][c];}
+                            }
+                            report.precisionSweep.Add(observation);
+                            Check(label+"-motion-mrt-exact-color",observation.differentChannels==0,observation.maximumDifference);
+                            if(observation.differentChannels==0)continue;
+                            // Preserve the first differing inputs and both repeat
+                            // controls, rather than advancing time or relaxing the
+                            // strict color gate. Native capture can target these
+                            // names when the host has injected its capture bridge.
+                            actor.Configuration.motion.enabled=false;var repeatedControl=Run("precision-first-delta-disabled-repeat");
+                            actor.Configuration.motion.enabled=true;var repeatedMotion=Run("precision-first-delta-motion-repeat");
+                            Check("precision-first-delta-disabled-repeat-exact",MaximumDifference(control,repeatedControl)==0,MaximumDifference(control,repeatedControl));
+                            Check("precision-first-delta-motion-repeat-exact",MaximumDifference(motion,repeatedMotion)==0,MaximumDifference(motion,repeatedMotion));
+                            var halfControl=PrecisionDraw("precision-half-control",GraphicsFormat.R16G16B16A16_SFloat,false);
+                            var halfMotion=PrecisionDraw("precision-half-motion",GraphicsFormat.R16G16B16A16_SFloat,true);
+                            Check("precision-isolated-half-control-matches-production",MaximumDifference(repeatedControl,halfControl)==0,MaximumDifference(repeatedControl,halfControl));
+                            Check("precision-isolated-half-motion-matches-production",MaximumDifference(repeatedMotion,halfMotion)==0,MaximumDifference(repeatedMotion,halfMotion));
+                            var floatControl=PrecisionDraw("precision-float-control",GraphicsFormat.R32G32B32A32_SFloat,false);
+                            var floatMotion=PrecisionDraw("precision-float-motion",GraphicsFormat.R32G32B32A32_SFloat,true);
+                            Check("precision-float-control-repeat-exact",MaximumDifference(floatControl,PrecisionDraw("precision-float-control-repeat",GraphicsFormat.R32G32B32A32_SFloat,false))==0);
+                            Check("precision-float-motion-repeat-exact",MaximumDifference(floatMotion,PrecisionDraw("precision-float-motion-repeat",GraphicsFormat.R32G32B32A32_SFloat,true))==0);
+                            Check("precision-float-finite",floatControl.Concat(floatMotion).All(p=>Finite(p.r)&&Finite(p.g)&&Finite(p.b)&&Finite(p.a)));
+                            observation.float32Measured=true;observation.float32MaximumDifference=MaximumDifference(floatControl,floatMotion);
+                            for(int p=0;p<floatControl.Length;p++)for(int c=0;c<4;c++)if(floatControl[p][c]!=floatMotion[p][c])observation.float32DifferentChannels++;
+                            int first=observation.firstY*Size+observation.firstX;
+                            observation.float32ControlAtFirst=floatControl[first][observation.firstChannel];observation.float32MotionAtFirst=floatMotion[first][observation.firstChannel];
+                            Check("precision-float-upload-load-exact",MaximumDifference(floatControl,PrecisionCopy("precision-float-load-control",floatControl,GraphicsFormat.R32G32B32A32_SFloat))==0);
+                            var copiedControl=PrecisionCopy("precision-half-load-control",floatControl,GraphicsFormat.R16G16B16A16_SFloat);
+                            var copiedMotion=PrecisionCopy("precision-half-load-motion",floatMotion,GraphicsFormat.R16G16B16A16_SFloat);
+                            observation.halfCopyControlAtFirst=copiedControl[first][observation.firstChannel];observation.halfCopyMotionAtFirst=copiedMotion[first][observation.firstChannel];
+                            break;
+                        }
+                    }
+                    finally {camera.projectionMatrix=originalProjection;actor.Configuration.motion.enabled=false;}
                 }
                 actor.Dispose();Check("dispose-keeps-original-character",!current.IsCurrent&&actor.NominalTextureBytes==0&&SourceSnapshot(renderers)==sourceBefore&&output.IsCreated());
                 if(Environment.GetCommandLineArgs().Contains("--validate-desktop-character"))

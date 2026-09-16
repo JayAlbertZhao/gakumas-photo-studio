@@ -57,10 +57,18 @@ namespace GakumasPhotoMode
             private TileScenePositionResources _position;
             private bool _recorded, _disposed, _complete, _storedDepth;
             private bool _sceneAttachmentsConsumed;
+            private bool _sceneNormalsConsumed;
+            internal SceneDeferredCamera.Surface[] MotionSurfaces {get;private set;}
             /// <summary>False once an explicit in-place Actor consumer takes ownership
             /// of the scene color/depth contents. Recorded work remains valid, but no
             /// further scene-only reader may be scheduled from this ticket.</summary>
-            public bool SceneContentAvailable => IsRecorded && !_sceneAttachmentsConsumed;
+            public bool SceneContentAvailable => IsRecorded && !_sceneAttachmentsConsumed && !_sceneNormalsConsumed;
+            public bool SceneNormalContentAvailable => IsRecorded && !_sceneNormalsConsumed && NormalIdentity!=null && NormalIdentity.IsCreated();
+            internal bool TryConsumeSceneNormals()
+            {
+                if(!SceneNormalContentAvailable||NormalIdentity==null||!NormalIdentity.IsCreated())return false;
+                _sceneNormalsConsumed=true;return true;
+            }
             internal bool TryConsumeSceneAttachments()
             {
                 if (!SceneContentAvailable) return false;
@@ -105,6 +113,14 @@ namespace GakumasPhotoMode
                 Color=settings.output; NormalIdentity=settings.normalIdentity;
                 DepthStencil=settings.depthStencil;_storedDepth=settings.depthStencil!=null;
                 MaterialBase=settings.materialBase; MaterialMos=settings.materialMos;
+                MotionSurfaces=new SceneDeferredCamera.Surface[settings.surfaces.Length];
+                for(int i=0;i<MotionSurfaces.Length;i++)
+                {
+                    var s=settings.surfaces[i];
+                    MotionSurfaces[i]=new SceneDeferredCamera.Surface {renderer=s.renderer,materialIndex=s.materialIndex,
+                        vertexScale=s.vertexScale,cull=s.cull,alphaCutoff=s.alphaCutoff,motionRevision=s.motionRevision,temporalFlags=s.temporalFlags,
+                        inputs=new SceneDeferredCamera.MaterialInputs {albedoMap=s.inputs.albedoMap,uvST=s.inputs.uvST,alpha=s.inputs.alpha}};
+                }
             }
             internal void Initialize(TileRenderPass.Plan plan, Mesh quad, TileRenderPass.Submission budget)
             { _plan = plan; _quad = quad; Budget = budget; }

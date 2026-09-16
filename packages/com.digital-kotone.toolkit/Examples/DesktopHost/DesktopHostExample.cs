@@ -79,6 +79,15 @@ namespace GakumasPhotoMode.Examples
             return LastError==null&&displayReady;
         }
 
+        /// <summary>Explicit seek/cut boundary. Waits for this example's GPU work
+        /// and resets reflection, geometry and color histories together. Rendering
+        /// another time does not implicitly classify it as a seek.</summary>
+        public void ResetHistory()
+        {
+            if(!IsInitialized||inContext)throw new InvalidOperationException("Reset history outside rendering after initialization");
+            WaitForOwnedGpuWork();frameRenderer.ResetHistoryAfterGpuCompletion();
+        }
+
         internal void RecordContext(ScriptableRenderContext context,double seconds,bool present)
         {
             inContext=true;presentThisContext=present&&presentToScreen;LastError=null;displayReady=false;

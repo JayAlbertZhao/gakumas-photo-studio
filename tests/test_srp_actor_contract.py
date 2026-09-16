@@ -8,6 +8,59 @@ RUNTIME = ROOT / 'packages/com.digital-kotone.toolkit/Runtime'
 
 
 class SrpActorContractTests(unittest.TestCase):
+    def test_joined_scene_history_and_destructive_normal_reuse_are_explicit(self):
+        actor = (RUNTIME / 'SrpActorForward.cs').read_text(encoding='utf-8')
+        scene = (RUNTIME / 'TileSceneRenderer.cs').read_text(encoding='utf-8')
+        history = (RUNTIME / 'SceneMotionHistory.cs').read_text(encoding='utf-8')
+        shader = (RUNTIME / 'Resources/SceneMotion.shader').read_text(encoding='utf-8')
+        for required in ('public bool includeSceneMotion,reuseSceneMotionStorage',
+                         'sceneMotion=new SceneMotionHistory(true)', 'scene.MotionSurfaces',
+                         'draws.sampled.Contains(normal)', 'scene.TryConsumeSceneNormals()'):
+            self.assertIn(required, actor)
+        self.assertLess(actor.index('scene.TryConsumeSceneNormals()'), actor.index('context.ExecuteCommandBuffer(commands)'))
+        self.assertIn('!_sceneNormalsConsumed', scene)
+        self.assertIn('public SceneMotionHistory(bool half4=false)', history)
+        self.assertIn('if(!_half4)commands.ClearRenderTarget', history)
+        self.assertIn('if(!_half4){Motion.Release()', history)
+        self.assertIn('SCENE_JOINED_HALF4_MOTION', shader)
+        self.assertIn('ZWrite Off ZTest LEqual', shader)
+        self.assertIn('((uint)_SurfaceIdentity<<4)|flags', shader)
+
+    def test_temporal_correspondence_uses_actual_full_passes_and_explicit_topology(self):
+        producer = (RUNTIME / 'ActorTemporalHistory.cs').read_text(encoding='utf-8')
+        include = (RUNTIME / 'Resources/ActorTemporal.cginc').read_text(encoding='utf-8')
+        shader = (RUNTIME / 'Resources/ActorTemporal.shader').read_text(encoding='utf-8')
+        for forbidden in ('BakeMesh(', 'ReadPixels(', '.Submit(', 'Shader.SetGlobal'):
+            self.assertNotIn(forbidden, producer)
+        for required in ('SV_VertexID', 'TemporalVertexFunction(input)',
+                         'o.color=frag(input.surface,facing)', 'o.color=outlineFragment(input.surface)',
+                         'float4 motionDepthIdentity : SV_Target1', 'float previousDepth : SV_Target2'):
+            self.assertIn(required, include)
+        for name in ('ACTOR_FORWARD', 'ACTOR_OUTLINE', 'ACTOR_HAIR_COVER'):
+            self.assertIn(name + '_TEMPORAL', shader)
+            self.assertIn(name + '_CLIP_SNAPSHOT', shader)
+        for required in ('!mesh.isReadable&&!immutableUnreadable', 'e.indexCount==indexCount',
+                         'revision==previousRevision', 'sequence==previousSequence+1',
+                         'block.HasProperty(name)', 'bytes>(long)maximumMiB*1048576',
+                         'texture==Motion||texture==PreviousDepth', '(int)draw.temporalFlags|(blended?2:0)'):
+            self.assertIn(required, producer)
+
+    def test_temporal_consumer_keeps_hdr_fixed_point_and_real_runtime_controls(self):
+        consumer = (RUNTIME / 'FrameTemporalAntialiasing.cs').read_text(encoding='utf-8')
+        shader = (RUNTIME / 'Resources/FrameTemporalAntialiasing.shader').read_text(encoding='utf-8')
+        for required in ('sourceFrame.IsCurrent&&Created', 'input.sequence<=sequence',
+                         'input.sequence==sequence+1', 'texture.memorylessMode!=RenderTextureMemoryless.None',
+                         'Owns(texture)', '(long)width*height*64', 'ready=history=false'):
+            self.assertIn(required, consumer)
+        self.assertIn('lower=min(current,max(lo,mean-sigma)),upper=max(current,min(hi,mean+sigma))', shader)
+        self.assertIn('current+(clipped-current)', shader)
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopHost.cs').read_text(encoding='utf-8')
+        for required in ('temporal-pattern-reduces-alternating-energy',
+                         'temporal-stationary-hdr-outlier-is-fixed-point',
+                         'temporal-authored-exclude-bypasses-color', 'temporal-authored-no-jitter-exact-raster',
+                         'temporal-fx-preserves-whole-current-composite', 'temporal-gap-rejects-history'):
+            self.assertIn(required, fixture)
+
     def test_packed_reuse_is_opt_in_and_consumes_only_scene_contents(self):
         source = (RUNTIME / 'SrpActorForward.cs').read_text(encoding='utf-8')
         self.assertIn('enum Storage { SeparateHalf, SeparatePacked, ReuseScenePacked }', source)
@@ -16,7 +69,7 @@ class SrpActorContractTests(unittest.TestCase):
         self.assertIn('borrowedColor?null:color,eyeDepth', source)
         self.assertLess(source.index('scene.TryConsumeSceneAttachments()'), source.index('context.ExecuteCommandBuffer(commands)'))
         scene = (RUNTIME / 'TileSceneRenderer.cs').read_text(encoding='utf-8')
-        self.assertIn('SceneContentAvailable => IsRecorded && !_sceneAttachmentsConsumed', scene)
+        self.assertIn('SceneContentAvailable => IsRecorded && !_sceneAttachmentsConsumed && !_sceneNormalsConsumed', scene)
         for name in ('SrpActorForward.cs', 'SrpTileReflection.cs', 'SrpTilePlanarReflection.cs'):
             self.assertIn('!scene.SceneContentAvailable', (RUNTIME / name).read_text(encoding='utf-8'))
         shader = (RUNTIME / 'Resources/ActorForwardDepth.shader').read_text(encoding='utf-8')
@@ -166,6 +219,24 @@ class SrpActorContractTests(unittest.TestCase):
                       'LightProbeUsage.CustomProvided', 'renderer-sh-oblique-',
                       'if(ordinaryProbe)materials[r].SetFloat("_UseActorForwardAmbientSH",0)'):
             self.assertIn(token, fixture)
+
+    def test_precision_sweep_is_bounded_opt_in_and_keeps_strict_controls(self):
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs').read_text(encoding='utf-8')
+        for token in ('GAKUMAS_SELFTEST_ACTOR_PRECISION_SWEEP', 'sample<16',
+                      'observation.differentChannels==0', 'report.precisionSweep.Add(observation)',
+                      'precision-first-delta-disabled-repeat-exact', 'precision-first-delta-motion-repeat-exact',
+                      'precision-isolated-half-control-matches-production', 'precision-isolated-half-motion-matches-production',
+                      'precision-float-control-repeat-exact', 'precision-float-motion-repeat-exact',
+                      'precision-float-upload-load-exact', 'precision-half-load-control', 'precision-half-load-motion',
+                      'halfCopyControlAtFirst', 'halfCopyMotionAtFirst',
+                      'float32ControlAtFirst', 'float32MotionAtFirst',
+                      'view=camera.worldToCameraMatrix,projection=projection',
+                      'camera.projectionMatrix=originalProjection;actor.Configuration.motion.enabled=false'):
+            self.assertIn(token, fixture)
+        sweep = fixture.split('if(Environment.GetEnvironmentVariable("GAKUMAS_SELFTEST_ACTOR_PRECISION_SWEEP")')[1].split('actor.Dispose();')[0]
+        self.assertNotIn('yield return', sweep)
+        self.assertNotIn('Time.', sweep)
+        self.assertEqual(sweep.count('app.EvaluateMotion('), 1)
 
     def test_full_suite_appends_actor_after_existing_planar_fixture(self):
         fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.cs').read_text(encoding='utf-8')

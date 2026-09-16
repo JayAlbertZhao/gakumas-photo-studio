@@ -107,6 +107,39 @@ namespace GakumasPhotoMode
                     s.actorStorage=SrpActorForward.Storage.SeparateHalf;Run(label+"-restored-cold",.7f);var restoredStorage=Run(label+"-restored",.7f);
                     Check(label+"-default-restored",MaximumDifference(half,restoredStorage)<.00001f,MaximumDifference(half,restoredStorage));
                 }
+                // Same real character, full reflection/FX/DOF/grade stack. Reset
+                // every history (including reflection) before each paired sequence.
+                // Only storage ownership differs between packed and reused runs.
+                s.allowImmutableUnreadableMotionMeshes=true;
+                float[] times={.7f,.7f,.72f,.74f};
+                foreach(int angle in new[]{0,90,180})
+                {
+                    View(angle);string label="joined-view-"+angle;
+                    s.actorStorage=SrpActorForward.Storage.SeparatePacked;s.reuseSceneMotionStorage=false;
+                    s.actorMotion.enabled=false;s.includeSceneMotion=false;s.temporal.enabled=false;example.ResetHistory();
+                    var control=new Color[times.Length][];
+                    for(int i=0;i<times.Length;i++)control[i]=Run(label+"-disabled-"+i,times[i]);
+                    s.actorMotion.enabled=true;s.includeSceneMotion=true;example.ResetHistory();
+                    for(int i=0;i<times.Length;i++)
+                    {
+                        var motionOnly=Run(label+"-motion-only-"+i,times[i]);
+                        Check(label+"-motion-keeps-full-color-"+i,MaximumDifference(control[i],motionOnly)==0,MaximumDifference(control[i],motionOnly));
+                    }
+                    s.temporal.enabled=true;example.ResetHistory();
+                    var resolved=new Color[times.Length][];
+                    for(int i=0;i<times.Length;i++)resolved[i]=Run(label+"-owned-"+i,times[i]);
+                    Check(label+"-cold-resolve-exact",MaximumDifference(control[0],resolved[0])==0,MaximumDifference(control[0],resolved[0]));
+                    Check(label+"-animated-temporal-positive-control",Changed(control[3],resolved[3],.00001f)>100,Changed(control[3],resolved[3],.00001f));
+                    s.actorStorage=SrpActorForward.Storage.ReuseScenePacked;s.reuseSceneMotionStorage=true;example.ResetHistory();
+                    for(int i=0;i<times.Length;i++)
+                    {
+                        var reused=Run(label+"-reuse-"+i,times[i]);
+                        Check(label+"-reuse-two-gbuffers-exact-"+i,MaximumDifference(resolved[i],reused)==0,MaximumDifference(resolved[i],reused));
+                    }
+                    // Seek after warm history must reproduce the original cold result.
+                    example.ResetHistory();var sought=Run(label+"-seek-cold",times[0]);
+                    Check(label+"-seek-resets-whole-chain",MaximumDifference(resolved[0],sought)==0,MaximumDifference(resolved[0],sought));
+                }
                 example.Shutdown();Check("shutdown-preserves-character",SourceSnapshot(renderers)==sourceBefore&&renderers.All(r=>r!=null&&r.enabled));
                 Check("shutdown-restores-pipeline",GraphicsSettings.renderPipelineAsset==previousGraphics&&QualitySettings.renderPipeline==previousQuality);
             }

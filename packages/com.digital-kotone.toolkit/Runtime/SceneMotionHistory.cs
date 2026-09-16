@@ -35,6 +35,8 @@ namespace GakumasPhotoMode
             get
             {
                 if(Motion==null||!Motion.IsCreated()||PreviousNormal==null||!PreviousNormal.IsCreated())return false;
+                if(_half4&&(_rasterDepth==null||!_rasterDepth.IsCreated()||Motion.graphicsFormat!=GraphicsFormat.R16G16B16A16_SFloat||
+                    PreviousNormal.graphicsFormat!=GraphicsFormat.R32_SFloat||Motion.width!=PreviousNormal.width||Motion.height!=PreviousNormal.height))return false;
                 foreach(var entry in _active)if(!VerticesCreated(entry))return false;
                 return true;
             }
@@ -52,6 +54,44 @@ namespace GakumasPhotoMode
         private int _nextId = 1;
         private bool _prepared;
         private Shader _shader;
+        private readonly bool _half4;
+        private RenderTexture _rasterDepth;
+        public SceneMotionHistory(bool half4=false){_half4=half4;}
+        public long SnapshotNominalTextureBytes
+        {get {long bytes=0;foreach(var e in _entries.Values)if(e.previousVertices!=null)bytes+=(long)e.previousVertices.width*e.previousVertices.height*32;return bytes;}}
+        public bool PrepareHalf4(SceneMotionSettings settings,Camera camera,SceneDeferredCamera.Surface[] surfaces,
+            RenderTexture motion,RenderTexture expectedDepth,RenderTexture rasterDepth,int maximumMiB,out string error)
+        {
+            error=null;
+            if(!_half4||motion==null||expectedDepth==null||rasterDepth==null||!motion.IsCreated()||!expectedDepth.IsCreated()||!rasterDepth.IsCreated()||
+                motion.graphicsFormat!=GraphicsFormat.R16G16B16A16_SFloat||expectedDepth.graphicsFormat!=GraphicsFormat.R32_SFloat||
+                motion.width!=expectedDepth.width||motion.height!=expectedDepth.height||motion.width!=rasterDepth.width||motion.height!=rasterDepth.height||
+                camera==null||camera.targetTexture==null||camera.targetTexture.width!=motion.width||camera.targetTexture.height!=motion.height||camera.farClipPlane>65504||
+                surfaces==null||surfaces.Length>127||maximumMiB<1||maximumMiB>2048)
+            {error="Invalid joined scene Half4 motion inputs";return false;}
+            long bytes=0;var seen=new HashSet<(Renderer,int)>();
+            var rendererBlock=new MaterialPropertyBlock();var submeshBlock=new MaterialPropertyBlock();
+            var reserved=("_PreviousVertices _VertexTextureSize _ViewProjection _PreviousViewProjection _PreviousView _CurrentView _MotionSize _HistoryValid _SurfaceIdentity _TemporalFlags _AlbedoMap _AlphaMap _UvST _Alpha _Cutoff _VertexScale _Cull").Split(' ');
+            foreach(var s in surfaces)
+            {
+                if(s==null||s.renderer==null||((int)s.temporalFlags&~6)!=0){error="Invalid scene temporal surface";return false;}
+                if(s.inputs==null||s.inputs.albedoMap==motion||s.inputs.albedoMap==expectedDepth||s.inputs.albedoMap==rasterDepth)
+                {error="Scene alpha must not sample current temporal outputs";return false;}
+                if(!seen.Add((s.renderer,s.materialIndex))){error="Duplicate scene temporal geometry identity";return false;}
+                s.renderer.GetPropertyBlock(rendererBlock);s.renderer.GetPropertyBlock(submeshBlock,s.materialIndex);
+                var block=submeshBlock.isEmpty?rendererBlock:submeshBlock;
+                foreach(var key in reserved)if(block.HasProperty(key)){error="Scene property block overrides reserved temporal input: "+key;return false;}
+                var skin=s.renderer as SkinnedMeshRenderer;var filter=s.renderer.GetComponent<MeshFilter>();
+                var mesh=skin!=null?skin.sharedMesh:filter!=null?filter.sharedMesh:null;
+                if(mesh==null){error="Missing scene temporal mesh";return false;}
+                int w=Mathf.Min(Mathf.NextPowerOfTwo(Mathf.CeilToInt(Mathf.Sqrt(mesh.vertexCount*2))),Mathf.Min(SystemInfo.maxTextureSize,1024));
+                bytes+=(long)w*((mesh.vertexCount*2+w-1)/w)*32;
+            }
+            // Include previous inactive entries until Complete retires them.
+            if(bytes+SnapshotNominalTextureBytes>(long)maximumMiB*1048576){error="Scene motion snapshot budget exceeded";return false;}
+            Motion=motion;PreviousNormal=expectedDepth;_rasterDepth=rasterDepth;
+            return Prepare(settings,camera,surfaces,out error);
+        }
 
         public bool Prepare(SceneMotionSettings settings, Camera camera, SceneDeferredCamera.Surface[] surfaces, out string error)
         {
@@ -71,7 +111,7 @@ namespace GakumasPhotoMode
                 !SystemInfo.IsFormatSupported(format,FormatUsage.Render)||!SystemInfo.IsFormatSupported(format,FormatUsage.Sample))
             {error="Scene motion requires geometry shaders and float4 MRT render/sample";return false;}
             var target=camera.targetTexture;
-            if(!IsCreated||Motion.width!=target.width||Motion.height!=target.height)
+            if(!_half4&&(!IsCreated||Motion.width!=target.width||Motion.height!=target.height))
             {
                 ReleaseTargets();ResetHistory();
                 Motion=Target(target.width,target.height,24,"Toolkit scene motion previous depth");
@@ -105,7 +145,7 @@ namespace GakumasPhotoMode
                 var key=(renderer,surface.materialIndex);
                 if(!_entries.TryGetValue(key,out var entry))
                 {
-                    if(_nextId>16777215){error="Scene motion identity range exhausted; disable to reset";return false;}
+                    if(_nextId>(_half4?127:16777215)){error="Scene motion identity range exhausted; disable to reset";return false;}
                     entry=new Entry{id=_nextId++,material=new Material(_shader){hideFlags=HideFlags.HideAndDontSave}};_entries.Add(key,entry);
                 }
                 entry.surface=surface;
@@ -144,18 +184,20 @@ namespace GakumasPhotoMode
                 commands.SetRenderTarget(current);commands.ClearRenderTarget(false,true,Color.clear);
                 commands.DrawRenderer(s.renderer,m,s.materialIndex,1);SnapshotDrawCalls++;
             }
-            commands.SetRenderTarget(new[]{new RenderTargetIdentifier(Motion),new RenderTargetIdentifier(PreviousNormal)},Motion);
-            commands.ClearRenderTarget(true,true,Color.clear);
+            commands.SetRenderTarget(new[]{new RenderTargetIdentifier(Motion),new RenderTargetIdentifier(PreviousNormal)},_half4?_rasterDepth:Motion);
+            commands.SetViewport(new Rect(0,0,Motion.width,Motion.height));
+            if(!_half4)commands.ClearRenderTarget(true,true,Color.clear);
             foreach(var entry in _active)
             {
                 var m=entry.material;var s=entry.surface;
                 m.SetMatrix("_ViewProjection",_projection*_view);m.SetMatrix("_PreviousViewProjection",_previousProjection*_previousView);
                 m.SetMatrix("_PreviousView",_previousView);m.SetTexture("_PreviousVertices",entry.previousVertices);
+                if(_half4){m.SetMatrix("_CurrentView",_view);m.SetFloat("_TemporalFlags",(int)s.temporalFlags);}
                 m.SetVector("_MotionSize",new Vector4(1f/Motion.width,1f/Motion.height,Motion.width,Motion.height));
                 m.SetVector("_VertexScale",s.vertexScale);m.SetFloat("_HistoryValid",entry.reusable?1:0);m.SetFloat("_SurfaceIdentity",entry.id);
                 m.SetFloat("_Cull",(int)s.cull);m.SetTexture("_AlphaMap",s.inputs.albedoMap!=null?s.inputs.albedoMap:Texture2D.whiteTexture);
                 m.SetVector("_UvST",s.inputs.uvST);m.SetFloat("_Alpha",s.inputs.alpha);m.SetFloat("_Cutoff",s.alphaCutoff);
-                commands.DrawRenderer(s.renderer,m,s.materialIndex,0);DrawCalls++;
+                commands.DrawRenderer(s.renderer,m,s.materialIndex,_half4?2:0);DrawCalls++;
             }
             commands.EndSample("Toolkit scene motion correspondence");
         }
@@ -190,8 +232,9 @@ namespace GakumasPhotoMode
         private static RenderTexture Target(int width,int height,int depth,string name)=>new RenderTexture(width,height,depth,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear){name=name,hideFlags=HideFlags.HideAndDontSave,filterMode=FilterMode.Point,wrapMode=TextureWrapMode.Clamp};
         private void ReleaseTargets()
         {
-            if(Motion!=null){Motion.Release();UnityEngine.Object.Destroy(Motion);Motion=null;}
-            if(PreviousNormal!=null){PreviousNormal.Release();UnityEngine.Object.Destroy(PreviousNormal);PreviousNormal=null;}
+            if(Motion!=null){if(!_half4){Motion.Release();UnityEngine.Object.Destroy(Motion);}Motion=null;}
+            if(PreviousNormal!=null){if(!_half4){PreviousNormal.Release();UnityEngine.Object.Destroy(PreviousNormal);}PreviousNormal=null;}
+            _rasterDepth=null;
         }
         private static bool VerticesCreated(Entry e)=>e.previousVertices!=null&&e.previousVertices.IsCreated()&&e.currentVertices!=null&&e.currentVertices.IsCreated();
         private static void ReleaseVertices(Entry e)

@@ -12,14 +12,27 @@ namespace GakumasPhotoMode
     public sealed class SrpActorForward : IDisposable
     {
         public enum Storage { SeparateHalf, SeparatePacked, ReuseScenePacked }
-        public sealed class Settings { public bool enabled;public int maximumMiB=256;public Storage storage; }
+        public sealed class Settings
+        {
+            public bool enabled;public int maximumMiB=256;public Storage storage;
+            public readonly SceneMotionSettings motion=new SceneMotionSettings();
+            public uint motionRevision;
+            public int motionMaximumMiB=256;
+            // GPU-only imported meshes cannot expose index contents for CPU
+            // comparison. Opt in only for immutable topology; advance motionRevision
+            // before any in-place index edit. Actual deformation stays GPU-tracked.
+            public bool allowImmutableUnreadableMotionMeshes;
+            public bool includeSceneMotion,reuseSceneMotionStorage;
+            public int sceneMotionMaximumMiB=128;
+        }
         public readonly struct Frame
         {
             private readonly SrpActorForward owner;
             public readonly ulong sequence;
-            public readonly RenderTexture color,eyeDepth;
+            public readonly RenderTexture color,eyeDepth,motionDepthIdentity,expectedPreviousDepth;
             public bool IsCurrent=>owner!=null&&owner.Current(sequence);
-            internal Frame(SrpActorForward value) { owner=value;sequence=value.sequence;color=value.color;eyeDepth=value.eyeDepth; }
+            internal Frame(SrpActorForward value) { owner=value;sequence=value.sequence;color=value.color;eyeDepth=value.eyeDepth;
+                motionDepthIdentity=value.motion?.Motion;expectedPreviousDepth=value.motion?.PreviousDepth; }
         }
         public Camera Camera { get; }
         public Settings Configuration { get; }
@@ -28,6 +41,13 @@ namespace GakumasPhotoMode
         private RenderTexture hardwareDepth;
         private bool borrowedColor;
         private Storage allocatedStorage;
+        private ActorTemporalHistory motion;
+        private SceneMotionHistory sceneMotion;
+        private uint previousSceneRevision;
+        public long MotionNominalTextureBytes => motion?.NominalTextureBytes??0;
+        public long SceneMotionNominalTextureBytes=>sceneMotion?.SnapshotNominalTextureBytes??0;
+        public bool MotionContinuous => motion!=null&&motion.Continuous;
+        public void ResetMotionHistoryAfterGpuCompletion() { motion?.ResetHistory();sceneMotion?.ResetHistory(); }
         private Material seed,export;
         private Mesh quad;
         private CommandBuffer commands;
@@ -39,7 +59,8 @@ namespace GakumasPhotoMode
         public SrpActorForward(Camera camera,Settings settings) { Camera=camera;Configuration=settings; }
         private bool Current(ulong value)=>!disposed&&ready&&value==sequence&&Configuration!=null&&Configuration.enabled&&Alive()&&
             source!=null&&source.IsRecorded&&actors!=null&&actors.IsValid&&(!reflection.HasValue||reflection.Value.Matches(source,value));
-        private bool Alive()=>color!=null&&color.IsCreated()&&hardwareDepth!=null&&hardwareDepth.IsCreated()&&eyeDepth!=null&&eyeDepth.IsCreated();
+        private bool Alive()=>color!=null&&color.IsCreated()&&hardwareDepth!=null&&hardwareDepth.IsCreated()&&eyeDepth!=null&&eyeDepth.IsCreated()&&
+            (motion==null||motion.IsCreated)&&(sceneMotion==null||sceneMotion.IsCreated);
         public bool TryRecord(ScriptableRenderContext context,TileSceneRenderer.PreparedFrame scene,ActorForwardDrawSet.PreparedFrame draws,
             ulong value,out Frame frame,out string error)=>Record(context,scene,draws,value,null,out frame,out error);
         public bool TryRecord(ScriptableRenderContext context,TileSceneRenderer.PreparedFrame scene,ActorForwardDrawSet.PreparedFrame draws,
@@ -51,6 +72,21 @@ namespace GakumasPhotoMode
             try
             {
                 ready=false;Allocate(scene);
+                if(Configuration.motion.enabled)
+                {
+                    if(motion==null)motion=new ActorTemporalHistory();
+                    motion.Prepare(Camera,draws,Configuration.motion,value,Configuration.motionRevision,color.width,color.height,Configuration.motionMaximumMiB,Configuration.allowImmutableUnreadableMotionMeshes,
+                        Configuration.reuseSceneMotionStorage?scene.NormalIdentity:null);
+                    if(Configuration.includeSceneMotion)
+                    {
+                        if(sceneMotion==null)sceneMotion=new SceneMotionHistory(true);
+                        if(!motion.Continuous||previousSceneRevision!=Configuration.motionRevision)sceneMotion.ResetHistory();
+                        if(!sceneMotion.PrepareHalf4(Configuration.motion,Camera,scene.MotionSurfaces,motion.Motion,motion.PreviousDepth,hardwareDepth,Configuration.sceneMotionMaximumMiB,out var why))
+                            throw new InvalidOperationException(why);
+                    }
+                    else {sceneMotion?.Dispose();sceneMotion=null;}
+                }
+                else { sceneMotion?.Dispose();sceneMotion=null;motion?.Dispose();motion=null; }
                 bool reuse=borrowedColor;
                 seed.SetTexture("_ActorSourceColor",reuse&&!reflected.HasValue?Texture2D.blackTexture:(Texture)(reflected.HasValue?reflected.Value.color:scene.Color));
                 if(!reuse)seed.SetTexture("_ActorSourceHardwareDepth",scene.DepthStencil,RenderTextureSubElement.Depth);
@@ -58,7 +94,8 @@ namespace GakumasPhotoMode
                 foreach(var material in new[]{seed,export})
                 { material.SetVector("_ActorTargetSize",new Vector4(color.width,color.height,0,0));material.SetMatrix("_ActorInverseProjection",scene.GpuProjection.inverse); }
                 export.SetTexture("_ActorHardwareDepth",hardwareDepth,RenderTextureSubElement.Depth);
-                commands.Clear();commands.SetRenderTarget(color,hardwareDepth);commands.SetViewport(new Rect(0,0,color.width,color.height));
+                commands.Clear();motion?.RecordSnapshots(commands);
+                commands.SetRenderTarget(color,hardwareDepth);commands.SetViewport(new Rect(0,0,color.width,color.height));
                 if(reuse)
                 {
                     // Keep raster Z exact. Clear only old scene/decal stencil; clearing
@@ -67,15 +104,19 @@ namespace GakumasPhotoMode
                     if(reflected.HasValue)commands.DrawMesh(quad,Matrix4x4.identity,seed,0,2);
                 }
                 else { commands.ClearRenderTarget(true,true,Color.clear);commands.DrawMesh(quad,Matrix4x4.identity,seed,0,0); }
-                foreach(var draw in draws.draws)commands.DrawRenderer(draw.renderer,draw.material,draw.submesh,draw.pass);
+                if(motion!=null)motion.RecordActors(commands,color,hardwareDepth,sceneMotion);
+                else foreach(var draw in draws.draws)commands.DrawRenderer(draw.renderer,draw.material,draw.submesh,draw.pass);
                 commands.SetRenderTarget(eyeDepth);commands.SetViewport(new Rect(0,0,color.width,color.height));commands.DrawMesh(quad,Matrix4x4.identity,export,0,1);
                 context.SetupCameraProperties(Camera);
                 // Consume before submission, conservatively including partial failures.
                 if(reuse&&!scene.TryConsumeSceneAttachments())throw new InvalidOperationException("Scene attachments already consumed");
+                if(Configuration.reuseSceneMotionStorage&&!scene.TryConsumeSceneNormals())throw new InvalidOperationException("Scene normal contents already consumed");
                 context.ExecuteCommandBuffer(commands);commands.Clear();
+                motion?.Complete();
+                sceneMotion?.Complete();previousSceneRevision=Configuration.motionRevision;
                 source=scene;actors=draws;reflection=reflected;sequence=value;ready=true;frame=new Frame(this);return true;
             }
-            catch(Exception exception){ready=false;commands?.Clear();error="SRP Actor Forward failed: "+exception.Message;return false;}
+            catch(Exception exception){ready=false;motion?.ResetHistory();sceneMotion?.ResetHistory();commands?.Clear();error="SRP Actor Forward failed: "+exception.Message;return false;}
         }
         private string Validate(TileSceneRenderer.PreparedFrame scene,ActorForwardDrawSet.PreparedFrame draws,ulong value,SrpTileReflection.Frame? reflected)
         {
@@ -88,6 +129,15 @@ namespace GakumasPhotoMode
             if(reflected.HasValue&&!reflected.Value.Matches(scene,value))return "Reflection output must match the exact scene and sequence";
             if(!Enum.IsDefined(typeof(Storage),Configuration.storage))return "Invalid Actor storage policy";
             bool reuse=Configuration.storage==Storage.ReuseScenePacked;
+            if((Configuration.includeSceneMotion||Configuration.reuseSceneMotionStorage)&&!Configuration.motion.enabled)return "Scene motion storage requires enabled motion";
+            if(Configuration.reuseSceneMotionStorage)
+            {
+                var normal=scene.NormalIdentity;
+                if(normal==null||!normal.IsCreated()||!scene.SceneNormalContentAvailable||normal.width!=scene.Color.width||normal.height!=scene.Color.height||
+                    normal.graphicsFormat!=GraphicsFormat.R16G16B16A16_SFloat||normal.antiAliasing!=1||normal.memorylessMode!=RenderTextureMemoryless.None||normal.useDynamicScale||
+                    normal.dimension!=TextureDimension.Tex2D||normal.sRGB||normal==scene.Color||normal==scene.DepthStencil||draws.sampled.Contains(normal))
+                    return "Requires separate stored Half4 scene normals without Actor sampling feedback";
+            }
             if(reuse&&(draws.sampled.Contains(scene.Color)||draws.sampled.Contains(scene.DepthStencil)))return "Actor materials must not sample reused scene attachments";
             if(QualitySettings.activeColorSpace!=ColorSpace.Linear||Camera.stereoEnabled||Camera.allowDynamicResolution||Camera.rect!=new Rect(0,0,1,1))return "Requires Linear fixed-size full viewport without XR";
             int w=scene.Color.width,h=scene.Color.height;
@@ -143,6 +193,6 @@ namespace GakumasPhotoMode
         }
         private void ReleaseTargets() { ready=false;foreach(var t in new[]{borrowedColor?null:color,eyeDepth})if(t!=null){t.Release();Destroy(t);}color=eyeDepth=hardwareDepth=null;borrowedColor=false;NominalTextureBytes=0; }
         private static void Destroy(UnityEngine.Object value) { if(value==null)return;if(Application.isPlaying)UnityEngine.Object.Destroy(value);else UnityEngine.Object.DestroyImmediate(value); }
-        public void Dispose() { if(disposed)return;disposed=true;ReleaseTargets();commands?.Release();commands=null;Destroy(seed);Destroy(export);Destroy(quad); }
+        public void Dispose() { if(disposed)return;disposed=true;sceneMotion?.Dispose();sceneMotion=null;motion?.Dispose();motion=null;ReleaseTargets();commands?.Release();commands=null;Destroy(seed);Destroy(export);Destroy(quad); }
     }
 }

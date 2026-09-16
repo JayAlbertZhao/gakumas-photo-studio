@@ -17,6 +17,8 @@
 组件禁用时释放自己创建的资源，并恢复调用方原来的 Graphics／Quality pipeline；
 如果其他宿主已经改选了 pipeline，不会覆盖其选择。只允许一个示例实例持有该选择。
 `RenderOffscreen(seconds)` 使用同一实现和显式时间输出 `Display`，不呈现到窗口。
+`ResetHistory()` 是显式的跳转／镜头切换边界：示例等待自己已排队的 GPU 工作完成，
+然后一起清除反射、几何对应与颜色历史。单独改变 `seconds` 不会自动判定为跳转。
 
 `HasCompletedFrame` 表示最近一次渲染尝试产生了完整输出。失败时它会清零，`LastError` 保留原因，
 `Display` 中上次成功的像素不会冒充新帧，也不会继续呈现。修正配置后可再次调用；关闭后可以重新初始化。
@@ -55,7 +57,7 @@ Scene 列表不得包含 Actor，以免把角色写进场景反射历史。Plana
    当前角色自阴影、场景、可选 Planar、SSR／Probe、完整 Actor。
 2. 宿主 `context.Submit()`。失败的尝试也可能已经录制了部分命令，必须处理这些命令。
 3. `TryFinishAfterSubmission(opaque, seconds, out frame, out error)`：联合透明特效、
-   可选 DOF、可选调色。特效与 DOF 使用当前 Actor 合成后的 eye depth。
+   可选整帧 TAA、可选 DOF、可选调色。特效与 DOF 使用当前 Actor 合成后的 eye depth。
 4. 使用 `frame.color`，完成需要的复制／输出／呈现。
 5. 确认 GPU 已经不再使用本帧资源，再调用 `RetireAfterGpuCompletion()`。
 
@@ -65,7 +67,7 @@ Scene 列表不得包含 Actor，以免把角色写进场景反射历史。Plana
 借用的 render targets。不要在尚未完成的帧中修改配置或改写这些输入。
 
 记录／后处理失败后，保留资源直到已排队 GPU 工作完成，再退休该尝试。失败退休会
-丢弃反射历史；不要把上次成功帧的票据当作本次失败后的有效输出。外部自阴影票据
+丢弃反射、运动与 TAA 历史；不要把上次成功帧的票据当作本次失败后的有效输出。外部自阴影票据
 与内部自阴影 producer 二选一。关闭后处理时输出可直接指向 Actor 的颜色附件，
 因此不要假定输出归调用方所有，或把它作为下一帧的外部输入。
 
@@ -75,8 +77,8 @@ Scene 列表不得包含 Actor，以免把角色写进场景反射历史。Plana
 
 ## 覆盖边界
 
-目前是桌面显式离屏协调器。它没有自动接入全部 Motion／TAA／Motion Blur／Bloom／
-FSR／Diffusion；PDF 中 Actor Half4 运动附件仍未实现。GBuffer4／硬件深度原位复用已有显式可选路径，不改变默认存储。
+目前是桌面显式离屏协调器。完整 Actor 运动、可选场景运动与方差裁剪 TAA 已有显式接入，
+尚未串联 Motion Blur／Bloom／FSR／Diffusion。GBuffer2／GBuffer4／硬件深度原位复用均为可选路径，不改变默认存储。
 各模块单独存在，不意味着已进入这条整帧路径。
 
 示例的 primitive 角色只能说明模块如何接入；不证明真实头发／面部贴花／复杂透明
@@ -86,8 +88,52 @@ iOS Metal 仍须独立实机验证。`docs/framework-techniques.md` 保留完整
 集成验证入口为 Player 的 `--self-test-desktop-host <output-directory>`；它使用
 生成内容、完整图像与独立数值控制。LUT 比较分别记录理想插值误差和实际硬件八权重
 重建误差，不能把硬件滤波取整混为特效混合错误。
+Vulkan 的合成三角形运动数值对照另需环境变量 `GAKUMAS_SELFTEST_RASTER_SUBPIXEL_BITS`，
+填写目标 GPU 通过 `vulkaninfo` 查询出的 `subPixelPrecisionBits`；不得从输出图像拟合。
+这是测试参考计算的光栅精度输入，不是渲染器配置，也不改变验收误差阈值。
+其含义见 [Vulkan 设备限制](https://docs.vulkan.org/refpages/latest/refpages/source/VkPhysicalDeviceLimits.html)。
 
 自备兼容角色时，可在现有 `--photo-mode --validate-srp-actor-character <output-directory>`
 后增加 `--validate-actor-shadows --validate-desktop-character`。先执行原有普通 Forward／显式 SRP
 整图与深度对照，再把同一角色接入整帧示例；每个视角都保留只排除主视图角色的负对照，
 避免只有地面投影或反射的图像被误判为角色可见。该入口属于应用诊断，不是工具包的资产依赖。
+
+## 可选整帧运动与 TAA
+
+此扩展按桌面可选预览提供，默认关闭。运动、形变、历史拒绝和存储复用已有独立
+控制；Vulkan 真实角色仍有已复现的单个 Half ULP 颜色差异，严格颜色检查保留失败，
+不保证启用运动后与旧 shader 逐位相同。需要原路径颜色完全一致时保持运动关闭。
+精度控制及适用范围见 [Actor 验证说明](srp-actor-forward.md#optional-motion-and-temporal-resolve)。
+
+在填写正常场景与角色输入后，显式设置：
+
+```csharp
+settings.actorMotion.enabled = true;
+settings.includeSceneMotion = true;
+settings.temporal.enabled = true;
+// 两项独立的存储优化；不要求同时启用。
+settings.reuseSceneMotionStorage = true;
+settings.actorStorage = SrpActorForward.Storage.ReuseScenePacked;
+```
+
+顺序为场景与反射 → 完整 Actor → 透明特效 → TAA → DOF → 调色。运动来自实际 GPU
+顶点流，覆盖角色蒙皮／形变与描边；不使用 CPU BakeMesh 替代。TAA 使用同帧 Half4
+运动／深度／身份、额外 R32 预期上一帧深度、HDR 方差裁剪与亮度加权历史。
+身份与标志是本框架的独立约定，详见 [Actor 运动附件](srp-actor-forward.md#optional-motion-and-temporal-resolve)。
+
+默认要求可读三角形网格。自备不可读角色网格时，只有宿主能够保证 GPU 拓扑不变，
+才启用 `allowImmutableUnreadableMotionMeshes`；原位拓扑改动必须更新 `actorMotionRevision`。
+此选项不放宽场景运动的可读性要求，也不修改／重新导入用户资产。
+
+宿主拥有投影 jitter 和时间控制；模块不会修改相机投影。已应用 jitter 时填写纹理 UV
+单位的 `temporal.jitterUv`。跳转／镜头切换在 GPU 完成后调用核心
+`ResetHistoryAfterGpuCompletion()`；颜色内容不连续时更新 `temporal.contentRevision`。
+`Frame.temporal` 是可选的当前输出票据，不是长期保存历史的纹理所有权。
+
+`actorMotionMaximumMiB` 限制角色自有运动附件与保留的顶点快照；
+`sceneMotionMaximumMiB` 限制场景顶点快照；`temporalMaximumMiB` 限制 TAA 历史。
+复用 GBuffer2 少分配一张全尺寸 Half4（每像素 8 字节），TAA 自有两套颜色与元数据
+Float4（每像素共 64 字节）。这些是名义纹理预算，不是实测 VRAM／带宽／移动帧时。
+
+透明头发、显式 `ExcludeTaa` 与被当前特效改变的像素保守拒绝颜色历史；未跟踪背景
+直接使用当前颜色。复杂多层透明的运动归属、完整动态画质和移动设备仍须独立验证。
