@@ -20,6 +20,9 @@ namespace GakumasPhotoMode
         // Exact RCAS normalization avoids amplifying the original approximate
         // reciprocal's constant-color bias through inverse HDR compression.
         public bool accurateRcasNormalization = true;
+        // Optional EASU extension: bound near-zero luma-gradient normalization
+        // to 12-bit perceptual precision. Off preserves the upstream variant.
+        public bool stabilizeLumaGradients;
         [Range(0, 2.5f)] public float sharpnessStops = .2f;
         [Range(1, 1024)] public int memoryBudgetMiB = 256;
 

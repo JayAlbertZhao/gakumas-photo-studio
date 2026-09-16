@@ -18,8 +18,23 @@ AF1 ToolkitFsrRcasReciprocal(AF1 value)
     return _FsrOptions.w > .5 ? 1.0 / value : APrxMedRcpF1(value);
 }
 #define APrxMedRcpF1 ToolkitFsrRcasReciprocal
+#if defined(TOOLKIT_FSR_STABLE_GRADIENT)
+AF1 ToolkitFsrGradientReciprocal(AF1 value)
+{
+    // Authored opt-in normalization floor, not an upstream AMD default.
+    // The prepared luma range is 0..2. Gradients below 2/4096 must not
+    // amplify Float32 preparation noise into order-one edge strengths.
+    // EASU's other reciprocal inputs (lobe/normalized direction) exceed
+    // this floor; its taps, reconstruction and deringing remain unchanged.
+    return APrxLoRcpF1(max(value,2.0/4096.0));
+}
+#define APrxLoRcpF1 ToolkitFsrGradientReciprocal
+#endif
 #include "Packages/com.unity.render-pipelines.core/Runtime/PostProcessing/Shaders/ffx/ffx_fsr1.hlsl"
 #undef APrxMedRcpF1
+#if defined(TOOLKIT_FSR_STABLE_GRADIENT)
+#undef APrxLoRcpF1
+#endif
 
 Texture2D<float4> _FsrInput;
 SamplerState sampler_LinearClamp;

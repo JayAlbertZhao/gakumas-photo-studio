@@ -78,7 +78,7 @@ Scene 列表不得包含 Actor，以免把角色写进场景反射历史。Plana
 ## 覆盖边界
 
 目前是桌面显式离屏协调器。完整 Actor 运动、可选场景运动与方差裁剪 TAA 已有显式接入，
-已可选串联 Motion Blur 和自主 Bloom；FSR／Diffusion 尚未串联。GBuffer2／GBuffer4／硬件深度原位复用均为可选路径，不改变默认存储。
+已可选串联 Motion Blur、自主 Bloom 和 FSR；Diffusion 尚未串联。GBuffer2／GBuffer4／硬件深度原位复用均为可选路径，不改变默认存储。
 各模块单独存在，不意味着已进入这条整帧路径。
 
 示例的 primitive 角色只能说明模块如何接入；不证明真实头发／面部贴花／复杂透明
@@ -201,3 +201,44 @@ DOF 已混合的颜色仍由当前可见深度／运动引导；复杂近远遮�
 约 `1.76e-6`（误差定义为 `abs(actual-reference)/(1+abs(reference))`）。
 原生 Vulkan 捕获确认五层下降、四层回升和一次最终合成，读取实际 Motion Blur
 输出；最终 Float4 与运行时原始数据一致。该结果限定于当前设备与自制输入。
+
+## 可选整帧 FSR
+
+复用 `FsrRenderer`，位于 Bloom 后／最终调色前；默认关闭。使用者指定最终尺寸，
+根据档位计算真实的场景渲染尺寸，并以该尺寸分配全部借用的场景附件：
+
+```csharp
+settings.fsr.enabled = true;
+settings.fsr.quality = FsrQuality.Quality;
+settings.fsr.stabilizeLumaGradients = true; // 显式自主稳定化；false 保留原始 EASU 变体。
+settings.fsrOutputSize = new Vector2Int(1920, 1080);
+settings.fsr.TryGetRenderSize(settings.fsrOutputSize, out var renderSize);
+// 使用 renderSize 分配 scene.output、depthStencil、normalIdentity 等附件。
+// 相机投影 aspect 对应最终画面比例；其 targetTexture 指向低尺寸 scene.output。
+// 后续仍按 TryRecord -> 宿主提交 -> TryFinishAfterSubmission -> GPU完成 -> Retire 调用。
+```
+
+宿主验证低尺寸与所选档位吻合，不会将一张全尺寸图先缩小来假装降低几何开销，
+也不会擅自重新分配调用者的附件。质量／尺寸切换须在完成并退役前一帧之后进行。
+TAA、DOF、运动模糊和 Bloom 均在原生渲染尺寸执行；最终调色在 FSR 输出尺寸执行。
+UI 仍由调用者最后绘制，本模块不生成 UI 或替换呈现器。
+
+`Frame.color`／`OutputSize` 是最终尺寸；`eyeDepth`／`RenderSize` 和 `opaque`、
+`temporal`、`motionBlur`、`bloom` 仍对应几何渲染尺寸。消费深度的后续模块必须显式处理
+尺寸映射，不可将低尺寸深度当成全尺寸深度直接逐 texel 读取。
+
+这个 HDR 插槽只接受 `LinearHdr` 编码。压缩／逆变换、高亮上限、alpha 重采样与
+Compute／Raster 回退策略均沿用 [FSR 模块契约](fsr.md)，不保证无损 HDR。
+`FsrEstimatedTargetBytes` 是三个 Float4 附件的分配估算，不包括前置渲染、调色和驱动。
+开启时在记录场景前检查预算；关闭后保留自有附件供复用，但退役会立即让 FSR 子票据失效。
+默认关闭时输出仍为原生尺寸，不改变旧调用者行为。
+
+四档 Compute／Raster 整帧检查发现，原始 EASU 在近等亮度区域会将 HDR 准备的
+Float32 舍入放大。为此增加了上述**显式、默认关闭**的自主稳定化变体；它对亮度
+梯度归一化分母设 `2/4096` 下限，不声称复原游戏参数或与原始 AMD 变体逐像素相同。
+
+启用该变体后，自制桌面 D3D11／Vulkan 的 FX／TAA／DOF／Motion Blur／Bloom／
+FSR／调色全链，四档冷帧及移动帧通过源图出发的独立标量数值比较；另有相同输入
+跨后端、输入一 ULP 扰动、独立色度／近等亮度信号和 keyword 切换恢复控制。
+实际中间附件只用于定位问题，未取代端到端参考，原失败报告及原始变体保持可检查。
+该验收不覆盖完整制作场景动态画质、HDR 极亮部、移动帧时或其他设备。

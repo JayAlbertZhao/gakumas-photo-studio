@@ -10,7 +10,7 @@ namespace GakumasPhotoMode
         // The approximation constants originate in AMD ffx_a.hlsl (MIT);
         // see packages/com.digital-kotone.toolkit/ThirdPartyNotices.md.
         private static Color[] FsrScalar(Color[] source, int width, RectInt viewport,
-            Vector2Int output, FsrSettings settings, out Color[] prepared, out Color[] expanded)
+            Vector2Int output, FsrSettings settings, out Color[] prepared, out Color[] expanded, bool orderedLuma=false)
         {
             int iw = viewport.width, ih = viewport.height;
             prepared = new Color[iw * ih];
@@ -28,7 +28,12 @@ namespace GakumasPhotoMode
             }
             var input = prepared;
             Color Read(int x, int y) => input[Mathf.Clamp(y, 0, ih - 1) * iw + Mathf.Clamp(x, 0, iw - 1)];
-            float Luma(Color c) => c.g + .5f * (c.r + c.b);
+            // The AMD header uses b*.5 + (r*.5 + g). Two Float32 MADs
+            // matter for nearly equal luma: algebraic regrouping can turn a
+            // zero gradient into a nonzero edge ratio. Keep the historical
+            // fixture model selectable so its older evidence stays inspectable.
+            float Luma(Color c) => orderedLuma ? FsrFloat(.5d*c.b+FsrFloat(.5d*c.r+c.g)) : c.g + .5f * (c.r + c.b);
+            float GradientReciprocal(float v)=>FsrApproxReciprocal(settings.stabilizeLumaGradients?Mathf.Max(v,2f/4096):v);
             expanded = new Color[output.x * output.y];
             int[] tapX = { 0, 1, -1, 0, 0, -1, 1, 2, 2, 1, 1, 0 };
             int[] tapY = { -1, -1, 1, 1, 0, 0, 1, 1, 0, 0, 2, 2 };
@@ -46,8 +51,8 @@ namespace GakumasPhotoMode
                     float l = Luma(Read(sx - 1, sy)), r = Luma(Read(sx + 1, sy));
                     float t = Luma(Read(sx, sy - 1)), b = Luma(Read(sx, sy + 1)), m = Luma(center);
                     dx += (r - l) * weight; dy += (b - t) * weight;
-                    float ex = Mathf.Clamp01(Mathf.Abs(r - l) * FsrApproxReciprocal(Mathf.Max(Mathf.Abs(r - m), Mathf.Abs(m - l))));
-                    float ey = Mathf.Clamp01(Mathf.Abs(b - t) * FsrApproxReciprocal(Mathf.Max(Mathf.Abs(b - m), Mathf.Abs(m - t))));
+                    float ex = Mathf.Clamp01(Mathf.Abs(r - l) * GradientReciprocal(Mathf.Max(Mathf.Abs(r - m), Mathf.Abs(m - l))));
+                    float ey = Mathf.Clamp01(Mathf.Abs(b - t) * GradientReciprocal(Mathf.Max(Mathf.Abs(b - m), Mathf.Abs(m - t))));
                     edge += (ex * ex + ey * ey) * weight;
                     for (int c = 0; c < 3; c++) { minimum[c] = Mathf.Min(minimum[c], center[c]); maximum[c] = Mathf.Max(maximum[c], center[c]); }
                 }

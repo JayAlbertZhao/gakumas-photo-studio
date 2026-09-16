@@ -33,6 +33,10 @@ namespace GakumasPhotoMode
             public readonly BokehDepthOfFieldSettings depthOfField = new BokehDepthOfFieldSettings();
             public readonly MotionBlurSettings motionBlur=new MotionBlurSettings();
             public readonly BloomRenderer.Settings bloom=new BloomRenderer.Settings();
+            // Caller allocates scene attachments at fsr.TryGetRenderSize(output).
+            // HDR reconstruction is after Bloom and before full-size grading/UI.
+            public readonly FsrSettings fsr=new FsrSettings {encoding=FsrInputEncoding.LinearHdr};
+            public Vector2Int fsrOutputSize;
             public int motionBlurMaximumMiB=256;
             // Applied raster jitter, also used with temporal disabled.
             public Vector2 motionBlurJitterUv;
@@ -66,6 +70,10 @@ namespace GakumasPhotoMode
             public readonly FrameTemporalAntialiasing.Frame? temporal;
             public readonly FrameMotionBlur.Frame? motionBlur;
             public readonly BloomRenderer.Frame? bloom;
+            public readonly FsrRenderer.Frame? fsr;
+            // Depth remains at the geometry resolution; it is not upscaled color.
+            public Vector2Int RenderSize=>new Vector2Int(eyeDepth.width,eyeDepth.height);
+            public Vector2Int OutputSize=>new Vector2Int(color.width,color.height);
             public bool IsCurrent => owner != null && owner.CurrentFinal(sequence);
             internal Frame(DesktopFrameRenderer value)
             {
@@ -74,6 +82,7 @@ namespace GakumasPhotoMode
                 temporal=value.temporalFrame;
                 motionBlur=value.motionBlurFrame;
                 bloom=value.bloomFrame;
+                fsr=value.fsrFrame;
             }
         }
 
@@ -89,6 +98,7 @@ namespace GakumasPhotoMode
         public long TemporalNominalTextureBytes => temporal.NominalTextureBytes;
         public long MotionBlurNominalTextureBytes=>motionBlur.NominalTextureBytes;
         public long BloomNominalTextureBytes=>bloom.NominalTextureBytes;
+        public long FsrEstimatedTargetBytes=>fsr.EstimatedTargetBytes;
         public long MotionNominalTextureBytes=>actor.MotionNominalTextureBytes+actor.SceneMotionNominalTextureBytes;
         private enum Phase { Idle, Recording, Opaque, Finishing, Complete, Failed }
         private Phase phase;
@@ -101,6 +111,7 @@ namespace GakumasPhotoMode
         private readonly BokehDepthOfFieldRenderer dof = new BokehDepthOfFieldRenderer();
         private readonly FrameMotionBlur motionBlur=new FrameMotionBlur();
         private readonly BloomRenderer bloom=new BloomRenderer();
+        private readonly FsrRenderer fsr=new FsrRenderer();
         private readonly ColorGradingRenderer grade = new ColorGradingRenderer();
         private TileSceneRenderer.PreparedFrame scene;
         private ActorForwardDrawSet.PreparedFrame draws;
@@ -113,6 +124,7 @@ namespace GakumasPhotoMode
         private BokehDepthOfFieldRenderer.Frame? dofFrame;
         private FrameMotionBlur.Frame? motionBlurFrame;
         private BloomRenderer.Frame? bloomFrame;
+        private FsrRenderer.Frame? fsrFrame;
         private ColorGradingRenderer.Frame? gradeFrame;
         private RenderTexture finalColor;
         private ulong sequence;
@@ -140,6 +152,7 @@ namespace GakumasPhotoMode
             (!dofFrame.HasValue || dofFrame.Value.IsCurrent) &&
             (!motionBlurFrame.HasValue || motionBlurFrame.Value.IsCurrent) &&
             (!bloomFrame.HasValue || bloomFrame.Value.IsCurrent) &&
+            (!fsrFrame.HasValue || fsrFrame.Value.IsCurrent) &&
             (!gradeFrame.HasValue || gradeFrame.Value.IsCurrent);
 
         public bool TryRecord(ScriptableRenderContext context, ulong value, ulong sceneRevision,
@@ -246,6 +259,12 @@ namespace GakumasPhotoMode
                     if(!bloom.TryRender(finalColor,s.bloom,out var current)){error=bloom.UnavailableReason;return Fail(error);}
                     bloomFrame=current;finalColor=current.color;
                 }
+                if(s.fsr.enabled)
+                {
+                    if(!fsr.TryRender(finalColor,new RectInt(0,0,finalColor.width,finalColor.height),s.fsrOutputSize,s.fsr,out var current))
+                    {error=fsr.UnavailableReason;return Fail(error);}
+                    fsrFrame=current;finalColor=current.color;
+                }
                 if (s.colorGrade != null)
                 {
                     if (!grade.TryRender(finalColor, s.colorGrade, out var current))
@@ -274,6 +293,14 @@ namespace GakumasPhotoMode
             if (s.colorGrade != null && !s.colorGrade.IsValid) return "Invalid caller-owned color LUT";
             if (s.depthOfField.enabled && !s.depthOfField.IsValid) return "Invalid depth-of-field settings";
             if(s.bloom.enabled&&!s.bloom.IsValid)return "Invalid authored bloom settings or budget";
+            if(s.fsr.enabled)
+            {
+                if(s.fsr.encoding!=FsrInputEncoding.LinearHdr||!s.fsr.TryGetRenderSize(s.fsrOutputSize,out var renderSize)||
+                    s.scene.output==null||s.scene.output.width!=renderSize.x||s.scene.output.height!=renderSize.y)
+                    return "Desktop FSR requires LinearHdr and caller-owned scene attachments at the selected quality render size";
+                if(FsrSettings.EstimateTargetBytes(renderSize,s.fsrOutputSize)>s.fsr.memoryBudgetMiB*1048576L)
+                    return "Desktop FSR target memory budget exceeded";
+            }
             if(s.temporal.enabled&&(!s.actorMotion.enabled||!s.temporal.IsValid||s.temporalMaximumMiB<1||s.temporalMaximumMiB>2048))
                 return "Temporal resolve requires enabled Actor motion, valid settings and budget";
             if(s.motionBlur.enabled&&(!s.actorMotion.enabled||!s.motionBlur.IsValid||s.motionBlurMaximumMiB<1||s.motionBlurMaximumMiB>2048||
@@ -296,6 +323,7 @@ namespace GakumasPhotoMode
             motionBlurFrame=null;
             bloomFrame=null;
             bloom.RetireFrame();
+            fsrFrame=null;fsr.RetireFrame();
             actorFrame = default; finalColor = null; phase = Phase.Idle;
         }
         public void ResetHistoryAfterGpuCompletion()
@@ -306,7 +334,7 @@ namespace GakumasPhotoMode
             if (disposed) return;
             RetireAfterGpuCompletion(); disposed = true;
             shadow.Dispose(); actor.Dispose(); planar.Dispose(); reflection.Dispose();
-            effects.Dispose(); temporal.Dispose(); dof.Dispose(); motionBlur.Dispose(); bloom.Dispose(); grade.Dispose();
+            effects.Dispose(); temporal.Dispose(); dof.Dispose(); motionBlur.Dispose(); bloom.Dispose(); fsr.Dispose(); grade.Dispose();
         }
     }
 }

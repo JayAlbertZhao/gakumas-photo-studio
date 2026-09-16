@@ -116,6 +116,8 @@ namespace GakumasPhotoMode
                         _kernels[2] = _compute.FindKernel("Finish");
                     }
                     _compute.SetVector(InputSizeId, inputSize); _compute.SetVector(OutputSizeId, outputSize);
+                    if(settings.stabilizeLumaGradients)_compute.EnableKeyword("TOOLKIT_FSR_STABLE_GRADIENT");
+                    else _compute.DisableKeyword("TOOLKIT_FSR_STABLE_GRADIENT");
                     _compute.SetVector(ViewportId, rectangle); _compute.SetVector(OptionsId, options);
                     for (int pass = 0; pass < 3; pass++)
                     {
@@ -128,6 +130,8 @@ namespace GakumasPhotoMode
                 else
                 {
                     if (_material == null) _material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+                    if(settings.stabilizeLumaGradients)_material.EnableKeyword("TOOLKIT_FSR_STABLE_GRADIENT");
+                    else _material.DisableKeyword("TOOLKIT_FSR_STABLE_GRADIENT");
                     _material.SetVector(InputSizeId, inputSize); _material.SetVector(OutputSizeId, outputSize);
                     _material.SetVector(ViewportId, rectangle); _material.SetVector(OptionsId, options);
                     for (int pass = 0; pass < 3; pass++)
@@ -199,6 +203,8 @@ namespace GakumasPhotoMode
             if (_compute != null) UnityEngine.Object.Destroy(_compute);
             _material = null; _compute = null; DrawCalls = Dispatches = 0; ActiveBackend = FsrBackend.Auto;
         }
+        // A frame host can retire borrowed tickets without discarding reusable targets.
+        internal void RetireFrame() { _generation++; _hasFrame=false; }
         public void Dispose() { _generation++; Release(); UnavailableReason = FallbackReason = null; }
     }
 }

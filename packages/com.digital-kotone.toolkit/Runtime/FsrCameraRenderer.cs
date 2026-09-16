@@ -79,6 +79,7 @@ namespace GakumasPhotoMode
                 enabled = true, quality = settings.quality, backend = settings.backend, encoding = settings.encoding,
                 allowRasterFallback = settings.allowRasterFallback, sharpen = settings.sharpen,
                 accurateRcasNormalization = settings.accurateRcasNormalization,
+                stabilizeLumaGradients = settings.stabilizeLumaGradients,
                 sharpnessStops = settings.sharpnessStops, memoryBudgetMiB = settings.memoryBudgetMiB
             };
             var previousTarget = camera.targetTexture; float aspect = camera.aspect;

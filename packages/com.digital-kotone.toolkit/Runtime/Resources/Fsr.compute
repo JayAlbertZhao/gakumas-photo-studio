@@ -2,6 +2,7 @@
 #pragma kernel Expand
 #pragma kernel Finish
 #pragma target 5.0
+#pragma multi_compile_local _ TOOLKIT_FSR_STABLE_GRADIENT
 #ifndef SHADER_TARGET
 #define SHADER_TARGET 50
 #endif

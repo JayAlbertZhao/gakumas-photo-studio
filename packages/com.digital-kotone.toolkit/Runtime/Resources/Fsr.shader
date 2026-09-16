@@ -25,6 +25,7 @@ Shader "Hidden/Toolkit/Fsr"
             HLSLPROGRAM
             #pragma vertex vert_img
             #pragma fragment ExpandFragment
+            #pragma multi_compile_local _ TOOLKIT_FSR_STABLE_GRADIENT
             ENDHLSL
         }
         Pass

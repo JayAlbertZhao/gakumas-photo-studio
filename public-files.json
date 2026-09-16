@@ -724,6 +724,8 @@
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopBloom.cs.meta",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopExample.cs",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopExample.cs.meta",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopFsr.cs",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopFsr.cs.meta",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopHost.cs",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopHost.cs.meta",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopMotionBlur.cs",

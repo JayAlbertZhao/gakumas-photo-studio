@@ -94,7 +94,7 @@ class DesktopHostContract(unittest.TestCase):
                  'planar.TryRecord(', 'reflection.TryRecord(', 'actor.TryRecord(']
         positions = [SOURCE.index(x) for x in order]
         self.assertEqual(positions, sorted(positions))
-        post = [SOURCE.index(x) for x in ('effects.TryRender(', 'temporal.TryRender(', 'dof.TryRender(', 'motionBlur.TryRender(', 'bloom.TryRender(', 'grade.TryRender(')]
+        post = [SOURCE.index(x) for x in ('effects.TryRender(', 'temporal.TryRender(', 'dof.TryRender(', 'motionBlur.TryRender(', 'bloom.TryRender(', 'fsr.TryRender(', 'grade.TryRender(')]
         self.assertEqual(post, sorted(post))
         self.assertIn('new FogVolumeDepth(actorFrame.eyeDepth)', SOURCE)
         self.assertNotIn('new Material(', SOURCE)
@@ -116,6 +116,22 @@ class DesktopHostContract(unittest.TestCase):
         self.assertNotIn('.Submit(', adapter)
         self.assertIn('var preTemporalColor=finalColor;', SOURCE)
         self.assertIn('else motionBlur.ResetHistory();', SOURCE)
+
+    def test_fsr_requires_real_low_resolution_hdr_and_retires_borrowed_frames(self):
+        fsr = (RUNTIME / 'FsrRenderer.cs').read_text(encoding='utf-8')
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopFsr.cs').read_text(encoding='utf-8')
+        for token in ('FsrInputEncoding.LinearHdr', 's.fsr.TryGetRenderSize(s.fsrOutputSize',
+                      's.scene.output.width!=renderSize.x', 'FsrSettings.EstimateTargetBytes',
+                      'fsrFrame.Value.IsCurrent', 'fsr.RetireFrame()', 'eyeDepth = value.actorFrame.eyeDepth'):
+            self.assertIn(token, SOURCE)
+        self.assertIn('internal void RetireFrame() { _generation++; _hasFrame=false; }', fsr)
+        for token in ('FsrScalar(source', 'FsrBackend.Compute,FsrBackend.Raster',
+                      'actual-low-geometry-depth', 'full-resolution-grade-after-fsr',
+                      'reject-quality-size-mismatch', 'reject-budget-before-recording',
+                      'lost-fsr-dependency-invalidates-host', 'disabled-native-size-exact-passthrough'):
+            self.assertIn(token, fixture)
+        meta = ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopFsr.cs.meta'
+        self.assertRegex(meta.read_text(encoding='utf-8'), r'(?m)^guid: [0-9a-f]{32}\r?$')
 
     def test_authored_bloom_has_no_private_profiles_and_snapshots_each_level(self):
         renderer = (RUNTIME / 'BloomRenderer.cs').read_text(encoding='utf-8')

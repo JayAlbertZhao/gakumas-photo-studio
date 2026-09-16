@@ -30,6 +30,22 @@ class FsrContractTests(unittest.TestCase):
         self.assertIn('com.unity.render-pipelines.core', package['dependencies'])
         self.assertIn('Advanced Micro Devices', (PACKAGE / 'ThirdPartyNotices.md').read_text(encoding='utf-8'))
 
+    def test_gradient_noise_floor_is_explicit_and_default_variant_is_preserved(self):
+        settings = self.source('FsrSettings.cs')
+        shared = self.source('Resources/FsrShared.hlsl')
+        renderer = self.source('FsrRenderer.cs')
+        self.assertIn('public bool stabilizeLumaGradients;', settings)
+        self.assertIn('#if defined(TOOLKIT_FSR_STABLE_GRADIENT)', shared)
+        self.assertIn('APrxLoRcpF1(max(value,2.0/4096.0))', shared)
+        self.assertIn('#undef APrxLoRcpF1', shared)
+        self.assertIn('_compute.DisableKeyword("TOOLKIT_FSR_STABLE_GRADIENT")', renderer)
+        self.assertIn('_material.DisableKeyword("TOOLKIT_FSR_STABLE_GRADIENT")', renderer)
+        self.assertIn('stabilizeLumaGradients = settings.stabilizeLumaGradients', self.source('FsrCameraRenderer.cs'))
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopFsr.cs').read_text(encoding='utf-8')
+        for token in ('identical-source-cross-backend', 'one-ulp-input-stability',
+                      'unmodified-variant-ulp-response-metric', 'gradient-floor-reduces-worst-ulp-amplification'):
+            self.assertIn(token, fixture)
+
     def test_production_has_no_readback_or_asset_discovery(self):
         for name in ('FsrRenderer.cs', 'FsrCameraRenderer.cs', 'FsrSettings.cs'):
             source = self.source(name)
