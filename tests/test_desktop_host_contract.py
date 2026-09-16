@@ -94,7 +94,7 @@ class DesktopHostContract(unittest.TestCase):
                  'planar.TryRecord(', 'reflection.TryRecord(', 'actor.TryRecord(']
         positions = [SOURCE.index(x) for x in order]
         self.assertEqual(positions, sorted(positions))
-        post = [SOURCE.index(x) for x in ('effects.TryRender(', 'temporal.TryRender(', 'dof.TryRender(', 'motionBlur.TryRender(', 'grade.TryRender(')]
+        post = [SOURCE.index(x) for x in ('effects.TryRender(', 'temporal.TryRender(', 'dof.TryRender(', 'motionBlur.TryRender(', 'bloom.TryRender(', 'grade.TryRender(')]
         self.assertEqual(post, sorted(post))
         self.assertIn('new FogVolumeDepth(actorFrame.eyeDepth)', SOURCE)
         self.assertNotIn('new Material(', SOURCE)
@@ -116,6 +116,30 @@ class DesktopHostContract(unittest.TestCase):
         self.assertNotIn('.Submit(', adapter)
         self.assertIn('var preTemporalColor=finalColor;', SOURCE)
         self.assertIn('else motionBlur.ResetHistory();', SOURCE)
+
+    def test_authored_bloom_has_no_private_profiles_and_snapshots_each_level(self):
+        renderer = (RUNTIME / 'BloomRenderer.cs').read_text(encoding='utf-8')
+        shader = (RUNTIME / 'Resources/AuthoredBloom.shader').read_text(encoding='utf-8')
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopBloom.cs').read_text(encoding='utf-8')
+        for token in ('public bool enabled;', 'maximumMiB=128', 'Owns(source)',
+                      'w==1&&h==1', 'var block=new MaterialPropertyBlock()', 'RetireFrame()',
+                      'source.memorylessMode!=RenderTextureMemoryless.None'):
+            self.assertIn(token, renderer)
+        for token in ('Captured', 'Story', 'File.Read', 'Time.', 'Graphics.Blit'):
+            self.assertNotIn(token, renderer)
+        self.assertIn('current.a', shader)
+        self.assertIn('high+(low-high)*_BloomSettings.z', shader)
+        self.assertNotIn('sampler2D', shader)
+        self.assertIn('bloom.RetireFrame();', SOURCE)
+        for path in (RUNTIME / 'BloomRenderer.cs.meta', RUNTIME / 'Resources/AuthoredBloom.shader.meta',
+                     ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopBloom.cs.meta'):
+            self.assertRegex(path.read_text(encoding='utf-8'), r'(?m)^guid: [0-9a-f]{32}\r?$')
+        for token in ('class BloomReferenceImage', 'readonly double[] rgb',
+                      'independent-double-whole-hdr', 'independent-double-glow',
+                      'alpha-exact', 'stops-at-one-texel', 'zero-intensity-exact',
+                      'hdr-extreme-no-half-overflow', 'lost-pyramid-invalidates-ticket',
+                      'after-motion-blur-independent-whole-hdr'):
+            self.assertIn(token, fixture)
 
     def test_motion_blur_fixture_checks_current_geometry_clock_and_filter_order(self):
         fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopMotionBlur.cs').read_text(encoding='utf-8')

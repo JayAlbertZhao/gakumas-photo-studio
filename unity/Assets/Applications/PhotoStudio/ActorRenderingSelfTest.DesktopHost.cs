@@ -203,6 +203,7 @@ namespace GakumasPhotoMode
                 var skinFixture=VerifyDesktopSkinMotion(report,host,camera,s,sequence,value=>sequence=value);
                 while(skinFixture.MoveNext())yield return skinFixture.Current;
                 VerifyDesktopMotionBlur(report,host,camera,s,ref sequence);
+                VerifyDesktopBloom(report,host,camera,s,ref sequence);
                 host.Dispose();
                 Check("storage-dispose-preserves-borrowed-scene",s.scene.output.IsCreated()&&s.scene.depthStencil.IsCreated()&&s.scene.normalIdentity.IsCreated());
                 RenderPipeline.SubmitRenderRequest(camera,new TilePassTestRequest { record=context=>Check("disposed-host-rejects-record",!host.TryRecord(context,++sequence,1,out _,out _)) });

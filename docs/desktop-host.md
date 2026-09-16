@@ -78,7 +78,7 @@ Scene 列表不得包含 Actor，以免把角色写进场景反射历史。Plana
 ## 覆盖边界
 
 目前是桌面显式离屏协调器。完整 Actor 运动、可选场景运动与方差裁剪 TAA 已有显式接入，
-已可选串联 Motion Blur；Bloom／FSR／Diffusion 尚未串联。GBuffer2／GBuffer4／硬件深度原位复用均为可选路径，不改变默认存储。
+已可选串联 Motion Blur 和自主 Bloom；FSR／Diffusion 尚未串联。GBuffer2／GBuffer4／硬件深度原位复用均为可选路径，不改变默认存储。
 各模块单独存在，不意味着已进入这条整帧路径。
 
 示例的 primitive 角色只能说明模块如何接入；不证明真实头发／面部贴花／复杂透明
@@ -169,3 +169,35 @@ DOF 和驱动开销另算；零曝光目前仍执行过滤路径，不代表零�
 
 DOF 已混合的颜色仍由当前可见深度／运动引导；复杂近远遮挡、透明重叠与完整
 曝光积分没有因此恢复，需要单独进行动态画质评估。
+
+## 可选自主 Bloom
+
+`settings.bloom.enabled = true` 在 Motion Blur 后、调色前执行一次发光合成；
+独立宿主也可使用 `BloomRenderer.TryRender(source, settings, out frame)`。
+不读取 Story／私有 LUT／捕获材质，也不改变默认摄影路径。
+
+输入为已创建的线性 Float4／Half4／R11G11B10 HDR、单层 Tex2D，无 MSAA、mip、
+动态尺寸或 Memoryless。源颜色应有限；Bloom 分支将负值及非有限分量归零、正值
+限制到 65504，最后只添加发光 RGB，保留原始 alpha。输出与全部金字塔使用 Float4。
+调用方的 sampler／wrap／anisotropy 不会被修改，采样由整数 Load 和显式双线性权重完成。
+
+参数由使用者制作：`threshold`、`softKnee`、`intensity`、`scatter` 和
+`maximumLevels`，不声称恢复讲演未公开的 Bloom 公式或参数。首层每轴向上取整
+减半，以四个偏移半源 texel 的双线性样本平均后做 max-channel 软阈值；之后继续
+四点减半，到 1×1 或层数上限停止。回升时以 `scatter` 在当前层与放大后的低层之间
+做归一化混合，因此常量发光不随金字塔深度叠加放大。最后一次性乘 `intensity`
+加到原 HDR。该独立模型与旧摄影 shader 的累加金字塔分别保留。
+
+`maximumMiB` 在分配前验证名义纹理预算：Float4 输出、各下降层和除最小层外
+各回升层的总像素数乘 16 字节。有效 L 层执行 `2L` 次绘制。零强度当前仍构建
+金字塔，关闭后保留已有资源供复用；宿主释放时统一销毁。
+
+`Frame.bloom` 是借用票据，宿主退役、下一次渲染、失败或任一依赖附件丢失后无效。
+复杂制作场景的眩光外观、完整动态后处理、其他设备与移动帧时仍需单独验证。
+
+已执行自制桌面 D3D11／Vulkan 全图 double 参考：单像素、单行／列、奇数尺寸、
+三种 HDR 输入格式、阈值／knee／scatter／层数、零强度、极亮 HDR、alpha、预算与
+双实例所有权控制，以及实际 Motion Blur 后的整帧消费。最大归一化分量误差
+约 `1.76e-6`（误差定义为 `abs(actual-reference)/(1+abs(reference))`）。
+原生 Vulkan 捕获确认五层下降、四层回升和一次最终合成，读取实际 Motion Blur
+输出；最终 Float4 与运行时原始数据一致。该结果限定于当前设备与自制输入。

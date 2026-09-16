@@ -32,6 +32,7 @@ namespace GakumasPhotoMode
             public readonly HeavyFxSettings effects = new HeavyFxSettings();
             public readonly BokehDepthOfFieldSettings depthOfField = new BokehDepthOfFieldSettings();
             public readonly MotionBlurSettings motionBlur=new MotionBlurSettings();
+            public readonly BloomRenderer.Settings bloom=new BloomRenderer.Settings();
             public int motionBlurMaximumMiB=256;
             // Applied raster jitter, also used with temporal disabled.
             public Vector2 motionBlurJitterUv;
@@ -64,6 +65,7 @@ namespace GakumasPhotoMode
             public readonly OpaqueFrame opaque;
             public readonly FrameTemporalAntialiasing.Frame? temporal;
             public readonly FrameMotionBlur.Frame? motionBlur;
+            public readonly BloomRenderer.Frame? bloom;
             public bool IsCurrent => owner != null && owner.CurrentFinal(sequence);
             internal Frame(DesktopFrameRenderer value)
             {
@@ -71,6 +73,7 @@ namespace GakumasPhotoMode
                 eyeDepth = value.actorFrame.eyeDepth; opaque = new OpaqueFrame(value);
                 temporal=value.temporalFrame;
                 motionBlur=value.motionBlurFrame;
+                bloom=value.bloomFrame;
             }
         }
 
@@ -85,6 +88,7 @@ namespace GakumasPhotoMode
         public long ActorNominalTextureBytes => actor.NominalTextureBytes;
         public long TemporalNominalTextureBytes => temporal.NominalTextureBytes;
         public long MotionBlurNominalTextureBytes=>motionBlur.NominalTextureBytes;
+        public long BloomNominalTextureBytes=>bloom.NominalTextureBytes;
         public long MotionNominalTextureBytes=>actor.MotionNominalTextureBytes+actor.SceneMotionNominalTextureBytes;
         private enum Phase { Idle, Recording, Opaque, Finishing, Complete, Failed }
         private Phase phase;
@@ -96,6 +100,7 @@ namespace GakumasPhotoMode
         private readonly FrameTemporalAntialiasing temporal=new FrameTemporalAntialiasing();
         private readonly BokehDepthOfFieldRenderer dof = new BokehDepthOfFieldRenderer();
         private readonly FrameMotionBlur motionBlur=new FrameMotionBlur();
+        private readonly BloomRenderer bloom=new BloomRenderer();
         private readonly ColorGradingRenderer grade = new ColorGradingRenderer();
         private TileSceneRenderer.PreparedFrame scene;
         private ActorForwardDrawSet.PreparedFrame draws;
@@ -107,6 +112,7 @@ namespace GakumasPhotoMode
         private FrameTemporalAntialiasing.Frame? temporalFrame;
         private BokehDepthOfFieldRenderer.Frame? dofFrame;
         private FrameMotionBlur.Frame? motionBlurFrame;
+        private BloomRenderer.Frame? bloomFrame;
         private ColorGradingRenderer.Frame? gradeFrame;
         private RenderTexture finalColor;
         private ulong sequence;
@@ -133,6 +139,7 @@ namespace GakumasPhotoMode
             (!temporalFrame.HasValue || temporalFrame.Value.IsCurrent) &&
             (!dofFrame.HasValue || dofFrame.Value.IsCurrent) &&
             (!motionBlurFrame.HasValue || motionBlurFrame.Value.IsCurrent) &&
+            (!bloomFrame.HasValue || bloomFrame.Value.IsCurrent) &&
             (!gradeFrame.HasValue || gradeFrame.Value.IsCurrent);
 
         public bool TryRecord(ScriptableRenderContext context, ulong value, ulong sceneRevision,
@@ -234,6 +241,11 @@ namespace GakumasPhotoMode
                     motionBlurFrame=current;finalColor=current.color;
                 }
                 else motionBlur.ResetHistory();
+                if(s.bloom.enabled)
+                {
+                    if(!bloom.TryRender(finalColor,s.bloom,out var current)){error=bloom.UnavailableReason;return Fail(error);}
+                    bloomFrame=current;finalColor=current.color;
+                }
                 if (s.colorGrade != null)
                 {
                     if (!grade.TryRender(finalColor, s.colorGrade, out var current))
@@ -261,6 +273,7 @@ namespace GakumasPhotoMode
                 if (surface != null && actors.Contains(surface.renderer)) return "Actor geometry must not enter scene-only reflection history";
             if (s.colorGrade != null && !s.colorGrade.IsValid) return "Invalid caller-owned color LUT";
             if (s.depthOfField.enabled && !s.depthOfField.IsValid) return "Invalid depth-of-field settings";
+            if(s.bloom.enabled&&!s.bloom.IsValid)return "Invalid authored bloom settings or budget";
             if(s.temporal.enabled&&(!s.actorMotion.enabled||!s.temporal.IsValid||s.temporalMaximumMiB<1||s.temporalMaximumMiB>2048))
                 return "Temporal resolve requires enabled Actor motion, valid settings and budget";
             if(s.motionBlur.enabled&&(!s.actorMotion.enabled||!s.motionBlur.IsValid||s.motionBlurMaximumMiB<1||s.motionBlurMaximumMiB>2048||
@@ -281,6 +294,8 @@ namespace GakumasPhotoMode
             shadowFrame = null; planarFrame = null; reflectionFrame = null;
             effectFrame = null; temporalFrame=null; dofFrame = null; gradeFrame = null;
             motionBlurFrame=null;
+            bloomFrame=null;
+            bloom.RetireFrame();
             actorFrame = default; finalColor = null; phase = Phase.Idle;
         }
         public void ResetHistoryAfterGpuCompletion()
@@ -291,7 +306,7 @@ namespace GakumasPhotoMode
             if (disposed) return;
             RetireAfterGpuCompletion(); disposed = true;
             shadow.Dispose(); actor.Dispose(); planar.Dispose(); reflection.Dispose();
-            effects.Dispose(); temporal.Dispose(); dof.Dispose(); motionBlur.Dispose(); grade.Dispose();
+            effects.Dispose(); temporal.Dispose(); dof.Dispose(); motionBlur.Dispose(); bloom.Dispose(); grade.Dispose();
         }
     }
 }
