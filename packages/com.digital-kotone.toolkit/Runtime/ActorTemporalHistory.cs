@@ -21,7 +21,7 @@ namespace GakumasPhotoMode
             public bool readable;
             public Material material;
             public RenderTexture previous,current;
-            public bool history,active;
+            public bool history,active,excludeMotionBlur;
         }
         private readonly Dictionary<(Renderer,int,string),Entry> entries=new Dictionary<(Renderer,int,string),Entry>();
         private readonly List<Entry> active=new List<Entry>();
@@ -133,6 +133,7 @@ namespace GakumasPhotoMode
                 bool blended=pass=="ACTOR_HAIR_COVER"||draw.queue>2500||
                     e.material.GetFloat("_SrcBlend")!=1||e.material.GetFloat("_DstBlend")!=0;
                 e.material.SetFloat("_ActorMotionFlags",(int)draw.temporalFlags|(blended?2:0));
+                e.excludeMotionBlur=blended||draw.excludeMotionBlur;
                 e.mesh=mesh;e.indices=indices;e.vertexCount=mesh.vertexCount;e.readable=mesh.isReadable;
                 e.indexCount=indexCount;e.indexStart=indexStart;e.baseVertex=baseVertex;active.Add(e);
             }
@@ -176,6 +177,8 @@ namespace GakumasPhotoMode
             previousView=pendingView;previousProjection=pendingProjection;previousSequence=pendingSequence;previousRevision=pendingRevision;
         }
         public void ResetHistory(){previousSequence=0;Continuous=false;foreach(var e in entries.Values)e.history=false;}
+        internal void CopyMotionBlurExclusions(float[] table)
+        {foreach(var e in active)table[e.id*2+1]=e.excludeMotionBlur?1:0;}
         private static bool Same(int[] a,int[] b){if(a==null||a.Length!=b.Length)return false;for(int i=0;i<a.Length;i++)if(a[i]!=b[i])return false;return true;}
         private static RenderTexture Target(int w,int h,GraphicsFormat format,string name)
         {

@@ -272,6 +272,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/FogVolumeRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/FogVolumeSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/FogVolumeSettings.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/FrameMotionBlur.cs
+!/packages/com.digital-kotone.toolkit/Runtime/FrameMotionBlur.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/FrameTemporalAntialiasing.cs
 !/packages/com.digital-kotone.toolkit/Runtime/FrameTemporalAntialiasing.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/FsrCameraRenderer.cs
@@ -408,6 +410,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolume.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolumeSurface.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FogVolumeSurface.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/FrameMotionBlurGuide.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/FrameMotionBlurGuide.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FrameTemporalAntialiasing.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FrameTemporalAntialiasing.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/Fsr.compute
@@ -748,6 +752,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopExample.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopHost.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopHost.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopMotionBlur.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopMotionBlur.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ExtendedShadow.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ExtendedShadow.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.FaceDecals.cs

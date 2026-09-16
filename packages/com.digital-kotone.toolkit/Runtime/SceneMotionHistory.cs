@@ -50,6 +50,8 @@ namespace GakumasPhotoMode
         public bool Continuous { get; private set; }
         private readonly Dictionary<(Renderer,int),Entry> _entries = new Dictionary<(Renderer,int),Entry>();
         private readonly List<Entry> _active = new List<Entry>();
+        internal void CopyMotionBlurExclusions(float[] table)
+        {foreach(var e in _active)table[e.id*2]=e.surface.excludeMotionBlur?1:0;}
         private Matrix4x4 _previousView, _previousProjection, _view, _projection;
         private int _nextId = 1;
         private bool _prepared;

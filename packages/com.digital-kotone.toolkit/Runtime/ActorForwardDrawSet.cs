@@ -23,9 +23,10 @@ namespace GakumasPhotoMode
             public Action<Renderer,int,Material> configureMaterial;
             // Explicit temporal classification, independent from material type.
             public Func<Renderer,int,TemporalPixelFlags> temporalFlags;
+            public Func<Renderer,int,bool> excludeMotionBlur;
         }
         internal sealed class Draw
-        { public Renderer renderer;public Material material;public int submesh,pass,queue;public float viewZ;public bool hair;public TemporalPixelFlags temporalFlags; }
+        { public Renderer renderer;public Material material;public int submesh,pass,queue;public float viewZ;public bool hair,excludeMotionBlur;public TemporalPixelFlags temporalFlags; }
         internal sealed class RendererState
         {
             public Renderer renderer;
@@ -149,9 +150,11 @@ namespace GakumasPhotoMode
                             return material;
                         }
                         var temporalFlags=settings.temporalFlags?.Invoke(renderer,submesh)??TemporalPixelFlags.Normal;
+                        bool excludeMotionBlur=settings.excludeMotionBlur?.Invoke(renderer,submesh)??false;
                         if(((int)temporalFlags&~6)!=0)throw new ArgumentException("Unknown Actor temporal flags");
                         Draw Command(Material material,string name)=>new Draw { renderer=renderer,material=material,submesh=submesh,pass=material.FindPass(name),
-                            queue=source.renderQueue,viewZ=result.view.MultiplyPoint(renderer.bounds.center).z,hair=type==8,temporalFlags=temporalFlags };
+                            queue=source.renderQueue,viewZ=result.view.MultiplyPoint(renderer.bounds.center).z,hair=type==8,temporalFlags=temporalFlags,
+                            excludeMotionBlur=excludeMotionBlur };
                         main.Add(Command(Snapshot(shader),"ACTOR_FORWARD_HDR"));
                         if(outline||cover)
                         {

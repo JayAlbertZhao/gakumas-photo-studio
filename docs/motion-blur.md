@@ -2,6 +2,11 @@
 
 `MotionBlurRenderer` 是独立的线性 HDR 当前图像重建模块；`SceneDeferredCamera` 提供可选的实际几何运动／可见性适配。默认关闭，不为旧摄影路径新增附件或绘制。
 
+显式 SRP 宿主另有 [整帧 Motion Blur](desktop-host.md#可选整帧-motion-blur)：
+`FrameMotionBlur` 转换角色／场景 Half4 运动与当前深度，分离透明／特效保护和
+`ExcludeTaa` 分类，在 TAA／DOF 之后复用同一个滤波器。该接入的自制桌面
+D3D11／Vulkan 控制与原生消费链已验证；完整角色动态质量仍待验收。
+
 PPT 126 列出自研 MotionBlur，PDF 15／32 的顺序为 TAA → DOF → MotionBlur → Bloom → FSR → Diffusion → UI；两份资料没有公开滤波公式。本模块采用自己的 tile／邻域最大速度、局部第二方向与深度权重实现，参考 [McGuire 等，2012](https://casual-effects.com/research/McGuire2012Blur/index.html) 和 [Guertin 等，2013](https://research.nvidia.com/publication/2013-11_fast-and-stable-feature-aware-motion-blur-filter) 的公开技术思路。不附带论文图像、原版源码／shader／资产，也不宣称恢复了原版滤波器。
 
 ## 独立输入

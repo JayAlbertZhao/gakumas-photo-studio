@@ -78,7 +78,7 @@ Scene 列表不得包含 Actor，以免把角色写进场景反射历史。Plana
 ## 覆盖边界
 
 目前是桌面显式离屏协调器。完整 Actor 运动、可选场景运动与方差裁剪 TAA 已有显式接入，
-尚未串联 Motion Blur／Bloom／FSR／Diffusion。GBuffer2／GBuffer4／硬件深度原位复用均为可选路径，不改变默认存储。
+已可选串联 Motion Blur；Bloom／FSR／Diffusion 尚未串联。GBuffer2／GBuffer4／硬件深度原位复用均为可选路径，不改变默认存储。
 各模块单独存在，不意味着已进入这条整帧路径。
 
 示例的 primitive 角色只能说明模块如何接入；不证明真实头发／面部贴花／复杂透明
@@ -137,3 +137,35 @@ Float4（每像素共 64 字节）。这些是名义纹理预算，不是实测 
 
 透明头发、显式 `ExcludeTaa` 与被当前特效改变的像素保守拒绝颜色历史；未跟踪背景
 直接使用当前颜色。复杂多层透明的运动归属、完整动态画质和移动设备仍须独立验证。
+
+## 可选整帧 Motion Blur
+
+`settings.motionBlur.enabled = true` 需要同时启用 `actorMotion.enabled`。
+完整背景运动还需 `includeSceneMotion = true`。顺序为 FX → TAA → DOF →
+Motion Blur → 调色；复用已有 `MotionBlurRenderer` 的滤波算法，不另造一套。
+自制移动几何已执行 D3D11／Vulkan 控制，包括 CPU 解包 guide、上传身份检查、
+整图滤波与 TAA／DOF 顺序对照、时钟／跳转、独立排除项和 GBuffer 复用。
+Vulkan 原生捕获确认实际 Half4 → guide／保护层 → tile → neighborhood → 当前 HDR
+消费链，guide 与最终输出和运行时原始数据完全一致。此范围不能计为完整角色
+动态画质或移动性能通过。
+
+`FrameMotionBlur` 把 Half4 的当前位移、当前眼深度与有效历史位转换为滤波器的
+Float4 guide；不直接把打包身份当作 alpha。独立 R8 保护层拒绝 NoJitter、
+已分类的混合角色层及被当前特效改变的像素。`ExcludeTaa` 本身仍允许运动模糊。
+调用方可另设 `actors.excludeMotionBlur(renderer, submesh)` 或场景表面的
+`excludeMotionBlur`；这些设置与 TAA 分类独立，也不改变已有 Half4 布局。
+
+时间来自 `TryFinishAfterSubmission` 的显式 `timeSeconds`。首次、暂停、时间倒退、
+长间隔、帧序跳跃、运动失效、关闭再启用或宿主重置均不曝光。启用 TAA 时采用
+`temporal.jitterUv`；否则通过 `motionBlurJitterUv` 提供实际已施加的投影 jitter。
+模块不会移动相机。跳转仍需宿主在 GPU 完成后显式重置整个历史链。
+
+成功帧的 `Frame.motionBlur` 提供借用的颜色、guide、保护层与实际采样间隔；
+不能释放或在宿主退役后继续使用。`motionBlurMaximumMiB` 控制本模块名义附件预算：
+输入为 W×H、半径上限 R 时，共 `33WH + 32·ceil(W/R)·ceil(H/R)` 字节，
+包括 Float4 guide、R8 保护层、Float4 输出及两张 tile 纹理。运动生产器、TAA、
+DOF 和驱动开销另算；零曝光目前仍执行过滤路径，不代表零成本。
+关闭后清空曝光历史，但保留已分配附件供再次启用；宿主释放时统一销毁。
+
+DOF 已混合的颜色仍由当前可见深度／运动引导；复杂近远遮挡、透明重叠与完整
+曝光积分没有因此恢复，需要单独进行动态画质评估。

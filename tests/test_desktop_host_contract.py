@@ -94,10 +94,40 @@ class DesktopHostContract(unittest.TestCase):
                  'planar.TryRecord(', 'reflection.TryRecord(', 'actor.TryRecord(']
         positions = [SOURCE.index(x) for x in order]
         self.assertEqual(positions, sorted(positions))
-        post = [SOURCE.index(x) for x in ('effects.TryRender(', 'temporal.TryRender(', 'dof.TryRender(', 'grade.TryRender(')]
+        post = [SOURCE.index(x) for x in ('effects.TryRender(', 'temporal.TryRender(', 'dof.TryRender(', 'motionBlur.TryRender(', 'grade.TryRender(')]
         self.assertEqual(post, sorted(post))
         self.assertIn('new FogVolumeDepth(actorFrame.eyeDepth)', SOURCE)
         self.assertNotIn('new Material(', SOURCE)
+
+    def test_frame_blur_reuses_filter_and_preserves_packed_identity_abi(self):
+        adapter = (RUNTIME / 'FrameMotionBlur.cs').read_text(encoding='utf-8')
+        guide = (RUNTIME / 'Resources/FrameMotionBlurGuide.shader').read_text(encoding='utf-8')
+        for token in ('new MotionBlurRenderer()', 'new MotionBlurInput(', 'current.SameOwner(input)',
+                      'current.sequence==sequence+1&&current.MotionContinuous', 'timeSeconds-previousTime',
+                      'dejittered?-jitterUv:Vector2.zero', 'renderer.Owns(t)', 'current.BindMotionBlurExclusions',
+                      '33+32L', 'public void ResetHistory()'):
+            self.assertIn(token, adapter)
+        for token in ('id=packed>>4', '_FrameBlurExcluded[id*2+(packed&1u)]',
+                      '(packed&4u)', '(packed&8u)', 'float4(m.xy,m.b,1)',
+                      '_FrameBlurFx.Load', '_FrameBlurOpaque.Load'):
+            self.assertIn(token, guide)
+        self.assertNotIn('(packed&2u)', guide)
+        self.assertNotIn('Time.', adapter)
+        self.assertNotIn('.Submit(', adapter)
+        self.assertIn('var preTemporalColor=finalColor;', SOURCE)
+        self.assertIn('else motionBlur.ResetHistory();', SOURCE)
+
+    def test_motion_blur_fixture_checks_current_geometry_clock_and_filter_order(self):
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopMotionBlur.cs').read_text(encoding='utf-8')
+        for token in ('independent-half4-guide', 'independent-protection',
+                      'existing-filter-independent-guide-whole-color', 'moving-striped-actor-positive',
+                      'paused-exact-current', 'rewind-exact-current', 'long-gap-exact-current',
+                      'seek-exact-current', 'sequence-gap-exact-current',
+                      'exclude-taa-not-blur-exclusion', 'blended-preserves-current',
+                      'authored-actor-preserves-current', 'no-jitter-preserves-current',
+                      'taa-dof-moving', 'fx-positive-protection', 'reuse-moving-positive',
+                      'reenabled-exact-current', 'invalid-budget-before-record'):
+            self.assertIn(token, fixture)
 
     def test_current_foreign_and_failed_attempts_are_distinct(self):
         for required in ('!ReferenceEquals(input.owner, this)', '!input.IsCurrent',

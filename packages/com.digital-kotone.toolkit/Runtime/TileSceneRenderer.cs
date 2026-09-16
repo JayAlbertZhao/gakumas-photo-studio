@@ -119,6 +119,7 @@ namespace GakumasPhotoMode
                     var s=settings.surfaces[i];
                     MotionSurfaces[i]=new SceneDeferredCamera.Surface {renderer=s.renderer,materialIndex=s.materialIndex,
                         vertexScale=s.vertexScale,cull=s.cull,alphaCutoff=s.alphaCutoff,motionRevision=s.motionRevision,temporalFlags=s.temporalFlags,
+                        excludeMotionBlur=s.excludeMotionBlur,
                         inputs=new SceneDeferredCamera.MaterialInputs {albedoMap=s.inputs.albedoMap,uvST=s.inputs.uvST,alpha=s.inputs.alpha}};
                 }
             }

@@ -31,6 +31,14 @@ namespace GakumasPhotoMode
             public readonly ulong sequence;
             public readonly RenderTexture color,eyeDepth,motionDepthIdentity,expectedPreviousDepth;
             public bool IsCurrent=>owner!=null&&owner.Current(sequence);
+            internal bool MotionContinuous=>IsCurrent&&owner.MotionContinuous;
+            internal bool SameOwner(Frame other)=>owner!=null&&ReferenceEquals(owner,other.owner);
+            internal void BindMotionBlurExclusions(Material material,float[] table)
+            {
+                if(!IsCurrent||owner.motion==null)throw new InvalidOperationException("Current motion frame required");
+                Array.Clear(table,0,table.Length);owner.motion.CopyMotionBlurExclusions(table);
+                owner.sceneMotion?.CopyMotionBlurExclusions(table);material.SetFloatArray("_FrameBlurExcluded",table);
+            }
             internal Frame(SrpActorForward value) { owner=value;sequence=value.sequence;color=value.color;eyeDepth=value.eyeDepth;
                 motionDepthIdentity=value.motion?.Motion;expectedPreviousDepth=value.motion?.PreviousDepth; }
         }
