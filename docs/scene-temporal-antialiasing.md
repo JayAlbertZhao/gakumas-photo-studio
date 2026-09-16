@@ -35,6 +35,10 @@ scene.temporalAntialiasing.contentRevision++;
 
 本模块不改变相机投影。宿主若采用 jitter，须同时设置实际投影及 `jitterUv`，单位为纹理 UV：稳定输出在 `uv - jitterUv` 处采样本次颜色。历史使用上次的完整 GPU 投影／view 和 jitter。未加 jitter 时保持零；不把像素单位、NDC 或平台翻转前的值直接当作纹理 UV。
 
+可用 [TemporalProjectionJitter](desktop-host.md#显式投影抖动) 同时取得离屏投影和
+`correctionUv`。该修正是实际纹理栅格位移的相反数；不要把 `rasterOffsetUv`
+直接填入这里。辅助器不修改 Camera 或累积历史，宿主仍负责应用、恢复和切镜重置。
+
 颜色手动 bilinear 重采样；几何／运动仍是实际 jittered 栅格上的 Point 样本。深度必须在该样本的像素中心射线上重建，不能套用连续颜色坐标。历史几何也依据旧 jitter 找回其原始 Point 样本中心。这一点对斜面连续 jitter 尤其重要。
 
 在 `BeforeImageEffects` 对已登记场景表面重新绘制两张可见性 guide，使用相机**实际 framebuffer depth** 的 LEqual 测试、相同 alpha／cull／vertexScale。挡在前面的普通 Forward opaque 不会借用后面的场景历史。背景和没有可见场景身份的像素不累积，只采用当前颜色。未登记的 ZWriteOff 透明／粒子层不能靠深度排除：宿主必须通过外部分类型号保护它们，或者在 TAA 之后合成。共面混合、任意材质顶点位移和完整角色分类仍需专用适配。

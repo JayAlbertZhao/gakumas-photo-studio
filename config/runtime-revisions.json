@@ -701,9 +701,9 @@
     "packages/com.digital-kotone.toolkit/Runtime/DesktopFrameRenderer.cs": "e502a794043d55658a2ded5d0c44729f48d3b26964075cca94a114feb9bfd5c3",
     "packages/com.digital-kotone.toolkit/Examples/DesktopHost/DesktopHostExample.cs": "5a1dbc98e46b8427df36f879a97a8b71a0857d4803a859b231d49f2588a14f41",
     "packages/com.digital-kotone.toolkit/Examples/DesktopHost/Gakumas.Toolkit.Examples.asmdef": "edb9312911521af5d1610f5cd1cad3beed1776d3a277034ac7c708b4d4f40cff",
-    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopHost.cs": "7dcaffe4a853a2a785c639d89f7f6090fcc44ab56266b653abbd3c05546cd9db",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopHost.cs": "af6b58bf5ddb453e0884bafe51fb0a7eb26db1b46596dd8ddb1a18c9ce92203d",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopExample.cs": "db8a1143ec483e9d3e78b87346151a7b21283c94cb4b8e84a358c258b4ff78f2",
-    "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopHost.cs": "60d71e15de142c363f539f60080c3976c09713f1df20ccfdf4b7688f01ba9cca",
+    "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopHost.cs": "19f0efaa0c6cee0304a43b094af539d764caa28aa8a3b0a1b4c40575bc4c61c8",
     "packages/com.digital-kotone.toolkit/Runtime/DesktopFrameRenderer.cs.meta": "fec4b2a7fcbcd5ae80d8547652b52d8e8be741cab174d45811e02cdebb09c2cb",
     "packages/com.digital-kotone.toolkit/Examples/DesktopHost/DesktopHostExample.cs.meta": "dccc343968bf86b9c1052b694706ca9799c53905e3038a33580d63d30412ae12",
     "packages/com.digital-kotone.toolkit/Examples/DesktopHost/Gakumas.Toolkit.Examples.asmdef.meta": "f75bf18c502da2dba2d0a3236fd0ffe952bd44636360677c2ad6f33a50b5c004",
@@ -744,7 +744,13 @@
     "packages/com.digital-kotone.toolkit/Runtime/Resources/AuthoredDiffusion.shader.meta": "f5e4cc3ab5cfa1c34d100c3cbec6b0dc272e7976f3963fe5bb1176633d400fe1",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopDiffusion.cs.meta": "1b9ef59b76be453566ad77427ab7c0f36945e6c1cf14bd12784c3d799cee1848",
     "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopPost.cs": "03e70fa2e1cd7f2774d24b03f7bac163b74c2b721859a5dccf7e95edc29a6897",
-    "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopPost.cs.meta": "ebeab74523a2cdbbde8a5bf603f9ca7d65c67376779a3db42da989799d37653b"
+    "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopPost.cs.meta": "ebeab74523a2cdbbde8a5bf603f9ca7d65c67376779a3db42da989799d37653b",
+    "packages/com.digital-kotone.toolkit/Runtime/TemporalProjectionJitter.cs": "f139e16ef8bd63aad7da47f90bac2b5e0a7d96ddef169d8ca160e45be3d9ff8d",
+    "packages/com.digital-kotone.toolkit/Runtime/TemporalProjectionJitter.cs.meta": "7735591e95f733cdfa1fa6e130f468428940a24b3230235338ed055fd1bd3b1a",
+    "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.Jitter.cs": "8b0960f5aa60499aaaa523901d48383e1670a8ae3e9adfaef0eed0ac8b07dde4",
+    "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.Jitter.cs.meta": "be6ffbbfa48f1e079460bc01d7cd7577d2aa2a39bddc376f93b36fd745a03f0f",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ProjectionJitter.cs": "1c78babcd7b7e6f7794d406b5aab62dec2b7d3c75485e91ea76a0aabd1b427e3",
+    "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ProjectionJitter.cs.meta": "1592f4fba53b8a592f3502e1e45585ab151b74ab35f9344d5cfaa7cbd5d49623"
   },
   "relocations": {
     "unity/Assets/ActorAnimationStub/ActorAnimation.Runtime.asmdef": "packages/com.digital-kotone.toolkit/Runtime/Compatibility/ActorAnimationStub/ActorAnimation.Runtime.asmdef",

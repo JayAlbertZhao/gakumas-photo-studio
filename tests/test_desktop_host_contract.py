@@ -9,6 +9,21 @@ SOURCE = (RUNTIME / 'DesktopFrameRenderer.cs').read_text(encoding='utf-8')
 
 
 class DesktopHostContract(unittest.TestCase):
+    def test_projection_jitter_keeps_camera_and_phase_authority_in_caller(self):
+        source=(RUNTIME / 'TemporalProjectionJitter.cs').read_text(encoding='utf-8')
+        for forbidden in ('Time.', 'Shader.SetGlobal', 'Camera.main', 'FindObjectsOfType', '.Render('):
+            self.assertNotIn(forbidden, source)
+        for token in ('phase%8+1', 'correctionUv=-displacement', 'baseProjection.GetRow(3)',
+                      'GL.GetGPUProjectionMatrix(baseProjection,true)',
+                      'SystemInfo.graphicsUVStartsAtTop', 'cameraPixelOffset.x==0&&cameraPixelOffset.y==0'):
+            self.assertIn(token, source)
+        fixture=(ROOT / 'unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.Jitter.cs').read_text(encoding='utf-8')
+        for token in ('reference-4x4', 'warm-wrong-sign', 'warm-no-correction',
+                      'history-improves-unjittered-aliasing', 'history-improves-spatial-reference',
+                      'history-reduces-static-phase-variance', 's.scene.output.width,s.scene.output.height',
+                      'reset-projection-restores-unfiltered-frame', 'camera.cullingMask=1<<22'):
+            self.assertIn(token, fixture)
+
     def test_color_lut_explicit_weights_are_opt_in_and_local(self):
         renderer=(RUNTIME / 'ColorGradingRenderer.cs').read_text(encoding='utf-8')
         shader=(RUNTIME / 'Resources/AuthoredColorLut.shader').read_text(encoding='utf-8')

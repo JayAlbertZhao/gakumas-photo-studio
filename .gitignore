@@ -648,6 +648,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/SupersamplePresenter.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs
 !/packages/com.digital-kotone.toolkit/Runtime/TemporalClassification.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/TemporalProjectionJitter.cs
+!/packages/com.digital-kotone.toolkit/Runtime/TemporalProjectionJitter.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/TileRenderPass.cs
 !/packages/com.digital-kotone.toolkit/Runtime/TileRenderPass.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/TileSceneDecals.cs
@@ -826,6 +828,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Planar.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.PointShadow.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.PointShadow.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ProjectionJitter.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ProjectionJitter.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ReflectionResolve.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ReflectionResolve.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Refraction.cs
@@ -910,6 +914,8 @@
 !/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopHost.cs.meta
 !/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopPost.cs
 !/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopPost.cs.meta
+!/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.Jitter.cs
+!/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.Jitter.cs.meta
 !/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs
 !/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs.meta
 !/unity/Assets/Applications/PhotoStudio/VertexLocatorCharacterValidation.cs

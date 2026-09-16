@@ -37,6 +37,12 @@ O01 的 [整帧 FSR](desktop-host.md#可选整帧-fsr) 使用实际低尺寸几�
 重播及后端差异分别记录。对调色过滤阶跃提供默认关闭的显式浮点 LUT 插值选项。
 功能响应与数值一致性不代替发丝、遮挡和实际投影抖动的动态画质验收。
 
+P01 进一步提供 [显式投影抖动](desktop-host.md#显式投影抖动)：宿主管理相位及历史，
+helper 返回离屏投影与相反方向的纹理 UV 修正。两套自备服装、三视角及三种实际
+几何尺寸的静态近景已用独立空间积分、冷历史、错误符号／漏传负控检验收敛。
+默认摄影保持不变；该静态结果不关闭动态发丝／遮挡缺口，也不关闭已有 Vulkan
+可选运动 MRT 的严格颜色失败。
+
 | 编号 | 技术与来源 | 工具包现状 | 尚需完成的验收或实现 |
 | --- | --- | --- | --- |
 | A01 | 九类角色表面、深度／透明／stencil 规则；PPT 35–39 | ActorSurface / MaterialRepairer / ActorSupplemental 已有 | 全变体、多角度、不同服装动态对照 |
@@ -59,7 +65,7 @@ O01 的 [整帧 FSR](desktop-host.md#可选整帧-fsr) 使用实际低尺寸几�
 | E08 | HDR Monitor 与发光网格；PDF 56–58 | HdrMonitor 保留 Built-in；SrpHdrMonitor 显式 prepare-before-SRP／record，HDR Canvas、内容／时间调度与 UV／LED 发光网格消费 | 自制真实 WorldSpace／ScreenSpaceCamera UGUI、SRP 网格及三类实时采样灯链路已执行；原版整场舞台、视频编解码及移动帧时未验收，见 [Monitor 接入](hdr-monitor.md) |
 | E09 | 点／胶囊／面贴花灯及 instancing；PDF 59–62、PPT 119 | SceneDecalLightSettings：Monitor、PBR、Scalar／GPU Instanced、float32 累加；Spot／Point 实时阴影、显式 [胶囊／面采样源阴影](extended-source-shadows.md) 和可选 [baked channel](scene-baked-shadows.md)，保留每灯 144 字节与独立 112 字节阴影布局 | 桌面 Monitor／GI、Spot 与 Point 六面／跨面 PCF 已验收；新增扩展源模型为当前线／矩形的等权可见性，不重加权 Monitor 辐射。连续软阴影、原版整舞台参数和移动带宽仍待实现或验收，见 [贴花灯](scene-decal-lights.md) |
 | E10 | 天空、植被、水、折射、荧光棒等专用表面；PPT 109 | 默认关闭的 [独立水面](scene-water.md)、[自主天空](scene-sky.md)、[观众荧光棒](crowd-lightsticks.md)、[植被风场](vegetation-wind.md) 和 [薄叶材质](vegetation-leaf.md)；新增 [闭合凸体折射](scene-refraction.md)：自有凸体、多界面 Snell／Fresnel、全内反射、RGB IOR／吸收、当前 HDR Cube 和剩余能量附件 | 自制桌面凸体与现有专用表面有独立对照；完整制作植被／水面／观众／宝石、近场视差、粗糙／相交／嵌套折射介质、焦散、其他专用消费者与移动成本仍待完成。资料只列用途，未公开对应算法，不假定原版参数或整体画质一致 |
-| P01 | 方差裁剪 TAA、ExcludeTAA、NoJitter；PDF 33 | 可选 [场景颜色 TAA](scene-temporal-antialiasing.md) 保留；新增 [整帧 TAA](desktop-host.md#可选整帧运动与-taa)，消费角色与场景的 Half4 运动附件，在特效之后／DOF 之前执行当前色包含的 HDR 方差裁剪与亮度加权；旧默认 shader 不变 | 自制桌面运动、分类、HDR 稳定性、历史拒绝和生命周期有对照；真实角色多视角的完整链路与同格式存储复用有控制。双骨骼／表情／描边、实际投影 jitter 与角色揭露场景的独立数值控制已覆盖；可选运动路径的 Vulkan 颜色精度限制见 Actor 文档。复杂透明归属、全舞台动态画质及移动成本仍待完成，不引入默认投影 jitter |
+| P01 | 方差裁剪 TAA、ExcludeTAA、NoJitter；PDF 33 | 可选 [场景颜色 TAA](scene-temporal-antialiasing.md) 保留；新增 [整帧 TAA](desktop-host.md#可选整帧运动与-taa)，消费角色与场景的 Half4 运动附件，在特效之后／DOF 之前执行当前色包含的 HDR 方差裁剪与亮度加权；[显式投影 helper](desktop-host.md#显式投影抖动) 提供离屏矩阵和纹理修正，旧默认 shader 不变 | 自制桌面运动、分类、HDR 稳定性、历史拒绝和生命周期有对照；真实角色多视角的完整链路与同格式存储复用有控制。双骨骼／表情／描边、实际投影 jitter 与角色揭露场景的独立数值控制已覆盖；新增两套服装／三视角／三尺寸静态近景的空间收敛和负控。可选运动路径的 Vulkan 严格颜色失败仍保留。动态发丝／复杂透明归属、全舞台动态画质及移动成本仍待完成，不引入默认投影 jitter |
 | P02 | Bokeh DOF 范围、分辨率无关散景、30 次采样；PPT 127–128 | 默认关闭的独立 [DOF 模块](bokeh-depth-of-field.md)：显式线性深度、手动清晰范围／物理镜头、自定义完整 30／43 点孔径；原生 GPU 采样数、整图及分辨率控制已验收；旧摄影路径不变 | 全动态角色／发丝透明与复杂近远遮挡质量、完整深度适配、移动内存与实际帧时；未恢复原文未公开的 30 点布局 |
 | P03 | Bloom、Diffusion、Paraffin、色调／颜色处理；PPT 126 | 已有合成路径；新增不依赖私有文件的 profile／JSON／资产、Bradford 白平衡、颜色调整、LGG、八条曲线、GT 映射与 16³／32³／64³ LUT 制作／消费，见 [自主调色](authored-color-grading.md) | 独立模块及实际 Camera.Render 桥接已验收，默认路径不变；全场景外观、Unity Volume 参数／曲线语义适配、更广合成配置和移动性能仍待完成 |
 | P04 | Motion Blur；PPT 126、PDF 15 | 新增可选 [Motion Blur](motion-blur.md)：实际几何对应／当前可见性、曝光时钟、tile／双方向深度重建，显式 DOF 后／Bloom 前消费；默认摄影不启用 | 自制刚体／蒙皮／blendshape、遮挡／暂停／切镜／jitter 及桌面整图／原生链已验证；完整角色发丝透明、复杂重叠方向与 DOF 联合质量、移动内存／帧时仍待完成；不宣称恢复原文未公开滤波器 |

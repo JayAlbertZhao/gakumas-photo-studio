@@ -54,6 +54,65 @@ idle 另作观察，不要求低于半像素曝光门限的运动也必须产生
 原 `1e-4` 后端最大误差门限，冷帧／暂停曝光与重播保持精确比较。
 这些离屏检查不验证呈现帧率、移动端收益、真实投影 jitter 收敛或原版画面一致性。
 
+## 显式投影抖动
+
+`TemporalProjectionJitter` 为需要 TAA 的宿主生成离屏投影及对应纹理 UV 修正，
+不修改 Camera、全局状态、时钟或历史。默认应用不调用它。
+
+```csharp
+// 在分辨率／FOV／镜头改变后取得新的未抖动投影；不能累加到上一帧抖动矩阵。
+Matrix4x4 baseProjection = camera.projectionMatrix;
+Vector2Int rasterSize = new Vector2Int(sceneColor.width, sceneColor.height);
+if (TemporalProjectionJitter.TryCreate(baseProjection, rasterSize,
+        TemporalProjectionJitter.Offset(phase), out var jitter)) {
+    camera.projectionMatrix = jitter.projection;
+    settings.temporal.jitterUv = jitter.correctionUv;
+    settings.motionBlurJitterUv = jitter.correctionUv;
+    // 记录／提交／完成当前帧。phase 由宿主管理；切镜时一起重置 phase 和历史。
+}
+// 退出此渲染路径时恢复 baseProjection，并清零两个 UV 修正。
+```
+
+八相序列为中心化的 Halton(2,3)，不是讲演未公开的原版采样序列。输入 offset
+以相机投影像素轴表示，范围每轴 `[-.5,.5]`；尺寸为实际几何栅格，FSR 前的低尺寸，
+不能使用最终显示尺寸。纯 clip 平移对 x/y 加上 w 倍偏移，兼容透视、正交及偏轴投影。
+`GL.GetGPUProjectionMatrix(..., true)` 和平台纹理轴用于计算实际离屏位移；
+`rasterOffsetUv` 是位移，`correctionUv` 是它的相反数。TAA 在
+`uv - correctionUv` 采样当前帧。直接把实际位移作为修正会朝反方向采样。
+
+必须在 Unity 主线程调用，按 bool 处理非有限矩阵／offset、奇异投影和非法尺寸。
+当前接口只描述 render-into-texture，不能直接用于 backbuffer 坐标。
+UI 应在独立的未抖动阶段绘制；给已经抖动的几何标记 `NoJitter` 不会撤销顶点位移。
+
+`--validate-desktop-jitter` 与角色验证参数一起使用，替代整链压力诊断，专门检查
+固定姿态的头部近景。对照包含原始单采样、独立 4×4 空间积分、每帧清历史的
+双线性修正、连续累积，以及错误符号／漏传修正负控。角色可见性差分在相同未抖动
+投影下建立，再扩张一像素；不是语义分割。误差在 `max(HDR,0)/(1+max(HDR,0))`
+映射后统计 RGB MSE，第二周期另记静态相位方差。保留所有输入与原始 HDR 输出，
+不把一次模糊或更低时间方差单独记为画质改进。
+
+调用示例（资产仍由使用者自行提供）：
+
+```text
+KotonePhotoStudio.exe --photo-mode --validate-srp-actor-character <output> --validate-actor-shadows --validate-desktop-character --validate-desktop-jitter
+```
+
+本机 D3D11／Vulkan、两套服装、前／侧／后视图，以及原生 512²／实际 342²／256²
+几何共 36 组静态近景：连续历史相对原始无抖动输出的上述参考 MSE 降低约 35–55%，
+相对每帧清历史的双线性修正降低约 11–25%，静态相位方差降低约 22–40%。
+独立离线计算从保存的 HDR RAW 重新积分参考、重建区域并复算全部指标；正确修正
+在每组均优于错误符号和漏传修正。该结果只证明这组静态空间收敛，不能推导动画无拖影。
+
+D3D11 原生捕获确认实际 342² TAA 双 Float4 输出接入 FSR，再到 512² 零强度
+Diffusion；最终像素与运行时 RAW 完全相同。角色有效运动像素上的静态重投影残差
+最大约 `0.000405` 像素，有 27,455 个角色像素实际使用历史。投影 helper 另有透视／
+正交／偏轴及四种尺寸的世界点对齐控制，不修改旧 TAA shader 或其默认调用路径。
+
+保留失败：其中一套服装的 Vulkan 整体报告仍有抖动诊断之前的
+`temporal-view-180-motion-mrt-retains-real-color` 严格颜色检查失败，最大差异
+`3.814697265625e-6`；新增抖动检查通过不代表该完整报告通过，也不关闭已有运动
+MRT 颜色差异问题。动态发丝、复杂透明／遮挡、联合曝光与移动端成本仍待验收。
+
 ## 核心输入与调用顺序
 
 `Settings` 中分别填写 Scene surfaces、Actor renderers、独立自阴影 caster、背景主光

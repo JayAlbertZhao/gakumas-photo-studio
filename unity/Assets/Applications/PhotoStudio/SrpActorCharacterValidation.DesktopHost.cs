@@ -140,7 +140,9 @@ namespace GakumasPhotoMode
                     example.ResetHistory();var sought=Run(label+"-seek-cold",times[0]);
                     Check(label+"-seek-resets-whole-chain",MaximumDifference(resolved[0],sought)==0,MaximumDifference(resolved[0],sought));
                 }
-                VerifyDesktopPostCharacter(report,example,head,bounds,View,(name,time)=>Run(name,time));
+                if(Environment.GetCommandLineArgs().Contains("--validate-desktop-jitter"))
+                    VerifyDesktopCharacterJitter(report,example,head,bounds,View,(name,time)=>Run(name,time));
+                else VerifyDesktopPostCharacter(report,example,head,bounds,View,(name,time)=>Run(name,time));
                 example.Shutdown();Check("shutdown-preserves-character",SourceSnapshot(renderers)==sourceBefore&&renderers.All(r=>r!=null&&r.enabled));
                 Check("shutdown-restores-pipeline",GraphicsSettings.renderPipelineAsset==previousGraphics&&QualitySettings.renderPipeline==previousQuality);
             }
