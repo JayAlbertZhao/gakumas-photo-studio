@@ -842,6 +842,65 @@ namespace GakumasPhotoMode
                 Check("oracle-disocclusion-keeps-corresponding-actor-history",retainedActorHistory>100,retainedActorHistory);
             }
             finally {actor.transform.position=originalPosition;}
+            // A single nearest identity must not make a bilinearly mixed color
+            // eligible as coherent history when the caller selects this policy.
+            settings.reflections.enabled=settings.planar.enabled=false;
+            settings.effects.enabled=settings.depthOfField.enabled=false;settings.colorGrade=null;
+            settings.includeSceneMotion=true;settings.reuseSceneMotionStorage=false;
+            settings.actors.configureMaterial=originalConfigure;
+            var coherentProjection=camera.projectionMatrix;
+            try
+            {
+                if(!TemporalProjectionJitter.TryCreate(coherentProjection,new Vector2Int(settings.scene.output.width,settings.scene.output.height),new Vector2(.25f,-.375f),out var jitter))throw new InvalidOperationException("Coherent footprint projection");
+                camera.projectionMatrix=jitter.projection;settings.temporal.jitterUv=jitter.correctionUv;
+                settings.temporal.rejectMixedSurfaceHistory=false;
+                var legacyCold=Run("coherent-legacy-cold",SrpActorForward.Storage.SeparateHalf,out _);
+                Run("coherent-legacy-warm",SrpActorForward.Storage.SeparateHalf,out _,false);
+                settings.temporal.rejectMixedSurfaceHistory=true;
+                var switched=Run("coherent-enabled-cold",SrpActorForward.Storage.SeparateHalf,out _,false);
+                Check("coherent-enable-resets-history",UsedCount()==0,UsedCount());
+                Check("coherent-cold-preserves-current",Difference(switched,legacyCold)<.00001f,Difference(switched,legacyCold));
+                var coherent=Run("coherent-enabled-warm",SrpActorForward.Storage.SeparateHalf,out _,false);
+                int w=settings.scene.output.width,h=settings.scene.output.height,mixed=0,solidHistory=0;float mixedError=0;bool rejected=true;
+                int Index(int x,int y)=>Mathf.Clamp(x,0,w-1)+Mathf.Clamp(y,0,h-1)*w;
+                for(int y=0;y<h;y++)for(int x=0;x<w;x++)
+                {
+                    int i=x+y*w;float rx=x-jitter.correctionUv.x*w,ry=y-jitter.correctionUv.y*h;
+                    if(rx<-.5f||ry<-.5f||rx>=w-.5f||ry>=h-.5f)continue;
+                    int firstX=Mathf.FloorToInt(rx),firstY=Mathf.FloorToInt(ry);float fx=rx-firstX,fy=ry-firstY;
+                    var m=lastMotion[Index(Mathf.FloorToInt(rx+.5f),Mathf.FloorToInt(ry+.5f))];int id=(int)m.a&~14;
+                    if(id==0||m.b<=0||(((int)m.a|(int)lastMotion[i].a)&6)!=0)continue;
+                    bool incompatible=false;var current=Color.clear;
+                    for(int dy=0;dy<2;dy++)for(int dx=0;dx<2;dx++)
+                    {
+                        float weight=(dx==0?1-fx:fx)*(dy==0?1-fy:fy);int p=Index(firstX+dx,firstY+dy);var tap=lastMotion[p];current+=lastOpaque[p]*weight;
+                        if(weight>1e-6f&&(((int)tap.a&~14)!=id||((int)tap.a&6)!=0||Mathf.Abs(tap.b-m.b)>settings.temporal.depthTolerance+Mathf.Abs(m.b)*.000977f))incompatible=true;
+                    }
+                    if(incompatible)
+                    {
+                        mixed++;rejected&=lastTemporal[i].b==0&&lastTemporal[i].a==0;
+                        for(int c=0;c<4;c++)mixedError=Mathf.Max(mixedError,Mathf.Abs(current[c]-coherent[i][c]));
+                    }
+                    else if(lastTemporal[i].a>0)solidHistory++;
+                }
+                Check("coherent-mixed-footprint-independent-rejection",mixed>20&&rejected,mixed);
+                Check("coherent-mixed-footprint-independent-current-color",mixedError<.00001f,mixedError);
+                Check("coherent-retains-solid-history",solidHistory>100,solidHistory);
+                settings.actors.temporalFlags=(r,i)=>TemporalPixelFlags.NoJitter;
+                var noJitterCoherent=Run("coherent-no-jitter",SrpActorForward.Storage.SeparateHalf,out _,false);
+                float noJitterCoherentError=0;int noJitterCoherentPixels=0;
+                for(int i=0;i<lastMotion.Length;i++)if(((int)lastMotion[i].a&4)!=0)
+                {
+                    noJitterCoherentPixels++;rejected&=lastTemporal[i].a==0;
+                    for(int c=0;c<4;c++)noJitterCoherentError=Mathf.Max(noJitterCoherentError,Mathf.Abs(noJitterCoherent[i][c]-lastOpaque[i][c]));
+                }
+                Check("coherent-no-jitter-preserves-exact-raster",noJitterCoherentPixels>100&&rejected&&noJitterCoherentError==0,noJitterCoherentError);
+                settings.actors.temporalFlags=null;settings.temporal.rejectMixedSurfaceHistory=false;
+                var legacyRestored=Run("coherent-legacy-restored",SrpActorForward.Storage.SeparateHalf,out _,false);
+                Check("coherent-disable-resets-history",UsedCount()==0,UsedCount());
+                Check("coherent-keyword-disabled-default-exact",Difference(legacyRestored,legacyCold)==0,Difference(legacyRestored,legacyCold));
+            }
+            finally {camera.projectionMatrix=coherentProjection;settings.temporal.jitterUv=Vector2.zero;settings.temporal.rejectMixedSurfaceHistory=false;settings.actors.temporalFlags=null;}
             settings.reflections.enabled=settings.planar.enabled=false;
             settings.includeSceneMotion=false;settings.reuseSceneMotionStorage=false;
             settings.actors.configureMaterial=originalConfigure;

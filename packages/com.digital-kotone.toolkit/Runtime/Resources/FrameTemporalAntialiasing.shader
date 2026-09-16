@@ -10,6 +10,7 @@ Shader "Hidden/GakumasPhotoMode/FrameTemporalAntialiasing"
             #pragma target 4.5
             #pragma vertex Vertex
             #pragma fragment Fragment
+            #pragma multi_compile_local _ TOOLKIT_TAA_COHERENT_FOOTPRINT
             #include "UnityCG.cginc"
             UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_TemporalCurrent);
             UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_TemporalOpaque);
@@ -42,6 +43,21 @@ Shader "Hidden/GakumasPhotoMode/FrameTemporalAntialiasing"
                 bool changedByFx=_TemporalRejection.z>.5&&any(Current(p)!=_TemporalOpaque.Load(int3(p,0)));
                 o.metadata=float4(motion.b,id,1,0);
                 if((flags&2u)!=0||changedByFx){o.metadata.z=0;return o;}
+                #if defined(TOOLKIT_TAA_COHERENT_FOOTPRINT)
+                // The current color was bilinearly reconstructed before its
+                // nearest motion identity was selected. Do not label a color
+                // mixing separate surfaces as reusable single-surface history.
+                bool coherent=true;
+                [unroll]for(int cy=0;cy<2;cy++)[unroll]for(int cx=0;cx<2;cx++)
+                {
+                    float2 axis=lerp(1-f,f,float2(cx,cy));
+                    int2 tap=Bound(first+int2(cx,cy));float4 guide=_TemporalMotion.Load(int3(tap,0));
+                    bool mixed=Identity(guide.a)!=id||((uint)guide.a&6u)!=0||abs(guide.b-motion.b)>_TemporalRejection.x+abs(motion.b)*.000977||
+                        (_TemporalRejection.z>.5&&any(Current(tap)!=_TemporalOpaque.Load(int3(tap,0))));
+                    coherent=coherent&&!(axis.x*axis.y>1e-6&&mixed);
+                }
+                if(!coherent){o.metadata.z=0;return o;}
+                #endif
                 float expected=_TemporalPreviousDepth.Load(int3(p,0)).r;
                 if(_TemporalHistorySettings.x<.5||(flags&8u)==0||expected<=0)return o;
                 float2 previous=raster-motion.xy*_TemporalSize.xy+_TemporalJitter.zw*_TemporalSize.xy;

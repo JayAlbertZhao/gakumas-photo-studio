@@ -9,6 +9,37 @@ SOURCE = (RUNTIME / 'DesktopFrameRenderer.cs').read_text(encoding='utf-8')
 
 
 class DesktopHostContract(unittest.TestCase):
+    def test_mixed_surface_history_policy_is_local_opt_in_and_resets_history(self):
+        source = (RUNTIME / 'FrameTemporalAntialiasing.cs').read_text(encoding='utf-8')
+        shader = (RUNTIME / 'Resources/FrameTemporalAntialiasing.shader').read_text(encoding='utf-8')
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopHost.cs').read_text(encoding='utf-8')
+        self.assertIn('public bool rejectMixedSurfaceHistory;', source)
+        self.assertIn('settings.rejectMixedSurfaceHistory?1:0', source)
+        self.assertIn('else m.DisableKeyword("TOOLKIT_TAA_COHERENT_FOOTPRINT")', source)
+        self.assertIn('#pragma multi_compile_local _ TOOLKIT_TAA_COHERENT_FOOTPRINT', shader)
+        self.assertIn('coherent=coherent&&!(axis.x*axis.y>1e-6&&mixed)', shader)
+        self.assertIn('if(!coherent){o.metadata.z=0;return o;}', shader)
+        for name in ('coherent-enable-resets-history', 'coherent-mixed-footprint-independent-rejection',
+                     'coherent-mixed-footprint-independent-current-color', 'coherent-retains-solid-history',
+                     'coherent-no-jitter-preserves-exact-raster', 'coherent-disable-resets-history',
+                     'coherent-keyword-disabled-default-exact'):
+            self.assertIn(name, fixture)
+
+    def test_dynamic_jitter_separates_time_motion_and_same_time_reference(self):
+        app = ROOT / 'unity/Assets/Applications/PhotoStudio'
+        source = (app / 'SrpActorCharacterValidation.DynamicJitter.cs').read_text(encoding='utf-8')
+        route = (app / 'SrpActorCharacterValidation.DesktopHost.cs').read_text(encoding='utf-8')
+        self.assertIn('--validate-desktop-dynamic-jitter', route)
+        self.assertIn('else if(Environment.GetCommandLineArgs().Contains("--validate-desktop-jitter"))', route)
+        for token in ('new[]{"camera","animation","reveal"}', 'profile=="animation"?.7f+frame*.02f:.7f',
+                      'reference-excluded-', 'reference-4x4-', 'visible[p]&&!previousVisible[p]',
+                      'new[]{"unjittered","cold","warm"}', 'if(variant!="warm"&&variant!="legacy-warm")example.ResetHistory()',
+                      'history-improves-silhouette-reference', 'actual-reveal-region-visible',
+                      'camera.projectionMatrix=originalProjection', 'panel.localScale=panelScale'):
+            self.assertIn(token, source)
+        self.assertNotIn('Time.', source)
+        self.assertNotIn('Shader.SetGlobal', source)
+
     def test_projection_jitter_keeps_camera_and_phase_authority_in_caller(self):
         source=(RUNTIME / 'TemporalProjectionJitter.cs').read_text(encoding='utf-8')
         for forbidden in ('Time.', 'Shader.SetGlobal', 'Camera.main', 'FindObjectsOfType', '.Render('):
