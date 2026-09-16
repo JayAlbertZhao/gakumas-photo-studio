@@ -1,8 +1,15 @@
         #include "UnityCG.cginc"
         #include "FogVolume.hlsl"
-        Texture2D<float> _FxDepth, _FxProtection;
+        Texture2D<float> _FxDepth;
+        Texture2D<float> _FxProtection;
         Texture2D<float2> _FxDepthRange;
-        Texture2D<float4> _MainTex, _FxEffect, _FxBackground, _FxTexture;
+        // Separate explicit-precision declarations: Unity's Vulkan translation
+        // can mark later names in a comma declaration as RelaxedPrecision. The
+        // float32 shared effect/alpha must survive sampling before composition.
+        UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_MainTex);
+        UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_FxEffect);
+        UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_FxBackground);
+        UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_FxTexture);
         #if defined(HEAVY_FX_GRID)
         Texture2D<float> _FxRepair;
         #endif

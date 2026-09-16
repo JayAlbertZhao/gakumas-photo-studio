@@ -24,6 +24,11 @@
       "displayName": "Minimal Character Host",
       "description": "Use the runtime without the Photo Studio application or its UI.",
       "path": "Samples~/MinimalHost"
+    },
+    {
+      "displayName": "Asset-free Desktop Host",
+      "description": "Generated animated scene, shadows, reflections, transparent effects and grading. Explicit desktop SRP ownership; intentionally synchronous teaching sample.",
+      "path": "Samples~/DesktopHost"
     }
   ]
 }

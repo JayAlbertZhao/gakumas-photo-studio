@@ -1,0 +1,6 @@
+{
+  "name": "Gakumas.Toolkit.Examples",
+  "rootNamespace": "GakumasPhotoMode.Examples",
+  "references": ["Gakumas.Toolkit"],
+  "autoReferenced": true
+}

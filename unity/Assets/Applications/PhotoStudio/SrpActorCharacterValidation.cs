@@ -12,7 +12,7 @@ namespace GakumasPhotoMode
 {
     /// <summary>Opt-in full Actor SRP/ordinary Forward controls using the host's local
     /// character. No assets, pipeline changes or validation work in the default app.</summary>
-    public sealed class SrpActorCharacterValidation : MonoBehaviour
+    public sealed partial class SrpActorCharacterValidation : MonoBehaviour
     {
         [Serializable] private sealed class Check { public string name;public bool accepted;public float value; }
         [Serializable] private sealed class Geometry { public string renderer;public int vertices,submeshes;public bool skinned; }
@@ -234,6 +234,8 @@ namespace GakumasPhotoMode
                     Check("self-shadow-restore-whole-color",MaximumDifference(ambient,Run("self-shadow-restored"))==0);
                 }
                 actor.Dispose();Check("dispose-keeps-original-character",!current.IsCurrent&&actor.NominalTextureBytes==0&&SourceSnapshot(renderers)==sourceBefore&&output.IsCreated());
+                if(Environment.GetCommandLineArgs().Contains("--validate-desktop-character"))
+                    VerifyDesktopCharacter(report,renderers,head,bounds,baseInputs,sourceBefore);
                 report.accepted=report.checks.All(c=>c.accepted);
             }
             catch(Exception error){report.error=error.ToString();Debug.LogException(error);}

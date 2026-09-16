@@ -32,6 +32,8 @@ SOURCE_FOLDERS = {
     'unity/Assets/ActorAnimationStub', 'unity/Assets/CampusCommonStub',
     'unity/Assets/Resources', 'unity/Assets/Scenes', 'unity/Assets/Scripts',
     'unity/Assets/VLStub',
+    'packages/com.digital-kotone.toolkit/Examples',
+    'packages/com.digital-kotone.toolkit/Examples/DesktopHost',
 }
 PATTERNS = {
     'windows_absolute_path': re.compile(r'\b[A-Za-z]:[\\/]'),

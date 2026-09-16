@@ -59,6 +59,14 @@ class HeavyFxContract(unittest.TestCase):
         self.assertIn('defined(HEAVY_FX_GRID)', grid)
         self.assertIn('defined(HEAVY_FX_LIGHTING)', grid)
 
+    def test_float_effect_samples_keep_explicit_vulkan_precision(self):
+        # Native Vulkan evidence found float32 effect storage followed by a
+        # RelaxedPrecision fetch. Typed comma declarations did not protect it.
+        grid = (RUNTIME / 'Resources/LowResolutionFxShared.hlsl').read_text(encoding='utf-8')
+        for name in ('_MainTex', '_FxEffect', '_FxBackground', '_FxTexture'):
+            self.assertIn('UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(' + name + ');', grid)
+        self.assertNotIn('Texture2D<float4> _MainTex,', grid)
+
 
 if __name__ == '__main__':
     unittest.main()
