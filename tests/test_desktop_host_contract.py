@@ -9,6 +9,24 @@ SOURCE = (RUNTIME / 'DesktopFrameRenderer.cs').read_text(encoding='utf-8')
 
 
 class DesktopHostContract(unittest.TestCase):
+    def test_coverage_reconstruction_is_exclusive_local_and_keeps_full_history_support(self):
+        source = (RUNTIME / 'FrameTemporalAntialiasing.cs').read_text(encoding='utf-8')
+        shader = (RUNTIME / 'Resources/FrameTemporalAntialiasing.shader').read_text(encoding='utf-8')
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopHost.cs').read_text(encoding='utf-8')
+        for token in ('public bool preserveSurfaceCoverage;', '!(rejectMixedSurfaceHistory&&preserveSurfaceCoverage)',
+                      'settings.preserveSurfaceCoverage?2:', 'else m.DisableKeyword("TOOLKIT_TAA_SURFACE_COVERAGE")'):
+            self.assertIn(token, source)
+        for token in ('#pragma multi_compile_local _ TOOLKIT_TAA_SURFACE_COVERAGE',
+                      'if(!wholeFootprint)return o;', 'oldColor=clamp(cubic,historyLo,historyHi);',
+                      'if(!currentEligible){o.metadata.z=0;return o;}', 'g.b<anchorDepth',
+                      'surface==0?meta.g==0&&meta.b>=1'):
+            self.assertIn(token, shader)
+        for name in ('coverage-enable-resets-history', 'coverage-retains-mixed-history',
+                     'coverage-moving-whole-footprint-supported', 'coverage-no-jitter-exact-and-ineligible',
+                     'coverage-exclude-taa-ineligible', 'coverage-disable-resets-history',
+                     'coverage-keyword-disabled-default-exact'):
+            self.assertIn(name, fixture)
+
     def test_mixed_surface_history_policy_is_local_opt_in_and_resets_history(self):
         source = (RUNTIME / 'FrameTemporalAntialiasing.cs').read_text(encoding='utf-8')
         shader = (RUNTIME / 'Resources/FrameTemporalAntialiasing.shader').read_text(encoding='utf-8')

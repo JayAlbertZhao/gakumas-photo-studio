@@ -22,10 +22,14 @@ namespace GakumasPhotoMode
             // Opt-in conservative rejection for a bilinear current footprint
             // spanning incompatible surfaces. Also prevents reuse next frame.
             public bool rejectMixedSurfaceHistory;
+            // Opt-in whole-footprint history reconstruction. Incompatible taps
+            // reject the complete history sample instead of renormalizing its
+            // surviving surface colors. Mutually exclusive with rejection mode.
+            public bool preserveSurfaceCoverage;
             // Texture UV correction; the host owns the applied projection jitter.
             public Vector2 jitterUv;
             public uint contentRevision;
-            internal bool IsValid=>Range(historyWeight,0,.99f)&&maximumHistory>=2&&maximumHistory<=64&&
+            internal bool IsValid=>!(rejectMixedSurfaceHistory&&preserveSurfaceCoverage)&&Range(historyWeight,0,.99f)&&maximumHistory>=2&&maximumHistory<=64&&
                 Range(depthTolerance,.000001f,10000)&&Range(varianceGamma,0,4)&&Range(reactiveThreshold,0,1)&&
                 Range(jitterUv.x,-.5f,.5f)&&Range(jitterUv.y,-.5f,.5f);
             private static bool Range(float v,float lo,float hi)=>!float.IsNaN(v)&&!float.IsInfinity(v)&&v>=lo&&v<=hi;
@@ -72,7 +76,7 @@ namespace GakumasPhotoMode
                 {error="Temporal resolve requires separate matching stored linear inputs";return false;}
             if(input.motionDepthIdentity.graphicsFormat!=GraphicsFormat.R16G16B16A16_SFloat||input.expectedPreviousDepth.graphicsFormat!=GraphicsFormat.R32_SFloat)
             {error="Temporal motion format mismatch";return false;}
-            var config=new Vector4(settings.historyWeight,settings.maximumHistory,settings.varianceGamma,settings.rejectMixedSurfaceHistory?1:0);
+            var config=new Vector4(settings.historyWeight,settings.maximumHistory,settings.varianceGamma,settings.preserveSurfaceCoverage?2:settings.rejectMixedSurfaceHistory?1:0);
             var rejection=new Vector2(settings.depthTolerance,settings.reactiveThreshold);
             try
             {
@@ -81,6 +85,8 @@ namespace GakumasPhotoMode
                 ready=false;int write=1-read;var m=material;
                 if(settings.rejectMixedSurfaceHistory)m.EnableKeyword("TOOLKIT_TAA_COHERENT_FOOTPRINT");
                 else m.DisableKeyword("TOOLKIT_TAA_COHERENT_FOOTPRINT");
+                if(settings.preserveSurfaceCoverage)m.EnableKeyword("TOOLKIT_TAA_SURFACE_COVERAGE");
+                else m.DisableKeyword("TOOLKIT_TAA_SURFACE_COVERAGE");
                 m.SetTexture("_TemporalCurrent",source);m.SetTexture("_TemporalOpaque",input.color);
                 m.SetTexture("_TemporalMotion",input.motionDepthIdentity);m.SetTexture("_TemporalPreviousDepth",input.expectedPreviousDepth);
                 m.SetTexture("_TemporalHistory",colors[read]);m.SetTexture("_TemporalGuide",guides[read]);

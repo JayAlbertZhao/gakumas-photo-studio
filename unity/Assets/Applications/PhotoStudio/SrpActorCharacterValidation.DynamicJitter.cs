@@ -19,6 +19,7 @@ namespace GakumasPhotoMode
         {
             public string schema="photo-studio.character-dynamic-jitter.v1";
             public bool rejectMixedSurfaceHistory;
+            public bool preserveSurfaceCoverage;
             public bool pairedPolicy;
             public string scope="Same-time16sample native spatial references. Camera-only translation, animation-only time, and static-camera/actor moving opaque panel are separate. Actor-visible and silhouette masks are image-difference proxies, not semantic hair labels. Newly revealed actor mask has physical reveal meaning only in the panel profile. No original-game/mobile/fullpost acceptance.";
             public List<DynamicJitterMetric> measurements=new List<DynamicJitterMetric>();
@@ -77,8 +78,9 @@ namespace GakumasPhotoMode
                 s.temporal.historyWeight=.95f;s.temporal.maximumHistory=32;s.temporal.varianceGamma=.9f;s.temporal.reactiveThreshold=.2f;
                 s.temporal.rejectMixedSurfaceHistory=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_DYNAMIC_COHERENT")=="1";
                 observations.rejectMixedSurfaceHistory=s.temporal.rejectMixedSurfaceHistory;
+                observations.preserveSurfaceCoverage=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_DYNAMIC_COVERAGE")=="1";
                 observations.pairedPolicy=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_DYNAMIC_PAIRED_POLICY")=="1";
-                if(observations.pairedPolicy&&!observations.rejectMixedSurfaceHistory)throw new InvalidOperationException("Paired policy requires explicit coherent mode");
+                if(observations.pairedPolicy&&!observations.rejectMixedSurfaceHistory&&!observations.preserveSurfaceCoverage)throw new InvalidOperationException("Paired policy requires explicit temporal policy");
                 var angles=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_JITTER_FRONT_ONLY")=="1"?new[]{0}:new[]{0,90,180};
                 var levels=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_DYNAMIC_QUALITY_ONLY")=="1"?new[]{1}:new[]{0,1,2};
                 foreach(int angle in angles)foreach(string profile in new[]{"camera","animation","reveal"})
@@ -136,6 +138,7 @@ namespace GakumasPhotoMode
                         foreach(string variant in variants)
                         {
                             s.temporal.rejectMixedSurfaceHistory=observations.rejectMixedSurfaceHistory&&variant!="legacy-warm";
+                            s.temporal.preserveSurfaceCoverage=observations.preserveSurfaceCoverage&&variant!="legacy-warm";
                             example.ResetHistory();s.temporal.enabled=variant!="unjittered";double a=0,e=0;
                             for(int frame=variant=="unjittered"?8:0;frame<16;frame++)
                             {

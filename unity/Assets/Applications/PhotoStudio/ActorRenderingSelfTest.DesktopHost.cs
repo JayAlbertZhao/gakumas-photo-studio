@@ -901,6 +901,87 @@ namespace GakumasPhotoMode
                 Check("coherent-keyword-disabled-default-exact",Difference(legacyRestored,legacyCold)==0,Difference(legacyRestored,legacyCold));
             }
             finally {camera.projectionMatrix=coherentProjection;settings.temporal.jitterUv=Vector2.zero;settings.temporal.rejectMixedSurfaceHistory=false;settings.actors.temporalFlags=null;}
+            // Coverage reconstruction is separately opt-in. Keep every prior
+            // fixture ahead of it so old records/artifacts remain comparable.
+            try
+            {
+                int w=settings.scene.output.width,h=settings.scene.output.height;
+                if(!TemporalProjectionJitter.TryCreate(coherentProjection,new Vector2Int(w,h),new Vector2(.25f,-.375f),out var jitter))throw new InvalidOperationException("Coverage projection");
+                camera.projectionMatrix=jitter.projection;settings.temporal.jitterUv=jitter.correctionUv;
+                var legacy=Run("coverage-legacy-cold",SrpActorForward.Storage.SeparateHalf,out _);
+                Run("coverage-legacy-warm",SrpActorForward.Storage.SeparateHalf,out _,false);
+                settings.temporal.preserveSurfaceCoverage=true;
+                var cold=Run("coverage-enabled-cold",SrpActorForward.Storage.SeparateHalf,out _,false);
+                Check("coverage-enable-resets-history",UsedCount()==0,UsedCount());
+                Check("coverage-cold-preserves-current",Difference(cold,legacy)<.00001f,Difference(cold,legacy));
+                Run("coverage-stationary-warm",SrpActorForward.Storage.SeparateHalf,out _,false);
+                int Index(int x,int y)=>Mathf.Clamp(x,0,w-1)+Mathf.Clamp(y,0,h-1)*w;
+                int mixedUsed=0;bool finite=true;
+                for(int y=0;y<h;y++)for(int x=0;x<w;x++)
+                {
+                    int i=x+y*w;float rx=x-jitter.correctionUv.x*w,ry=y-jitter.correctionUv.y*h;
+                    int sx=Mathf.FloorToInt(rx),sy=Mathf.FloorToInt(ry),id=(int)lastTemporal[i].g;
+                    bool mixed=false;for(int dy=0;dy<2;dy++)for(int dx=0;dx<2;dx++)mixed|=((int)lastMotion[Index(sx+dx,sy+dy)].a&~14)!=id;
+                    if(id>0&&mixed&&lastTemporal[i].a>0)mixedUsed++;
+                    for(int c=0;c<4;c++)finite&=!float.IsNaN(lastTemporal[i][c])&&!float.IsInfinity(lastTemporal[i][c]);
+                }
+                Check("coverage-retains-mixed-history",mixedUsed>20&&finite,mixedUsed);
+                var priorGuide=(Color[])lastTemporal.Clone();
+                actor.transform.position+=new Vector3(.0375f,.0225f,0);
+                Run("coverage-moving",SrpActorForward.Storage.SeparateHalf,out _,false);
+                int used=0,fractional=0;bool supportedAll=true;
+                for(int y=0;y<h;y++)for(int x=0;x<w;x++)
+                {
+                    int i=x+y*w;if(lastTemporal[i].a<=0)continue;used++;
+                    float rx=x-jitter.correctionUv.x*w,ry=y-jitter.correctionUv.y*h;
+                    int cx=Mathf.FloorToInt(rx),cy=Mathf.FloorToInt(ry);float fx=rx-cx,fy=ry-cy;
+                    var motion=lastMotion[Index(Mathf.FloorToInt(rx+.5f),Mathf.FloorToInt(ry+.5f))];
+                    float closest=((int)motion.a&~14)!=0&&motion.b>0?motion.b:float.MaxValue;
+                    for(int ay=0;ay<2;ay++)for(int ax=0;ax<2;ax++)
+                    {
+                        if((ax==0?1-fx:fx)*(ay==0?1-fy:fy)<=1e-6f)continue;
+                        var g=lastMotion[Index(cx+ax,cy+ay)];
+                        if(((int)g.a&~14)!=0&&((int)g.a&6)==0&&g.b>0&&g.b<closest){motion=g;closest=g.b;}
+                    }
+                    float px=rx-motion.r*w+jitter.correctionUv.x*w,py=ry-motion.g*h+jitter.correctionUv.y*h;
+                    int bx=Mathf.FloorToInt(px),by=Mathf.FloorToInt(py);float ux=px-bx,uy=py-by;
+                    if(ux>.01f&&ux<.99f&&uy>.01f&&uy<.99f)fractional++;
+                    for(int dy=0;dy<2;dy++)for(int dx=0;dx<2;dx++)
+                    {
+                        if((dx==0?1-ux:ux)*(dy==0?1-uy:uy)<=1e-6f)continue;
+                        int hx=bx+dx,hy=by+dy;if(hx<0||hx>=w||hy<0||hy>=h){supportedAll=false;continue;}
+                        var meta=priorGuide[hx+hy*w];bool supported=false;
+                        for(int sy=0;sy<2;sy++)for(int sx=0;sx<2;sx++)
+                        {
+                            if((sx==0?1-fx:fx)*(sy==0?1-fy:fy)<=1e-6f)continue;
+                            int q=Index(cx+sx,cy+sy);var g=lastMotion[q];int id=(int)g.a&~14;float depth=lastExpectedDepth[q].r;
+                            bool compatible=id==0?meta.g==0&&meta.b>=1:((int)g.a&8)!=0&&meta.b>=1&&depth>0&&
+                                Mathf.Abs(meta.r-depth)<=settings.temporal.depthTolerance+Mathf.Abs(depth)*.000977f&&
+                                Mathf.Abs((g.r-motion.r)*w)<=1&&Mathf.Abs((g.g-motion.g)*h)<=1;
+                            supported|=((int)g.a&6)==0&&(int)meta.g==id&&compatible;
+                        }
+                        supportedAll&=supported;
+                    }
+                }
+                Check("coverage-moving-whole-footprint-supported",used>100&&fractional>20&&supportedAll,fractional);
+                actor.transform.position=originalPosition;
+                settings.actors.temporalFlags=(r,i)=>TemporalPixelFlags.NoJitter;
+                var coverageNoJitter=Run("coverage-no-jitter",SrpActorForward.Storage.SeparateHalf,out _,false);
+                int coverageExcluded=0;float error=0;bool rejected=true;
+                for(int i=0;i<lastMotion.Length;i++)if(((int)lastMotion[i].a&4)!=0)
+                {coverageExcluded++;rejected&=lastTemporal[i].a==0&&lastTemporal[i].b==0;for(int c=0;c<4;c++)error=Mathf.Max(error,Mathf.Abs(coverageNoJitter[i][c]-lastOpaque[i][c]));}
+                Check("coverage-no-jitter-exact-and-ineligible",coverageExcluded>100&&rejected&&error==0,error);
+                settings.actors.temporalFlags=(r,i)=>TemporalPixelFlags.ExcludeTaa;
+                Run("coverage-excluded",SrpActorForward.Storage.SeparateHalf,out _,false);
+                rejected=true;coverageExcluded=0;
+                for(int i=0;i<lastMotion.Length;i++)if(((int)lastMotion[i].a&2)!=0){coverageExcluded++;rejected&=lastTemporal[i].a==0&&lastTemporal[i].b==0;}
+                Check("coverage-exclude-taa-ineligible",coverageExcluded>100&&rejected,coverageExcluded);
+                settings.actors.temporalFlags=null;settings.temporal.preserveSurfaceCoverage=false;
+                var restored=Run("coverage-legacy-restored",SrpActorForward.Storage.SeparateHalf,out _,false);
+                Check("coverage-disable-resets-history",UsedCount()==0,UsedCount());
+                Check("coverage-keyword-disabled-default-exact",Difference(restored,legacy)==0,Difference(restored,legacy));
+            }
+            finally {camera.projectionMatrix=coherentProjection;actor.transform.position=originalPosition;settings.temporal.jitterUv=Vector2.zero;settings.temporal.preserveSurfaceCoverage=false;settings.actors.temporalFlags=null;}
             settings.reflections.enabled=settings.planar.enabled=false;
             settings.includeSceneMotion=false;settings.reuseSceneMotionStorage=false;
             settings.actors.configureMaterial=originalConfigure;
