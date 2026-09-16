@@ -127,6 +127,35 @@ MRT 颜色差异问题。动态发丝、复杂透明／遮挡、联合曝光与�
 可用于固定几何上的揭露对照。逐帧最大误差和区域 MSE 均保留，不用整图平均掩盖拖影。
 诊断对历史是否改善角色／轮廓的参考 MSE 保留严格检查；执行路径存在不代表检查通过。
 
+使用自己的本地资产运行完整的 TAA／景深组合矩阵（PowerShell）：
+
+```powershell
+$env:GAKUMAS_CHARACTER_JITTER_FRONT_ONLY = '0'
+$env:GAKUMAS_CHARACTER_DYNAMIC_QUALITY_ONLY = '0'
+$env:GAKUMAS_CHARACTER_DYNAMIC_COHERENT = '0'
+$env:GAKUMAS_CHARACTER_DYNAMIC_COVERAGE = '1'
+$env:GAKUMAS_CHARACTER_DYNAMIC_PAIRED_POLICY = '1'
+$env:GAKUMAS_CHARACTER_DYNAMIC_DOF = '1'
+$run = Start-Process -FilePath ./unity/output/KotonePhotoStudio.exe -WindowStyle Hidden `
+  -ArgumentList '-force-d3d11 --photo-mode --validate-srp-actor-character ./validation/dynamic-dof-d3d11 --validate-actor-shadows --validate-desktop-character --validate-desktop-dynamic-jitter' `
+  -Wait -PassThru
+$run.ExitCode
+```
+
+资产配置和角色选择沿用上面的角色诊断入口；结果目录请使用新目录。将图形参数改为
+`-force-vulkan` 并使用另一个结果目录可检查 Vulkan。环境变量只选择诊断配置，不改变
+默认摄影应用；完成后在当前 shell 清除这些变量，避免影响后续诊断。完整运行会输出
+大量逐帧 PNG／浮点 RAW，并非快速启动检查。应同时检查进程退出码、整份报告的
+`accepted` 与具体失败项，不能只检查结果文件存在。
+
+导出使用可复用的 CPU 读回／PNG 临时纹理。该诊断在同一次 Unity 更新中执行许多
+离屏样本，逐样本创建再 `Destroy` 会积累尚未销毁的对象；Unity 在当前更新结束后
+才实际销毁对象，见 [Unity 2022.3 生命周期说明](https://docs.unity3d.com/ja/2022.3/ScriptReference/Object.Destroy.html)。
+现在按读回尺寸复用 Float4 纹理，PNG 使用一张 RGBA8 纹理；`GetPixels` 返回的每份
+CPU 图像仍独立保存，采样顺序、时间、颜色转换和 RAW 格式均不变。
+报告中的 `readbackScratchTextures`、`previewScratchTextures`、`scratchTextureBytes`
+描述这部分名义分配；不是整个诊断的内存或实测 VRAM。临时对象随诊断结束统一释放。
+
 ### TAA 与景深的深度对齐
 
 `DesktopFrameRenderer` 在 TAA、DOF 均启用且 `temporal.jitterUv` 非零时，自动用
@@ -267,9 +296,22 @@ metadata 约 `1.72e-8`，最终 RAW 与运行时完全一致。此处原生新�
 几何，不冒充真实角色原生新版本逐像素证明。更多服装、完整透明层／舞台及移动成本
 仍未验收；本次矩阵通过也不关闭已有其他运行的 Vulkan 严格颜色失败。
 
-当前版本还重新执行了一个服装的正面 Quality 联合 DOF 配对序列：两种 API 的报告
-均通过，每种 API 的 24 份空间参考及 288 条区域指标独立重算，三条轨迹的末帧重播
-精确一致。此前深度适配器初版的 Vulkan 失败仍保留，未将后续通过当作该数值问题的修复。
+联合 30 点 DOF 的配对序列已从正面 Quality 扩展到一个服装的前／侧／后、
+Native／Quality／Performance 和三条轨迹。每种 API 的 72 份同时刻空间参考与
+2,592 条区域指标从 RAW 独立重算，27 条轨迹的末帧重播精确一致。两种 API 的
+角色／轮廓累计 MSE 均优于 cold；动画／揭露各区域相对旧 warm 的退化不超过 1%。
+新可见区域仍有取舍，例如 Vulkan 背面 Quality 揭露 MSE 比 cold 高约 0.73%。
+
+D3D11 整份报告通过；Vulkan 整份报告仍因原有
+`temporal-view-180-motion-mrt-retains-real-color` 失败，最大差约 `1.91e-6`。
+此前约 `3.81e-6`、`7.63e-6` 的失败也保留，没有放宽门限或宣称修复了该数值问题。
+参考逐样本执行同一个景深模型，不是镜头光线积分或原版图像；此范围也不覆盖完整
+透明特效、曝光积分、所有服装或整个 P02。
+
+扩展诊断同时暴露了导出临时纹理累积的问题。复用修正后，两种 API 在 3,123 次读回、
+3,189 次 PNG 导出期间仅创建一张读回和一张预览纹理，名义共 5 MiB；
+本次 Vulkan 日志的低内存分配警告由先前运行的 7,710 条降为零。渲染模块、采样顺序
+和默认应用未改动；该结果不证明移动性能，也不将严格颜色失败归因于这些内存警告。
 
 ## 核心输入与调用顺序
 
@@ -294,7 +336,8 @@ Scene 列表不得包含 Actor，以免把角色写进场景反射历史。Plana
    当前角色自阴影、场景、可选 Planar、SSR／Probe、完整 Actor。
 2. 宿主 `context.Submit()`。失败的尝试也可能已经录制了部分命令，必须处理这些命令。
 3. `TryFinishAfterSubmission(opaque, seconds, out frame, out error)`：联合透明特效、
-   可选整帧 TAA、可选 DOF、可选调色。特效与 DOF 使用当前 Actor 合成后的 eye depth。
+   可选 TAA → DOF → Motion Blur → Bloom → FSR → Diffusion → 调色。
+   特效使用当前 Actor 合成后的 `eyeDepth`；DOF 使用按需对齐的 `postEyeDepth`。
 4. 使用 `frame.color`，完成需要的复制／输出／呈现。
 5. 确认 GPU 已经不再使用本帧资源，再调用 `RetireAfterGpuCompletion()`。
 
@@ -315,7 +358,7 @@ Scene 列表不得包含 Actor，以免把角色写进场景反射历史。Plana
 ## 覆盖边界
 
 目前是桌面显式离屏协调器。完整 Actor 运动、可选场景运动与方差裁剪 TAA 已有显式接入，
-已可选串联 Motion Blur、自主 Bloom 和 FSR；Diffusion 尚未串联。GBuffer2／GBuffer4／硬件深度原位复用均为可选路径，不改变默认存储。
+已可选串联 Motion Blur、自主 Bloom、FSR 和 Diffusion。GBuffer2／GBuffer4／硬件深度原位复用均为可选路径，不改变默认存储。
 各模块单独存在，不意味着已进入这条整帧路径。
 
 示例的 primitive 角色只能说明模块如何接入；不证明真实头发／面部贴花／复杂透明

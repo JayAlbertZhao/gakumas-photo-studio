@@ -9,6 +9,18 @@ SOURCE = (RUNTIME / 'DesktopFrameRenderer.cs').read_text(encoding='utf-8')
 
 
 class DesktopHostContract(unittest.TestCase):
+    def test_character_matrix_reuses_export_scratch_without_changing_sample_clock(self):
+        source=(ROOT / 'unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs').read_text(encoding='utf-8')
+        readback=source[source.index('private Color[] ReadPixels('):source.index('private static float MaximumDifference(')]
+        for token in ('readbackScratch.TryGetValue(size,out var copy)', 'return copy.GetPixels()',
+                      'finally{RenderTexture.active=previous;}', 'if(previewScratch==null)', 'previewScratch.EncodeToPNG()'):
+            self.assertIn(token,readback)
+        self.assertNotIn('Destroy(',readback)
+        self.assertNotIn('DestroyImmediate',source)
+        self.assertIn('readbackScratch.Clear();previewScratch=null;',source)
+        self.assertIn('export-reuses-bounded-scratch',source)
+        self.assertIn('writer.Write(p[c])',readback)
+
     def test_coverage_discounts_repeated_fractional_history_resampling(self):
         shader=(RUNTIME / 'Resources/FrameTemporalAntialiasing.shader').read_text(encoding='utf-8')
         fixture=(ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopHost.cs').read_text(encoding='utf-8')

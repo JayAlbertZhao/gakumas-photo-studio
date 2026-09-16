@@ -29,12 +29,17 @@ namespace GakumasPhotoMode
         {
             public string schema="photo-studio.srp-actor-character.v1",graphicsDevice,costume,error;
             public bool accepted;public int renderers,draws,materials;public int[] materialTypes;
+            public int readbackScratchTextures,previewScratchTextures,readbackCalls,previewExports;
+            public long scratchTextureBytes;
             public List<Geometry> geometry=new List<Geometry>();public List<Check> checks=new List<Check>();
             public List<PrecisionSample> precisionSweep=new List<PrecisionSample>();
         }
         private const int Size=512;
         private PhotoModeApp app;private string directory;
         private readonly List<UnityEngine.Object> owned=new List<UnityEngine.Object>();
+        private readonly Dictionary<Vector2Int,Texture2D> readbackScratch=new Dictionary<Vector2Int,Texture2D>();
+        private Texture2D previewScratch;
+        private int readbackCalls,previewExports;
         private T Own<T>(T value) where T:UnityEngine.Object { owned.Add(value);return value; }
         public static bool TryStart(PhotoModeApp app)
         {
@@ -420,6 +425,12 @@ namespace GakumasPhotoMode
                 actor.Dispose();Check("dispose-keeps-original-character",!current.IsCurrent&&actor.NominalTextureBytes==0&&SourceSnapshot(renderers)==sourceBefore&&output.IsCreated());
                 if(Environment.GetCommandLineArgs().Contains("--validate-desktop-character"))
                     VerifyDesktopCharacter(report,renderers,head,bounds,baseInputs,sourceBefore);
+                report.readbackScratchTextures=readbackScratch.Count;report.previewScratchTextures=previewScratch!=null?1:0;
+                report.readbackCalls=readbackCalls;report.previewExports=previewExports;
+                foreach(var texture in readbackScratch.Values)report.scratchTextureBytes+=(long)texture.width*texture.height*16;
+                if(previewScratch!=null)report.scratchTextureBytes+=(long)previewScratch.width*previewScratch.height*4;
+                Check("export-reuses-bounded-scratch",readbackScratch.Count==1&&previewScratch!=null&&
+                    readbackCalls>1&&previewExports>1&&report.scratchTextureBytes==(long)Size*Size*20,readbackScratch.Count+1);
                 report.accepted=report.checks.All(c=>c.accepted);
             }
             catch(Exception error){report.error=error.ToString();Debug.LogException(error);}
@@ -430,21 +441,30 @@ namespace GakumasPhotoMode
                 GraphicsSettings.renderPipelineAsset=oldGraphics;QualitySettings.renderPipeline=oldQuality;RenderTexture.active=oldActive;
                 foreach(var value in owned)if(value is GameObject go){var c=go.GetComponent<Camera>();if(c!=null)c.targetTexture=null;}
                 foreach(var value in owned){if(value is RenderTexture t)t.Release();if(value!=null)Destroy(value);}owned.Clear();
+                readbackScratch.Clear();previewScratch=null;
             }
             try{File.WriteAllText(Path.Combine(directory,"srp-actor-character.json"),JsonUtility.ToJson(report,true));}catch(Exception error){report.accepted=false;Debug.LogException(error);}
             Debug.Log("[SrpActorCharacterValidation] accepted="+report.accepted+"; checks="+report.checks.Count);Application.Quit(report.accepted?0:2);
         }
         private static bool Finite(float x)=>!float.IsNaN(x)&&!float.IsInfinity(x);
-        private static Color[] ReadPixels(RenderTexture texture)
+        private Color[] ReadPixels(RenderTexture texture)
         {
-            var previous=RenderTexture.active;var copy=new Texture2D(texture.width,texture.height,TextureFormat.RGBAFloat,false,true);
-            try{RenderTexture.active=texture;copy.ReadPixels(new Rect(0,0,texture.width,texture.height),0,0);copy.Apply();return copy.GetPixels();}
-            finally{RenderTexture.active=previous;Destroy(copy);}
+            // This diagnostic renders thousands of explicit samples in one
+            // Unity update. Destroy is deferred, so per-sample textures would
+            // accumulate until the whole matrix returns. Reuse only scratch;
+            // GetPixels still returns an independent snapshot for every sample.
+            var size=new Vector2Int(texture.width,texture.height);
+            if(!readbackScratch.TryGetValue(size,out var copy))
+            {copy=Own(new Texture2D(size.x,size.y,TextureFormat.RGBAFloat,false,true));readbackScratch.Add(size,copy);}
+            var previous=RenderTexture.active;
+            try{RenderTexture.active=texture;copy.ReadPixels(new Rect(0,0,size.x,size.y),0,0);copy.Apply();readbackCalls++;return copy.GetPixels();}
+            finally{RenderTexture.active=previous;}
         }
         private void Save(string name,Color[] values)
         {
-            var image=new Texture2D(Size,Size,TextureFormat.RGBA32,false,true);
-            try{image.SetPixels(values.Select(p=>p.gamma).ToArray());image.Apply();File.WriteAllBytes(Path.Combine(directory,name+".png"),image.EncodeToPNG());}finally{Destroy(image);}
+            if(previewScratch==null)previewScratch=Own(new Texture2D(Size,Size,TextureFormat.RGBA32,false,true));
+            previewScratch.SetPixels(values.Select(p=>p.gamma).ToArray());previewScratch.Apply();
+            File.WriteAllBytes(Path.Combine(directory,name+".png"),previewScratch.EncodeToPNG());previewExports++;
             using var writer=new BinaryWriter(File.Create(Path.Combine(directory,name+".raw")));foreach(var p in values)for(int c=0;c<4;c++)writer.Write(p[c]);
         }
         private static float MaximumDifference(Color[] a,Color[] b)

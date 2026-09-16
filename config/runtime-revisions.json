@@ -686,7 +686,7 @@
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpActorGuards.cs.meta": "a741544e95a80ba63bc8f623c9714dcd6ff88007d0f7e9890dea31dfc38d50c5",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpActorReflection.cs": "2fbafb344b82c12422ab9902bec29db834191e934eeea423f6bf3d5bc749898a",
     "unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpActorReflection.cs.meta": "6c2e0a4d6407bb9bfe1f3ef4e3e5cc51314d17ce9a6bfb7bc6f4a9b5e4780a9f",
-    "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs": "02cb1ce2bf2a75480ef1b43d19d56f31347a97c553bbf5ef9393441298b2b109",
+    "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs": "78af020c0980ce243868b4c868692937765e380bf7e31399b33c2142b5c497fb",
     "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs.meta": "b1c0da4891a2515bdfc5a4d94d91c4f26e2c962dd14d0b2ad8affca29adc9e27",
     "packages/com.digital-kotone.toolkit/Runtime/ActorShadowInputs.cs": "da81fb1d3223ab2248f7eb3d31205ee781d1dc657bed798ac9b61da7416ac3f6",
     "packages/com.digital-kotone.toolkit/Runtime/SrpActorShadow.cs": "020470ebbb898325ce67c4c3ea6597b9abe0f3dafdbfcf0e3e53c81237e36d0b",
