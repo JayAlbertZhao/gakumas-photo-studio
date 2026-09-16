@@ -22,6 +22,8 @@ namespace GakumasPhotoMode
             public float cameraStepInCharacterHeights=.03f,animationRate=6;
             public int referenceSamples=32,convergenceSamples=16;
             public bool subpixelReconstruction;
+            public bool coupledPost;
+            public float transparentStepInCharacterHeights=.04f;
             public List<ExposureMetric> measurements=new List<ExposureMetric>();
         }
         private void VerifyDesktopExposure(Report report,DesktopHostExample example,Transform head,Bounds bounds,
@@ -30,6 +32,7 @@ namespace GakumasPhotoMode
             var s=example.Configuration;var camera=example.RenderCamera;var observations=new ExposureDiagnostics();
             var position=camera.transform.position;var rotation=camera.transform.rotation;var projection=camera.projectionMatrix;
             var grade=s.colorGrade;int visibility=camera.cullingMask;
+            var priorSurfaces=s.effects.geometry.surfaces;
             void Check(string name,bool ok,float value=0)=>report.checks.Add(new Check {name="desktop-character-exposure-"+name,accepted=ok,value=value});
             Color[] Average(List<Color[]> frames)
             {
@@ -62,18 +65,46 @@ namespace GakumasPhotoMode
                 s.motionBlur.samples=64;s.motionBlur.maximumRadiusPixels=24;
                 observations.subpixelReconstruction=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_SUBPIXEL")=="1";
                 s.motionBlur.subpixelReconstruction=observations.subpixelReconstruction;
-                foreach(int angle in new[]{0,90,180})foreach(string profile in new[]{"camera","animation"})
+                observations.coupledPost=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_COUPLED_POST")=="1";
+                LowResolutionFxSurface transparent=null;
+                if(observations.coupledPost)
+                {
+                    observations.scope="One caller-supplied outfit, native512, three views. DOF plus generated full-resolution alpha surface and centered32midpoint time integration, with separate16midpoint convergence. Camera-only, clip-only and transparent-only motion. The reference applies the SAME screen-space DOF at every sub-time: it checks temporal coupling, NOT physical aperture integration or correct transparent lens depth. No TAA, original-game, mobile or full framework acceptance. Actor/silhouette and FX masks are image-difference proxies.";
+                    var mesh=Own(new Mesh {name="Independent coupled exposure alpha quad"});
+                    mesh.vertices=new[]{new Vector3(-.5f,-.5f,0),new Vector3(.5f,-.5f,0),new Vector3(.5f,.5f,0),new Vector3(-.5f,.5f,0)};
+                    mesh.uv=new[]{Vector2.zero,Vector2.right,Vector2.one,Vector2.up};mesh.triangles=new[]{0,1,2,0,2,3};mesh.RecalculateBounds();
+                    transparent=new LowResolutionFxSurface {mesh=mesh,resolution=FxResolution.Full,blend=FxBlend.Alpha,opacity=.6f,radialSoftness=.4f,linearRadiance=new Vector3(.1f,1.5f,2),fog=false};
+                    s.effects.enabled=s.effects.geometry.enabled=s.depthOfField.enabled=true;
+                    s.effects.geometry.surfaces=new[]{transparent};
+                    s.depthOfField.focusMode=BokehFocusMode.FocusRange;s.depthOfField.maximumRadius=.012f;
+                    s.depthOfField.nearBlur=s.depthOfField.farBlur=1;
+                }
+                foreach(int angle in new[]{0,90,180})foreach(string profile in observations.coupledPost?new[]{"camera","animation","transparent"}:new[]{"camera","animation"})
                 {
                     app.EvaluateMotion(.7f);view(angle);var target=head.position+head.up*(bounds.size.y*.025f);
                     var direction=(camera.transform.position-bounds.center).normalized;
                     camera.transform.position=target+direction*(bounds.size.y*.62f);camera.transform.LookAt(target);camera.ResetProjectionMatrix();
                     var origin=camera.transform.position;var facing=camera.transform.rotation;var right=camera.transform.right;
+                    float distance=Vector3.Distance(origin,target);
+                    if(observations.coupledPost)
+                    {
+                        s.depthOfField.focusNear=distance*1.02f;s.depthOfField.focusFar=distance*1.15f;
+                        s.depthOfField.nearTransition=distance*.3f;s.depthOfField.farTransition=distance*.5f;
+                    }
                     string label="view-"+angle+"-"+profile;
                     Color[] Render(string name,float clock)
                     {
                         float offset=clock-observations.centerTime;
                         camera.transform.SetPositionAndRotation(origin+(profile=="camera"?right*(bounds.size.y*observations.cameraStepInCharacterHeights*offset/observations.sampleInterval):Vector3.zero),facing);
                         float pose=.7f+(profile=="animation"?offset*observations.animationRate:0);
+                        if(transparent!=null)
+                        {
+                            // World-space surface: fixed during camera/clip controls,
+                            // moves independently of opaque geometry in the FX control.
+                            var center=Vector3.Lerp(origin,target,.75f)+right*(bounds.size.y*.06f);
+                            if(profile=="transparent")center+=right*(bounds.size.y*observations.transparentStepInCharacterHeights*offset/observations.sampleInterval);
+                            transparent.localToWorld=Matrix4x4.TRS(center,facing,Vector3.one*(bounds.size.y*.18f));
+                        }
                         return run("exposure-"+label+"-"+name,clock,pose);
                     }
                     Color[] Sequence(string name,bool blur)
@@ -93,6 +124,14 @@ namespace GakumasPhotoMode
                     var paused=Render("paused",observations.centerTime);
                     Check(label+"-paused-no-exposure-exact",MaximumDifference(current,paused)==0,MaximumDifference(current,paused));
                     s.motionBlur.enabled=false;
+                    Color[] noFx=null;
+                    if(observations.coupledPost)
+                    {
+                        s.effects.enabled=false;example.ResetHistory();noFx=Render("fx-off",observations.centerTime);s.effects.enabled=true;
+                        s.depthOfField.enabled=false;example.ResetHistory();var noDof=Render("dof-off",observations.centerTime);s.depthOfField.enabled=true;
+                        Check(label+"-fx-positive-control",Changed(current,noFx,.00001f)>100,Changed(current,noFx,.00001f));
+                        Check(label+"-dof-positive-control",Changed(current,noDof,.00001f)>100,Changed(current,noDof,.00001f));
+                    }
                     camera.cullingMask=1<<22;example.ResetHistory();var excluded=Render("excluded",observations.centerTime);camera.cullingMask=visibility;
                     Color[] Reference(int samples)
                     {
@@ -106,16 +145,18 @@ namespace GakumasPhotoMode
                     }
                     var reference=Reference(observations.referenceSamples);var convergence=Reference(observations.convergenceSamples);
                     var actor=new bool[Size*Size];var silhouette=new bool[actor.Length];var whole=new bool[actor.Length];
+                    var fx=new bool[actor.Length];
                     for(int p=0;p<actor.Length;p++){whole[p]=true;actor[p]=Mathf.Abs(current[p].r-excluded[p].r)+Mathf.Abs(current[p].g-excluded[p].g)+Mathf.Abs(current[p].b-excluded[p].b)>.001f;}
+                    if(noFx!=null)for(int p=0;p<fx.Length;p++)fx[p]=Mathf.Abs(current[p].r-noFx[p].r)+Mathf.Abs(current[p].g-noFx[p].g)+Mathf.Abs(current[p].b-noFx[p].b)>.001f;
                     for(int y=1;y<Size-1;y++)for(int x=1;x<Size-1;x++)
                     {
                         int p=y*Size+x;bool edge=actor[p]!=actor[p-1]||actor[p]!=actor[p+1]||actor[p]!=actor[p-Size]||actor[p]!=actor[p+Size];
                         if(edge)for(int dy=-3;dy<=3;dy++)for(int dx=-3;dx<=3;dx++)
                         {int xx=x+dx,yy=y+dy;if(xx>=0&&xx<Size&&yy>=0&&yy<Size)silhouette[yy*Size+xx]=true;}
                     }
-                    foreach(string region in new[]{"actor","silhouette","whole"})
+                    foreach(string region in observations.coupledPost?new[]{"actor","silhouette","whole","fx"}:new[]{"actor","silhouette","whole"})
                     {
-                        var mask=region=="actor"?actor:region=="silhouette"?silhouette:whole;
+                        var mask=region=="actor"?actor:region=="silhouette"?silhouette:region=="fx"?fx:whole;
                         var rawError=Measure(label,"unblurred",region,current,reference,mask);var blurError=Measure(label,"blurred",region,blurred,reference,mask);
                         Measure(label,"reference16",region,convergence,reference,mask);
                         if(legacy!=null)
@@ -135,6 +176,7 @@ namespace GakumasPhotoMode
             finally
             {
                 example.ResetHistory();s.motionBlur.enabled=false;s.colorGrade=grade;camera.cullingMask=visibility;
+                s.effects.geometry.surfaces=priorSurfaces;
                 camera.transform.SetPositionAndRotation(position,rotation);camera.projectionMatrix=projection;
                 File.WriteAllText(Path.Combine(directory,"character-exposure-diagnostics.json"),JsonUtility.ToJson(observations,true));
             }

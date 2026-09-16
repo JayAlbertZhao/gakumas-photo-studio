@@ -65,4 +65,14 @@ class MotionBlurContract(unittest.TestCase):
         self.assertLess(post.index('TryResolveMotionBlur('),post.index('RenderTexture bloom ='))
         self.assertIn('sceneMotionBlurSource?.ResetMotionBlurHistory();',post)
 
+    def test_coupled_exposure_reference_keeps_failures_and_separate_motion(self):
+        fixture=(ROOT/'unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.Exposure.cs').read_text(encoding='utf-8')
+        for token in ('GAKUMAS_CHARACTER_EXPOSURE_COUPLED_POST', '"camera","animation","transparent"',
+                      'FxResolution.Full', 'FxBlend.Alpha', 'transparent.localToWorld=Matrix4x4.TRS',
+                      'referenceSamples=32,convergenceSamples=16', 'frames.Add(Render(',
+                      'fx-positive-control', 'dof-positive-control', 'exposure-improves-unblurred',
+                      'NOT physical aperture integration', 's.effects.geometry.surfaces=priorSurfaces'):
+            self.assertIn(token,fixture)
+        self.assertNotIn('blurError.mappedMse<=rawError.mappedMse',fixture)
+
 if __name__=='__main__':unittest.main()
