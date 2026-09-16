@@ -327,6 +327,24 @@ class DesktopHostContract(unittest.TestCase):
                       'reenabled-exact-current', 'invalid-budget-before-record'):
             self.assertIn(token, fixture)
 
+    def test_character_exposure_uses_independent_clock_pose_and_linear_midpoints(self):
+        app = ROOT / 'unity/Assets/Applications/PhotoStudio'
+        host = (app / 'SrpActorCharacterValidation.DesktopHost.cs').read_text(encoding='utf-8')
+        fixture = (app / 'SrpActorCharacterValidation.Exposure.cs').read_text(encoding='utf-8')
+        self.assertIn('app.EvaluateMotion(poseTime??time)', host)
+        self.assertIn('--validate-desktop-exposure', host)
+        for token in ('centerTime=.8f,sampleInterval=.02f,shutterAngle=180,halfExposure=.005f',
+                      'referenceSamples=32,convergenceSamples=16', 'new[]{"camera","animation"}',
+                      's.colorGrade=null', 's.temporal.enabled=false', 'double sum=0',
+                      '(i+.5f)/samples*2-1', 'example.ResetHistory();frames.Add(Render(',
+                      'seek-replay-exact', 'cold-no-exposure-exact', 'paused-no-exposure-exact',
+                      'finite-metric-only', 'time-integral-positive-control',
+                      'camera.cullingMask=visibility', 'camera.projectionMatrix=projection'):
+            self.assertIn(token, fixture)
+        for token in ('Time.', 'File.Read', 'Graphics.Blit'):
+            self.assertNotIn(token, fixture)
+        self.assertRegex((app / 'SrpActorCharacterValidation.Exposure.cs.meta').read_text(), r'(?m)^guid: [0-9a-f]{32}$')
+
     def test_current_foreign_and_failed_attempts_are_distinct(self):
         for required in ('!ReferenceEquals(input.owner, this)', '!input.IsCurrent',
                          'phase != Phase.Opaque', 'phase != Phase.Idle',

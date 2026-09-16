@@ -45,9 +45,9 @@ namespace GakumasPhotoMode
                     s.scene.surfaces[1].renderer.transform.SetPositionAndRotation(new Vector3(bounds.center.x,2,bounds.center.z)-direction*3,rotation);
                     s.scene.surfaces[2].renderer.transform.SetPositionAndRotation(new Vector3(bounds.center.x,1.8f,bounds.center.z)-direction*2.85f-rotation*Vector3.right*1.5f,rotation);
                 }
-                Color[] Run(string name,float time=0)
+                Color[] Run(string name,float time=0,float? poseTime=null)
                 {
-                    app.EvaluateMotion(time);
+                    app.EvaluateMotion(poseTime??time);
                     inputs.SetVector("_HeadDirection",new Vector4(head.forward.x,head.forward.y,head.forward.z,1));
                     inputs.SetVector("_HeadUpDirection",new Vector4(head.up.x,head.up.y,head.up.z,1));
                     inputs.SetVector("_HeadRightDirection",new Vector4(-head.right.x,-head.right.y,-head.right.z,1));
@@ -140,7 +140,9 @@ namespace GakumasPhotoMode
                     example.ResetHistory();var sought=Run(label+"-seek-cold",times[0]);
                     Check(label+"-seek-resets-whole-chain",MaximumDifference(resolved[0],sought)==0,MaximumDifference(resolved[0],sought));
                 }
-                if(Environment.GetCommandLineArgs().Contains("--validate-desktop-dynamic-jitter"))
+                if(Environment.GetCommandLineArgs().Contains("--validate-desktop-exposure"))
+                    VerifyDesktopExposure(report,example,head,bounds,View,(name,time,pose)=>Run(name,time,pose));
+                else if(Environment.GetCommandLineArgs().Contains("--validate-desktop-dynamic-jitter"))
                     VerifyDesktopDynamicJitter(report,example,head,bounds,View,(name,time)=>Run(name,time));
                 else if(Environment.GetCommandLineArgs().Contains("--validate-desktop-jitter"))
                     VerifyDesktopCharacterJitter(report,example,head,bounds,View,(name,time)=>Run(name,time));
