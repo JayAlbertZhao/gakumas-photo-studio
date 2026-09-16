@@ -10,6 +10,9 @@ namespace GakumasPhotoMode
     public sealed class MotionBlurSettings
     {
         public bool enabled;
+        // Opt-in compatible bilinear exposure for short motion; preserves the
+        // established integer reconstruction when false.
+        public bool subpixelReconstruction;
         public MotionBlurExposure exposure = MotionBlurExposure.ShutterAngle;
         [Range(0, 360)] public float shutterAngle = 180;
         [Range(0, 1)] public float exposureSeconds = 1f / 120;

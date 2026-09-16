@@ -134,5 +134,88 @@ namespace GakumasPhotoMode
             RenderPipeline.SubmitRenderRequest(camera,new TilePassTestRequest {record=context=>Check("invalid-budget-before-record",!host.TryRecord(context,++serial,1,out _,out var why)&&why!=null&&!host.HasPendingWork)});
             s.motionBlurMaximumMiB=256;s.motionBlur.enabled=false;sequence=serial;
         }
+
+        private void VerifyShortExposureReconstruction(Report report)
+        {
+            const int w=17,h=13;const float interval=.02f;
+            using var blur=new MotionBlurRenderer();
+            RenderTexture Target(RenderTextureFormat format)
+            {var t=Own(new RenderTexture(w,h,0,format,RenderTextureReadWrite.Linear){filterMode=FilterMode.Point});t.Create();return t;}
+            var source=Target(RenderTextureFormat.ARGBFloat);var guide=Target(RenderTextureFormat.ARGBFloat);var flags=Target(RenderTextureFormat.R8);
+            var upload=Own(new Texture2D(w,h,TextureFormat.RGBAFloat,false,true));
+            void Upload(RenderTexture target,Color[] data){upload.SetPixels(data);upload.Apply();Graphics.Blit(upload,target);}
+            void Check(string name,bool ok,float value=0)=>FrameworkCheck(report,"motion-blur-short-"+name,ok,value);
+            var colors=new Color[w*h];var guides=new Color[colors.Length];var masks=new Color[colors.Length];
+            for(int p=0;p<colors.Length;p++)colors[p]=new Color((p%7)/7f,(p%11)/11f,(p%13)/13f,.1f+(p%9)/10f);
+            Upload(source,colors);colors=ReadSceneTarget(source);
+            var settings=new MotionBlurSettings {enabled=true,subpixelReconstruction=true,samples=64,maximumRadiusPixels=12};
+            Check("default-opt-in-only",!new MotionBlurSettings().subpixelReconstruction);
+            Color[] Render(float dt=interval)
+            {
+                if(!blur.TryRender(new MotionBlurInput(source,guide,dt,default,default,flags),settings,out var frame))throw new InvalidOperationException(blur.UnavailableReason);
+                var result=ReadSceneTarget(frame.color);float alpha=0;for(int p=0;p<result.Length;p++)alpha=Mathf.Max(alpha,Mathf.Abs(result[p].a-colors[p].a));
+                Check("alpha-exact-"+report.checks.Count,alpha==0,alpha);return result;
+            }
+            // Analytic integral of a piecewise-bilinear image along a centered
+            // constant short translation, not a copy of the shader's sample loop.
+            Color[] Integral(Vector2 velocity)
+            {
+                var result=new Color[colors.Length];
+                for(int p=0;p<result.Length;p++)
+                {
+                    var v=new Vector2(guides[p].r*w*.25f,guides[p].g*h*.25f);double a=Math.Abs(v.x),b=Math.Abs(v.y);int sx=v.x<0?-1:1,sy=v.y<0?-1:1;
+                    int[] dx={0,sx,-sx,0,0,sx,-sx},dy={0,0,0,sy,-sy,sy,-sy};
+                    double[] weights={1-(a+b)/2+a*b/3,a/4-a*b/6,a/4-a*b/6,b/4-a*b/6,b/4-a*b/6,a*b/6,a*b/6};
+                    bool centerValid=guides[p].a==1&&masks[p].r<.01f;
+                    for(int c=0;c<3;c++)
+                    {
+                        double sum=0;
+                        for(int k=0;k<weights.Length;k++)
+                        {
+                            int x=p%w+dx[k],y=p/w+dy[k],q=x+y*w;
+                            bool valid=centerValid&&x>=0&&x<w&&y>=0&&y<h&&guides[q].a==1&&masks[q].r<.01f&&Math.Abs(guides[q].b-guides[p].b)<=settings.softDepthExtent;
+                            if(valid)valid=Vector2.Distance(v,new Vector2(guides[q].r*w*.25f,guides[q].g*h*.25f))<=.5f;
+                            sum+=(valid?colors[q][c]:colors[p][c])*weights[k];
+                        }
+                        result[p][c]=(float)sum;
+                    }
+                    result[p].a=colors[p].a;
+                }
+                return result;
+            }
+            foreach(var velocity in new[]{new Vector2(.47f,.45f),new Vector2(-.47f,.45f),new Vector2(.31f,-.23f),new Vector2(-.1f,-.12f)})
+            foreach(string condition in new[]{"uniform","protected","depth-edge","velocity-edge","invalid-guide"})
+            {
+                for(int p=0;p<guides.Length;p++)
+                {
+                    guides[p]=new Color(velocity.x/(w*.25f)*(condition=="velocity-edge"&&p%w>8?-1:1),velocity.y/(h*.25f),condition=="depth-edge"&&p%w>8?7:3,condition=="invalid-guide"&&p%w==8?0:1);
+                    masks[p]=new Color(condition=="protected"&&p%w==8?4f/255:0,0,0,1);
+                }
+                Upload(guide,guides);Upload(flags,masks);guides=ReadSceneTarget(guide);masks=ReadSceneTarget(flags);
+                var expected=Integral(velocity);settings.samples=16;var coarse=Render();settings.samples=64;var fine=Render();
+                float coarseError=PixelError(expected,coarse),fineError=PixelError(expected,fine);
+                string label=condition+"-"+velocity.x+"-"+velocity.y;
+                Check(label+"-analytic-whole-image",fineError<.00004f,fineError);
+                Check(label+"-quadrature-converges",fineError<coarseError,coarseError==0?0:fineError/coarseError);
+                Check(label+"-short-exposure-response",PixelError(fine,colors)>.001f,PixelError(fine,colors));
+                Check(label+"-zero-interval-exact",PixelError(Render(0),colors)==0);
+                var repeat=Render();Check(label+"-repeat-exact",PixelError(fine,repeat)==0);
+                settings.subpixelReconstruction=false;var legacy=Render();settings.subpixelReconstruction=true;
+                Check(label+"-retains-integer-baseline",PixelError(legacy,colors)<.000002f,PixelError(legacy,colors));
+                if(condition=="protected"||condition=="invalid-guide")
+                {float e=0;for(int y=0;y<h;y++)e=Mathf.Max(e,Vector4.Distance(fine[y*w+8],colors[y*w+8]));Check(label+"-protected-center-exact",e==0,e);}
+            }
+            int nearAxisCase=0;
+            foreach(var velocity in new[]{new Vector2(.47f,1e-7f),new Vector2(.47f,-1e-7f),new Vector2(1e-7f,.47f),new Vector2(-1e-7f,.47f)})
+            {
+                string label=(nearAxisCase++).ToString();
+                void Set(Vector2 v)
+                {for(int p=0;p<guides.Length;p++){guides[p]=new Color(v.x/(w*.25f),v.y/(h*.25f),3,1);masks[p]=Color.clear;}Upload(guide,guides);Upload(flags,masks);guides=ReadSceneTarget(guide);}
+                Set(velocity);var expected=Integral(velocity);var tiny=Render();
+                Check("near-axis-analytic-"+label,PixelError(expected,tiny)<.000004f,PixelError(expected,tiny));
+                Set(Mathf.Abs(velocity.x)<1e-6f?new Vector2(0,velocity.y):new Vector2(velocity.x,0));var axis=Render();
+                Check("near-axis-continuity-"+label,PixelError(tiny,axis)<.000004f,PixelError(tiny,axis));
+            }
+        }
     }
 }

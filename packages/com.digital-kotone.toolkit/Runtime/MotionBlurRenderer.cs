@@ -68,6 +68,8 @@ namespace GakumasPhotoMode
                     tile=Target(tw,th,"Toolkit motion blur tile maximum");neighborhood=Target(tw,th,"Toolkit motion blur neighborhood maximum");
                 }
                 if(material==null) material=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
+                if(settings.subpixelReconstruction)material.EnableKeyword("TOOLKIT_MOTION_BLUR_SUBPIXEL");
+                else material.DisableKeyword("TOOLKIT_MOTION_BLUR_SUBPIXEL");
                 material.SetTexture("_MotionDepth",guide);material.SetTexture("_TileMaximum",tile);material.SetTexture("_NeighborhoodMaximum",neighborhood);
                 material.SetTexture("_NoJitterFlags",input.noJitterFlags!=null?(Texture)input.noJitterFlags:Texture2D.blackTexture);
                 material.SetVector("_Size",new Vector4(source.width,source.height,1f/source.width,1f/source.height));

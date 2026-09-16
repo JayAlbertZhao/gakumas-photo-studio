@@ -6,7 +6,16 @@ Shader "Hidden/GakumasPhotoMode/MotionBlur"
         Cull Off ZWrite Off ZTest Always Blend Off
         CGINCLUDE
         #include "UnityCG.cginc"
+        #ifdef TOOLKIT_MOTION_BLUR_SUBPIXEL
+        // Explicit sampler precision matters on translated backends even for
+        // integer Load. Keep the legacy variant's declarations unchanged.
+        UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_MainTex);
+        UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_MotionDepth);
+        UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_TileMaximum);
+        UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_NeighborhoodMaximum);
+        #else
         Texture2D<float4> _MainTex,_MotionDepth,_TileMaximum,_NeighborhoodMaximum;
+        #endif
         Texture2D<float> _NoJitterFlags;
         float4 _Size,_TileSize,_MotionMapping,_Filter,_Noise;
         bool Inside(int2 pixel){return all(pixel>=0)&&all(pixel<(int2)_Size.xy);}
@@ -26,7 +35,9 @@ Shader "Hidden/GakumasPhotoMode/MotionBlur"
             v*=min(1,_TileSize.z/max(magnitude,1e-12));
             // Raster subpixel correspondence noise has no meaningful shutter direction.
             // Treat sub-half-pixel exposure as stationary, while still receiving other moving samples.
+            #ifndef TOOLKIT_MOTION_BLUR_SUBPIXEL
             if(magnitude<.5)v=0;
+            #endif
             return float4(v,sample.z,1);
         }
         float4 Tile(v2f_img input):SV_Target
@@ -62,14 +73,49 @@ Shader "Hidden/GakumasPhotoMode/MotionBlur"
         }
         // Independent tile/local-direction reconstruction informed by McGuire12 and Guertin13.
         // No previous color, hidden-surface reconstruction, or claim of the lecture's unpublished filter.
+        #ifdef TOOLKIT_MOTION_BLUR_SUBPIXEL
+        float3 ShortExposure(int2 center,float4 local,float3 current)
+        {
+            float3 sum=0;int count=(int)_Filter.z;
+            [loop]for(int i=0;i<count;i++)
+            {
+                // Centered uniform shutter. Explicit four integer loads avoid
+                // inheriting caller sampler state or blending protected guides.
+                // Split the relative displacement before adding the integer
+                // pixel. Otherwise a compiler may use frac(offset) but round
+                // center+offset first for floor, disagreeing near an axis.
+                float2 offset=local.xy*((i+.5)/count*2-1);
+                int2 origin=center+(int2)floor(offset);float2 f=frac(offset);float3 sample=0;
+                [unroll]for(int y=0;y<2;y++)[unroll]for(int x=0;x<2;x++)
+                {
+                    int2 p=origin+int2(x,y);float weight=(x==0?1-f.x:f.x)*(y==0?1-f.y:f.y);
+                    float4 other=Motion(p);
+                    bool compatible=other.w==1&&abs(other.z-local.z)<=_Filter.y&&length(other.xy-local.xy)<=.5;
+                    // Rejected/absent taps keep their weight on the current
+                    // pixel; do not leak protected colors or renormalize edges.
+                    sample+=(compatible?_MainTex.Load(int3(p,0)).rgb:current)*weight;
+                }
+                sum+=sample;
+            }
+            return sum/count;
+        }
+        #endif
         float4 Reconstruct(v2f_img input):SV_Target
         {
             int2 center=(int2)input.pos.xy;float4 color=_MainTex.Load(int3(center,0));float4 local=Motion(center);
             if(local.w!=1)return color;
-            float2 largest=_NeighborhoodMaximum.Load(int3(center/(int)_TileSize.z,0)).xy;
-            float radius=length(largest),localRadius=length(local.xy);if(radius<.5)return color;
+            float2 largest=_NeighborhoodMaximum.Load(int3((uint2)center/(uint)_TileSize.z,0)).xy;
+            float radius=length(largest),localRadius=length(local.xy);
+            #ifdef TOOLKIT_MOTION_BLUR_SUBPIXEL
+            if(radius==0)return color;
+            float3 shortColor=color.rgb;
+            if(radius<1.5)shortColor=ShortExposure(center,local,color.rgb);
+            if(radius<=1)return float4(shortColor,color.a);
+            #else
+            if(radius<.5)return color;
+            #endif
             float2 main=Direction(largest),secondary=localRadius>=.5?Direction(local.xy):float2(-main.y,main.x);
-            int directions=_TileSize.w>.5?2:1,count=(int)_Filter.z/directions;
+            int directions=_TileSize.w>.5?2:1,count=(uint)_Filter.z/(uint)directions;
             float total=(float)_Filter.z/(_Filter.w*max(localRadius,.5));float3 sum=color.rgb*total;
             float jitter=(Noise(center)-.5)*_Noise.x;
             [loop]for(int direction=0;direction<directions;direction++)[loop]for(int i=0;i<count;i++)
@@ -85,7 +131,13 @@ Shader "Hidden/GakumasPhotoMode/MotionBlur"
                     2*Cylinder(distance,min(localRadius,otherRadius))*max(a,b);
                 sum+=_MainTex.Load(int3(candidate,0)).rgb*weight;total+=weight;
             }
-            return float4(sum/total,color.a);
+            float3 result=sum/total;
+            #ifdef TOOLKIT_MOTION_BLUR_SUBPIXEL
+            // Continuous transition; no hard change at the one-pixel support
+            // boundary. Large-motion reconstruction keeps its existing model.
+            if(radius<1.5)result=lerp(shortColor,result,smoothstep(1,1.5,radius));
+            #endif
+            return float4(result,color.a);
         }
         ENDCG
         Pass
@@ -95,6 +147,7 @@ Shader "Hidden/GakumasPhotoMode/MotionBlur"
             #pragma target 4.5
             #pragma vertex vert_img
             #pragma fragment Tile
+            #pragma multi_compile_local __ TOOLKIT_MOTION_BLUR_SUBPIXEL
             ENDCG
         }
         Pass
@@ -104,6 +157,7 @@ Shader "Hidden/GakumasPhotoMode/MotionBlur"
             #pragma target 4.5
             #pragma vertex vert_img
             #pragma fragment Neighborhood
+            #pragma multi_compile_local __ TOOLKIT_MOTION_BLUR_SUBPIXEL
             ENDCG
         }
         Pass
@@ -113,6 +167,7 @@ Shader "Hidden/GakumasPhotoMode/MotionBlur"
             #pragma target 4.5
             #pragma vertex vert_img
             #pragma fragment Reconstruct
+            #pragma multi_compile_local __ TOOLKIT_MOTION_BLUR_SUBPIXEL
             ENDCG
         }
     }

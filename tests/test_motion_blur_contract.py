@@ -37,6 +37,25 @@ class MotionBlurContract(unittest.TestCase):
         for token in ('tex2D(','.Sample(','_PreviousColor'):
             self.assertNotIn(token,shader)
 
+    def test_short_exposure_is_guarded_opt_in_with_analytic_reference(self):
+        settings=(RUNTIME/'MotionBlurSettings.cs').read_text(encoding='utf-8')
+        shader=(RUNTIME/'Resources/MotionBlur.shader').read_text(encoding='utf-8')
+        renderer=(RUNTIME/'MotionBlurRenderer.cs').read_text(encoding='utf-8')
+        self.assertIn('public bool subpixelReconstruction;',settings)
+        self.assertIn('if(settings.subpixelReconstruction)material.EnableKeyword',renderer)
+        self.assertIn('else material.DisableKeyword',renderer)
+        self.assertEqual(shader.count('#pragma multi_compile_local __ TOOLKIT_MOTION_BLUR_SUBPIXEL'),3)
+        for token in ('float3 ShortExposure', 'other.w==1', 'abs(other.z-local.z)<=_Filter.y',
+                      'UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_MainTex)',
+                      'UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_MotionDepth)',
+                      'length(other.xy-local.xy)<=.5', 'compatible?_MainTex.Load',
+                      'origin=center+(int2)floor(offset);float2 f=frac(offset)',
+                      'if(radius==0)return color', 'smoothstep(1,1.5,radius)'):
+            self.assertIn(token,shader)
+        fixture=(ROOT/'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopMotionBlur.cs').read_text(encoding='utf-8')
+        for token in ('Analytic integral', 'a*b/6', 'quadrature-converges', 'protected-center-exact', 'retains-integer-baseline', 'near-axis-analytic', 'near-axis-continuity'):
+            self.assertIn(token,fixture)
+
     def test_post_order_and_failure_current_passthrough(self):
         post=(RUNTIME/'OriginalStyleRenderPipeline.cs').read_text(encoding='utf-8')
         self.assertIn('public SceneDeferredCamera sceneMotionBlurSource;',post)

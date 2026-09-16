@@ -21,6 +21,7 @@ namespace GakumasPhotoMode
             public float centerTime=.8f,sampleInterval=.02f,shutterAngle=180,halfExposure=.005f;
             public float cameraStepInCharacterHeights=.03f,animationRate=6;
             public int referenceSamples=32,convergenceSamples=16;
+            public bool subpixelReconstruction;
             public List<ExposureMetric> measurements=new List<ExposureMetric>();
         }
         private void VerifyDesktopExposure(Report report,DesktopHostExample example,Transform head,Bounds bounds,
@@ -38,7 +39,7 @@ namespace GakumasPhotoMode
                 return result;
             }
             float Mapped(float x){x=Mathf.Max(0,x);return x/(1+x);}
-            void Measure(string name,string variant,string region,Color[] actual,Color[] reference,bool[] mask)
+            ExposureMetric Measure(string name,string variant,string region,Color[] actual,Color[] reference,bool[] mask)
             {
                 var row=new ExposureMetric {trajectory=name,variant=variant,region=region};double linear=0,mapped=0;
                 for(int p=0;p<mask.Length;p++)if(mask[p])
@@ -48,6 +49,7 @@ namespace GakumasPhotoMode
                 }
                 row.linearMse=(float)(linear/Math.Max(1,row.pixels*3));row.mappedMse=(float)(mapped/Math.Max(1,row.pixels*3));
                 observations.measurements.Add(row);Check(name+"-"+variant+"-"+region+"-finite-metric-only",row.pixels>0&&Finite(row.linearMse)&&Finite(row.mappedMse),row.mappedMse);
+                return row;
             }
             try
             {
@@ -58,6 +60,8 @@ namespace GakumasPhotoMode
                 s.temporal.jitterUv=s.motionBlurJitterUv=Vector2.zero;
                 s.motionBlur.exposure=MotionBlurExposure.ShutterAngle;s.motionBlur.shutterAngle=observations.shutterAngle;
                 s.motionBlur.samples=64;s.motionBlur.maximumRadiusPixels=24;
+                observations.subpixelReconstruction=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_SUBPIXEL")=="1";
+                s.motionBlur.subpixelReconstruction=observations.subpixelReconstruction;
                 foreach(int angle in new[]{0,90,180})foreach(string profile in new[]{"camera","animation"})
                 {
                     app.EvaluateMotion(.7f);view(angle);var target=head.position+head.up*(bounds.size.y*.025f);
@@ -79,6 +83,9 @@ namespace GakumasPhotoMode
                         return Render(name+"-current",observations.centerTime);
                     }
                     var current=Sequence("unblurred",false);var blurred=Sequence("blurred",true);
+                    Color[] legacy=null;
+                    if(observations.subpixelReconstruction)
+                    {s.motionBlur.subpixelReconstruction=false;legacy=Sequence("legacy",true);s.motionBlur.subpixelReconstruction=true;}
                     var repeated=Sequence("replay",true);
                     Check(label+"-seek-replay-exact",MaximumDifference(blurred,repeated)==0,MaximumDifference(blurred,repeated));
                     s.motionBlur.enabled=true;example.ResetHistory();var cold=Render("cold",observations.centerTime);
@@ -109,8 +116,17 @@ namespace GakumasPhotoMode
                     foreach(string region in new[]{"actor","silhouette","whole"})
                     {
                         var mask=region=="actor"?actor:region=="silhouette"?silhouette:whole;
-                        Measure(label,"unblurred",region,current,reference,mask);Measure(label,"blurred",region,blurred,reference,mask);
+                        var rawError=Measure(label,"unblurred",region,current,reference,mask);var blurError=Measure(label,"blurred",region,blurred,reference,mask);
                         Measure(label,"reference16",region,convergence,reference,mask);
+                        if(legacy!=null)
+                        {
+                            var legacyError=Measure(label,"legacy",region,legacy,reference,mask);
+                            if(region!="whole")
+                            {
+                                Check(label+"-"+region+"-exposure-improves-unblurred",blurError.mappedMse<rawError.mappedMse,blurError.mappedMse/Mathf.Max(rawError.mappedMse,1e-20f));
+                                Check(label+"-"+region+"-exposure-no-worse-than-legacy",blurError.mappedMse<=legacyError.mappedMse*1.00001f,blurError.mappedMse/Mathf.Max(legacyError.mappedMse,1e-20f));
+                            }
+                        }
                     }
                     Check(label+"-blur-positive-control",Changed(current,blurred,.00001f)>100,Changed(current,blurred,.00001f));
                     Check(label+"-time-integral-positive-control",Changed(current,reference,.00001f)>100,Changed(current,reference,.00001f));
