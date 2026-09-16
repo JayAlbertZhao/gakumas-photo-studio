@@ -68,6 +68,27 @@ renderer 接收已创建、同帧的线性 ARGBFloat／ARGBHalf／RGB111110Float
 
 `Frame` 只借用结果，下一次调用／失败／释放／输出目标丢失会使它失效。不可把自己的输出再作为源输入，也不能释放或改写模块目标。`RenderTexture.active` 的有效原值会还原。共享 LUT 的寿命由调用方负责，释放一个 renderer 不会释放 LUT。
 
+## 可选显式浮点三线性插值
+
+`TryRender(hdr, lut, ColorLutSampling.ExplicitFloatTrilinear, out frame)`
+使用八次整数 LUT `Load` 和 FP32 插值权重，避开硬件纹理过滤的亚纹素权重量化。
+原有三参数重载和 `HardwareTrilinear = 0` 保持原路径；不自动改变现有应用。
+`DesktopFrameRenderer.Settings.colorGradeSampling` 暴露同一选项，默认仍为硬件过滤。
+该选项是 renderer 局部 shader variant，不修改共享 LUT、全局 keyword 或输入采样器。
+未知枚举值失败并清除旧结果；节点生成、输入域、alpha 和资源所有权不变。
+
+适用情况是上游 Compute／Raster 或时序浮点微差被 LUT 过滤阶跃放大。
+显式插值增加纹理读取与算术成本，未验证移动端净收益；也不消除 LUT 节点稀疏、
+曲线近似和跨驱动浮点差异，不能保证所有 profile 的跨后端逐位一致。
+
+本机 D3D11／Vulkan 的 16³／32³／64³、Linear／Log 域自制输入分别与独立 double
+八节点插值比较：最大分量误差 `2.71e-7`／`3.00e-7`，使用相同 `1e-5` 门限。
+覆盖非有限／负值／超范围输入、alpha、采样器状态、模式往返精确恢复和资源失效。
+调用方真实角色的两套服装、三视角、两个 FSR 档位各四帧对照中，显式模式下
+Compute／Raster 最终颜色最大差异为 D3D11 `0`、Vulkan `3.10e-6`；门限仍为 `1e-4`。
+此前硬件模式 Vulkan 同类控制出现约 `1.23e-3` 差异，失败记录保留；这组结果
+只证明所测输入的数值稳定性，不是完整角色画质或所有设备的精度保证。
+
 ## Photo Studio 桥接
 
 ```csharp

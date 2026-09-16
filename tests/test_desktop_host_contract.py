@@ -9,6 +9,18 @@ SOURCE = (RUNTIME / 'DesktopFrameRenderer.cs').read_text(encoding='utf-8')
 
 
 class DesktopHostContract(unittest.TestCase):
+    def test_color_lut_explicit_weights_are_opt_in_and_local(self):
+        renderer=(RUNTIME / 'ColorGradingRenderer.cs').read_text(encoding='utf-8')
+        shader=(RUNTIME / 'Resources/AuthoredColorLut.shader').read_text(encoding='utf-8')
+        self.assertIn('HardwareTrilinear=0', renderer)
+        self.assertIn('=> TryRender(source,lut,ColorLutSampling.HardwareTrilinear,out frame)', renderer)
+        self.assertIn('material.DisableKeyword("TOOLKIT_LUT_EXPLICIT_TRILINEAR")', renderer)
+        self.assertIn('Unknown color LUT sampling mode', renderer)
+        self.assertIn('#pragma multi_compile_local _ TOOLKIT_LUT_EXPLICIT_TRILINEAR', shader)
+        self.assertEqual(shader.count('_AuthoredLut.Load('),8)
+        self.assertIn('_AuthoredLut.SampleLevel(sampler_LinearClamp,coordinate,0)', shader)
+        self.assertIn('grade.TryRender(finalColor, s.colorGrade, s.colorGradeSampling,', SOURCE)
+
     def test_public_example_is_compiled_without_private_content(self):
         folder = ROOT / 'packages/com.digital-kotone.toolkit/Examples/DesktopHost'
         assembly = json.loads((folder / 'Gakumas.Toolkit.Examples.asmdef').read_text(encoding='utf-8'))
@@ -45,6 +57,20 @@ class DesktopHostContract(unittest.TestCase):
             self.assertIn(control, fixture)
         self.assertIn('example.LastRenderedTimeSeconds==time', fixture)
         self.assertIn('expectedBodyY==actualBodyY', fixture)
+
+    def test_character_post_controls_use_real_low_geometry_and_character_region(self):
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopPost.cs').read_text(encoding='utf-8')
+        for token in ('s.fsr.TryGetRenderSize', 'camera.targetTexture=targets[0]',
+                      'FsrQuality.Quality,FsrQuality.Performance', 'FsrBackend.Raster',
+                      'camera.cullingMask=1<<22', 'native[3][p]', 'head.position',
+                      'difference.actorChanged>10', 'cold-no-exposure-exact',
+                      'paused-no-exposure-exact', 'seek-replay-exact',
+                      'character-post-diagnostics.json', 'native-reference-metrics-finite-only'):
+            self.assertIn(token, fixture)
+        self.assertNotIn('AssetBundle.Load', fixture)
+        self.assertNotIn('Graphics.Blit', fixture)
+        meta = ROOT / 'unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopPost.cs.meta'
+        self.assertRegex(meta.read_text(encoding='utf-8'), r'(?m)^guid: [0-9a-f]{32}\r?$')
 
     def test_host_keeps_application_authority_explicit(self):
         for forbidden in ('Camera.Render(', '.Submit(', 'FindObjectsOfType',

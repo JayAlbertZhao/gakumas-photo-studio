@@ -208,6 +208,57 @@ namespace GakumasPhotoMode
             }
         }
 
+        // Explicit-weight precision controls append after the old desktop suite
+        // so all previous records and saved images remain comparable.
+        private void VerifyExplicitColorLut(Report report)
+        {
+            void Check(string n,bool ok,float value=0)=>FrameworkCheck(report,"color-grade-explicit-"+n,ok,value);
+            var renderer=new ColorGradingRenderer();var sibling=new ColorGradingRenderer();
+            var active=RenderTexture.active;var luts=new List<ColorGradingLut>();
+            var source=new RenderTexture(129,73,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
+            var upload=new Texture2D(129,73,TextureFormat.RGBAFloat,false,true){filterMode=FilterMode.Point};
+            try
+            {
+                source.Create();var input=new Color[129*73];
+                for(int i=0;i<input.Length;i++)input[i]=new Color((i%129)/128f*8,((i*17)%127)/126f*8,((i*29)%131)/130f*8,(i%31)/30f);
+                input[0]=new Color(float.NaN,float.PositiveInfinity,float.NegativeInfinity,.37f);
+                input[1]=new Color(-1,0,65504,.63f);input[2]=new Color(8,8,8,1);
+                upload.SetPixels(input);upload.Apply();Graphics.Blit(upload,source);input=ReadSceneTarget(source);
+                Check("nonfinite-input-control",float.IsNaN(input[0].r)&&float.IsPositiveInfinity(input[0].g)&&float.IsNegativeInfinity(input[0].b));
+                foreach(int size in new[]{16,32,64})foreach(var domain in new[]{ColorLutDomain.Linear,ColorLutDomain.LogOnePlus})
+                {
+                    string label=size+"-"+domain;
+                    var p=new ColorGradingProfile {size=size,domain=domain,maximumInput=8,hueDegrees=23,saturation=1.17f,contrast=1.1f,
+                        gamma=new Vector3(.9f,1.1f,1.2f),green=new[]{Vector2.zero,new Vector2(.4f,.31f),Vector2.one}};
+                    var lut=ColorGradingLut.Bake(p);luts.Add(lut);var nodes=lut.CopyValues();
+                    Check(label+"-legacy-render",renderer.TryRender(source,lut,out var legacy));var hardware=ReadSceneTarget(legacy.color);
+                    Check(label+"-draw",renderer.TryRender(source,lut,ColorLutSampling.ExplicitFloatTrilinear,out var frame)&&frame.IsCurrent&&renderer.DrawCalls==1&&!legacy.IsCurrent);
+                    var pixels=ReadSceneTarget(frame.color);float exact,interval;
+                    ColorLutReferenceError(lut,input,pixels,out exact,out interval);
+                    Check(label+"-all-pixels-double-eight-node-reference",exact<.00001f,exact);
+                    bool finite=true,alpha=true;for(int i=0;i<pixels.Length;i++){alpha&=pixels[i].a==input[i].a;for(int c=0;c<3;c++)finite&=!float.IsNaN(pixels[i][c])&&!float.IsInfinity(pixels[i][c])&&pixels[i][c]>=0&&pixels[i][c]<=1;}
+                    Check(label+"-finite-bounded-source-alpha",finite&&alpha);
+                    SaveSsrPreview("color-grade-explicit-"+label,pixels,129,73,false);
+                    Check(label+"-hardware-quantization-positive-control",!ScenePixelsEqual(hardware,pixels));
+                    Check(label+"-keyword-off-restores-default",renderer.TryRender(source,lut,out var restored)&&ScenePixelsEqual(hardware,ReadSceneTarget(restored.color)));
+                    lut.Texture.filterMode=FilterMode.Point;lut.Texture.wrapMode=TextureWrapMode.Repeat;lut.Texture.anisoLevel=4;
+                    Check(label+"-sampler-state-independent",renderer.TryRender(source,lut,ColorLutSampling.ExplicitFloatTrilinear,out var independent)&&ScenePixelsEqual(pixels,ReadSceneTarget(independent.color)));
+                    Check(label+"-borrowed-lut-unchanged",ScenePixelsEqual(nodes,lut.CopyValues())&&lut.Texture.filterMode==FilterMode.Point&&lut.Texture.wrapMode==TextureWrapMode.Repeat&&lut.Texture.anisoLevel==4);
+                    Check(label+"-sibling-hardware-independent",sibling.TryRender(source,lut,out var other)&&ScenePixelsEqual(hardware,ReadSceneTarget(other.color))&&other.color!=independent.color);
+                    Check(label+"-invalid-mode-fails-closed",!renderer.TryRender(source,lut,(ColorLutSampling)77,out _)&&!independent.IsCurrent&&!renderer.TryGetFrame(out _)&&renderer.DrawCalls==0&&other.IsCurrent&&lut.IsValid);
+                    Check(label+"-recover-explicit",renderer.TryRender(source,lut,ColorLutSampling.ExplicitFloatTrilinear,out var recovered)&&ScenePixelsEqual(pixels,ReadSceneTarget(recovered.color)));
+                    recovered.color.Release();Check(label+"-lost-output-invalidates",!recovered.IsCurrent&&!renderer.TryGetFrame(out _));
+                    Check(label+"-recreate-output-exact",renderer.TryRender(source,lut,ColorLutSampling.ExplicitFloatTrilinear,out var rebuilt)&&ScenePixelsEqual(pixels,ReadSceneTarget(rebuilt.color)));
+                    renderer.Dispose();Check(label+"-dispose-preserves-borrower-and-sibling",!rebuilt.IsCurrent&&other.IsCurrent&&lut.IsValid);
+                }
+            }
+            finally
+            {
+                renderer.Dispose();sibling.Dispose();foreach(var lut in luts)lut.Dispose();
+                RenderTexture.active=active!=null&&active.IsCreated()?active:null;source.Release();Destroy(source);Destroy(upload);
+            }
+        }
+
         // Ideal double trilinear plus a desktop diagnostic interval, gated by the eight-weight probe above.
         // Address precision is specified by D3D11; cross-weight precision is measured, not an API guarantee.
         private static void ColorLutReferenceError(ColorGradingLut lut,Color[] input,Color[] output,out float maximum,out float intervalResidual)

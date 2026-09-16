@@ -34,6 +34,26 @@
 释放资源。这是便于阅读的生命周期示范，有明确的 CPU／GPU 同步开销；生产宿主可换成
 自己的完成通知和资源调度。不要把该示例帧时当作框架或移动端性能结论。
 
+## 角色整链诊断
+
+`--validate-srp-actor-character <output> --validate-desktop-character` 在调用方
+已合法提供资产的验证环境中使用相同的 `DesktopHostExample`，不内置游戏资产。
+新增诊断把实际几何降至 Quality 342²／Performance 256²，再输出 512²；覆盖前、侧、
+后视图及 TAA／DOF／Motion Blur／Bloom／FSR／Diffusion／调色串联。
+采样时间为 `.70,.72,.74,.76` 秒，正对照每帧平移相机 4% 角色高度；无相机移动的
+idle 另作观察，不要求低于半像素曝光门限的运动也必须产生模糊。
+
+通过排除角色绘制构造角色相关区域，并以投影头部区域单独记录误差；该区域不是语义
+分割真值，会含受角色影响的后处理邻域。`character-post-diagnostics.json` 记录完整
+分辨率参考误差、每个效果关闭后的响应、idle 全图差异及显式配置。参考 MAE 只作
+观察，不用“有限数值”宣称画质达标；当前压力配置有可见模糊与边缘误差。
+
+诊断显式选择 `colorGradeSampling = ColorLutSampling.ExplicitFloatTrilinear`；
+原有示例及默认摄影仍使用原配置。硬件 LUT 过滤可把上游很小的浮点差异放大为阶跃；
+见 [调色采样选项](authored-color-grading.md#可选显式浮点三线性插值)。整个序列仍使用
+原 `1e-4` 后端最大误差门限，冷帧／暂停曝光与重播保持精确比较。
+这些离屏检查不验证呈现帧率、移动端收益、真实投影 jitter 收敛或原版画面一致性。
+
 ## 核心输入与调用顺序
 
 `Settings` 中分别填写 Scene surfaces、Actor renderers、独立自阴影 caster、背景主光

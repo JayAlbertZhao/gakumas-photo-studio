@@ -876,6 +876,8 @@
     "unity/Assets/Applications/PhotoStudio/RenderDocCaptureBridge.cs.meta",
     "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopHost.cs",
     "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopHost.cs.meta",
+    "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopPost.cs",
+    "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopPost.cs.meta",
     "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs",
     "unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs.meta",
     "unity/Assets/Applications/PhotoStudio/VertexLocatorCharacterValidation.cs",

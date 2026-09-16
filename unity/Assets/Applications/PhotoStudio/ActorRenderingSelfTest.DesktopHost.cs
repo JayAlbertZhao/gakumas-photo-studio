@@ -216,6 +216,7 @@ namespace GakumasPhotoMode
                 foreach(var value in _owned)if(value!=null)Destroy(value);_owned.Clear();
             }
             VerifyDesktopExample(report);
+            VerifyExplicitColorLut(report);
         }
 
         private IEnumerator VerifyDesktopSkinMotion(Report report,DesktopFrameRenderer host,Camera camera,DesktopFrameRenderer.Settings settings,ulong sequence,Action<ulong> completed)

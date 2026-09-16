@@ -5,6 +5,10 @@ using UnityEngine.Rendering;
 
 namespace GakumasPhotoMode
 {
+    /// <summary>Hardware filtering is the compatible default; explicit float weights
+    /// avoid fixed-function subtexel quantization at the cost of eight LUT loads.</summary>
+    public enum ColorLutSampling { HardwareTrilinear=0, ExplicitFloatTrilinear=1 }
+
     /// <summary>One independent color transform after HDR effects, before UI and output transfer encoding.</summary>
     public sealed class ColorGradingRenderer : IDisposable
     {
@@ -24,8 +28,12 @@ namespace GakumasPhotoMode
         public int DrawCalls { get; private set; }
         public bool TryGetFrame(out Frame frame) { frame=default;if(!valid || output==null || !output.IsCreated())return false;frame=new Frame(this);return true; }
         public bool TryRender(RenderTexture source,ColorGradingLut lut,out Frame frame)
+            => TryRender(source,lut,ColorLutSampling.HardwareTrilinear,out frame);
+        public bool TryRender(RenderTexture source,ColorGradingLut lut,ColorLutSampling sampling,out Frame frame)
         {
             generation++;valid=false;DrawCalls=0;frame=default;UnavailableReason=null;
+            if(sampling!=ColorLutSampling.HardwareTrilinear && sampling!=ColorLutSampling.ExplicitFloatTrilinear)
+                return Fail("Unknown color LUT sampling mode");
             if(source==null || !source.IsCreated() || source==output || source.sRGB || source.antiAliasing!=1 || source.useDynamicScale || source.useMipMap || source.dimension!=TextureDimension.Tex2D || source.volumeDepth!=1 ||
                (source.format!=RenderTextureFormat.ARGBFloat && source.format!=RenderTextureFormat.ARGBHalf && source.format!=RenderTextureFormat.RGB111110Float) || lut==null || !lut.IsValid)
                 return Fail("Created external linear HDR and a live authored color LUT required");
@@ -40,6 +48,8 @@ namespace GakumasPhotoMode
                     if(!output.IsCreated() || output.graphicsFormat!=GraphicsFormat.R32G32B32A32_SFloat) return Fail("Color grading target allocation failed");
                 }
                 if(material==null) material=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
+                if(sampling==ColorLutSampling.ExplicitFloatTrilinear)material.EnableKeyword("TOOLKIT_LUT_EXPLICIT_TRILINEAR");
+                else material.DisableKeyword("TOOLKIT_LUT_EXPLICIT_TRILINEAR");
                 material.SetTexture("_AuthoredLut",lut.Texture);
                 material.SetVector("_LutParameters",new Vector4(lut.Size,lut.MaximumInput,(int)lut.Domain,1/Mathf.Log(1+lut.MaximumInput,2)));
                 Graphics.Blit(source,output,material,0);DrawCalls=1;valid=true;frame=new Frame(this);return true;

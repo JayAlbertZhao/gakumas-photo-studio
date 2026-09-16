@@ -43,6 +43,7 @@ namespace GakumasPhotoMode
             public Vector2 motionBlurJitterUv;
             // Caller-owned immutable LUT, applied after HDR effects and before UI.
             public ColorGradingLut colorGrade;
+            public ColorLutSampling colorGradeSampling;
         }
 
         public readonly struct OpaqueFrame
@@ -279,7 +280,7 @@ namespace GakumasPhotoMode
                 }
                 if (s.colorGrade != null)
                 {
-                    if (!grade.TryRender(finalColor, s.colorGrade, out var current))
+                    if (!grade.TryRender(finalColor, s.colorGrade, s.colorGradeSampling, out var current))
                     { error = grade.UnavailableReason; return Fail(error); }
                     gradeFrame = current; finalColor = current.color;
                 }
@@ -303,6 +304,7 @@ namespace GakumasPhotoMode
             foreach (var surface in s.scene.surfaces)
                 if (surface != null && actors.Contains(surface.renderer)) return "Actor geometry must not enter scene-only reflection history";
             if (s.colorGrade != null && !s.colorGrade.IsValid) return "Invalid caller-owned color LUT";
+            if (s.colorGrade != null && s.colorGradeSampling!=ColorLutSampling.HardwareTrilinear && s.colorGradeSampling!=ColorLutSampling.ExplicitFloatTrilinear) return "Unknown color LUT sampling mode";
             if (s.depthOfField.enabled && !s.depthOfField.IsValid) return "Invalid depth-of-field settings";
             if(s.bloom.enabled&&!s.bloom.IsValid)return "Invalid authored bloom settings or budget";
             if(s.diffusion.enabled)
