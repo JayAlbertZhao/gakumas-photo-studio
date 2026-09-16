@@ -184,6 +184,16 @@ Shader "Hidden/GakumasPhotoMode/FrameTemporalAntialiasing"
                 float3 midpoint=(lower+upper)*.5,extent=max((upper-lower)*.5,.000061);
                 float3 delta=oldColor-midpoint,ratio=abs(delta/extent);float largest=max(ratio.r,max(ratio.g,ratio.b));
                 float3 clipped=Clean(largest>1?midpoint+delta/largest:oldColor);
+                #if defined(TOOLKIT_TAA_SURFACE_COVERAGE)
+                // Fractional reprojection repeatedly filters the same history.
+                // Discount its age by the concentration of the validated inner
+                // footprint instead of treating filtered detail as fresh samples.
+                // Integer transport retains full age; half-pixel transport in
+                // both axes retains one quarter. This is a detail-confidence
+                // proxy, not a claim of independent statistical sample count.
+                float2 concentration=blend*blend+(1-blend)*(1-blend);
+                age*=concentration.x*concentration.y;
+                #endif
                 float weight=min(_TemporalHistorySettings.y,age/(age+1))*saturate(total);
                 float wc=(1-weight)/(1+Luma(current)),wh=weight/(1+Luma(clipped));
                 o.color.rgb=Clean(current+(clipped-current)*(wh/max(wc+wh,1e-20)));

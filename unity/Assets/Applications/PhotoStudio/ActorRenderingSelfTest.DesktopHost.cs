@@ -948,7 +948,7 @@ namespace GakumasPhotoMode
                 var priorGuide=(Color[])lastTemporal.Clone();
                 actor.transform.position+=new Vector3(.0375f,.0225f,0);
                 Run("coverage-moving",SrpActorForward.Storage.SeparateHalf,out _,false);
-                int used=0,fractional=0;bool supportedAll=true;
+                int used=0,fractional=0;bool supportedAll=true;float ageError=0,weightError=0;
                 for(int y=0;y<h;y++)for(int x=0;x<w;x++)
                 {
                     int i=x+y*w;if(lastTemporal[i].a<=0)continue;used++;
@@ -965,11 +965,14 @@ namespace GakumasPhotoMode
                     float px=rx-motion.r*w+jitter.correctionUv.x*w,py=ry-motion.g*h+jitter.correctionUv.y*h;
                     int bx=Mathf.FloorToInt(px),by=Mathf.FloorToInt(py);float ux=px-bx,uy=py-by;
                     if(ux>.01f&&ux<.99f&&uy>.01f&&uy<.99f)fractional++;
+                    double weightedAge=0,totalWeight=0;
                     for(int dy=0;dy<2;dy++)for(int dx=0;dx<2;dx++)
                     {
-                        if((dx==0?1-ux:ux)*(dy==0?1-uy:uy)<=1e-6f)continue;
+                        double tapWeight=(dx==0?1-ux:ux)*(dy==0?1-uy:uy);
+                        if(tapWeight<=1e-6f)continue;
                         int hx=bx+dx,hy=by+dy;if(hx<0||hx>=w||hy<0||hy>=h){supportedAll=false;continue;}
                         var meta=priorGuide[hx+hy*w];bool supported=false;
+                        weightedAge+=meta.b*tapWeight;totalWeight+=tapWeight;
                         for(int sy=0;sy<2;sy++)for(int sx=0;sx<2;sx++)
                         {
                             if((sx==0?1-fx:fx)*(sy==0?1-fy:fy)<=1e-6f)continue;
@@ -981,8 +984,16 @@ namespace GakumasPhotoMode
                         }
                         supportedAll&=supported;
                     }
+                    double concentration=(ux*ux+(1-ux)*(1-ux))*(uy*uy+(1-uy)*(1-uy));
+                    double effectiveAge=weightedAge/Math.Max(totalWeight,1e-20)*concentration;
+                    double expectedAge=1+Math.Min(effectiveAge,settings.temporal.maximumHistory-1)*Math.Min(1,totalWeight);
+                    double expectedWeight=Math.Min(settings.temporal.historyWeight,effectiveAge/(effectiveAge+1))*Math.Min(1,totalWeight);
+                    ageError=Mathf.Max(ageError,(float)Math.Abs(lastTemporal[i].b-expectedAge));
+                    weightError=Mathf.Max(weightError,(float)Math.Abs(lastTemporal[i].a-expectedWeight));
                 }
                 Check("coverage-moving-whole-footprint-supported",used>100&&fractional>20&&supportedAll,fractional);
+                Check("coverage-moving-independent-resampled-age",ageError<.00002f,ageError);
+                Check("coverage-moving-independent-resampled-weight",weightError<.00002f,weightError);
                 actor.transform.position=originalPosition;
                 settings.actors.temporalFlags=(r,i)=>TemporalPixelFlags.NoJitter;
                 var coverageNoJitter=Run("coverage-no-jitter",SrpActorForward.Storage.SeparateHalf,out _,false);

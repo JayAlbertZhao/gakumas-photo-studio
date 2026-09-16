@@ -9,6 +9,18 @@ SOURCE = (RUNTIME / 'DesktopFrameRenderer.cs').read_text(encoding='utf-8')
 
 
 class DesktopHostContract(unittest.TestCase):
+    def test_coverage_discounts_repeated_fractional_history_resampling(self):
+        shader=(RUNTIME / 'Resources/FrameTemporalAntialiasing.shader').read_text(encoding='utf-8')
+        fixture=(ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopHost.cs').read_text(encoding='utf-8')
+        concentration=shader.index('float2 concentration=blend*blend+(1-blend)*(1-blend);')
+        guard=shader.rfind('#if defined(TOOLKIT_TAA_SURFACE_COVERAGE)',0,concentration)
+        self.assertGreater(guard,shader.index('float3 clipped='))
+        self.assertLess(concentration,shader.index('#endif',guard))
+        self.assertIn('age*=concentration.x*concentration.y;',shader)
+        self.assertLess(concentration,shader.index('float weight=min(_TemporalHistorySettings.y,age/(age+1))'))
+        for name in ('coverage-moving-independent-resampled-age','coverage-moving-independent-resampled-weight'):
+            self.assertIn(name,fixture)
+
     def test_temporal_dof_keeps_geometry_depth_and_uses_explicit_r32_alignment(self):
         adapter=(RUNTIME / 'FrameTemporalDepth.cs').read_text(encoding='utf-8')
         shader=(RUNTIME / 'Resources/FrameTemporalDepth.shader').read_text(encoding='utf-8')
