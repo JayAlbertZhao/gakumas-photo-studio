@@ -9,6 +9,28 @@ SOURCE = (RUNTIME / 'DesktopFrameRenderer.cs').read_text(encoding='utf-8')
 
 
 class DesktopHostContract(unittest.TestCase):
+    def test_temporal_dof_keeps_geometry_depth_and_uses_explicit_r32_alignment(self):
+        adapter=(RUNTIME / 'FrameTemporalDepth.cs').read_text(encoding='utf-8')
+        shader=(RUNTIME / 'Resources/FrameTemporalDepth.shader').read_text(encoding='utf-8')
+        fixture=(ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.DesktopHost.cs').read_text(encoding='utf-8')
+        for token in ('public readonly RenderTexture postEyeDepth;', 'eyeDepth = value.actorFrame.eyeDepth;',
+                      'temporalDepth.TryRender(actorFrame,s.temporal.jitterUv,s.temporal.preserveSurfaceCoverage',
+                      'dof.TryRender(finalColor, postDepth,', 'public int temporalDepthMaximumMiB=32;',
+                      'temporalDepth.RetireFrame()', 'temporalDepth.Dispose()'):
+            self.assertIn(token,SOURCE)
+        self.assertIn('s.temporal.enabled&&s.depthOfField.enabled&&(s.temporal.jitterUv.x!=0||s.temporal.jitterUv.y!=0)',SOURCE)
+        for token in ('current.sequence<=sequence', 'current.eyeDepth.graphicsFormat!=GraphicsFormat.R32_SFloat',
+                      'owner.input.IsCurrent&&owner.Created', 'else material.DisableKeyword("TOOLKIT_DEPTH_COVERAGE_ANCHOR")'):
+            self.assertIn(token,adapter)
+        self.assertIn('return _TemporalRawDepth.Load(int3(p,0)).r;',shader)
+        self.assertIn('if((((uint)motion.a|(uint)centre.a)&4u)!=0)p=stable;',shader)
+        for forbidden in ('Shader.SetGlobal', 'Camera.main', 'Time.', '.Submit(', '.Render('):
+            self.assertNotIn(forbidden,adapter)
+        for token in ('-independent-r32-depth-exact', '-actual-dof-coc-from-aligned-depth',
+                      '-does-not-substitute-half-depth', '-raw-depth-negative-control',
+                      'depth-align-no-jitter-original-r32-exact', 'depth-align-zero-correction-bypasses-resampling'):
+            self.assertIn(token,fixture)
+
     def test_coverage_reconstruction_is_exclusive_local_and_keeps_full_history_support(self):
         source = (RUNTIME / 'FrameTemporalAntialiasing.cs').read_text(encoding='utf-8')
         shader = (RUNTIME / 'Resources/FrameTemporalAntialiasing.shader').read_text(encoding='utf-8')

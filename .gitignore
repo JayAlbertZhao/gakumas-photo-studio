@@ -280,6 +280,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/FrameMotionBlur.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/FrameTemporalAntialiasing.cs
 !/packages/com.digital-kotone.toolkit/Runtime/FrameTemporalAntialiasing.cs.meta
+!/packages/com.digital-kotone.toolkit/Runtime/FrameTemporalDepth.cs
+!/packages/com.digital-kotone.toolkit/Runtime/FrameTemporalDepth.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/FsrCameraRenderer.cs
 !/packages/com.digital-kotone.toolkit/Runtime/FsrCameraRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/FsrRenderer.cs
@@ -422,6 +424,8 @@
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FrameMotionBlurGuide.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FrameTemporalAntialiasing.shader
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/FrameTemporalAntialiasing.shader.meta
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/FrameTemporalDepth.shader
+!/packages/com.digital-kotone.toolkit/Runtime/Resources/FrameTemporalDepth.shader.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/Fsr.compute
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/Fsr.compute.meta
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/Fsr.shader

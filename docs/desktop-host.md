@@ -127,6 +127,42 @@ MRT 颜色差异问题。动态发丝、复杂透明／遮挡、联合曝光与�
 可用于固定几何上的揭露对照。逐帧最大误差和区域 MSE 均保留，不用整图平均掩盖拖影。
 诊断对历史是否改善角色／轮廓的参考 MSE 保留严格检查；执行路径存在不代表检查通过。
 
+### TAA 与景深的深度对齐
+
+`DesktopFrameRenderer` 在 TAA、DOF 均启用且 `temporal.jitterUv` 非零时，自动用
+`FrameTemporalDepth` 为景深生成与去抖颜色坐标对应的 R32 深度。默认摄影、关闭任一
+效果及零修正路径均不增加此 pass。TAA 本身的颜色、历史和采样策略不变。
+
+该 producer 用当前 Half4 运动选择最近采样点；启用 `preserveSurfaceCoverage` 时，
+选择与 TAA 相同的有效近表面锚点。随后读取原始 **R32** 深度，避免将 Half 精度的
+运动深度直接用于 CoC。`NoJitter` 保持原像素深度。它选择一个 opaque／cutout 锚点，
+不恢复多层透明深度，也不代表混合颜色拥有唯一物理深度。
+
+- `Frame.eyeDepth` 仍是原始几何深度；`Frame.postEyeDepth` 是传给 DOF 的实际输入。
+- `Frame.temporalDepth` 仅在对齐启用时存在；其 `IsCurrent` 随宿主退役失效。
+- `Frame.encodedCoC` 是 DOF 的实际输出，关闭 DOF 时为 `null`；仅在所属
+  `Frame.IsCurrent` 期间借用，不可跨帧保存引用后继续消费。
+- 独立预算 `settings.temporalDepthMaximumMiB` 默认 32 MiB；增加一个渲染尺寸的
+  R32 目标（4 字节／像素）及一次全屏绘制。`TemporalDepthNominalTextureBytes`
+  报告保留的名义分配；停用／退役不释放缓存，`Dispose` 释放。该数字不是实测 VRAM 或帧时。
+
+自制 D3D11／Vulkan 控制验证整图 R32 选择、实际 CoC、错误坐标／Half 深度负控、
+`NoJitter` 及零修正旁路。D3D11／Vulkan 原生捕获中，实际 TAA metadata 与锚点逐像素一致，
+对齐深度与源 R32 完全一致，实际 CoC 独立参考最大差约 `1.63e-9`；错用原栅格深度的
+CoC 最大差约 `0.248`。这是当前 opaque 深度到实际 DOF consumer 的证据，不关闭 P02。
+D3D11 的首次多线程捕获无法回放，保留失败；上述 D3D11 原生数值检查来自独立的
+direct graphics thread 捕获，不把它描述为所有线程调度均已验证。
+
+动态诊断可用 `GAKUMAS_CHARACTER_DYNAMIC_DOF=1` 启用 30 点 DOF；JSON 记录
+`depthOfField`，同一时刻的每份空间参考也先执行 DOF。默认诊断关闭此选项。
+
+一个自备角色／服装、正面 Quality 的两 API 配对动态探针中，三条轨迹的角色／轮廓
+累计 MSE 均优于 cold，24 份同时刻参考和 288 条区域测量／API 已独立重算。
+D3D11 整份报告通过；Vulkan 整份报告仍因原有
+`temporal-view-90-motion-mrt-retains-real-color`（差 `3.814697265625e-6`）失败，
+不能将动态子项通过写成整体通过。移动板的新可见区域 MSE 比 cold 高约 0.35%／0.38%，
+也保留这一局部取舍。配对的旧 warm 同样使用深度适配器，因此该对照不单独归因于深度修正。
+
 ### 可选混合表面历史拒绝
 
 `settings.temporal.rejectMixedSurfaceHistory = true` 选择保守的桌面预览策略，默认
@@ -192,6 +228,11 @@ NoJitter／ExcludeTAA 和关闭后的默认输出精确恢复。D3D11 的实际�
 输入附件重建了整张 342² 时域结果，最大归一化颜色误差约 `3.45e-6`，metadata
 约 `1.64e-7`；确认后续 TAA → FSR → 零强度 Diffusion 的真实资源链及最终 RAW 完全一致。
 这些执行中通过的旧 Vulkan 检查不关闭此前其他运行的严格运动 MRT 颜色失败。
+
+扩展矩阵也保留失败：一个自备服装的 D3D11 前／侧／后视图 × Native／Quality／
+Performance × 三条轨迹中，后视 Native 动画的角色区域 warm MSE 比 cold 高约 9.1%，
+同时比原策略 warm 低约 12.9%；同场景轮廓仍改善。72 份同时刻空间参考和 2,592 条
+区域测量已从 RAW 重算。该结果说明正面 Quality 通过不能代表整个动态矩阵通过。
 
 ## 核心输入与调用顺序
 

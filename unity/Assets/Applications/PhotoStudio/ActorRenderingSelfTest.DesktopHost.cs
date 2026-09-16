@@ -419,6 +419,7 @@ namespace GakumasPhotoMode
             float Difference(Color[] a,Color[] b){float e=0;for(int p=0;p<a.Length;p++)for(int c=0;c<4;c++)e=Mathf.Max(e,Mathf.Abs(a[p][c]-b[p][c]));return e;}
             ulong serial=sequence;
             Color[] lastMotion=null,lastExpectedDepth=null,lastTemporal=null,lastOpaque=null;
+            Color[] lastPostDepth=null,lastCoC=null;
             Color[] Run(string name,SrpActorForward.Storage storage,out Color[] depth,bool reset=true,bool? reflectionHistory=null)
             {
                 settings.actorStorage=storage;if(reset)host.ResetHistoryAfterGpuCompletion();
@@ -456,6 +457,23 @@ namespace GakumasPhotoMode
                 lastExpectedDepth=opaque.actors.expectedPreviousDepth!=null?ReadSceneTarget(opaque.actors.expectedPreviousDepth):null;
                 lastOpaque=ReadSceneTarget(opaque.actors.color);
                 if(!host.TryFinishAfterSubmission(opaque,.75,out var frame,out var error))throw new InvalidOperationException(error);
+                bool depthProof=name.StartsWith("depth-align-",StringComparison.Ordinal);
+                if(depthProof)
+                {
+                    lastPostDepth=ReadSceneTarget(frame.postEyeDepth);
+                    lastCoC=frame.encodedCoC!=null?ReadSceneTarget(frame.encodedCoC):null;
+                    Check(name+"-geometry-depth-preserved",frame.eyeDepth==opaque.actors.eyeDepth);
+                    if(frame.temporalDepth.HasValue)
+                    {
+                        Check(name+"-aligned-frame-current",frame.temporalDepth.Value.IsCurrent&&frame.postEyeDepth==frame.temporalDepth.Value.eyeDepth);
+                        Check(name+"-aligned-depth-format-budget",frame.postEyeDepth.graphicsFormat==GraphicsFormat.R32_SFloat&&host.TemporalDepthNominalTextureBytes==pixels*4,host.TemporalDepthNominalTextureBytes);
+                    }
+                    foreach(var item in new[]{Tuple.Create("depth",lastPostDepth),Tuple.Create("coc",lastCoC)})if(item.Item2!=null)
+                    {
+                        using var writer=new BinaryWriter(File.Create(Path.Combine(_directory,"desktop-storage-"+name+"-"+item.Item1+".raw")));
+                        foreach(var pixel in item.Item2)for(int c=0;c<4;c++)writer.Write(pixel[c]);
+                    }
+                }
                 lastTemporal=frame.temporal.HasValue?ReadSceneTarget(frame.temporal.Value.metadata):null;
                 if(lastTemporal!=null)
                 {
@@ -471,6 +489,7 @@ namespace GakumasPhotoMode
                 using(var writer=new BinaryWriter(File.Create(Path.Combine(_directory,"desktop-storage-"+name+".raw"))))
                     foreach(var p in result)for(int c=0;c<4;c++)writer.Write(p[c]);
                 host.RetireAfterGpuCompletion();
+                if(depthProof&&frame.temporalDepth.HasValue)Check(name+"-aligned-frame-retired",!frame.temporalDepth.Value.IsCurrent&&frame.postEyeDepth.IsCreated());
                 Check(name+"-borrowed-targets-survive-retirement",settings.scene.output.IsCreated()&&settings.scene.depthStencil.IsCreated()&&settings.scene.normalIdentity.IsCreated()&&!frame.IsCurrent);
                 return result;
             }
@@ -982,6 +1001,67 @@ namespace GakumasPhotoMode
                 Check("coverage-keyword-disabled-default-exact",Difference(restored,legacy)==0,Difference(restored,legacy));
             }
             finally {camera.projectionMatrix=coherentProjection;actor.transform.position=originalPosition;settings.temporal.jitterUv=Vector2.zero;settings.temporal.preserveSurfaceCoverage=false;settings.actors.temporalFlags=null;}
+            var depthSettings=settings.depthOfField;
+            bool depthEnabled=depthSettings.enabled;var focusMode=depthSettings.focusMode;
+            float focusNear=depthSettings.focusNear,focusFar=depthSettings.focusFar,nearTransition=depthSettings.nearTransition,farTransition=depthSettings.farTransition;
+            try
+            {
+                int w=settings.scene.output.width,h=settings.scene.output.height;
+                depthSettings.enabled=true;depthSettings.focusMode=BokehFocusMode.FocusRange;
+                depthSettings.focusNear=3.7f;depthSettings.focusFar=3.8f;depthSettings.nearTransition=depthSettings.farTransition=.4f;
+                actor.transform.position=originalPosition+new Vector3(0,0,.00113f);
+                if(!TemporalProjectionJitter.TryCreate(coherentProjection,new Vector2Int(w,h),new Vector2(.25f,-.375f),out var jitter))throw new InvalidOperationException("Temporal DOF projection");
+                camera.projectionMatrix=jitter.projection;settings.temporal.jitterUv=jitter.correctionUv;
+                foreach(bool coverage in new[]{false,true})
+                {
+                    settings.temporal.preserveSurfaceCoverage=coverage;
+                    string label="depth-align-"+(coverage?"coverage":"nearest");Run(label,SrpActorForward.Storage.SeparateHalf,out var rawDepth);
+                    float depthError=0,cocError=0,wrongRaw=0,halfError=0;int movedAnchor=0;
+                    int Index(int x,int y)=>Mathf.Clamp(x,0,w-1)+Mathf.Clamp(y,0,h-1)*w;
+                    for(int y=0;y<h;y++)for(int x=0;x<w;x++)
+                    {
+                        int i=x+y*w;float rx=x-jitter.correctionUv.x*w,ry=y-jitter.correctionUv.y*h;
+                        int px=Mathf.FloorToInt(rx+.5f),py=Mathf.FloorToInt(ry+.5f),p=Index(px,py);var m=lastMotion[p];
+                        if(coverage)
+                        {
+                            int firstX=Mathf.FloorToInt(rx),firstY=Mathf.FloorToInt(ry);float fx=rx-firstX,fy=ry-firstY;
+                            float closest=((int)m.a&~14)!=0&&m.b>0?m.b:float.MaxValue;
+                            for(int dy=0;dy<2;dy++)for(int dx=0;dx<2;dx++)
+                            {
+                                if((dx==0?1-fx:fx)*(dy==0?1-fy:fy)<=1e-6f)continue;
+                                int q=Index(firstX+dx,firstY+dy);var g=lastMotion[q];
+                                if(((int)g.a&~14)!=0&&((int)g.a&6)==0&&g.b>0&&g.b<closest){p=q;m=g;closest=g.b;}
+                            }
+                        }
+                        if((((int)m.a|(int)lastMotion[i].a)&4)!=0)p=i;
+                        float expected=rawDepth[p].r;depthError=Mathf.Max(depthError,Mathf.Abs(lastPostDepth[i].r-expected));
+                        float coc=depthSettings.EvaluateRadius(expected)/depthSettings.maximumRadius*.5f+.5f;
+                        cocError=Mathf.Max(cocError,Mathf.Abs(lastCoC[i].r-coc));
+                        wrongRaw=Mathf.Max(wrongRaw,Mathf.Abs(expected-rawDepth[i].r));
+                        if(((int)m.a&~14)!=0)halfError=Mathf.Max(halfError,Mathf.Abs(expected-m.b));
+                        if(p!=i&&Mathf.Abs(expected-rawDepth[i].r)>.01f)movedAnchor++;
+                    }
+                    Check(label+"-independent-r32-depth-exact",depthError==0,depthError);
+                    Check(label+"-actual-dof-coc-from-aligned-depth",cocError<.000002f,cocError);
+                    Check(label+"-does-not-substitute-half-depth",halfError>.0001f,halfError);
+                    if(coverage)Check(label+"-raw-depth-negative-control",movedAnchor>20&&wrongRaw>.1f,movedAnchor);
+                }
+                settings.actors.temporalFlags=(r,i)=>TemporalPixelFlags.NoJitter;
+                Run("depth-align-no-jitter",SrpActorForward.Storage.SeparateHalf,out var noJitterDepth);
+                float noJitterDepthError=0;int noJitterDepthPixels=0;
+                for(int i=0;i<lastMotion.Length;i++)if(((int)lastMotion[i].a&4)!=0)
+                {noJitterDepthPixels++;noJitterDepthError=Mathf.Max(noJitterDepthError,Mathf.Abs(lastPostDepth[i].r-noJitterDepth[i].r));}
+                Check("depth-align-no-jitter-original-r32-exact",noJitterDepthPixels>100&&noJitterDepthError==0,noJitterDepthError);
+                settings.actors.temporalFlags=null;camera.projectionMatrix=coherentProjection;settings.temporal.jitterUv=Vector2.zero;
+                Run("depth-align-zero-correction",SrpActorForward.Storage.SeparateHalf,out var zeroDepth);
+                Check("depth-align-zero-correction-bypasses-resampling",Difference(zeroDepth,lastPostDepth)==0,Difference(zeroDepth,lastPostDepth));
+            }
+            finally
+            {
+                camera.projectionMatrix=coherentProjection;actor.transform.position=originalPosition;settings.temporal.jitterUv=Vector2.zero;settings.temporal.preserveSurfaceCoverage=false;settings.actors.temporalFlags=null;
+                depthSettings.enabled=depthEnabled;depthSettings.focusMode=focusMode;depthSettings.focusNear=focusNear;depthSettings.focusFar=focusFar;
+                depthSettings.nearTransition=nearTransition;depthSettings.farTransition=farTransition;
+            }
             settings.reflections.enabled=settings.planar.enabled=false;
             settings.includeSceneMotion=false;settings.reuseSceneMotionStorage=false;
             settings.actors.configureMaterial=originalConfigure;

@@ -31,6 +31,7 @@ namespace GakumasPhotoMode
             public readonly SrpTileReflection.Settings reflections = new SrpTileReflection.Settings();
             public readonly HeavyFxSettings effects = new HeavyFxSettings();
             public readonly BokehDepthOfFieldSettings depthOfField = new BokehDepthOfFieldSettings();
+            public int temporalDepthMaximumMiB=32;
             public readonly MotionBlurSettings motionBlur=new MotionBlurSettings();
             public readonly BloomRenderer.Settings bloom=new BloomRenderer.Settings();
             // Caller allocates scene attachments at fsr.TryGetRenderSize(output).
@@ -68,6 +69,12 @@ namespace GakumasPhotoMode
             private readonly DesktopFrameRenderer owner;
             public readonly ulong sequence;
             public readonly RenderTexture color, eyeDepth;
+            // Geometry eyeDepth stays raster-aligned for existing consumers.
+            // This separate input is aligned to the color consumed by DOF.
+            public readonly RenderTexture postEyeDepth;
+            public readonly FrameTemporalDepth.Frame? temporalDepth;
+            // Borrowed only while this enclosing Frame is current.
+            public readonly RenderTexture encodedCoC;
             public readonly OpaqueFrame opaque;
             public readonly FrameTemporalAntialiasing.Frame? temporal;
             public readonly FrameMotionBlur.Frame? motionBlur;
@@ -82,6 +89,8 @@ namespace GakumasPhotoMode
             {
                 owner = value; sequence = value.sequence; color = value.finalColor;
                 eyeDepth = value.actorFrame.eyeDepth; opaque = new OpaqueFrame(value);
+                postEyeDepth=value.postDepth;temporalDepth=value.temporalDepthFrame;
+                encodedCoC=value.dofFrame.HasValue?value.dofFrame.Value.encodedCoC:null;
                 temporal=value.temporalFrame;
                 motionBlur=value.motionBlurFrame;
                 bloom=value.bloomFrame;
@@ -100,6 +109,7 @@ namespace GakumasPhotoMode
         /// driver overhead. A nominal allocation count, not measured VRAM or traffic.</summary>
         public long ActorNominalTextureBytes => actor.NominalTextureBytes;
         public long TemporalNominalTextureBytes => temporal.NominalTextureBytes;
+        public long TemporalDepthNominalTextureBytes=>temporalDepth.NominalTextureBytes;
         public long MotionBlurNominalTextureBytes=>motionBlur.NominalTextureBytes;
         public long BloomNominalTextureBytes=>bloom.NominalTextureBytes;
         public long FsrEstimatedTargetBytes=>fsr.EstimatedTargetBytes;
@@ -113,6 +123,7 @@ namespace GakumasPhotoMode
         private readonly SrpTilePlanarReflection planar;
         private readonly HeavyFxRenderer effects = new HeavyFxRenderer();
         private readonly FrameTemporalAntialiasing temporal=new FrameTemporalAntialiasing();
+        private readonly FrameTemporalDepth temporalDepth=new FrameTemporalDepth();
         private readonly BokehDepthOfFieldRenderer dof = new BokehDepthOfFieldRenderer();
         private readonly FrameMotionBlur motionBlur=new FrameMotionBlur();
         private readonly BloomRenderer bloom=new BloomRenderer();
@@ -127,13 +138,14 @@ namespace GakumasPhotoMode
         private SrpTilePlanarReflection.Frame? planarFrame;
         private HeavyFxRenderer.Frame? effectFrame;
         private FrameTemporalAntialiasing.Frame? temporalFrame;
+        private FrameTemporalDepth.Frame? temporalDepthFrame;
         private BokehDepthOfFieldRenderer.Frame? dofFrame;
         private FrameMotionBlur.Frame? motionBlurFrame;
         private BloomRenderer.Frame? bloomFrame;
         private FsrRenderer.Frame? fsrFrame;
         private DiffusionRenderer.Frame? diffusionFrame;
         private ColorGradingRenderer.Frame? gradeFrame;
-        private RenderTexture finalColor;
+        private RenderTexture finalColor,postDepth;
         private ulong sequence;
         private bool disposed;
 
@@ -156,6 +168,7 @@ namespace GakumasPhotoMode
             finalColor != null && finalColor.IsCreated() &&
             (!effectFrame.HasValue || effectFrame.Value.IsCurrent) &&
             (!temporalFrame.HasValue || temporalFrame.Value.IsCurrent) &&
+            (!temporalDepthFrame.HasValue || temporalDepthFrame.Value.IsCurrent) &&
             (!dofFrame.HasValue || dofFrame.Value.IsCurrent) &&
             (!motionBlurFrame.HasValue || motionBlurFrame.Value.IsCurrent) &&
             (!bloomFrame.HasValue || bloomFrame.Value.IsCurrent) &&
@@ -233,7 +246,7 @@ namespace GakumasPhotoMode
             phase = Phase.Finishing;
             try
             {
-                var s = Configuration; finalColor = actorFrame.color;
+                var s = Configuration; finalColor = actorFrame.color;postDepth=actorFrame.eyeDepth;
                 if (s.effects.enabled)
                 {
                     if (effects.TryRender(finalColor, new FogVolumeDepth(actorFrame.eyeDepth), Camera, s.effects, timeSeconds, out var current))
@@ -250,7 +263,12 @@ namespace GakumasPhotoMode
                 else temporal.ResetHistory();
                 if (s.depthOfField.enabled)
                 {
-                    if (!dof.TryRender(finalColor, actorFrame.eyeDepth, s.depthOfField, out var current))
+                    if(NeedsTemporalDepth(s))
+                    {
+                        if(!temporalDepth.TryRender(actorFrame,s.temporal.jitterUv,s.temporal.preserveSurfaceCoverage,s.temporalDepthMaximumMiB,out var aligned,out error))return Fail(error);
+                        temporalDepthFrame=aligned;postDepth=aligned.eyeDepth;
+                    }
+                    if (!dof.TryRender(finalColor, postDepth, s.depthOfField, out var current))
                     { error = dof.UnavailableReason; return Fail(error); }
                     dofFrame = current; finalColor = current.color;
                 }
@@ -324,12 +342,15 @@ namespace GakumasPhotoMode
             }
             if(s.temporal.enabled&&(!s.actorMotion.enabled||!s.temporal.IsValid||s.temporalMaximumMiB<1||s.temporalMaximumMiB>2048))
                 return "Temporal resolve requires enabled Actor motion, valid settings and budget";
+            if(NeedsTemporalDepth(s)&&(s.temporalDepthMaximumMiB<1||s.temporalDepthMaximumMiB>2048||
+                (long)s.scene.output.width*s.scene.output.height*4>(long)s.temporalDepthMaximumMiB*1048576))return "Temporal DOF depth texture budget exceeded";
             if(s.motionBlur.enabled&&(!s.actorMotion.enabled||!s.motionBlur.IsValid||s.motionBlurMaximumMiB<1||s.motionBlurMaximumMiB>2048||
                 !MotionBlurSettings.Range(s.motionBlurJitterUv.x,-.5f,.5f)||!MotionBlurSettings.Range(s.motionBlurJitterUv.y,-.5f,.5f)))
                 return "Frame motion blur requires enabled Actor motion, valid settings, jitter and budget";
             return null;
         }
         private bool Fail(string error) { phase = Phase.Failed; finalColor = null; return false; }
+        private static bool NeedsTemporalDepth(Settings s)=>s.temporal.enabled&&s.depthOfField.enabled&&(s.temporal.jitterUv.x!=0||s.temporal.jitterUv.y!=0);
 
         /// <summary>The caller MUST establish GPU completion, including any commands
         /// recorded before a failure. This method does not wait, fence or submit.</summary>
@@ -341,6 +362,7 @@ namespace GakumasPhotoMode
             draws?.Dispose(); draws = null; scene?.Dispose(); scene = null;
             shadowFrame = null; planarFrame = null; reflectionFrame = null;
             effectFrame = null; temporalFrame=null; dofFrame = null; gradeFrame = null;
+            temporalDepthFrame=null;temporalDepth.RetireFrame();postDepth=null;
             motionBlurFrame=null;
             bloomFrame=null;
             bloom.RetireFrame();
@@ -356,7 +378,7 @@ namespace GakumasPhotoMode
             if (disposed) return;
             RetireAfterGpuCompletion(); disposed = true;
             shadow.Dispose(); actor.Dispose(); planar.Dispose(); reflection.Dispose();
-            effects.Dispose(); temporal.Dispose(); dof.Dispose(); motionBlur.Dispose(); bloom.Dispose(); fsr.Dispose(); diffusion.Dispose(); grade.Dispose();
+            effects.Dispose(); temporal.Dispose(); temporalDepth.Dispose(); dof.Dispose(); motionBlur.Dispose(); bloom.Dispose(); fsr.Dispose(); diffusion.Dispose(); grade.Dispose();
         }
     }
 }

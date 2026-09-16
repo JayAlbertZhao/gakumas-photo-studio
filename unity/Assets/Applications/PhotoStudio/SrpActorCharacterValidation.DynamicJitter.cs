@@ -20,6 +20,7 @@ namespace GakumasPhotoMode
             public string schema="photo-studio.character-dynamic-jitter.v1";
             public bool rejectMixedSurfaceHistory;
             public bool preserveSurfaceCoverage;
+            public bool depthOfField;
             public bool pairedPolicy;
             public string scope="Same-time16sample native spatial references. Camera-only translation, animation-only time, and static-camera/actor moving opaque panel are separate. Actor-visible and silhouette masks are image-difference proxies, not semantic hair labels. Newly revealed actor mask has physical reveal meaning only in the panel profile. No original-game/mobile/fullpost acceptance.";
             public List<DynamicJitterMetric> measurements=new List<DynamicJitterMetric>();
@@ -77,6 +78,14 @@ namespace GakumasPhotoMode
                 s.diffusion.enabled=true;s.diffusion.intensity=0;s.diffusion.radiusPixels=0;s.diffusion.downsample=1;s.colorGrade=null;
                 s.temporal.historyWeight=.95f;s.temporal.maximumHistory=32;s.temporal.varianceGamma=.9f;s.temporal.reactiveThreshold=.2f;
                 s.temporal.rejectMixedSurfaceHistory=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_DYNAMIC_COHERENT")=="1";
+                observations.depthOfField=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_DYNAMIC_DOF")=="1";
+                s.depthOfField.enabled=observations.depthOfField;
+                if(observations.depthOfField)
+                {
+                    s.depthOfField.focusMode=BokehFocusMode.FocusRange;s.depthOfField.sampleCount=BokehSampleCount.Samples30;
+                    s.depthOfField.nearBlur=s.depthOfField.farBlur=1;s.depthOfField.maximumRadius=.02f;
+                    observations.scope+=" Optional30sample DOF: each native reference includes DOF before spatial integration; tracked opaque depth alignment is tested, not multi-layer transparent depth.";
+                }
                 observations.rejectMixedSurfaceHistory=s.temporal.rejectMixedSurfaceHistory;
                 observations.preserveSurfaceCoverage=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_DYNAMIC_COVERAGE")=="1";
                 observations.pairedPolicy=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_DYNAMIC_PAIRED_POLICY")=="1";
@@ -89,6 +98,12 @@ namespace GakumasPhotoMode
                     var target=head.position+head.up*(bounds.size.y*.025f);var direction=(camera.transform.position-bounds.center).normalized;
                     camera.transform.position=target+direction*(bounds.size.y*.62f);camera.transform.LookAt(target);camera.ResetProjectionMatrix();
                     var origin=camera.transform.position;var rotation=camera.transform.rotation;var basis=camera.projectionMatrix;var right=camera.transform.right;
+                    if(observations.depthOfField)
+                    {
+                        float focus=Vector3.Dot(target-origin,camera.transform.forward),span=bounds.size.y;
+                        s.depthOfField.focusNear=focus-span*.03f;s.depthOfField.focusFar=focus+span*.03f;
+                        s.depthOfField.nearTransition=s.depthOfField.farTransition=span*.12f;
+                    }
                     string label="view-"+angle,full=label+"-"+profile;var references=new Dictionary<int,Color[]>();
                     var masks=new Dictionary<int,bool[]>();var edges=new Dictionary<int,bool[]>();var reveals=new Dictionary<int,bool[]>();
                     float Set(int frame,Vector2 offset)
