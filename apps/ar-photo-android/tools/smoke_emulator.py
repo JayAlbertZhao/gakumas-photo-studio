@@ -58,6 +58,11 @@ def find_text(root: ET.Element, value: str) -> ET.Element | None:
     return next((node for node in root.iter("node") if node.get("text") == value), None)
 
 
+def size_label(root: ET.Element) -> str | None:
+    return next((value for node in root.iter("node")
+                 if (value := node.get("text", "")).startswith("大小 ")), None)
+
+
 def wait_for_text(adb: str, serial: str, value: str, timeout: float = 25.0) -> ET.Element:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -122,13 +127,25 @@ def main() -> None:
                    if node.get("class") == "android.widget.SeekBar"), None)
     if slider is None:
         raise RuntimeError("size slider not found")
+    previous_size = size_label(root)
+    if previous_size is None:
+        raise RuntimeError("size label not found")
     tap(adb, args.serial, bounds_center(slider.get("bounds"), fraction=0.12))
-    wait_for_text(adb, args.serial, "Slide")
+    deadline = time.monotonic() + 10.0
+    while time.monotonic() < deadline:
+        root = hierarchy(adb, args.serial)
+        if size_label(root) != previous_size:
+            break
+    else:
+        raise RuntimeError(f"size label did not change from {previous_size!r}")
+    if find_text(root, "Slide") is None:
+        raise RuntimeError("selected Slide clip disappeared after resize")
     time.sleep(1.0)  # model-instance reload is coalesced after the gesture
     final_pid = run(adb, args.serial, "shell", "pidof", PACKAGE)
     if not initial_pid or final_pid != initial_pid:
         raise RuntimeError(f"app process changed during animation/resize: {initial_pid} -> {final_pid}")
-    print("PASS: Bounce -> Slide, resize retained Slide, app process remained alive")
+    print(f"PASS: Bounce -> Slide, {previous_size} -> {size_label(root)}, "
+          "Slide retained, app process remained alive")
 
 
 if __name__ == "__main__":
