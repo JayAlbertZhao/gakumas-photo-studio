@@ -18,6 +18,9 @@ Unity renderer or consume its C# API.
 - The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
   The APK, downloaded dependencies, SDK path, and imported models are not
   published in this repository.
+- CI builds the same debug APK and runs Android lint on Linux; it does not
+  upload an APK or include imported assets. Emulator and device checks remain
+  separate from this compile-time gate.
 
 Android 10 (API 29) is the minimum. The manifest marks ARCore as optional so
 the synthetic preview also runs on a device without ARCore. For real AR, use an

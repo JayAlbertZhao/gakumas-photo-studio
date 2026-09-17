@@ -1,4 +1,4 @@
-name: Source-only release audit
+name: Source audit and Android AR build
 on: [push, pull_request]
 permissions:
   contents: read
@@ -21,3 +21,17 @@ jobs:
       - run: python -I -m unittest discover -s tests -v
       - run: python -I tools/verify_baseline.py
       - run: python -I tools/release.py audit --tracked
+  android-ar-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+      - run: gradle --project-dir apps/ar-photo-android :app:assembleDebug :app:lintDebug --no-daemon --max-workers=2

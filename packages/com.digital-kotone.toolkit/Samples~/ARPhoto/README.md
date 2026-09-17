@@ -44,6 +44,8 @@ camera before claiming parity. Do not import original game assets into a public
 project. The capsule path only verifies placement, gestures and camera capture;
 it is not a character-rendering acceptance test.
 
-The repository currently has no Android build module or connected test phone;
-this sample therefore needs an actual on-device build and visual check before
-its rendering or performance can be called verified.
+The repository also includes a [separate native Android AR test app](../../../../apps/ar-photo-android/README.md)
+with a build module and emulator-tested dataset playback. That app does not
+embed this Unity sample or the toolkit renderer. This Unity sample still needs
+an actual on-device build and visual check before its rendering or performance
+can be called verified.

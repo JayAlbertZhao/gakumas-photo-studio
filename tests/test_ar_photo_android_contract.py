@@ -89,6 +89,13 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertIn("switchToArMode(false)", screen)
         self.assertIn("switchToArMode(true)", screen)
 
+    def test_ci_builds_native_ar_app_without_publishing_assets(self):
+        workflow = (ROOT / ".github/workflows/source-audit.yml").read_text(encoding="utf-8")
+        self.assertIn("android-ar-build:", workflow)
+        self.assertIn("'platforms;android-36'", workflow)
+        self.assertIn("gradle-version: '9.2.1'", workflow)
+        self.assertIn(":app:assembleDebug :app:lintDebug", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
