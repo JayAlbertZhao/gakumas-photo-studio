@@ -18,7 +18,7 @@ class FrameworkContractTests(unittest.TestCase):
         solver = (RUNTIME / 'HairDynamicsSystem.cs').read_text(encoding='utf-8')
         self.assertIn('child.setting.useWindGlobalForce', solver)
         self.assertIn('acceleration += naturalForce * child.setting.wind;', solver)
-        self.assertIn('naturalWindTimeOverride ?? Time.timeAsDouble', solver)
+        self.assertIn('naturalWindTimeOverride ?? _explicitSimulationTime ?? Time.timeAsDouble', solver)
         host = (RUNTIME / 'CharacterSceneRuntime.cs').read_text(encoding='utf-8')
         self.assertIn('SetNaturalWind(NaturalWindSettings settings)', host)
         for name in ('_hairDynamics', '_garmentDynamics', '_skirtDynamics'):
@@ -667,6 +667,57 @@ class FrameworkContractTests(unittest.TestCase):
                       'actual-production-post-consumes-completed-scene', 'component-disable-releases-color-history',
                       'GAKUMAS_SELFTEST_CAPTURE_SCENE_TAA'):
             self.assertIn(token, fixture)
+
+    def test_secondary_motion_explicit_clock_preserves_automatic_default(self):
+        for name in ('HairDynamicsSystem', 'BodySoftTissueDynamicsSystem', 'BreastDynamicsSystem'):
+            source = (RUNTIME / (name + '.cs')).read_text(encoding='utf-8')
+            for token in ('public bool automaticSimulation { get; set; } = true;',
+                          'if (automaticSimulation) AdvanceFrame(Time.deltaTime);',
+                          'public void AdvanceSimulation(float deltaSeconds',
+                          'if (deltaSeconds == 0f) return;',
+                          'float.IsNaN(deltaSeconds)', 'float.IsInfinity(deltaSeconds)',
+                          'Mathf.Min(deltaSeconds, 0.10f)', 'FixedDt * MaxSubsteps'):
+                self.assertIn(token, source, name)
+            method = source.split('public void AdvanceSimulation(', 1)[1].split('private void AdvanceFrame(', 1)[0]
+            self.assertLess(method.index('if (automaticSimulation)'), method.index('AdvanceFrame(deltaSeconds)'))
+            self.assertIn('throw new InvalidOperationException', method)
+            self.assertNotIn('Time.deltaTime', method)
+        hair = (RUNTIME / 'HairDynamicsSystem.cs').read_text(encoding='utf-8')
+        self.assertIn('finally { _explicitSimulationTime = null; }', hair)
+        self.assertIn('naturalWindTimeOverride ?? _explicitSimulationTime ?? Time.timeAsDouble', hair)
+        self.assertIn('(float)_explicitSimulationTime.Value : Time.time', hair)
+
+    def test_secondary_motion_fixture_requires_nonempty_state_and_replay(self):
+        source = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SecondaryMotion.cs').read_text(encoding='utf-8')
+        for token in ('nonempty-solver', 'six-second-replay-exact-finite',
+                      'nonempty-secondary-response', 'unity-default-clock-equivalence',
+                      'existing-four-substep-cap', 'fixed-step-partition-with-static-pose',
+                      'zero-and-disabled-lateupdate-noop', 'default-rejects-double-owner',
+                      'invalid-delta-', 'invalid-clock-', 'reset-and-full-replay-exact',
+                      'secondary-clock-explicit-gust-changes-geometry',
+                      'secondary-clock-explicit-wind-override-precedence'):
+            self.assertIn(token, source)
+
+    def test_secondary_motion_metadata_has_importable_guid(self):
+        folder = ROOT / 'unity/Assets/Applications/PhotoStudio'
+        seen = set()
+        for name in ('ActorRenderingSelfTest.SecondaryMotion', 'SrpActorCharacterValidation.SecondaryMotion'):
+            text = (folder / (name + '.cs.meta')).read_text(encoding='utf-8')
+            guids = [line.removeprefix('guid: ') for line in text.splitlines() if line.startswith('guid: ')]
+            self.assertEqual(len(guids), 1)
+            self.assertRegex(guids[0], r'^[0-9a-f]{32}$')
+            self.assertNotIn(guids[0], seen)
+            seen.add(guids[0])
+
+    def test_secondary_character_requires_actual_skin_response_and_restores_render_flags(self):
+        source = (ROOT / 'unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.SecondaryMotion.cs').read_text(encoding='utf-8')
+        for token in ('forceMatrixRecalculationPerRender = true',
+                      'forceMatrixRecalculationPerRender = oldMatrixRecalculation[i]',
+                      'all-bones-all-180-frames-reset-replay-exact',
+                      'wind-visible-positive-control', 'changed > 10',
+                      'natural-wind-moves-authored-bones', 'frame < 180',
+                      '"wind", "no-wind", "replay"'):
+            self.assertIn(token, source)
 
 if __name__ == '__main__':
     unittest.main()

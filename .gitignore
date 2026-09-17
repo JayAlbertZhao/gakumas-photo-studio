@@ -912,6 +912,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SceneTaa.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ScreenShadow.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ScreenShadow.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SecondaryMotion.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SecondaryMotion.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Spot.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.Spot.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.SrpActor.cs
@@ -990,6 +992,8 @@
 !/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.Focus.cs.meta
 !/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.Jitter.cs
 !/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.Jitter.cs.meta
+!/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.SecondaryMotion.cs
+!/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.SecondaryMotion.cs.meta
 !/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs
 !/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs.meta
 !/unity/Assets/Applications/PhotoStudio/VertexLocatorCharacterValidation.cs

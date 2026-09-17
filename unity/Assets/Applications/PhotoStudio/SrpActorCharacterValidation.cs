@@ -422,6 +422,11 @@ namespace GakumasPhotoMode
                     }
                     finally {camera.projectionMatrix=originalProjection;actor.Configuration.motion.enabled=false;}
                 }
+                if(Environment.GetCommandLineArgs().Contains("--validate-secondary-motion"))
+                {
+                    actor.Configuration.motion.enabled=false;
+                    VerifySecondaryCharacter(report,View,Run);
+                }
                 actor.Dispose();Check("dispose-keeps-original-character",!current.IsCurrent&&actor.NominalTextureBytes==0&&SourceSnapshot(renderers)==sourceBefore&&output.IsCreated());
                 if(Environment.GetCommandLineArgs().Contains("--validate-desktop-character"))
                     VerifyDesktopCharacter(report,renderers,head,bounds,baseInputs,sourceBefore);

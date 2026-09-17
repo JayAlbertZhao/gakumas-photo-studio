@@ -35,6 +35,9 @@ namespace GakumasPhotoMode
         // Explicit opt-in. Null keeps the previous diagnostic wind unchanged.
         public NaturalWindSettings naturalWind;
         public double? naturalWindTimeOverride { get; set; }
+        /// <summary>Use Unity LateUpdate by default; disable before explicit stepping.</summary>
+        public bool automaticSimulation { get; set; } = true;
+        private double? _explicitSimulationTime;
         [Range(0f, 2f)] public float gravityStrength = 1f;
         [Range(0f, 1f)] public float collisionStrength = 1f;
 
@@ -482,6 +485,30 @@ namespace GakumasPhotoMode
 
         private void LateUpdate()
         {
+            if (automaticSimulation) AdvanceFrame(Time.deltaTime);
+        }
+
+        /// <summary>
+        /// Advance existing state after the host applies animation and helper poses.
+        /// Time selects wind, not animation or a cached simulation seek. The existing
+        /// four-substep catch-up cap is retained. Zero delta leaves state untouched.
+        /// </summary>
+        public void AdvanceSimulation(float deltaSeconds, double timeSeconds)
+        {
+            if (automaticSimulation)
+                throw new InvalidOperationException("Disable automaticSimulation before explicit stepping.");
+            if (float.IsNaN(deltaSeconds) || float.IsInfinity(deltaSeconds) || deltaSeconds < 0f)
+                throw new ArgumentOutOfRangeException(nameof(deltaSeconds));
+            if (double.IsNaN(timeSeconds) || double.IsInfinity(timeSeconds) || Math.Abs(timeSeconds) > 1e12)
+                throw new ArgumentOutOfRangeException(nameof(timeSeconds));
+            if (deltaSeconds == 0f) return;
+            _explicitSimulationTime = timeSeconds;
+            try { AdvanceFrame(deltaSeconds); }
+            finally { _explicitSimulationTime = null; }
+        }
+
+        private void AdvanceFrame(float deltaSeconds)
+        {
             if (!_initialized || _nodes.Count == 0) return;
             if ((transform.position - _lastRootPosition).sqrMagnitude > 0.20f)
             {
@@ -504,7 +531,7 @@ namespace GakumasPhotoMode
             ApplyQuartzDrivers();
             ResetNodesToBasePose();
             CaptureAuthoredPose();
-            _accumulator = Mathf.Min(_accumulator + Mathf.Min(Time.deltaTime, 0.10f),
+            _accumulator = Mathf.Min(_accumulator + Mathf.Min(deltaSeconds, 0.10f),
                 FixedDt * MaxSubsteps);
             int steps = 0;
             while (_accumulator >= FixedDt && steps < MaxSubsteps)
@@ -528,9 +555,9 @@ namespace GakumasPhotoMode
             ChainLoopLengthRestorations = 0;
             MaxRestoredChainLoopLengthError = 0f;
             float integrationScale = dt * DampFactor * Mathf.Max(0f, strength);
-            float time = Time.time;
+            float time = _explicitSimulationTime.HasValue ? (float)_explicitSimulationTime.Value : Time.time;
             Vector3 naturalForce = allowWind && !prewarming && naturalWind != null
-                ? naturalWind.Sample(naturalWindTimeOverride ?? Time.timeAsDouble)
+                ? naturalWind.Sample(naturalWindTimeOverride ?? _explicitSimulationTime ?? Time.timeAsDouble)
                 : Vector3.zero;
             bool useAnimatedAttachmentFrame =
                 string.Equals(_systemLabel, "Garment", StringComparison.Ordinal) ||

@@ -27,6 +27,8 @@ namespace GakumasPhotoMode
 
         [Range(0f, 1.5f)] public float strength = 1f;
         [Range(0f, 1f)] public float correctionStrength = 1f;
+        /// <summary>Use Unity LateUpdate by default; disable before explicit stepping.</summary>
+        public bool automaticSimulation { get; set; } = true;
 
         private readonly List<JobState> _jobs = new List<JobState>();
         private Transform _hips;
@@ -98,6 +100,10 @@ namespace GakumasPhotoMode
 
         public void ResetSimulation()
         {
+            // A reset establishes a new attachment frame. Keeping the last
+            // playback's hips position injects a false root-translation impulse
+            // into the first step after a seek/replay.
+            _lastHipsPosition = _hips == null ? transform.position : _hips.position;
             foreach (JobState job in _jobs)
             {
                 RestoreAuthoredPose(job.left);
@@ -117,6 +123,22 @@ namespace GakumasPhotoMode
         }
 
         private void LateUpdate()
+        {
+            if (automaticSimulation) AdvanceFrame(Time.deltaTime);
+        }
+
+        /// <summary>Advance after authored poses; zero delta is a no-op, not a seek.</summary>
+        public void AdvanceSimulation(float deltaSeconds)
+        {
+            if (automaticSimulation)
+                throw new InvalidOperationException("Disable automaticSimulation before explicit stepping.");
+            if (float.IsNaN(deltaSeconds) || float.IsInfinity(deltaSeconds) || deltaSeconds < 0f)
+                throw new ArgumentOutOfRangeException(nameof(deltaSeconds));
+            if (deltaSeconds == 0f) return;
+            AdvanceFrame(deltaSeconds);
+        }
+
+        private void AdvanceFrame(float deltaSeconds)
         {
             if (!_initialized || _jobs.Count == 0) return;
 
@@ -161,7 +183,7 @@ namespace GakumasPhotoMode
             }
 
             _accumulator = Mathf.Min(
-                _accumulator + Mathf.Min(Time.deltaTime, 0.10f),
+                _accumulator + Mathf.Min(deltaSeconds, 0.10f),
                 FixedDt * MaxSubsteps);
             int steps = 0;
             while (_accumulator >= FixedDt && steps < MaxSubsteps)

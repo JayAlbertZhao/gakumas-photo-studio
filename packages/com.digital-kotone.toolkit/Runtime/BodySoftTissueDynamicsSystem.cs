@@ -32,6 +32,8 @@ namespace GakumasPhotoMode
         private const float CorruptStateGuardMeters = 0.25f;
 
         [Range(0f, 1.5f)] public float strength = 1f;
+        /// <summary>Use Unity LateUpdate by default; disable before explicit stepping.</summary>
+        public bool automaticSimulation { get; set; } = true;
 
         private readonly List<ChainState> _chains = new List<ChainState>();
         private float _accumulator;
@@ -165,6 +167,22 @@ namespace GakumasPhotoMode
 
         private void LateUpdate()
         {
+            if (automaticSimulation) AdvanceFrame(Time.deltaTime);
+        }
+
+        /// <summary>Advance after authored poses; zero delta is a no-op, not a seek.</summary>
+        public void AdvanceSimulation(float deltaSeconds)
+        {
+            if (automaticSimulation)
+                throw new InvalidOperationException("Disable automaticSimulation before explicit stepping.");
+            if (float.IsNaN(deltaSeconds) || float.IsInfinity(deltaSeconds) || deltaSeconds < 0f)
+                throw new ArgumentOutOfRangeException(nameof(deltaSeconds));
+            if (deltaSeconds == 0f) return;
+            AdvanceFrame(deltaSeconds);
+        }
+
+        private void AdvanceFrame(float deltaSeconds)
+        {
             if (!_initialized || _chains.Count == 0) return;
 
             foreach (ChainState chain in _chains)
@@ -216,7 +234,7 @@ namespace GakumasPhotoMode
             }
 
             _accumulator = Mathf.Min(
-                _accumulator + Mathf.Min(Time.deltaTime, 0.10f),
+                _accumulator + Mathf.Min(deltaSeconds, 0.10f),
                 FixedDt * MaxSubsteps);
             int steps = 0;
             while (_accumulator >= FixedDt && steps < MaxSubsteps)

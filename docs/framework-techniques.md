@@ -116,8 +116,8 @@ API 的自制整图控制及实际深度→CoC 链已验证；不改默认摄影
 | A06 | 稀疏面部形变、骨与视角修形；PPT 54–65 | 默认 CPU 保留；新增可选 [GraphicsBuffer GPU 后端](gpu-face-deformation.md)，原有权重／眨眼／视角修形共用；另有只读的当前选中顶点来源 | 桌面逐顶点、原生 compute→draw 及一个真实角色已对照，定位器覆盖全部 108 个单独形状；完整角色／服装、其他 CPU 几何消费者、GPU 帧时和移动驱动仍待完成 |
 | A07 | 可动画面部贴花；PPT 58、62；PDF 29 | 新增默认关闭的 [独立可动画贴花](animated-face-decals.md)：显式接收面、投影／UV／混合、AnimationClip／类型化曲线及 Planar；可消费 [共享制作数据](performance-authoring.md) | 桌面全图、实际蒙皮／GPU 顶点及一个角色全部 108 个单独形状已对照；其他角色／服装／制作动作、Maya 客户端制作／导出实测及移动成本仍待完成 |
 | A08 | MotionEffect 材质／Prefab／粒子／定位器；PPT 52、59–62 | 已有 [预制体／Local 粒子／Playable](motion-effects.md) 与 [当前面部顶点定位器](vertex-locators.md)；新增 [共享制作曲线、材质区间与 FBX／sidecar 转换](performance-authoring.md)，显式绑定和统一时钟 | 桌面粒子／顶点／整图重放已验证；Blender 原生关键帧、自定义属性 FBX 导入及 Player 联合消费已实测；通用蒙皮 provider、世界轨迹／制作特效、Maya 客户端和生产 rig、移动成本仍待完成 |
-| A09 | 辅助骨、链、碰撞、参考角度、滑动、跨轴力；PPT 75–78、90–93 | 已有多个求解模块 | 全服装范围、极端动作、坐姿边界与动态对照 |
-| A10 | 自然风、阵风和停歇；PPT 94 | 新增 NaturalWindSettings 及角色接入 | 见下方接口；原版资产参数映射和全动作视觉一致性未验收 |
+| A09 | 辅助骨、链、碰撞、参考角度、滑动、跨轴力；PPT 75–78、90–93 | 已有多个求解模块；新增 [显式时钟与重播](#辅助动态骨的显式推进)，修复双侧辅助骨重置后首帧沿用旧髋部位置造成的额外冲量 | 两套自备服装／两桌面 API 的 180 帧位置与旋转重播、三视角实际蒙皮对照已验证；全服装范围、极端动作、坐姿边界、完整碰撞质量仍待验收 |
+| A10 | 自然风、阵风和停歇；PPT 94 | NaturalWindSettings 及角色接入；显式推进可同时驱动风场与既有物理 | 自制阵风／停歇与两套服装实际骨骼、颜色、深度响应已验证；原版资产参数映射和全动作视觉一致性未验收 |
 | E01 | 背景 PBR 及其 Def 通道；PPT 108 | 已有背景 fallback；透明／特效共享 [法线贴图基](forward-normal-basis.md) 按实际矩阵计算，支持显式镜像／非均匀变换 | 特殊材质、更多场景输入与 shader 变体；本次法线基修正不代表原版 Def ABI 或全场景画质一致 |
 | E02 | 线性灯光衰减、可调镜面、GI 乘色、背向补光；PPT 110–112 | 独立 GI、基础 GI 压暗、背向漫反射、白光烘焙、Spot 与实例化；可选实时深度阴影、[四通道烘焙可见性](scene-baked-shadows.md) 及显式 [Capsule／Area 有限源覆盖](extended-source-shadows.md) | 桌面 GI、三种光源投影及移动 caster 已验收；Mixed Shadowmask 使用新场景副本与显式逐灯通道。扩展光源使用独立等权几何可见性模型，保留原有 GI／背光响应；连续面积光积分、完整角色／场景和一般蒙皮仍需单独实现或验收，见 [GI](scene-gi.md) 与 [光源阴影](scene-light-shadows.md) |
 | E03 | DepthID 几何法线及 SSR mask；PDF 17 | SceneDepthData 保留；[Tile 几何预处理](tile-decals.md) 的 R32 eye depth／RGBA8 未映射世界法线及资格已接入真实材质投影、[Tile SSR](tile-reflections.md) 与 [SRP Planar](tile-planar-reflections.md)，与贴花后映射法线分开消费 | 当前几何／cutout／资格、反射接收组与原生字段已对照；一般蒙皮组合和移动验收仍待完成。不猜读原版 MaterialID，不复用 ActorData／TAA 位 |
@@ -169,6 +169,51 @@ characterScene.SetNaturalWind(null);
 也可单独调用 `wind.Sample(seconds)`，不需要角色、场景、资产清单或随机数全局状态。稳态、正弦与平滑随机向量按世界空间相加，再乘阵风包络。包络在每段风的两端平滑回到 calmStrength；随机种子控制不同阵风的强度与包络扰动。它是独立的可复现模型，不是原版序列的重放。
 
 角色入口把同一配置绑定到头发、外衣与裙摆的既有求解器，换装后重绑。每个动态子节点的 `wind` 与 `useWindGlobalForce` 决定是否接受环境风。不向身体软组织添加风力。数值采用现有求解器的 force 输入单位，不声称物理 SI 标定。默认 null／disabled，旧 UI 诊断风保持原样；两种风同时启用时相加。时间采样的确定性不代表整个有状态物理求解可以无缓存任意跳转。
+
+## 辅助动态骨的显式推进
+
+`HairDynamicsSystem`（包含外衣／裙摆实例）、`BreastDynamicsSystem` 和
+`BodySoftTissueDynamicsSystem` 默认继续在 Unity `LateUpdate` 中推进。
+需要逐帧导出或离线对照的宿主，可以分别接管已有实例：
+
+```csharp
+hair.automaticSimulation = false;
+breast.automaticSimulation = false;
+softTissue.automaticSimulation = false;
+// 每帧先施加动画和辅助骨姿势，再按项目原有依赖顺序推进各求解器。
+hair.AdvanceSimulation(deltaSeconds, timelineSeconds);
+breast.AdvanceSimulation(deltaSeconds);
+softTissue.AdvanceSimulation(deltaSeconds);
+```
+
+外衣／裙摆是独立的 `HairDynamicsSystem` 实例，需要宿主同样接管；这个接口
+不自动查找角色，也不驱动 Animator、Quartz 辅助骨或旧 `ClothDynamicsSystem`。
+保留既有固定步长和每调用最多四个子步的追赶上限，大时间差不能替代逐帧重放。
+同次调用内所有子步取相同风时刻，保持既有按帧采样约定。显式
+`naturalWindTimeOverride` 优先于传入时刻；否则环境风使用 double 时刻，旧诊断风
+沿用 float 相位。自动路径仍分别使用 `Time.timeAsDouble` 和 `Time.time`。
+
+手动调用要求先关闭 `automaticSimulation`，否则抛出异常以避免一帧双重推进。
+负数／非有限 delta、非有限或绝对值大于 `1e12` 的风时刻也抛出异常；零 delta
+不改姿态、速度或累积时间。切换驱动方式不隐式清空已有状态，`ResetSimulation()`
+仍显式执行既有预热。回退时间只改变风采样，不恢复历史姿态／速度；任意跳转需要
+宿主恢复初始姿势并重放。当前摄影应用不自动启用这一接口。
+
+同一 Unity update 内推进多个姿态并手动渲染时，还要给明确交给宿主管理的
+`SkinnedMeshRenderer` 设置 `forceMatrixRecalculationPerRender = true`，结束时
+恢复原值，否则骨骼变化可能没有进入本次蒙皮绘制。这个开关不属于物理时钟，
+求解器不会擅自搜索或修改 renderer。参见 [Unity 的多次手动蒙皮渲染约定](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/SkinnedMeshRenderer-forceMatrixRecalculationPerRender.html)。
+
+这为 PPT 75–78／90–94 的动作与风场对照提供可控时钟，不引入新的物理模型，
+也不代表全服装碰撞、坐姿边界或原版视觉一致性已经验收。
+
+实际角色诊断由 `--validate-srp-actor-character <directory> --validate-secondary-motion`
+显式启用，需调用方自己的资产。当前两套服装／D3D11 与 Vulkan 对照包含
+180 帧动画＋风／无风／重播、所有骨骼的位置与旋转，以及前／侧／后三个最终视图。
+重播要求输出完全一致，风必须改变实际颜色和几何深度；只改变 Transform、不进入
+蒙皮绘制不能通过验收。生成式控制另覆盖六秒重播、阵风／停歇、错误输入、时间覆盖
+优先级及默认 Unity 时钟的一致性。双侧求解器重置时同步髋部缓存，避免首帧虚假的
+根位移补偿；其余既有积分公式和追赶上限保持不变。
 
 ## TAA 分类接口
 
