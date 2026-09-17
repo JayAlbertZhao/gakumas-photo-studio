@@ -115,9 +115,12 @@ preview/import/photo flow worked; the public ARCore recording also replayed,
 detected a floor, accepted a tap-to-place anchor, resized the stand-in, and
 saved a composited PNG. With Khronos' Box GLB imported, playback accepted a
 tracking floor hit and rendered the scaled Box at the captured world position.
-Imported models use that hit pose directly because attaching a loaded GLB under
-the library's `AnchorNode` did not visibly place its renderables in this
-emulator; the procedural character still uses `AnchorNode`. The emulator also
+Imported models use the hit pose directly and update their root position when
+ARCore refines the anchor pose; attaching a loaded GLB under the library's
+`AnchorNode` did not visibly place its renderables in this emulator. This
+position-following path has been built and exercised with a replayed dataset,
+but its long-term stability still needs a supported-phone check. The
+procedural character continues to use `AnchorNode`. The emulator also
 reported the dataset's finished status and started the MP4 player again when
 **重新播放会话** was tapped. Switching out of playback requires pausing its ARCore
 session before SceneView destroys it; this was tested in the emulator. Live

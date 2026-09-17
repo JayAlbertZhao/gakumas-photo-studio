@@ -13,6 +13,7 @@ import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
 import io.github.sceneview.math.colorOf
 import io.github.sceneview.model.ModelInstance
+import io.github.sceneview.node.ModelNode as ModelNodeImpl
 import kotlin.math.sin
 
 @Composable
@@ -24,6 +25,7 @@ internal fun NodeScope.PhotoSubject(
     size: Float,
     yaw: Float,
     importedPosition: Position,
+    onImportedNodeReady: ((ModelNodeImpl, Position) -> Unit)? = null,
 ) {
     if (imported != null) {
         ModelNode(
@@ -40,6 +42,7 @@ internal fun NodeScope.PhotoSubject(
                 val offset = position
                 position = Position(offset.x + importedPosition.x,
                     offset.y + importedPosition.y, offset.z + importedPosition.z)
+                onImportedNodeReady?.invoke(this, offset)
             },
         )
         return

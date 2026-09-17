@@ -48,6 +48,7 @@ import com.google.ar.core.Frame
 import com.google.ar.core.Plane
 import com.google.ar.core.PlaybackStatus
 import com.google.ar.core.Session
+import com.google.ar.core.TrackingState
 import io.github.sceneview.SceneView
 import io.github.sceneview.SurfaceType
 import io.github.sceneview.ar.ARSceneView
@@ -62,10 +63,18 @@ import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberRenderer
 import io.github.sceneview.rememberOnGestureListener
+import io.github.sceneview.model.ModelInstance
+import io.github.sceneview.node.ModelNode as ModelNodeImpl
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.util.concurrent.atomic.AtomicReference
 import java.io.File
+
+private data class TrackedImportedNode(
+    val instance: ModelInstance,
+    val node: ModelNodeImpl,
+    val alignment: Position,
+)
 
 @Composable
 internal fun PhotoScreen(
@@ -143,6 +152,7 @@ internal fun PhotoScreen(
     var anchor by remember { mutableStateOf<Anchor?>(null) }
     val latestFrame = remember { AtomicReference<Frame?>(null) }
     val currentSession = remember { AtomicReference<Session?>(null) }
+    val trackedImportedNode = remember { AtomicReference<TrackedImportedNode?>(null) }
     val scope = rememberCoroutineScope()
 
     // SceneView recreates the ARCore Session when changing live/playback mode.
@@ -208,6 +218,7 @@ internal fun PhotoScreen(
             anchor?.detach()
             anchor = null
             latestFrame.set(null)
+            trackedImportedNode.set(null)
         }
     }
 
@@ -237,6 +248,18 @@ internal fun PhotoScreen(
                     },
                     onSessionUpdated = { session, frame ->
                         latestFrame.set(frame)
+                        // ARCore may refine an anchor's world pose as tracking improves.
+                        // Imported GLBs are placed directly in world space in SceneView 4.25,
+                        // so follow that pose imperatively without recomposing the scene.
+                        val placed = anchor
+                        val tracked = trackedImportedNode.get()
+                        if (placed != null && placed.trackingState == TrackingState.TRACKING &&
+                            tracked != null && tracked.instance === imported) {
+                            val pose = placed.pose
+                            val offset = tracked.alignment
+                            tracked.node.position = Position(offset.x + pose.tx(),
+                                offset.y + pose.ty(), offset.z + pose.tz())
+                        }
                         if (replayMode && !playbackFinished &&
                             session.playbackStatus == PlaybackStatus.FINISHED) {
                             playbackFinished = true
@@ -283,7 +306,10 @@ internal fun PhotoScreen(
                             Node {
                                 PhotoSubject(imported, materialLoader, wave,
                                     animationNames.getOrNull(animationIndex), scale, yaw,
-                                    Position(placed.pose.tx(), placed.pose.ty(), placed.pose.tz()))
+                                    Position(placed.pose.tx(), placed.pose.ty(), placed.pose.tz()),
+                                    onImportedNodeReady = { node, alignment ->
+                                        trackedImportedNode.set(TrackedImportedNode(imported, node, alignment))
+                                    })
                             }
                         } else {
                             AnchorNode(anchor = placed) {
@@ -378,6 +404,7 @@ internal fun PhotoScreen(
                         OutlinedButton(onClick = onPickModel) { Text("导入 GLB") }
                         OutlinedButton(onClick = {
                             anchor?.detach(); anchor = null; scale = 1f; yaw = 0f
+                            trackedImportedNode.set(null)
                             if (imported != null) pendingModelTransformRevision++
                             previewX = 0f; previewY = 0f
                         }) { Text("重置") }
