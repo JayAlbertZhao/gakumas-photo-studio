@@ -29,6 +29,11 @@
       "displayName": "Asset-free Desktop Host",
       "description": "Generated animated scene, shadows, reflections, transparent effects and grading. Explicit desktop SRP ownership; intentionally synchronous teaching sample.",
       "path": "Samples~/DesktopHost"
+    },
+    {
+      "displayName": "AR Photo Prototype",
+      "description": "Mobile AR placement, gestures and composite capture with a user-supplied animated prefab. Requires AR Foundation and a platform provider in the host project.",
+      "path": "Samples~/ARPhoto"
     }
   ]
 }

@@ -97,6 +97,7 @@
     }
   },
   "additions": {
+    "packages/com.digital-kotone.toolkit/Samples~/ARPhoto/ARPhotoController.cs": "ff3d051d01747260246f1f00d130a6e63b5ca27b014af12676dc7c848d584866",
     "packages/com.digital-kotone.toolkit/Runtime/SphereFogSettings.cs": "dc22a93a284be2e40336622dedef0163aa9a25d6bbf069aba20c53429bac25bd",
     "packages/com.digital-kotone.toolkit/Runtime/SphereFogSettings.cs.meta": "64445225b9d6cdc0867bed3f75c5693585b2f45a540d6376d58d8f435dd03757",
     "unity/Assets/Resources/ActorOutline.cginc": "f1c47038fc32b19c1410a27ee0f238707d3371266c2d214efeabc04ac0da7bd6",
@@ -135,7 +136,7 @@
     "packages/com.digital-kotone.toolkit/Runtime/Gakumas.Toolkit.asmdef.meta": "aa6bd18678567d1a6fb7c0670372e0972d692621c4d0bd9edf87520370d0e091",
     "packages/com.digital-kotone.toolkit/Samples~/MinimalHost/MinimalCharacterHost.cs": "32e8833f7511cf3e1e5a05580aa3539b316acea1a9d53cc10f035a2bcf21a34b",
     "packages/com.digital-kotone.toolkit/Samples~/MinimalHost/MinimalCharacterHost.cs.meta": "d617f71d770373c11c17e45a38a8663085850023a10cfb22fd123b56b002c152",
-    "packages/com.digital-kotone.toolkit/package.json": "ecb905034cf9b9e15e0f4b24ff06af425ae1aaa9d45a824cd7ed2e1a02e60fc4",
+    "packages/com.digital-kotone.toolkit/package.json": "ab4705e6252c1ee8e024add942916a2114c282d6baefd1c48ac02ba3b9a214ff",
     "unity/Assets/Applications/PhotoStudio/Gakumas.PhotoStudio.asmdef": "3b4c4fe6bcb41f5de1a8e0dd0c89006d23ced872631c9f5b056be24bdf909cb4",
     "unity/Assets/Applications/PhotoStudio/Gakumas.PhotoStudio.asmdef.meta": "bcd2ec03372f7b88a72ebce36516a118f05a21d8f1e8ecf8056811bb50bdbf2a",
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs": "93267c4f15f0a7b3dcf3e1d3b1e07ced8258c9854d6ed1de91231a88aedce443",

@@ -22,6 +22,10 @@
 
 不准备角色资产也可运行 [桌面整帧示例](docs/desktop-host.md)：用现场生成的几何和材质演示场景、角色、自阴影、背景投影、Planar／SSR、透明特效、DOF 与调色的显式接入。独立 Examples 程序集参与编译；示例临时选择自己的 SRP，不改变摄影应用的默认路径。它是接入示范，不包含完整动画编辑器或移动端性能保证。
 
+移动端 [AR 拍照原型](packages/com.digital-kotone.toolkit/Samples~/ARPhoto/README.md) 是可选的包示例：宿主安装 AR Foundation 与设备 provider 后，可在真实平面上放置自有动画 prefab、手势调整并保存合成截图。当前尚未把桌面角色渲染器接到 AR 相机，也未经手机实测；示例不包含游戏模型或素材。
+
+另有[独立 Android 测试应用](apps/ar-photo-android/README.md)：可在模拟器里用原创合成场景测试 GLB 导入和 PNG 拍照，在 ARCore 设备上尝试平面放置、会话录制与回放。它目前不直接调用 Unity 工具库，真实 AR 路径尚待手机验证；不要将它理解为已交付的完整移动版 Photo Studio。
+
 [FSR1 空间重建](docs/fsr.md) 提供独立图像接口和实际低分辨率手动相机宿主，可消费场景 TAA，并把 UI 留在完整输出分辨率。默认关闭；不会替换摄影应用的现有超采样。AMD 算法来自包依赖，分发时保留 [第三方声明](packages/com.digital-kotone.toolkit/ThirdPartyNotices.md)。
 
 [独立水面](docs/scene-water.md) 接受当前场景颜色／深度、共享灯光、GI 与 Planar，提供可回放波纹法线、吸收和有前景保护的屏幕透射。使用显式渲染接口，不自动改变摄影应用的材质或后处理。

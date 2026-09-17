@@ -16,9 +16,10 @@ class ToolkitBoundaryTests(unittest.TestCase):
         self.assertEqual(package['name'], 'com.digital-kotone.toolkit')
         self.assertEqual(package['dependencies']['com.unity.mathematics'], '1.3.2')
         samples = {sample['path']: sample for sample in package['samples']}
-        self.assertEqual(set(samples), {'Samples~/MinimalHost', 'Samples~/DesktopHost'})
+        self.assertEqual(set(samples), {'Samples~/MinimalHost', 'Samples~/DesktopHost', 'Samples~/ARPhoto'})
         self.assertTrue((PACKAGE / 'Samples~/MinimalHost/MinimalCharacterHost.cs').is_file())
         self.assertTrue((PACKAGE / 'Samples~/DesktopHost/README.md').is_file())
+        self.assertTrue((PACKAGE / 'Samples~/ARPhoto/ARPhotoController.cs').is_file())
         self.assertTrue((PACKAGE / 'Examples/DesktopHost/DesktopHostExample.cs').is_file())
         project = json.loads((ROOT / 'unity/Packages/manifest.json').read_text(encoding='utf-8'))
         dependency = project['dependencies'][package['name']]

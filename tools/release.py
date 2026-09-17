@@ -18,7 +18,7 @@ _baseline_spec = importlib.util.spec_from_file_location('release_baseline', Path
 _baseline_module = importlib.util.module_from_spec(_baseline_spec)
 _baseline_spec.loader.exec_module(_baseline_module)
 ALLOWED_SUFFIXES = {'.cs', '.shader', '.compute', '.cginc', '.hlsl', '.asmdef', '.meta', '.json', '.md', '.txt',
-                    '.py', '.yml', '.asset', '.unity'}
+                    '.py', '.yml', '.asset', '.unity', '.kt', '.kts', '.xml', '.properties'}
 ALLOWED_DOTFILES = {'.gitignore', '.gitattributes', '.editorconfig', '.githooks/pre-commit'}
 PRIVATE_PARTS = {'private-reference', 'localassets', 'privateresources', 'research',
                  'library', 'temp', 'obj', 'logs', 'output', 'build', 'builds',
