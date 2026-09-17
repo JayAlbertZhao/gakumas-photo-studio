@@ -20,6 +20,7 @@
 !/unity/Packages/
 !/unity/ProjectSettings/
 !/apps/ar-photo-android/app/
+!/apps/ar-photo-android/gradle/
 !/apps/ar-photo-android/tools/
 !/packages/com.digital-kotone.toolkit/Editor/
 !/packages/com.digital-kotone.toolkit/Examples/
@@ -30,6 +31,7 @@
 !/unity/Assets/Resources/
 !/unity/Assets/Scenes/
 !/apps/ar-photo-android/app/src/
+!/apps/ar-photo-android/gradle/wrapper/
 !/packages/com.digital-kotone.toolkit/Examples/DesktopHost/
 !/packages/com.digital-kotone.toolkit/Runtime/Compatibility/
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/
@@ -67,6 +69,10 @@
 !/apps/ar-photo-android/app/src/main/java/org/digital_kotone/arphoto/SyntheticBackdrop.kt
 !/apps/ar-photo-android/build.gradle.kts
 !/apps/ar-photo-android/gradle.properties
+!/apps/ar-photo-android/gradle/wrapper/gradle-wrapper.jar
+!/apps/ar-photo-android/gradle/wrapper/gradle-wrapper.properties
+!/apps/ar-photo-android/gradlew
+!/apps/ar-photo-android/gradlew.bat
 !/apps/ar-photo-android/settings.gradle.kts
 !/apps/ar-photo-android/tools/generate_sample_glb.py
 !/config/runtime-revisions.json

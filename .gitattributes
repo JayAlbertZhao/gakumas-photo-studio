@@ -6,3 +6,6 @@
 *.md text eol=lf
 *.yml text eol=lf
 *.ps1 text eol=crlf
+apps/ar-photo-android/gradlew text eol=lf
+apps/ar-photo-android/gradlew.bat text eol=crlf
+apps/ar-photo-android/gradle/wrapper/gradle-wrapper.jar binary

@@ -20,6 +20,10 @@ _baseline_spec.loader.exec_module(_baseline_module)
 ALLOWED_SUFFIXES = {'.cs', '.shader', '.compute', '.cginc', '.hlsl', '.asmdef', '.meta', '.json', '.md', '.txt',
                     '.py', '.yml', '.asset', '.unity', '.kt', '.kts', '.xml', '.properties'}
 ALLOWED_DOTFILES = {'.gitignore', '.gitattributes', '.editorconfig', '.githooks/pre-commit'}
+GRADLE_WRAPPER_JAR = 'apps/ar-photo-android/gradle/wrapper/gradle-wrapper.jar'
+GRADLE_WRAPPER_JAR_SHA256 = '423cb469ccc0ecc31f0e4e1c309976198ccb734cdcbb7029d4bda0f18f57e8d9'
+BUILD_BOOTSTRAP_FILES = {GRADLE_WRAPPER_JAR, 'apps/ar-photo-android/gradlew',
+                         'apps/ar-photo-android/gradlew.bat'}
 PRIVATE_PARTS = {'private-reference', 'localassets', 'privateresources', 'research',
                  'library', 'temp', 'obj', 'logs', 'output', 'build', 'builds',
                  'usersettings', 'dist', '.git', '__pycache__'}
@@ -55,7 +59,8 @@ def validate_name(name: str) -> None:
     if (any(part.lower() in PRIVATE_PARTS for part in path.parts) and
             name != 'LocalAssets/README.md') or '.local.' in lower:
         raise ValueError('Private path')
-    if path.suffix.lower() not in ALLOWED_SUFFIXES and name not in ALLOWED_DOTFILES:
+    if (path.suffix.lower() not in ALLOWED_SUFFIXES and name not in ALLOWED_DOTFILES
+            and name not in BUILD_BOOTSTRAP_FILES):
         raise ValueError('Non-source extension')
     if (path.suffix.lower() == '.asset' and not name.startswith('unity/ProjectSettings/')
             and name not in SOURCE_PROJECT_ASSETS):
@@ -103,6 +108,10 @@ def render_gitignore(names: list[str]) -> str:
 
 def audit_content(name: str, data: bytes) -> list[dict]:
     findings = []
+    if name == GRADLE_WRAPPER_JAR:
+        if hashlib.sha256(data).hexdigest() != GRADLE_WRAPPER_JAR_SHA256:
+            return [{'file': name, 'rule': 'unverified_gradle_wrapper'}]
+        return findings
     if len(data) > 1024 * 1024 or b'\x00' in data:
         return [{'file': name, 'rule': 'binary_or_oversized'}]
     try:
@@ -214,7 +223,7 @@ def pack(output: Path, payloads: dict[str, bytes]) -> None:
             entries['SOURCE-MANIFEST.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
             for name, data in sorted(entries.items()):
                 info = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
-                mode = 0o755 if name == '.githooks/pre-commit' else 0o644
+                mode = 0o755 if name in {'.githooks/pre-commit', 'apps/ar-photo-android/gradlew'} else 0o644
                 info.external_attr = (stat.S_IFREG | mode) << 16
                 info.compress_type = zipfile.ZIP_DEFLATED
                 archive.writestr(info, data)

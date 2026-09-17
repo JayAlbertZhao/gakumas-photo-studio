@@ -125,6 +125,15 @@ class ReleaseBoundaryTests(unittest.TestCase):
     def test_rejects_embedded_binary(self):
         self.assertEqual(release.audit_content('a.cs', b'a\x00b')[0]['rule'], 'binary_or_oversized')
 
+    def test_only_official_pinned_gradle_wrapper_binary_is_allowed(self):
+        wrapper = Path(__file__).resolve().parents[1] / release.GRADLE_WRAPPER_JAR
+        release.validate_name(release.GRADLE_WRAPPER_JAR)
+        self.assertEqual(release.audit_content(release.GRADLE_WRAPPER_JAR, wrapper.read_bytes()), [])
+        self.assertEqual(release.audit_content(release.GRADLE_WRAPPER_JAR, b'not the official jar')[0]['rule'],
+                         'unverified_gradle_wrapper')
+        with self.assertRaises(ValueError):
+            release.validate_name('apps/ar-photo-android/other.jar')
+
     def test_archive_contains_only_payload_and_manifest(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / 'source.zip'

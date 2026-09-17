@@ -9,12 +9,13 @@ Unity renderer or consume its C# API.
 
 ## Build
 
-- Open this directory as a project in Android Studio. Use its JDK 17 runtime and
-  an installed Android SDK Platform 36. Gradle 9.2.1 is the version used for
-  verification; this source checkout currently has no Gradle wrapper, so select
-  a local Gradle 9.2.1 installation in Android Studio's Gradle settings.
-- Sync the project, then run the `app` configuration, or run
-  `gradle :app:assembleDebug` from this directory with the SDK available.
+- Open this directory as a project in Android Studio. Use JDK 17 or later and
+  install Android SDK Platform 36. The checked-in Gradle wrapper pins Gradle
+  9.2.1 and verifies the distribution checksum; Android Studio can sync with it.
+- Run the `app` configuration, or run `./gradlew :app:assembleDebug` from this
+  directory (`.\gradlew.bat :app:assembleDebug` in PowerShell). The first run
+  downloads Gradle and Android dependencies; no project-specific assets are
+  downloaded.
 - The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
   The APK, downloaded dependencies, SDK path, and imported models are not
   published in this repository.

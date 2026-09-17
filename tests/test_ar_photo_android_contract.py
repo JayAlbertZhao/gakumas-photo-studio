@@ -94,7 +94,7 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertIn("android-ar-build:", workflow)
         self.assertIn("'platforms;android-36'", workflow)
         self.assertIn("gradle-version: '9.2.1'", workflow)
-        self.assertIn(":app:assembleDebug :app:lintDebug", workflow)
+        self.assertIn("./gradlew :app:assembleDebug :app:lintDebug", workflow)
 
 
 if __name__ == "__main__":
