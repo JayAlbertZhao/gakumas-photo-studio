@@ -8,6 +8,14 @@ RUNTIME = ROOT / 'packages/com.digital-kotone.toolkit/Runtime'
 
 
 class BokehContractTests(unittest.TestCase):
+    def test_focus_bounds_are_explicit_and_do_not_mutate_camera_or_settings(self):
+        code=(RUNTIME/'BokehFocusRange.cs').read_text(encoding='utf-8')
+        for token in ('IReadOnlyList<Bounds>', 'Matrix4x4 worldToCamera', 'out Vector2 range',
+                      'Math.Abs(x)*e.x', 'double near=', 'worldToCamera.m30!=0'):
+            self.assertIn(token,code)
+        for token in ('Camera.main', 'FindObjectsOfType', 'Renderer', 'ReadPixels', 'Time.', 'Shader.'):
+            self.assertNotIn(token,code)
+
     def test_module_has_explicit_inputs_and_no_application_discovery(self):
         renderer = (RUNTIME / 'BokehDepthOfFieldRenderer.cs').read_text(encoding='utf-8')
         shader = (RUNTIME / 'Resources/BokehDepthOfField.shader').read_text(encoding='utf-8')

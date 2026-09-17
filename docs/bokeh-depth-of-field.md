@@ -36,6 +36,36 @@ void OnDisable() { dof.Dispose(); }
 
 `focusMode = BokehFocusMode.Physical` 则使用 `focusDistance`（米）、`focalLengthMillimetres`、`fNumber`、`sensorHeightMillimetres` 计算薄透镜的传感器散焦半径，并换算为图像高度比例，再应用最大半径和近／远强度。`EvaluateRadius(depth)` 是对应的 CPU 查询接口，不修改渲染状态。不要把旧摄影参数中的散焦直径、缩放系数直接当作此 API 的半径。
 
+## 显式全身清晰范围
+
+`BokehFocusRange.TryFit` 将调用方给定的当前世界包围盒，投影为正眼空间的近／远清晰区间。
+例如同时纳入身体、头发、服装和前伸的手：
+
+```csharp
+// currentWorldBounds 由应用提供；应保守覆盖当前蒙皮、附件和 shader 位移。
+if (BokehFocusRange.TryFit(camera.worldToCameraMatrix, currentWorldBounds,
+                          .04f, out var range)) {
+    focus.focusMode = BokehFocusMode.FocusRange;
+    focus.focusNear = range.x;
+    focus.focusFar = range.y;
+}
+```
+
+helper 不遍历场景、不读 GPU、不修改相机或设置，也不自动启用 DOF。空输入、非有限值、
+负 padding／尺寸、非仿射视图以及越过相机或可表示深度范围的盒子返回 false；失败时
+`range` 为零，调用方应保留原范围或关闭该效果，不能把零范围写入设置。
+输出做保守的浮点向外扩展，不把盒子角点因舍入排除在外。
+
+`Renderer.bounds` 可能过大、过时或没有覆盖自定义顶点位移。helper 只能保证输入盒子
+的投影范围，不能替调用方证明盒子正确；过大的范围也会让原本需要虚化的背景清晰。
+若要保持清晰主体的原像素、不让另一件前景的散景覆盖它，可显式设置 `nearBlur = 0`，
+保留 `farBlur` 的背景虚化。这是美术控制，不是物理镜头等价变换。
+
+手动改骨骼后在同一个 Unity update 内多次绘制时，需要当前蒙皮矩阵，不能只验证
+Transform 已移动。Unity 为此提供 `SkinnedMeshRenderer.forceMatrixRecalculationPerRender`；
+调用方应保存／恢复自己临时修改的标志，不改变其他宿主的默认状态。
+[Unity API 说明](https://docs.unity3d.com/kr/2022.2/ScriptReference/SkinnedMeshRenderer-forceMatrixRecalculationPerRender.html)
+
 ## 输入与资源约定
 
 - 颜色：已创建、线性的 ARGBFloat、ARGBHalf 或 RGB111110Float。最后一种没有存储 alpha，输出 alpha 为其采样值 1。
@@ -93,6 +123,35 @@ Half4 运动深度；`postEyeDepth` 暴露实际输入。D3D11／Vulkan 自制�
 原生深度→CoC 资源链已验证，具体线程模式及保留失败见链接。独立 DOF 模块仍要求
 调用方传入已经对齐的颜色和深度。
 
+### 全身与前伸手臂诊断
+
+使用自己提供的角色资产，可运行以下有界矩阵。输出目录必须新建，不要覆盖既有证据：
+
+```powershell
+$output = Join-Path (Get-Location) 'LocalAssets/validation/focus-check'
+& .\unity\output\KotonePhotoStudio.exe -force-d3d11 --photo-mode `
+  --costume-label cstm-0045 --validate-srp-actor-character $output `
+  --validate-desktop-character --validate-desktop-focus
+```
+
+`cstm-0045` 只是本地资产的选择示例；公开仓库不附带该服装。替换为自己的可用标签。
+Vulkan 可将 `-force-d3d11` 替换为 `-force-vulkan`。诊断使用实际编译的桌面示例，
+保存当前深度／CoC、无景深、脸部物理对焦、全身范围对焦与排除角色的配对输出，
+并生成 `character-focus-diagnostics.json`；普通 Forward 前置控制只保存 PNG，
+避免重复导出其 RAW。不是截图后处理或修改原始资产。
+
+本机两套自备服装、两种桌面 API、两个视角、idle／手臂前伸、30／43 采样共 32 个
+范围对焦案例，角色可见区域与无景深对照的 RGB 最大差为零，背景仍有明确虚化。
+前伸手臂位于脸前且实际蒙皮画面发生变化，脸部核心深度保持未被手臂遮挡；脸部物理
+对焦会模糊手部区域，范围模式保持清晰。四次独立 Player 各执行 287 条具名条件，
+另逐份 RAW 重算整图 CoC、区域误差和包围盒八角点范围，各执行 127 条检查。
+
+初版只移动了 Transform，蒙皮缓存使实际手臂未移动，非空手部控制明确失败；显式
+逐次重算蒙皮矩阵后修复。随后一次数值通过的姿态仍被服装遮住脸，预览检查发现后
+改为向外伸手并增加脸部遮挡负控。因此不以骨骼坐标变化或检查数量代替可见结果。
+
+该矩阵为 512²、仅远景 DOF、无 TAA／运动模糊。头／手区域由投影骨骼和深度限定，
+并非语义分割真值；物理模式只是负对照，不是物理孔径积分参考。
 完整动态人物／发丝／透明材质的景深质量、所有场景适配器、移动端／Metal 以及更广
 Vulkan 内容的画质和计时仍需单独验证。当前文档描述接口与验收范围，不表示整个 P02
 或整个技术框架已追平。

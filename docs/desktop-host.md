@@ -34,6 +34,17 @@
 释放资源。这是便于阅读的生命周期示范，有明确的 CPU／GPU 同步开销；生产宿主可换成
 自己的完成通知和资源调度。不要把该示例帧时当作框架或移动端性能结论。
 
+### 显式观察当前帧
+
+示例的 `FrameProduced` 同步事件在完成后处理之后、复制到 `Display` 之前触发，
+参数是当前 `DesktopFrameRenderer.Frame` 借用票据。可在回调里检查或复制当前颜色、
+眼空间深度与实际 CoC；不能保存票据供下一帧使用，不能改写／释放附件，不能在回调
+中重入渲染、重置或关闭宿主。`RenderOffscreen` 返回后票据已过期，`Display` 仍由示例持有。
+GPU readback 会带来同步开销；默认没有订阅者。
+
+观察者抛出异常时，本次 `HasCompletedFrame` 为 false，`LastError` 给出原因；
+不会复制或呈现本次结果。移除有问题的观察者并修正配置后可继续渲染。
+
 ## 角色整链诊断
 
 `--validate-srp-actor-character <output> --validate-desktop-character` 在调用方

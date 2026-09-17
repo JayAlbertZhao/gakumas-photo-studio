@@ -385,6 +385,13 @@ class DesktopHostContract(unittest.TestCase):
                         'recovered-after-failed-post', 'disabled-post-exact-passthrough'):
             self.assertIn(control, fixture)
 
+    def test_example_observer_is_opt_in_and_before_retirement(self):
+        code=(ROOT/'packages/com.digital-kotone.toolkit/Examples/DesktopHost/DesktopHostExample.cs').read_text(encoding='utf-8')
+        self.assertIn('public event Action<DesktopFrameRenderer.Frame> FrameProduced;',code)
+        self.assertLess(code.index('TryFinishAfterSubmission(opaque'),code.index('FrameProduced?.Invoke(frame)'))
+        self.assertLess(code.index('FrameProduced?.Invoke(frame)'),code.index('Graphics.CopyTexture(frame.color,Display)'))
+        self.assertIn('if(!IsInitialized||inContext)throw',code)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -23,6 +23,11 @@ namespace GakumasPhotoMode.Examples
         public double LastRenderedTimeSeconds { get; private set; }
         public bool IsInitialized => frameRenderer!=null;
         public bool HasCompletedFrame => displayReady;
+        /// <summary>Optional synchronous observer before the example retires the
+        /// frame. Textures/tickets are borrowed ONLY during the callback. Do not
+        /// mutate/dispose them or reenter this host. GPU readback may stall.
+        /// Exceptions fail this frame through LastError; default has no observer.</summary>
+        public event Action<DesktopFrameRenderer.Frame> FrameProduced;
         private static DesktopHostExample activeExample;
         private readonly List<UnityEngine.Object> owned=new List<UnityEngine.Object>();
         private DesktopFrameRenderer frameRenderer;
@@ -103,6 +108,7 @@ namespace GakumasPhotoMode.Examples
                 finally { context.Submit(); }
                 if(!recorded)throw new InvalidOperationException(error);
                 if(!frameRenderer.TryFinishAfterSubmission(opaque,seconds,out var frame,out error))throw new InvalidOperationException(error);
+                FrameProduced?.Invoke(frame);
                 // Keep the sample-owned display independent of the retired core ticket.
                 if(frame.color.graphicsFormat!=Display.graphicsFormat)throw new InvalidOperationException("Example expects its float32 authored grade output");
                 Graphics.CopyTexture(frame.color,Display);displayReady=true;RenderedFrames++;LastRenderedTimeSeconds=seconds;

@@ -29,6 +29,32 @@ namespace GakumasPhotoMode
                     try{texture.SetPixels(data);texture.Apply();Graphics.Blit(texture,t);}
                     finally{RenderTexture.active=active;Destroy(texture);}
                 }
+                var focusBounds=new[]{new Bounds(new Vector3(-.7f,.8f,-2),new Vector3(.8f,1.6f,.6f)),new Bounds(new Vector3(.5f,1,-3),new Vector3(.2f,.3f,.4f))};
+                foreach(float angle in new[]{-60f,0f,37f,90f})
+                {
+                    var view=Matrix4x4.Rotate(Quaternion.Euler(13,angle,7));view.m23=-12;
+                    bool fitted=BokehFocusRange.TryFit(view,focusBounds,.125f,out var range);
+                    double lo=double.PositiveInfinity,hi=double.NegativeInfinity;
+                    foreach(var b in focusBounds)for(int corner=0;corner<8;corner++)
+                    {
+                        double x=(double)b.center.x+((corner&1)==0?-1:1)*b.extents.x;
+                        double y=(double)b.center.y+((corner&2)==0?-1:1)*b.extents.y;
+                        double z=(double)b.center.z+((corner&4)==0?-1:1)*b.extents.z;
+                        double eye=-(view.m20*x+view.m21*y+view.m22*z+view.m23);
+                        lo=Math.Min(lo,eye-.125);hi=Math.Max(hi,eye+.125);
+                    }
+                    Check("focus-range-eight-corner-oracle-"+angle,fitted&&range.x<=lo&&range.y>=hi&&lo-range.x<.00001&&range.y-hi<.00001);
+                }
+                var eyeView=Matrix4x4.identity;eyeView.m23=-12;
+                Check("focus-range-null-rejected",!BokehFocusRange.TryFit(eyeView,null,0,out _));
+                Check("focus-range-empty-rejected",!BokehFocusRange.TryFit(eyeView,Array.Empty<Bounds>(),0,out _));
+                Check("focus-range-negative-padding-rejected",!BokehFocusRange.TryFit(eyeView,focusBounds,-1,out _));
+                Check("focus-range-projective-input-rejected",!BokehFocusRange.TryFit(Matrix4x4.Perspective(40,1,.1f,100),focusBounds,0,out _));
+                Check("focus-range-behind-camera-rejected",!BokehFocusRange.TryFit(Matrix4x4.identity,new[]{new Bounds(Vector3.forward,Vector3.one)},0,out _));
+                Check("focus-range-nonfinite-bounds-rejected",!BokehFocusRange.TryFit(eyeView,new[]{new Bounds(new Vector3(float.NaN,0,0),Vector3.one)},0,out _));
+                Check("focus-range-negative-extents-rejected",!BokehFocusRange.TryFit(eyeView,new[]{new Bounds(Vector3.zero,-Vector3.one)},0,out _));
+                Check("focus-range-degenerate-view-rejected",!BokehFocusRange.TryFit(Matrix4x4.zero,focusBounds,0,out _));
+                Check("focus-range-point-target",BokehFocusRange.TryFit(eyeView,new[]{new Bounds(Vector3.zero,Vector3.zero)},0,out var pointRange)&&pointRange.x<12&&pointRange.y>12);
                 var settings=new BokehDepthOfFieldSettings();var source=Target(97,81,RenderTextureFormat.ARGBFloat);var depth=Target(97,81,RenderTextureFormat.RFloat);
                 Upload(source,(x,y)=>new Color(.2f+x*.006f,.1f+y*.007f,.35f+.13f*Mathf.Sin(x*.23f),.15f+.7f*x/96));
                 Upload(depth,(x,y)=>new Color(x<12?.5f:x<24?1.5f:x<36?2:x<48?3.5f:x<60?5:x<72?9:x<84?13:0,0,0,1));

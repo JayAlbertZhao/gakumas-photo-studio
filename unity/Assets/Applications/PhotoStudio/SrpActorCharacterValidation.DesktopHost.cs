@@ -45,9 +45,12 @@ namespace GakumasPhotoMode
                     s.scene.surfaces[1].renderer.transform.SetPositionAndRotation(new Vector3(bounds.center.x,2,bounds.center.z)-direction*3,rotation);
                     s.scene.surfaces[2].renderer.transform.SetPositionAndRotation(new Vector3(bounds.center.x,1.8f,bounds.center.z)-direction*2.85f-rotation*Vector3.right*1.5f,rotation);
                 }
+                Action beforePose=null,afterPose=null;
                 Color[] Run(string name,float time=0,float? poseTime=null)
                 {
+                    beforePose?.Invoke();
                     app.EvaluateMotion(poseTime??time);
+                    afterPose?.Invoke();
                     inputs.SetVector("_HeadDirection",new Vector4(head.forward.x,head.forward.y,head.forward.z,1));
                     inputs.SetVector("_HeadUpDirection",new Vector4(head.up.x,head.up.y,head.up.z,1));
                     inputs.SetVector("_HeadRightDirection",new Vector4(-head.right.x,-head.right.y,-head.right.z,1));
@@ -68,6 +71,14 @@ namespace GakumasPhotoMode
                     return pixels;
                 }
                 if(renderers.Any(r=>r.gameObject.layer==22))throw new InvalidOperationException("Visibility control needs a separate generated scenery layer");
+                if(Environment.GetCommandLineArgs().Contains("--validate-desktop-focus"))
+                {
+                    VerifyDesktopFocus(report,example,renderers,head,bounds,View,
+                        name=>Run(name,.7f,.7f),(before,after)=>{beforePose=before;afterPose=after;});
+                    example.Shutdown();Check("focus-shutdown-preserves-character",SourceSnapshot(renderers)==sourceBefore&&renderers.All(r=>r!=null&&r.enabled));
+                    Check("focus-shutdown-restores-pipeline",GraphicsSettings.renderPipelineAsset==previousGraphics&&QualitySettings.renderPipeline==previousQuality);
+                    return;
+                }
                 foreach(int angle in new[]{0,90,180,270})
                 {
                     View(angle);var visible=Run("view-"+angle);int mask=camera.cullingMask;Color[] excluded;
