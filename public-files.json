@@ -34,6 +34,7 @@
     "apps/ar-photo-android/settings.gradle.kts",
     "apps/ar-photo-android/tools/generate_sample_glb.py",
     "apps/ar-photo-android/tools/smoke_emulator.py",
+    "apps/ar-photo-android/tools/smoke_replay_emulator.py",
     "config/runtime-revisions.json",
     "config/source-baseline.json",
     "config/staging-manifest.example.json",

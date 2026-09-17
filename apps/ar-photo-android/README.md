@@ -146,6 +146,19 @@ checkout. It includes a real-world camera recording and is not an app asset.
 Its SHA-256 in our test was
 `DB7371F42A515451B7FF7D0425B31059BA43A5AB800AB532FFFBD25D830932E7`.
 
+With that file downloaded outside the checkout and the emulator configured as
+described above, the replay path has a separate repeatable smoke check:
+
+```powershell
+python -I tools/smoke_replay_emulator.py --serial emulator-5554 --dataset "$env:TEMP\bundled-pixel9-sample.mp4"
+```
+
+It verifies the recording's SHA-256, copies it and an original animated GLB
+into the disposable emulator's private app storage, then checks replay to the
+end, floor placement, clip switching, replay restart, and return to synthetic
+preview without an app-process crash. It grants camera permission on that
+emulator. It does not record a new dataset or prove live-phone tracking.
+
 The debug APK has been built. On the API 36.1 emulator, the synthetic
 preview/import/photo flow worked; the public ARCore recording also replayed,
 detected a floor, accepted a tap-to-place anchor, resized the stand-in, and

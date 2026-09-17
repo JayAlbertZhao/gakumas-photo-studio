@@ -76,6 +76,14 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         document = json.loads(invalid[20:20 + json_size])
         self.assertEqual(document["images"], [{"uri": "untrusted-external.png"}])
 
+    def test_replay_smoke_uses_reviewed_public_dataset_hash(self):
+        script = APP / "tools/smoke_replay_emulator.py"
+        spec = importlib.util.spec_from_file_location("ar_photo_replay_smoke", script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(len(module.DATASET_SHA256), 64)
+        self.assertEqual(module.load_smoke().PACKAGE, "org.digital_kotone.arphoto")
+
     def test_optional_ar_and_private_import_boundary(self):
         manifest = (APP / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
         importer = (TOOLKIT / "SubjectImporter.kt").read_text(encoding="utf-8")
