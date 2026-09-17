@@ -111,7 +111,7 @@ API 的自制整图控制及实际深度→CoC 链已验证；不改默认摄影
 | A01 | 九类角色表面、深度／透明／stencil 规则；PPT 35–39 | ActorSurface / MaterialRepairer / ActorSupplemental 已有 | 全变体、多角度、不同服装动态对照 |
 | A02 | Def、肌肤／非肌肤双 Ramp、质感 Ramp、发高光；PPT 40–49 | 已有复现；新增 [自制材质输入约定](actor-material-inputs.md) 与 30 组、150 张全图独立数值对照，包含四类材质、Point／Bilinear、Clamp／Repeat、显式 mip 和讲演尺寸双 Ramp；原生纹理／采样器／混合阶段已核对 | 已验证本机 NVIDIA／D3D11 精度模型；压缩／sRGB 导入、透明头发覆盖、完整角色／服装／动作组合、其他驱动与原版画质仍待验证，不能由合成材质对照推导全部追平 |
 | A03 | UV2 Layer 同时控制颜色与 Def；PPT 50–51 | 已有材质路径及可逆控制 | 更广服装、动作和光照组合 |
-| A04 | 主光、附加光、rim、环境镜面；PPT 27–32 | 原有材质光照保留；新增 [独立角色阴影](actor-shadows.md)：当前材质／服装／透明度 caster、显式 R32 自阴影与独立背景场景光、真实三角形 receiver-plane 修正 | 桌面独立光控、移动投影、整图平面负对照，以及一个角色两套服装／两 API 的多视角与动作已验证；附加光不改变 toon 明暗角度的语义、更广制作内容及移动质量仍待完成 |
+| A04 | 主光、附加光、rim、环境镜面；PPT 27–32 | 原有材质光照保留；新增 [独立角色阴影](actor-shadows.md) 与显式 [Point／Spot 制作光](srp-actor-forward.md#explicit-actor-point--spot-authoring)：可压暗主光而保留局部加亮，沿用主光 toon 明暗，局部镜面仍使用自身半角向量 | 自制全图数值对照；一个角色两套服装／两桌面 API／三视角的主光压暗、锥体拒绝、双色叠加和完整 temporal pass 已验证。附加光使用独立衰减模型，不含局部灯阴影；更广制作内容、原版参数映射和移动质量／成本仍待完成 |
 | A05 | 顶点 nibble 打包、专用描边法线；PPT 67–74 | runtime 解码与切线挤出、ActorVertexEncoding；新增显式 [描边向量自动生成](outline-authoring.md)：同位置分组、角度加权及独立网格／blend-frame tangent 副本 | 自制三角化、接缝和原生蒙皮整图有对照；Maya 导出插件、原 UVSet 交换格式、生产角色／服装及动态组合的视觉一致性仍待完成 |
 | A06 | 稀疏面部形变、骨与视角修形；PPT 54–65 | 默认 CPU 保留；新增可选 [GraphicsBuffer GPU 后端](gpu-face-deformation.md)，原有权重／眨眼／视角修形共用；另有只读的当前选中顶点来源 | 桌面逐顶点、原生 compute→draw 及一个真实角色已对照，定位器覆盖全部 108 个单独形状；完整角色／服装、其他 CPU 几何消费者、GPU 帧时和移动驱动仍待完成 |
 | A07 | 可动画面部贴花；PPT 58、62；PDF 29 | 新增默认关闭的 [独立可动画贴花](animated-face-decals.md)：显式接收面、投影／UV／混合、AnimationClip／类型化曲线及 Planar；可消费 [共享制作数据](performance-authoring.md) | 桌面全图、实际蒙皮／GPU 顶点及一个角色全部 108 个单独形状已对照；其他角色／服装／制作动作、Maya 客户端制作／导出实测及移动成本仍待完成 |

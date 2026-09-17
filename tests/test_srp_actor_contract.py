@@ -8,6 +8,38 @@ RUNTIME = ROOT / 'packages/com.digital-kotone.toolkit/Runtime'
 
 
 class SrpActorContractTests(unittest.TestCase):
+    def test_typed_actor_lights_are_opt_in_atomic_and_material_local(self):
+        data = (RUNTIME / 'ActorAdditionalLight.cs').read_text(encoding='utf-8')
+        source = (RUNTIME / 'ActorForwardParameters.cs').read_text(encoding='utf-8')
+        self.assertIn('LegacyKeyModulated=0, ArtDirected=1', data)
+        self.assertIn('public bool IsValid', data)
+        begin = source.index('public void SetAdditionalLights(')
+        end = source.index('public void SetShadowMatrix(', begin)
+        typed = source[begin:end]
+        for text in ('IReadOnlyList<ActorAdditionalLight>', 'lights==null||lights.Count>8',
+                     'if(!light.IsValid)', 'light.direction/Mathf.Sqrt(light.direction.sqrMagnitude)',
+                     'new Vector4[8]', 'additionalCount=lights.Count'):
+            self.assertIn(text, typed)
+        self.assertLess(typed.index('if(!light.IsValid)'), typed.index('arrays["_ActorAdditionalPositions"]=positions'))
+        self.assertNotIn('additionalMode=', typed)
+        for text in ('FindObjects', 'Shader.SetGlobal', 'GameObject.Find'):
+            self.assertNotIn(text, source)
+        self.assertIn('material.EnableKeyword("TOOLKIT_ACTOR_ADDITIVE_VOLUME")', source)
+        self.assertIn('material.DisableKeyword("TOOLKIT_ACTOR_ADDITIVE_VOLUME")', source)
+
+    def test_actor_volume_variant_preserves_main_ramp_without_main_radiance(self):
+        surface = (RUNTIME / 'Resources/ActorSurface.cginc').read_text(encoding='utf-8')
+        part = surface.split('#if defined(TOOLKIT_ACTOR_ADDITIVE_VOLUME)', 1)[1].split('#else', 1)[0]
+        self.assertIn('diffuse * dielectricDiffuse + additionalSpecular', part)
+        self.assertIn('attenuation * _ActorLightingScales.y', part)
+        for text in ('_ActorKeyColor', '_CapturedLightColor', '_CapturedDirectScale', 'angularWeight'):
+            self.assertNotIn(text, part)
+        for name, count in (('PhotoModeFallback', 1), ('ActorSupplemental', 1), ('ActorTemporal', 2)):
+            shader = (RUNTIME / ('Resources/' + name + '.shader')).read_text(encoding='utf-8')
+            self.assertEqual(shader.count('#pragma multi_compile_local __ TOOLKIT_ACTOR_ADDITIVE_VOLUME'), count)
+        history = (RUNTIME / 'ActorTemporalHistory.cs').read_text(encoding='utf-8')
+        self.assertIn('e.material.CopyPropertiesFromMaterial(draw.material)', history)
+
     def test_joined_scene_history_and_destructive_normal_reuse_are_explicit(self):
         actor = (RUNTIME / 'SrpActorForward.cs').read_text(encoding='utf-8')
         scene = (RUNTIME / 'TileSceneRenderer.cs').read_text(encoding='utf-8')

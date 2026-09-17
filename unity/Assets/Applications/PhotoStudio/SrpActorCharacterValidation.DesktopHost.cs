@@ -71,6 +71,13 @@ namespace GakumasPhotoMode
                     return pixels;
                 }
                 if(renderers.Any(r=>r.gameObject.layer==22))throw new InvalidOperationException("Visibility control needs a separate generated scenery layer");
+                if(Environment.GetCommandLineArgs().Contains("--validate-desktop-additional-lights"))
+                {
+                    VerifyDesktopAdditionalLights(report,example,bounds,inputs,View,name=>Run(name,.7f,.7f));
+                    example.Shutdown();Check("additional-shutdown-preserves-character",SourceSnapshot(renderers)==sourceBefore&&renderers.All(r=>r!=null&&r.enabled));
+                    Check("additional-shutdown-restores-pipeline",GraphicsSettings.renderPipelineAsset==previousGraphics&&QualitySettings.renderPipeline==previousQuality);
+                    return;
+                }
                 if(Environment.GetCommandLineArgs().Contains("--validate-desktop-focus"))
                 {
                     VerifyDesktopFocus(report,example,renderers,head,bounds,View,

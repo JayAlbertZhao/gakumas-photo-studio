@@ -468,6 +468,7 @@ namespace GakumasPhotoMode
             // Focus checks retain bounded case inputs, not RAW duplicates of all
             // preceding ordinary-Forward controls. PNG/JSON assertions remain.
             if(Environment.GetCommandLineArgs().Contains("--validate-desktop-focus")&&!name.StartsWith("desktop-character-focus-",StringComparison.Ordinal))return;
+            if(Environment.GetCommandLineArgs().Contains("--validate-desktop-additional-lights")&&!name.StartsWith("desktop-character-additional-",StringComparison.Ordinal))return;
             using var writer=new BinaryWriter(File.Create(Path.Combine(directory,name+".raw")));foreach(var p in values)for(int c=0;c<4;c++)writer.Write(p[c]);
         }
         private static float MaximumDifference(Color[] a,Color[] b)

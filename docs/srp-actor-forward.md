@@ -59,6 +59,67 @@ selecting D32S8 instead of transient D32 increases the scene attachment budget b
 four bytes per pixel. These are format budgets, not measured GPU residency or
 bandwidth savings.
 
+## Explicit Actor Point / Spot authoring
+
+`ActorForwardParameters.SetAdditionalLights` accepts up to eight typed,
+caller-owned `ActorAdditionalLight` values. It copies the whole list atomically:
+invalid input throws without replacing the previous lights; an empty list clears
+them. It neither searches Unity `Light` objects nor writes shader globals.
+
+```csharp
+inputs.SetAdditionalLightMode(ActorAdditionalLightMode.ArtDirected);
+inputs.SetAdditionalLights(new[] {
+    new ActorAdditionalLight {
+        shape = ActorAdditionalLightShape.Spot,
+        position = lampPosition, direction = subjectPosition - lampPosition,
+        range = 4f, innerAngle = 20f, outerAngle = 55f,
+        radiance = new Vector3(1.2f, 0.8f, 0.4f) // Literal linear RGB, not sRGB.
+    }
+});
+```
+
+The default remains `LegacyKeyModulated`, including the existing raw vector-array
+API and `CaptureCurrentGlobals` bridge. Selecting `ArtDirected` is explicit and
+material-local; it propagates to the full Actor, hair-cover and temporal color
+passes without changing shared source materials or the default Photo Studio path.
+
+In this mode, local diffuse light reuses the main light's authored toon shading,
+but not its color/intensity or `_CapturedDirectScale`. Dimming the main light does
+not extinguish the local lights. Local direction does not add another Lambert
+terminator; distance and the optional spot cone define its volume. Local specular
+still uses its own half-vector and the material roughness. `_ActorLightingScales.y`
+scales the entire local contribution and `.z` controls its specular component.
+This does not add shadow maps for Actor-local Point/Spot lights.
+The reduced `ActorPlanarCaptureSet` has its own `ActorPlanarLighting` contract;
+these full-Forward light inputs are not automatically copied into that reflection
+capture. A matching local-light reflection is not included in this slice.
+
+Positions/ranges use world units. Spot `direction` points **from the light**, is
+normalized on binding, and must be nonzero. Angles are full cone widths in degrees:
+`0 <= innerAngle <= outerAngle <= 179`, with a positive outer angle. RGB is
+nonnegative and finite; a Point light does not use direction or cone angles.
+The explicitly independent attenuation model is
+`saturate(1 - distance²/range²)² / max(1, distance²)`, multiplied by a smoothstep
+between the outer/inner cone cosines. At equal cone angles a minimum cosine width
+of `0.0001` avoids division by zero. Radiance is not specified in photometric units.
+The PPT describes the art-direction behavior, not this formula; this is our model,
+not recovered original shader code.
+
+The generated float32 diagnostic independently checks full images for main-light
+angles/intensities, Point front/back placement, Spot cone rejection, two-color
+addition and invalid-input preservation. Run `--self-test-actor-rendering DIR
+--self-test-additional-authoring-only` for that bounded check. The optional real
+character diagnostic uses `--photo-mode --validate-srp-actor-character DIR
+--validate-desktop-character --validate-desktop-additional-lights` and caller-owned
+assets. Neither diagnostic establishes mobile cost or all-character visual parity.
+
+The real diagnostic has been checked with two supplied outfits, three views and
+both D3D11/Vulkan: local light remains visible at zero main radiance, an outward
+Spot rejects the character, two colors add, source materials and actor-excluded
+scenery remain unchanged, and the full temporal pass retains the selected mode.
+Actor-local specular has a separate nonempty control. Half-float composed output
+rounding is measured separately from the strict generated float32 oracle.
+
 ## Optional packed scene attachment reuse
 
 `SrpActorForward.Settings.storage` (or `DesktopFrameRenderer.Settings.actorStorage`)

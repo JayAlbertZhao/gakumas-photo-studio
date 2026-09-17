@@ -34,6 +34,7 @@ namespace GakumasPhotoMode
         private Matrix4x4 shadow=Matrix4x4.identity;
         private Matrix4x4[] decals=new Matrix4x4[8];
         private int additionalCount;
+        private ActorAdditionalLightMode additionalMode;
 
         public ActorForwardParameters()
         {
@@ -69,6 +70,37 @@ namespace GakumasPhotoMode
             var copy=new Vector4[8];for(int i=0;i<values.Length;i++){if(!Finite(values[i]))throw new ArgumentException(name);copy[i]=values[i];}arrays[name]=copy;
         }
         public void SetAdditionalLightCount(int count) { if(count<0||count>8)throw new ArgumentOutOfRangeException(nameof(count));additionalCount=count; }
+        public void SetAdditionalLightMode(ActorAdditionalLightMode mode)
+        {
+            if(mode!=ActorAdditionalLightMode.LegacyKeyModulated&&mode!=ActorAdditionalLightMode.ArtDirected)throw new ArgumentOutOfRangeException(nameof(mode));
+            additionalMode=mode;
+        }
+        /// <summary>Atomically copies at most eight explicit Point/Spot inputs.
+        /// Empty clears the lights. Invalid input preserves the previous binding.
+        /// Does not change the selected mode or discover scene/global lights.</summary>
+        public void SetAdditionalLights(IReadOnlyList<ActorAdditionalLight> lights)
+        {
+            if(lights==null||lights.Count>8)throw new ArgumentException(nameof(lights));
+            var positions=new Vector4[8];var colors=new Vector4[8];var directions=new Vector4[8];var spots=new Vector4[8];
+            for(int i=0;i<lights.Count;i++)
+            {
+                var light=lights[i];if(!light.IsValid)throw new ArgumentException("Invalid Actor light at "+i,nameof(lights));
+                positions[i]=new Vector4(light.position.x,light.position.y,light.position.z,1/(light.range*light.range));
+                colors[i]=new Vector4(light.radiance.x,light.radiance.y,light.radiance.z,0);
+                if(light.shape==ActorAdditionalLightShape.Point)directions[i]=new Vector4(0,0,0,-1);
+                else
+                {
+                    // IsValid permits small but nonzero directions. Unity's
+                    // Vector3.normalized zeros lengths <= 1e-5; normalize the
+                    // validated vector explicitly so its cone does not vanish.
+                    var d=light.direction/Mathf.Sqrt(light.direction.sqrMagnitude);
+                    directions[i]=new Vector4(d.x,d.y,d.z,Mathf.Cos(light.outerAngle*Mathf.Deg2Rad*.5f));
+                    spots[i].x=Mathf.Cos(light.innerAngle*Mathf.Deg2Rad*.5f);
+                }
+            }
+            arrays["_ActorAdditionalPositions"]=positions;arrays["_ActorAdditionalColors"]=colors;
+            arrays["_ActorAdditionalDirections"]=directions;arrays["_ActorAdditionalSpots"]=spots;additionalCount=lights.Count;
+        }
         public void SetShadowMatrix(Matrix4x4 matrix) { if(!Finite(matrix))throw new ArgumentException(nameof(matrix));shadow=matrix; }
         public void SetFaceDecalMatrices(Matrix4x4[] matrices)
         { if(matrices==null||matrices.Length>8)throw new ArgumentException(nameof(matrices));var copy=new Matrix4x4[8];for(int i=0;i<matrices.Length;i++){if(!Finite(matrices[i]))throw new ArgumentException(nameof(matrices));copy[i]=matrices[i];}decals=copy; }
@@ -117,6 +149,8 @@ namespace GakumasPhotoMode
         }
         internal void Apply(Material material)
         {
+            if(additionalMode==ActorAdditionalLightMode.ArtDirected)material.EnableKeyword("TOOLKIT_ACTOR_ADDITIVE_VOLUME");
+            else material.DisableKeyword("TOOLKIT_ACTOR_ADDITIVE_VOLUME");
             foreach(var p in floats)material.SetFloat(p.Key,p.Value);foreach(var p in vectors)material.SetVector(p.Key,p.Value);
             foreach(var p in textures)material.SetTexture(p.Key,p.Value);foreach(var p in arrays)material.SetVectorArray(p.Key,p.Value);
             material.SetInt("_ActorAdditionalLightCount",additionalCount);material.SetMatrix("_CapturedActorWorldToShadow",shadow);material.SetMatrixArray("_FaceDecalWorldToDecal",decals);

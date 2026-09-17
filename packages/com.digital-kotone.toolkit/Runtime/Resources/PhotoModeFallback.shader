@@ -89,6 +89,7 @@ Shader "GakumasPhotoMode/ActorToon"
             #pragma fragment frag
             #pragma target 4.5
             #pragma multi_compile_fwdbase
+            #pragma multi_compile_local __ TOOLKIT_ACTOR_ADDITIVE_VOLUME
             #include "ActorSurface.cginc"
             ENDCG
         }

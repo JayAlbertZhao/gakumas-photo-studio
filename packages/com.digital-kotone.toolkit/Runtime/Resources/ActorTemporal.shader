@@ -80,6 +80,7 @@ Shader "Hidden/GakumasPhotoMode/ActorTemporal"
             #pragma vertex TemporalVertex
             #pragma fragment TemporalFragment
             #pragma multi_compile_fwdbase
+            #pragma multi_compile_local __ TOOLKIT_ACTOR_ADDITIVE_VOLUME
             #include "ActorTemporal.cginc"
             ENDCG
         }
@@ -138,6 +139,7 @@ Shader "Hidden/GakumasPhotoMode/ActorTemporal"
             #pragma vertex TemporalVertex
             #pragma fragment TemporalFragment
             #define ACTOR_HAIR_COVER 1
+            #pragma multi_compile_local __ TOOLKIT_ACTOR_ADDITIVE_VOLUME
             #include "ActorTemporal.cginc"
             ENDCG
         }

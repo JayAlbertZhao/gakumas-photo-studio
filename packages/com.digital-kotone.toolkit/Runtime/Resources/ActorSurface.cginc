@@ -1116,6 +1116,14 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
             lightHalf * (4.0 * roughnessSquared + 2.0));
         float3 additionalSpecular = distribution * environmentBrdf * definitionVisibility *
             capturedSpecularModulation * _ActorLightingScales.z;
+        #if defined(TOOLKIT_ACTOR_ADDITIVE_VOLUME)
+        // Independent art-directed mode. Reuse the MAIN light's already shaded
+        // material, but not its radiance or direct-only intensity. Local diffuse
+        // has no light-normal angular gate: only range/cone controls coverage.
+        // Local specular retains its actual half-vector/roughness response.
+        lit += (diffuse * dielectricDiffuse + additionalSpecular) *
+            _ActorAdditionalColors[lightIndex].rgb * attenuation * _ActorLightingScales.y;
+        #else
         // Preserve the already ramped, key-colored material under local lights.
         // The stylized angular gate normally stays open even on the back side;
         // range and spot attenuation still bound the illuminated region.
@@ -1129,6 +1137,7 @@ float4 frag(v2f input, float facing : VFACE) : SV_Target
         float3 mainLighting = capturedBrdf * (_ActorKeyColor.rgb * _CapturedLightColor.rgb);
         lit += (mainLighting + additionalSpecular) * _ActorAdditionalColors[lightIndex].rgb *
             radiance * _ActorLightingScales.y;
+        #endif
     }
     if (debugSelectedType1 && _CapturedType1DebugStage > 2.5 &&
         _CapturedType1DebugStage < 3.5)

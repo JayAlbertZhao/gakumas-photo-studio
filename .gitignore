@@ -166,6 +166,8 @@
 !/packages/com.digital-kotone.toolkit/Examples/DesktopHost/Gakumas.Toolkit.Examples.asmdef.meta
 !/packages/com.digital-kotone.toolkit/NOTICE.md
 !/packages/com.digital-kotone.toolkit/README.md
+!/packages/com.digital-kotone.toolkit/Runtime/ActorAdditionalLight.cs
+!/packages/com.digital-kotone.toolkit/Runtime/ActorAdditionalLight.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/ActorForwardDrawSet.cs
 !/packages/com.digital-kotone.toolkit/Runtime/ActorForwardDrawSet.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/ActorForwardParameters.cs
@@ -794,6 +796,8 @@
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorPlanar.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorShadow.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.ActorShadow.cs.meta
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.AdditionalAuthoring.cs
+!/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.AdditionalAuthoring.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.BakedGi.cs
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.BakedGi.cs.meta
 !/unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.BakedMask.cs
@@ -962,6 +966,8 @@
 !/unity/Assets/Applications/PhotoStudio/PlanarCharacterValidation.cs.meta
 !/unity/Assets/Applications/PhotoStudio/RenderDocCaptureBridge.cs
 !/unity/Assets/Applications/PhotoStudio/RenderDocCaptureBridge.cs.meta
+!/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.AdditionalLights.cs
+!/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.AdditionalLights.cs.meta
 !/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopHost.cs
 !/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopHost.cs.meta
 !/unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.DesktopPost.cs

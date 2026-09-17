@@ -106,6 +106,7 @@ Shader "Hidden/PhotoStudio/ActorSupplemental"
             #pragma vertex vert
             #pragma fragment frag
             #define ACTOR_HAIR_COVER 1
+            #pragma multi_compile_local __ TOOLKIT_ACTOR_ADDITIVE_VOLUME
             #include "ActorSurface.cginc"
             ENDCG
         }
