@@ -77,6 +77,8 @@ internal fun PhotoScreen(
     onMessage: (String) -> Unit,
     onPickModel: () -> Unit,
     onPickDataset: () -> Unit,
+    onEnsureArReady: (() -> Unit, (String) -> Unit) -> Unit,
+    onCancelArRequest: () -> Unit,
     onCapture: suspend () -> Unit,
 ) {
     val engine = rememberEngine()
@@ -101,18 +103,6 @@ internal fun PhotoScreen(
     var replayMode by rememberSaveable { mutableStateOf(false) }
     var replayRun by rememberSaveable { mutableIntStateOf(0) }
     var permissionTargetReplay by rememberSaveable { mutableStateOf(false) }
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            arMode = true
-            replayMode = permissionTargetReplay
-        } else {
-            arMode = false
-            replayMode = false
-            onMessage("未获得相机权限；仍可使用合成预览")
-        }
-    }
     // Each mode owns a separate scene. Recreate the Filament ModelInstance when
     // crossing scenes or replacing the same app-private file with a new GLB.
     // The named URL overload is required for file:// locations.
@@ -168,6 +158,33 @@ internal fun PhotoScreen(
         }
     }
 
+    fun enterArWhenReady(replay: Boolean) {
+        onMessage("正在检查 ARCore 与相机…")
+        onEnsureArReady({
+            if (arMode && replayMode != replay) pauseForModeSwitch()
+            arMode = true
+            replayMode = replay
+            onMessage(if (replay) "正在启动会话回放；等待平面检测" else "正在启动 ARCore；请扫描水平面")
+        }, { reason ->
+            if (arMode) pauseForModeSwitch()
+            arMode = false
+            replayMode = false
+            onMessage(reason)
+        })
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            enterArWhenReady(permissionTargetReplay)
+        } else {
+            arMode = false
+            replayMode = false
+            onMessage("未获得相机权限；仍可使用合成预览")
+        }
+    }
+
     fun switchToArMode(replay: Boolean) {
         if (context.checkSelfPermission(Manifest.permission.CAMERA) !=
             PackageManager.PERMISSION_GRANTED) {
@@ -175,9 +192,7 @@ internal fun PhotoScreen(
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
             return
         }
-        if (arMode && replayMode != replay) pauseForModeSwitch()
-        arMode = true
-        replayMode = replay
+        enterArWhenReady(replay)
     }
 
     LaunchedEffect(modelLocation, modelRevision) { animationIndex = 0 }
@@ -230,10 +245,14 @@ internal fun PhotoScreen(
                     },
                     onSessionFailed = { error ->
                         sessionReady = false
+                        arMode = false
+                        replayMode = false
                         onMessage("AR 无法启动：${error.message ?: "请检查 ARCore 和相机权限"}")
                     },
                     onPlaybackFailed = { error ->
                         sessionReady = false
+                        arMode = false
+                        replayMode = false
                         onMessage("会话回放失败：${error.message ?: "请检查是否为 ARCore 数据集"}")
                     },
                     sessionConfiguration = { _, config ->
@@ -332,6 +351,7 @@ internal fun PhotoScreen(
                     Text(message, style = MaterialTheme.typography.bodySmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(selected = !arMode, onClick = {
+                            onCancelArRequest()
                             if (arMode) pauseForModeSwitch()
                             arMode = false; replayMode = false
                         }, label = { Text("合成预览") })

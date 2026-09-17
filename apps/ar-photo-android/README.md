@@ -32,6 +32,11 @@ The app requests camera permission only when you enter real AR or dataset
 playback. Granting it starts the selected mode automatically; denying it keeps
 the synthetic preview available. A previously imported dataset remains private
 to the app until its data is cleared or replaced.
+Before opening an AR scene, the app also checks device support and asks Android
+to install/update Google Play Services for AR when needed. If the service is
+disabled or unavailable, it stays in synthetic preview instead of opening a
+broken camera view. The install prompt and real-device tracking still need a
+phone acceptance check.
 
 ## Offline test without a phone
 
@@ -117,6 +122,10 @@ reported the dataset's finished status and started the MP4 player again when
 **重新播放会话** was tapped. Switching out of playback requires pausing its ARCore
 session before SceneView destroys it; this was tested in the emulator. Live
 camera tracking, long-term anchor stability, and session recording are **not
-yet phone-verified**. The emulator's flat `emulated` camera caused ARCore's
+yet phone-verified**. Temporarily disabling Google Play Services for AR in the
+emulator now leaves the synthetic preview with a clear error instead of
+starting a crashing native session; re-enabling it allowed dataset playback
+again. The fresh-install/update prompt was not exercised in that check. The
+emulator's flat `emulated` camera caused ARCore's
 native feature tracker to abort, so use a supported phone for that acceptance
 test. Do not use this as a production AR capture tool until those checks pass.

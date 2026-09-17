@@ -85,9 +85,22 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertIn("var permissionTargetReplay by rememberSaveable", screen)
         self.assertIn("context.checkSelfPermission(Manifest.permission.CAMERA)", screen)
         self.assertIn("cameraPermissionLauncher.launch(Manifest.permission.CAMERA)", screen)
-        self.assertIn("replayMode = permissionTargetReplay", screen)
+        self.assertIn("enterArWhenReady(permissionTargetReplay)", screen)
         self.assertIn("switchToArMode(false)", screen)
         self.assertIn("switchToArMode(true)", screen)
+
+    def test_arcore_install_preflight_precedes_optional_ar_scene(self):
+        activity = (APP / "app/src/main/java/org/digital_kotone/arphoto/MainActivity.kt").read_text(encoding="utf-8")
+        screen = (APP / "app/src/main/java/org/digital_kotone/arphoto/PhotoScreen.kt").read_text(encoding="utf-8")
+        self.assertIn("checkAvailabilityAsync(this)", activity)
+        self.assertIn('getApplicationInfo("com.google.ar.core", 0).enabled', activity)
+        self.assertIn("requestInstall(this, userRequested)", activity)
+        self.assertIn("if (waitingForArCoreInstall) requestArCoreInstall(userRequested = false)", activity)
+        self.assertIn("onEnsureArReady = { onReady, onFailure -> ensureArCoreReady", activity)
+        self.assertIn("onCancelArRequest = { cancelArCoreRequest() }", activity)
+        self.assertIn("onEnsureArReady({", screen)
+        self.assertIn("onCancelArRequest()", screen)
+        self.assertIn("onSessionFailed = { error ->\n                        sessionReady = false\n                        arMode = false", screen)
 
     def test_ci_builds_native_ar_app_without_publishing_assets(self):
         workflow = (ROOT / ".github/workflows/source-audit.yml").read_text(encoding="utf-8")
