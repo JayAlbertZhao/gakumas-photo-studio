@@ -2,7 +2,8 @@
 
 The dataset is NOT included in this repository. This test replaces the debug
 app's private model/dataset and grants camera permission on the named emulator.
-It checks plane placement, clip switching, replay restart, and mode teardown.
+It checks plane placement, clip switching, composited photo saving, replay
+restart, and mode teardown.
 """
 
 import argparse
@@ -104,6 +105,22 @@ def main() -> None:
 
     tap_text(smoke, adb, args.serial, "下一段")
     smoke.wait_for_text(adb, args.serial, "Slide")
+    tap_text(smoke, adb, args.serial, "拍照")
+    root = smoke.wait_for_prefix(adb, args.serial, "照片已保存：", timeout=25.0)
+    message = next(node.get("text", "") for node in root.iter("node")
+                   if node.get("text", "").startswith("照片已保存："))
+    photo_uri = message.removeprefix("照片已保存：")
+    if not re.fullmatch(r"content://media/external/images/media/\d+", photo_uri):
+        raise RuntimeError(f"unexpected saved photo URI: {photo_uri}")
+    metadata = smoke.run(adb, args.serial, "shell", "content", "query", "--uri", photo_uri,
+                         "--projection", "_size:mime_type:_display_name:is_pending")
+    size_match = re.search(r"_size=(\d+)", metadata)
+    if (not size_match or int(size_match.group(1)) < 100_000
+            or "mime_type=image/png" not in metadata or "is_pending=0" not in metadata):
+        raise RuntimeError(f"saved photo missing or incomplete: {metadata}")
+    # This is a disposable emulator test artifact, not a user photograph.
+    smoke.run(adb, args.serial, "shell", "content", "delete", "--uri", photo_uri)
+    print("Composited PNG was published to MediaStore and test copy removed", flush=True)
     tap_text(smoke, adb, args.serial, "重新播放会话")
     smoke.wait_for_prefix(adb, args.serial, "正在从头播放会话")
     tap_text(smoke, adb, args.serial, "合成预览")
@@ -111,7 +128,7 @@ def main() -> None:
     final_pid = smoke.run(adb, args.serial, "shell", "pidof", smoke.PACKAGE)
     if not initial_pid or final_pid != initial_pid:
         raise RuntimeError(f"app process changed during replay/mode switch: {initial_pid} -> {final_pid}")
-    print("PASS: dataset replay, floor anchor, animation switch, restart, and synthetic return",
+    print("PASS: dataset replay, floor anchor, clip switch, PNG save, restart, synthetic return",
           flush=True)
 
 

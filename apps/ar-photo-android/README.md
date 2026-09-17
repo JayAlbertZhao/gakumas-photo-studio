@@ -156,9 +156,11 @@ python -I tools/smoke_replay_emulator.py --serial emulator-5554 --dataset "$env:
 
 It verifies the recording's SHA-256, copies it and an original animated GLB
 into the disposable emulator's private app storage, then checks replay to the
-end, floor placement, clip switching, replay restart, and return to synthetic
-preview without an app-process crash. It grants camera permission on that
-emulator. It does not record a new dataset or prove live-phone tracking.
+end, floor placement, clip switching, PNG publication in MediaStore, replay
+restart, and return to synthetic preview without an app-process crash. The
+test deletes only its own saved PNG after checking it. It grants camera
+permission on that emulator. It does not record a new dataset or prove
+live-phone tracking; the PNG metadata check does not replace visual review.
 
 The debug APK has been built. On the API 36.1 emulator, the synthetic
 preview/import/photo flow worked; the public ARCore recording also replayed,
