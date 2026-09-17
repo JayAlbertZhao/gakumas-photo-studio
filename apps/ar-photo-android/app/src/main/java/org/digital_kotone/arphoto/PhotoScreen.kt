@@ -56,6 +56,7 @@ import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMaterialLoader
 import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
+import io.github.sceneview.rememberRenderer
 import io.github.sceneview.rememberOnGestureListener
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -79,6 +80,16 @@ internal fun PhotoScreen(
     val recorder = remember(context) { ArSessionRecorder(context) }
     val modelLoader = rememberModelLoader(engine)
     val materialLoader = rememberMaterialLoader(engine)
+    val renderer = rememberRenderer(engine)
+    LaunchedEffect(renderer) {
+        // SceneView 4.25 leaves the swap chain uncleared without a skybox. A
+        // replaced GLB then leaves old pixels behind, looking like a ghost
+        // model (and contaminating saved transparent preview images).
+        renderer.clearOptions = renderer.clearOptions.apply {
+            clear = true
+            clearColor = doubleArrayOf(0.0, 0.0, 0.0, 0.0)
+        }
+    }
     val previewCamera = rememberCameraNode(engine) {
         position = Position(0f, 1.0f, 4.6f)
     }
@@ -163,6 +174,7 @@ internal fun PhotoScreen(
                     modifier = Modifier.fillMaxSize(),
                     surfaceType = SurfaceType.TextureSurface,
                     engine = engine,
+                    renderer = renderer,
                     modelLoader = modelLoader,
                     materialLoader = materialLoader,
                     playbackDataset = if (replayMode) playbackDataset else null,
@@ -216,12 +228,22 @@ internal fun PhotoScreen(
                     }),
                 ) {
                     anchor?.let { placed ->
-                        AnchorNode(anchor = placed) {
-                            Node(rotation = Rotation(y = if (imported == null) yaw else 0f),
-                                scale = Scale(if (imported == null) scale else 1f)) {
+                        if (imported != null) {
+                            // SceneView's imported glTF renderables do not reliably inherit a
+                            // post-creation parent AnchorNode transform. Bake the hit pose into
+                            // the ModelNode before attaching it to the scene instead.
+                            Node {
                                 PhotoSubject(imported, materialLoader, wave,
                                     animationNames.getOrNull(animationIndex), scale, yaw,
-                                    Position(0f, 0f, 0f))
+                                    Position(placed.pose.tx(), placed.pose.ty(), placed.pose.tz()))
+                            }
+                        } else {
+                            AnchorNode(anchor = placed) {
+                                Node(rotation = Rotation(y = yaw), scale = Scale(scale)) {
+                                    PhotoSubject(null, materialLoader, wave,
+                                        animationNames.getOrNull(animationIndex), scale, yaw,
+                                        Position(0f, 0f, 0f))
+                                }
                             }
                         }
                     }
@@ -236,6 +258,7 @@ internal fun PhotoScreen(
                     surfaceType = SurfaceType.TextureSurface,
                     isOpaque = false,
                     engine = engine,
+                    renderer = renderer,
                     modelLoader = modelLoader,
                     materialLoader = materialLoader,
                     cameraNode = previewCamera,

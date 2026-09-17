@@ -73,6 +73,9 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertIn("onValueChangeFinished", screen)
         self.assertIn("scaleToUnits = 1.6f * size", subject)
         self.assertIn("position = Position(offset.x + importedPosition.x", subject)
+        self.assertIn("Position(placed.pose.tx(), placed.pose.ty(), placed.pose.tz())", screen)
+        self.assertIn("renderer.clearOptions = renderer.clearOptions.apply", screen)
+        self.assertIn("clear = true", screen)
         self.assertNotIn("previewRoot.get()?.position", screen)
         self.assertIn("modelRevision.intValue++", activity)
 

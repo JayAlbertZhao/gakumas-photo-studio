@@ -58,8 +58,11 @@ The emulator rendered both our generated GLB and Khronos' public Box.glb.
 Preview placement, size, rotation, and reset visibly changed the Box; the app
 reloads its model instance after imported-model gestures because SceneView
 4.25 did not visibly apply later transform updates to GLB renderables in this
-emulator. Rapid changes are coalesced before reloading. Live AR placement with
-an imported model still needs a supported-phone check.
+emulator. Rapid changes are coalesced before reloading. The app explicitly
+clears the Filament render target each frame so old pixels do not linger when a
+model shrinks or moves; otherwise SceneView 4.25's no-skybox path can look like
+multiple models stacked on top of each other (see the
+[upstream diagnosis](https://github.com/sceneview/sceneview/pull/2424)).
 
 ## Real AR and dataset recording/playback
 
@@ -97,11 +100,15 @@ Its SHA-256 in our test was
 The debug APK has been built. On the API 36.1 emulator, the synthetic
 preview/import/photo flow worked; the public ARCore recording also replayed,
 detected a floor, accepted a tap-to-place anchor, resized the stand-in, and
-saved a composited PNG. The emulator also reported the dataset's finished
-status and started the MP4 player again when **重新播放会话** was tapped. Switching
-out of playback requires pausing its ARCore
+saved a composited PNG. With Khronos' Box GLB imported, playback accepted a
+tracking floor hit and rendered the scaled Box at the captured world position.
+Imported models use that hit pose directly because attaching a loaded GLB under
+the library's `AnchorNode` did not visibly place its renderables in this
+emulator; the procedural character still uses `AnchorNode`. The emulator also
+reported the dataset's finished status and started the MP4 player again when
+**重新播放会话** was tapped. Switching out of playback requires pausing its ARCore
 session before SceneView destroys it; this was tested in the emulator. Live
-camera tracking and session recording are **not yet phone-verified**. The
-emulator's flat `emulated` camera caused ARCore's native feature tracker to
-abort, so use a supported phone for that acceptance test. Do not use this as a
-production AR capture tool until those checks pass.
+camera tracking, long-term anchor stability, and session recording are **not
+yet phone-verified**. The emulator's flat `emulated` camera caused ARCore's
+native feature tracker to abort, so use a supported phone for that acceptance
+test. Do not use this as a production AR capture tool until those checks pass.
