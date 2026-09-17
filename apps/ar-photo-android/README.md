@@ -74,6 +74,18 @@ picker, use the previous/next clip buttons, and resize it to verify that the
 selected clip survives model-instance reloads. The fixture is deliberately
 simple and is not evidence of parity with any game's character animation.
 
+After building the debug APK, a repeatable emulator-only smoke check is
+available:
+
+```powershell
+python -I tools/smoke_emulator.py --serial emulator-5554
+```
+
+It installs the debug APK, replaces that emulator's last private imported GLB
+with the generated fixture, then checks clip switching and resizing without
+an app-process crash. Use a disposable emulator; the command refuses physical
+devices. It does not test real camera tracking or ARCore recording.
+
 Tap **导入 GLB** and select the file. The app copies and validates a binary
 glTF 2.0 GLB (at most 80 MB) into private app storage; it rejects external
 buffer/image references and retains the previous model when import fails. Only
