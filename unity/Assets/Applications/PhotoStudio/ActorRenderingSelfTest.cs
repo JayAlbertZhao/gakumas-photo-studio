@@ -142,6 +142,14 @@ namespace GakumasPhotoMode
                 if (GraphicsSettings.currentRenderPipeline != null)
                     throw new InvalidOperationException("Synthetic contracts require the ordinary Built-in Player.");
                 SetUp();
+                if(Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-reference-limits-only")>=0)
+                {
+                    VerifyExternalReferenceLimits(report);
+                    report.accepted=report.checks.TrueForAll(check=>check.accepted);
+                    File.WriteAllText(Path.Combine(_directory,"actor-synthetic.json"),JsonUtility.ToJson(report,true));
+                    Debug.Log("[ActorSelfTest] accepted="+report.accepted+"; checks="+report.checks.Count);
+                    Application.Quit(report.accepted?0:2);yield break;
+                }
                 if(Array.IndexOf(Environment.GetCommandLineArgs(),"--self-test-secondary-motion-only")>=0)
                 {
                     VerifySecondaryMotionClock(report);
@@ -210,6 +218,7 @@ namespace GakumasPhotoMode
                 VerifySphereFog(report);
                 VerifyNaturalWind(report);
                 VerifySecondaryMotionClock(report);
+                VerifyExternalReferenceLimits(report);
                 VerifyTemporalClassification(report);
                 VerifyActorVertexEncoding(report);
                 VerifySceneDepthData(report);

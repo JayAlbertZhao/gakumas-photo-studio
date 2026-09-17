@@ -227,6 +227,10 @@ namespace GakumasPhotoMode
                     finally { foreach(var r in renderers){r.sharedMaterials=sources[r];r.receiveShadows=receiveShadows[r];}GraphicsSettings.renderPipelineAsset=pipeline;QualitySettings.renderPipeline=pipeline; }
                     Check(name+"-source-materials-not-mutated",SourceSnapshot(renderers)==sourceBefore);return actual;
                 }
+                if(Environment.GetCommandLineArgs().Contains("--validate-secondary-reference-limits"))
+                    VerifyExternalReferenceCharacter(report,View,Run);
+                else
+                {
                 Color[] front=null;
                 foreach(int angle in new[]{0,90,180,270}){View(angle);var pixels=Run("view-"+angle);if(angle==0)front=pixels;}
                 View(0);Check("front-view-revisit-exact",MaximumDifference(front,Run("front-revisit"))==0);
@@ -426,6 +430,7 @@ namespace GakumasPhotoMode
                 {
                     actor.Configuration.motion.enabled=false;
                     VerifySecondaryCharacter(report,View,Run);
+                }
                 }
                 actor.Dispose();Check("dispose-keeps-original-character",!current.IsCurrent&&actor.NominalTextureBytes==0&&SourceSnapshot(renderers)==sourceBefore&&output.IsCreated());
                 if(Environment.GetCommandLineArgs().Contains("--validate-desktop-character"))

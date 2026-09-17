@@ -698,6 +698,38 @@ class FrameworkContractTests(unittest.TestCase):
                       'secondary-clock-explicit-wind-override-precedence'):
             self.assertIn(token, source)
 
+    def test_reference_limits_are_typed_opt_in_and_keep_internal_state_authority(self):
+        source = (RUNTIME / 'HairDynamicsSystem.cs').read_text(encoding='utf-8')
+        shell = (RUNTIME / 'Compatibility/ActorAnimationStub/ActorSwingDynamicBone.cs').read_text(encoding='utf-8')
+        self.assertIn('public UnityEngine.Object bone;', shell)
+        for token in ('public bool useExternalReferenceLimits;',
+                      'reference.bone as Transform', 'ReferenceTransform(reference.bone)',
+                      'source as Transform', 'source as ActorSwingDynamicBone',
+                      'componentReference.transform : null',
+                      'Node referenceNode = settingNode.referenceNode ??',
+                      'useExternalReferenceLimits ? settingNode.authoredReferenceNode : null',
+                      'referenceNode.rotation : externalReference.rotation',
+                      'ExternalReferenceLimitCorrections = 0;'):
+            self.assertIn(token, source)
+        self.assertNotIn('reference.bone.rotation', source)
+        self.assertNotIn('useExternalReferenceLimits = true', source)
+
+    def test_reference_fixture_covers_component_pointer_and_real_skin(self):
+        folder = ROOT / 'unity/Assets/Applications/PhotoStudio'
+        generated = (folder / 'ActorRenderingSelfTest.SecondaryMotion.cs').read_text(encoding='utf-8')
+        for token in ('component-reference-resolves-transform-safely',
+                      'component-reference-prefers-local-solver-state',
+                      'disabled-component-reference-preserves-legacy',
+                      'unsupported-object-keeps-own-limit', 'internal-state-still-authoritative',
+                      'explicit-disable-restores-legacy'):
+            self.assertIn(token, generated)
+        actual = (folder / 'SrpActorCharacterValidation.SecondaryMotion.cs').read_text(encoding='utf-8')
+        for token in ('"legacy", "enabled", "replay", "disabled"',
+                      'ExternalReferenceLimitCorrections', 'external-limit-visible-skinned-response',
+                      'separate-producer-and-consumer', 'external ? corrections > 0 : corrections == 0',
+                      'useExternalReferenceLimits = oldExternal[i]', 'forceMatrixRecalculationPerRender = oldMatrices[i]'):
+            self.assertIn(token, actual)
+
     def test_secondary_motion_metadata_has_importable_guid(self):
         folder = ROOT / 'unity/Assets/Applications/PhotoStudio'
         seen = set()

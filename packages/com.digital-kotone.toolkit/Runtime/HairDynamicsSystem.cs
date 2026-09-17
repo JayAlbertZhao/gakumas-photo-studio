@@ -37,6 +37,12 @@ namespace GakumasPhotoMode
         public double? naturalWindTimeOverride { get; set; }
         /// <summary>Use Unity LateUpdate by default; disable before explicit stepping.</summary>
         public bool automaticSimulation { get; set; } = true;
+        // Opt-in for explicitly authored references outside this solver's node
+        // set (for example an outer jacket following a separate skirt solver).
+        // The caller evaluates the referenced producer before this consumer.
+        public bool useExternalReferenceLimits;
+        /// <summary>Changed external clamps during the most recent integration step.</summary>
+        public int ExternalReferenceLimitCorrections { get; private set; }
         private double? _explicitSimulationTime;
         [Range(0f, 2f)] public float gravityStrength = 1f;
         [Range(0f, 1f)] public float collisionStrength = 1f;
@@ -240,7 +246,16 @@ namespace GakumasPhotoMode
                 node.child = FindDynamicChild(node.bone, nodesByTransform);
                 SwingReferenceLimitInfo reference = node.setting.referenceLimitInfo;
                 if (reference != null && reference.bone != null)
-                    nodesByTransform.TryGetValue(reference.bone, out node.referenceNode);
+                {
+                    // Preserve legacy Transform references by default. Typed
+                    // component references participate only in the opt-in path.
+                    var legacyTransform = reference.bone as Transform;
+                    if (legacyTransform != null)
+                        nodesByTransform.TryGetValue(legacyTransform, out node.referenceNode);
+                    var authoredTransform = ReferenceTransform(reference.bone);
+                    if (authoredTransform != null)
+                        nodesByTransform.TryGetValue(authoredTransform, out node.authoredReferenceNode);
+                }
             }
 
             // The production CampusActorAnimationRigData aggregates swing components
@@ -551,6 +566,7 @@ namespace GakumasPhotoMode
             bool applyAuthoredLimits,
             bool prewarming)
         {
+            ExternalReferenceLimitCorrections = 0;
             ChainSmoothingApplications = 0;
             ChainLoopLengthRestorations = 0;
             MaxRestoredChainLoopLengthError = 0f;
@@ -922,16 +938,27 @@ namespace GakumasPhotoMode
             // max flags run first, then min flags.  The six serialized booleans
             // at 0x370..0x375 therefore are live constraints, not metadata.
             SwingReferenceLimitInfo reference = settingNode.setting.referenceLimitInfo;
-            if (reference != null && settingNode.referenceNode != null)
+            Node referenceNode = settingNode.referenceNode ??
+                (useExternalReferenceLimits ? settingNode.authoredReferenceNode : null);
+            Transform externalReference = useExternalReferenceLimits && reference != null && referenceNode == null
+                ? ReferenceTransform(reference.bone) : null;
+            if (reference != null && (referenceNode != null || externalReference != null))
             {
                 Vector3 candidateEuler = SignedEuler(limitedWorldRotation);
-                Vector3 referenceEuler = SignedEuler(settingNode.referenceNode.rotation);
+                Vector3 beforeReference = candidateEuler;
+                // Internal state stays authoritative for references owned by
+                // this solver. External references use only the assigned bone,
+                // with no scene-wide search or implicit solver scheduling.
+                Vector3 referenceEuler = SignedEuler(referenceNode != null
+                    ? referenceNode.rotation : externalReference.rotation);
                 if (reference.max.x) candidateEuler.x = Mathf.Min(candidateEuler.x, referenceEuler.x);
                 if (reference.max.y) candidateEuler.y = Mathf.Min(candidateEuler.y, referenceEuler.y);
                 if (reference.max.z) candidateEuler.z = Mathf.Min(candidateEuler.z, referenceEuler.z);
                 if (reference.min.x) candidateEuler.x = Mathf.Max(candidateEuler.x, referenceEuler.x);
                 if (reference.min.y) candidateEuler.y = Mathf.Max(candidateEuler.y, referenceEuler.y);
                 if (reference.min.z) candidateEuler.z = Mathf.Max(candidateEuler.z, referenceEuler.z);
+                if (referenceNode == null && !candidateEuler.Equals(beforeReference))
+                    ExternalReferenceLimitCorrections++;
                 limitedWorldRotation = Quaternion.Euler(candidateEuler);
             }
 
@@ -939,6 +966,14 @@ namespace GakumasPhotoMode
             limited = SafeDirection(limited, authoredDirection);
             poseNode.lastLimitedDirection = limited;
             return origin + limited * length;
+        }
+
+        private static Transform ReferenceTransform(UnityEngine.Object source)
+        {
+            var transformReference = source as Transform;
+            if (transformReference != null) return transformReference;
+            var componentReference = source as ActorSwingDynamicBone;
+            return componentReference != null ? componentReference.transform : null;
         }
 
         private static float ClampAuthoredAngle(float value, Vector2Int interval)
@@ -1555,6 +1590,7 @@ namespace GakumasPhotoMode
             public Node parent;
             public Node child;
             public Node referenceNode;
+            public Node authoredReferenceNode;
             public Vector3 authoredPosition;
             public Quaternion authoredRotation;
             public Vector3 defaultPosition;

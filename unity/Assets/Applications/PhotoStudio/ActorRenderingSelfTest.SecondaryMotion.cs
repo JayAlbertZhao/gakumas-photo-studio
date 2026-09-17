@@ -131,6 +131,86 @@ namespace GakumasPhotoMode
             return error;
         }
 
+        private void VerifyExternalReferenceLimits(Report report)
+        {
+            var fixture = CreateSecondaryFixture("swing"); fixture.automatic(false);
+            var solver = (HairDynamicsSystem)fixture.solver;
+            object parent = null;
+            foreach (object node in (System.Collections.IEnumerable)DynamicField(solver, "_nodes"))
+                if (DynamicField(node, "child") != null) { parent = node; break; }
+            if (parent == null) throw new InvalidOperationException("Generated reference fixture has no segment.");
+            object child = DynamicField(parent, "child");
+            var setting = (ActorSwingDynamicBone)DynamicField(child, "setting");
+            setting.limitInfo = new SwingLimitInfo { useLimit = 1,
+                axisX = new Vector2Int(-180, 180), axisY = new Vector2Int(-180, 180), axisZ = new Vector2Int(-180, 180) };
+            var reference = Own(new GameObject("Explicit external skirt reference")).transform;
+            setting.referenceLimitInfo = new SwingReferenceLimitInfo { bone = reference };
+            MethodInfo method = typeof(HairDynamicsSystem).GetMethod("ApplyAuthoredHardLimit", BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo mode = typeof(HairDynamicsSystem).GetField("useExternalReferenceLimits");
+            Vector3 Apply(Vector3 axis, Vector3 euler) => (Vector3)method.Invoke(solver,
+                new object[] { parent, child, axis, Vector3.zero, Quaternion.identity, axis,
+                    Quaternion.Euler(euler) * axis, 1f });
+            void Check(string name, Vector3 actual, Vector3 expected)
+            {
+                float error = (actual - expected).magnitude;
+                FrameworkCheck(report, "secondary-reference-" + name, error < 1e-5f, error);
+            }
+            FrameworkCheck(report, "secondary-reference-external-owner-not-in-local-map", DynamicField(child, "referenceNode") == null);
+            reference.rotation = Quaternion.Euler(0, 0, 20);
+            setting.referenceLimitInfo.max.z = true;
+            Check("legacy-default-retains-own-limit-only", Apply(Vector3.down, new Vector3(0, 0, 60)),
+                Quaternion.Euler(0, 0, 60) * Vector3.down);
+            FrameworkCheck(report, "secondary-reference-explicit-mode-available", mode != null);
+            if (mode != null) mode.SetValue(solver, true);
+            for (int axis = 0; axis < 3; axis++)
+            foreach (bool minimum in new[] { false, true })
+            {
+                var refEuler = Vector3.zero; var proposed = Vector3.zero;
+                refEuler[axis] = minimum ? -20 : 20; proposed[axis] = minimum ? -60 : 60;
+                reference.rotation = Quaternion.Euler(refEuler);
+                setting.referenceLimitInfo.min = new SerializableBool3 { x = minimum && axis == 0, y = minimum && axis == 1, z = minimum && axis == 2 };
+                setting.referenceLimitInfo.max = new SerializableBool3 { x = !minimum && axis == 0, y = !minimum && axis == 1, z = !minimum && axis == 2 };
+                Vector3 direction = axis == 0 ? Vector3.forward : axis == 1 ? Vector3.right : Vector3.down;
+                Check("external-" + axis + "-min-" + minimum, Apply(direction, proposed), Quaternion.Euler(refEuler) * direction);
+            }
+            setting.referenceLimitInfo.min = default;
+            setting.referenceLimitInfo.max = new SerializableBool3 { z = true };
+            foreach (float degrees in new[] { -25f, -5f, 15f, 35f })
+            {
+                reference.rotation = Quaternion.Euler(0, 0, degrees);
+                Check("moving-reference-" + degrees, Apply(Vector3.down, new Vector3(0, 0, 70)),
+                    Quaternion.Euler(0, 0, degrees) * Vector3.down);
+            }
+            // A mapped dynamic reference retains its solver state as authority,
+            // even when the external Transform currently has a different pose.
+            child.GetType().GetField("referenceNode").SetValue(child, parent);
+            parent.GetType().GetField("rotation").SetValue(parent, Quaternion.Euler(0, 0, 10));
+            Check("internal-state-still-authoritative", Apply(Vector3.down, new Vector3(0, 0, 70)),
+                Quaternion.Euler(0, 0, 10) * Vector3.down);
+            child.GetType().GetField("referenceNode").SetValue(child, null);
+            var componentReference = reference.gameObject.AddComponent<ActorSwingDynamicBone>();
+            setting.referenceLimitInfo.bone = componentReference;
+            reference.rotation = Quaternion.Euler(0, 0, 20);
+            Check("component-reference-resolves-transform-safely", Apply(Vector3.down, new Vector3(0, 0, 60)),
+                Quaternion.Euler(0, 0, 20) * Vector3.down);
+            child.GetType().GetField("authoredReferenceNode").SetValue(child, parent);
+            Check("component-reference-prefers-local-solver-state", Apply(Vector3.down, new Vector3(0, 0, 60)),
+                Quaternion.Euler(0, 0, 10) * Vector3.down);
+            if (mode != null) mode.SetValue(solver, false);
+            Check("disabled-component-reference-preserves-legacy", Apply(Vector3.down, new Vector3(0, 0, 60)),
+                Quaternion.Euler(0, 0, 60) * Vector3.down);
+            if (mode != null) mode.SetValue(solver, true);
+            child.GetType().GetField("authoredReferenceNode").SetValue(child, null);
+            setting.referenceLimitInfo.bone = reference.gameObject;
+            Check("unsupported-object-keeps-own-limit", Apply(Vector3.down, new Vector3(0, 0, 60)),
+                Quaternion.Euler(0, 0, 60) * Vector3.down);
+            setting.referenceLimitInfo.bone = null;
+            Check("missing-reference-keeps-own-limit", Apply(Vector3.down, new Vector3(0, 0, 60)), Quaternion.Euler(0, 0, 60) * Vector3.down);
+            setting.referenceLimitInfo.bone = reference;
+            if (mode != null) mode.SetValue(solver, false);
+            Check("explicit-disable-restores-legacy", Apply(Vector3.down, new Vector3(0, 0, 60)), Quaternion.Euler(0, 0, 60) * Vector3.down);
+        }
+
         private void VerifySecondaryMotionClock(Report report)
         {
             foreach (string kind in new[] { "swing", "slide", "bilateral" })

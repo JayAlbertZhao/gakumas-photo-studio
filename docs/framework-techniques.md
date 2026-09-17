@@ -116,7 +116,7 @@ API 的自制整图控制及实际深度→CoC 链已验证；不改默认摄影
 | A06 | 稀疏面部形变、骨与视角修形；PPT 54–65 | 默认 CPU 保留；新增可选 [GraphicsBuffer GPU 后端](gpu-face-deformation.md)，原有权重／眨眼／视角修形共用；另有只读的当前选中顶点来源 | 桌面逐顶点、原生 compute→draw 及一个真实角色已对照，定位器覆盖全部 108 个单独形状；完整角色／服装、其他 CPU 几何消费者、GPU 帧时和移动驱动仍待完成 |
 | A07 | 可动画面部贴花；PPT 58、62；PDF 29 | 新增默认关闭的 [独立可动画贴花](animated-face-decals.md)：显式接收面、投影／UV／混合、AnimationClip／类型化曲线及 Planar；可消费 [共享制作数据](performance-authoring.md) | 桌面全图、实际蒙皮／GPU 顶点及一个角色全部 108 个单独形状已对照；其他角色／服装／制作动作、Maya 客户端制作／导出实测及移动成本仍待完成 |
 | A08 | MotionEffect 材质／Prefab／粒子／定位器；PPT 52、59–62 | 已有 [预制体／Local 粒子／Playable](motion-effects.md) 与 [当前面部顶点定位器](vertex-locators.md)；新增 [共享制作曲线、材质区间与 FBX／sidecar 转换](performance-authoring.md)，显式绑定和统一时钟 | 桌面粒子／顶点／整图重放已验证；Blender 原生关键帧、自定义属性 FBX 导入及 Player 联合消费已实测；通用蒙皮 provider、世界轨迹／制作特效、Maya 客户端和生产 rig、移动成本仍待完成 |
-| A09 | 辅助骨、链、碰撞、参考角度、滑动、跨轴力；PPT 75–78、90–93 | 已有多个求解模块；新增 [显式时钟与重播](#辅助动态骨的显式推进)，修复双侧辅助骨重置后首帧沿用旧髋部位置造成的额外冲量 | 两套自备服装／两桌面 API 的 180 帧位置与旋转重播、三视角实际蒙皮对照已验证；全服装范围、极端动作、坐姿边界、完整碰撞质量仍待验收 |
+| A09 | 辅助骨、链、碰撞、参考角度、滑动、跨轴力；PPT 75–78、90–93 | 已有多个求解模块；[显式时钟与重播](#辅助动态骨的显式推进) 修复双侧重置首帧冲量；可选 [分层衣物参考角度](#分层衣物的参考角度) 支持类型安全的组件引用与跨求解器约束 | 两套服装／两桌面 API 的 180 帧重播已验证；另对一套服装的坐姿执行参考限制开／关、重播及三视角实际蒙皮颜色／深度对照。全服装范围、极端动作、坐姿穿模边界、完整碰撞质量仍待验收 |
 | A10 | 自然风、阵风和停歇；PPT 94 | NaturalWindSettings 及角色接入；显式推进可同时驱动风场与既有物理 | 自制阵风／停歇与两套服装实际骨骼、颜色、深度响应已验证；原版资产参数映射和全动作视觉一致性未验收 |
 | E01 | 背景 PBR 及其 Def 通道；PPT 108 | 已有背景 fallback；透明／特效共享 [法线贴图基](forward-normal-basis.md) 按实际矩阵计算，支持显式镜像／非均匀变换 | 特殊材质、更多场景输入与 shader 变体；本次法线基修正不代表原版 Def ABI 或全场景画质一致 |
 | E02 | 线性灯光衰减、可调镜面、GI 乘色、背向补光；PPT 110–112 | 独立 GI、基础 GI 压暗、背向漫反射、白光烘焙、Spot 与实例化；可选实时深度阴影、[四通道烘焙可见性](scene-baked-shadows.md) 及显式 [Capsule／Area 有限源覆盖](extended-source-shadows.md) | 桌面 GI、三种光源投影及移动 caster 已验收；Mixed Shadowmask 使用新场景副本与显式逐灯通道。扩展光源使用独立等权几何可见性模型，保留原有 GI／背光响应；连续面积光积分、完整角色／场景和一般蒙皮仍需单独实现或验收，见 [GI](scene-gi.md) 与 [光源阴影](scene-light-shadows.md) |
@@ -214,6 +214,34 @@ softTissue.AdvanceSimulation(deltaSeconds);
 蒙皮绘制不能通过验收。生成式控制另覆盖六秒重播、阵风／停歇、错误输入、时间覆盖
 优先级及默认 Unity 时钟的一致性。双侧求解器重置时同步髋部缓存，避免首帧虚假的
 根位移补偿；其余既有积分公式和追赶上限保持不变。
+
+## 分层衣物的参考角度
+
+PPT 77 的外层衣物参考内层裙摆角度由 `HairDynamicsSystem.useExternalReferenceLimits`
+显式开启，默认 `false`，不会自动改变 Photo Studio 的现有物理。参考限制仍在
+自己的局部硬限位之后执行，沿用有符号世界 ZXY Euler 分量的 max → min 顺序。
+它约束骨骼方向，不是三角形级衣物碰撞，也不保证任意姿态没有穿模。
+
+`SwingReferenceLimitInfo.bone` 接受明确指定的 `Transform` 或
+`ActorSwingDynamicBone` 组件，以 `UnityEngine.Object` 保存类型安全的对象指针。
+不要把组件的序列化指针声明成 `Transform`；对象名称可读并不能证明其 native 类型正确。
+同求解器的旧 Transform 引用仍优先使用内部状态；启用后，组件引用也先解析到本求解器
+节点，跨求解器引用才读指定对象的 Transform。空引用和其他对象类型不增加参考约束。
+引用应在初始化前配置；修改拓扑／归属后需要重新初始化。
+
+宿主负责有向无环的推进顺序：先动画与辅助骨，再内层裙摆，最后引用它的外衣。
+需要跨求解器确定性时，对参与实例关闭 `automaticSimulation`，使用上述显式时钟；
+不要依赖相同 MonoBehaviour 执行顺序，也不要建立相互引用的求解器环。
+`ExternalReferenceLimitCorrections` 记录最近一次积分子步中实际改变角度的外部约束次数，
+不是碰撞次数或累计帧数；不推进的调用不会产生新的测量。
+
+生成式数值诊断：`--self-test-actor-rendering <directory> --self-test-reference-limits-only`。
+自备角色诊断：`--photo-mode --validate-srp-actor-character <directory>
+--validate-secondary-reference-limits`，可同时指定 `--motion-label home-sit-001`。
+后者要求实际跨求解器约束生效、180 帧骨骼有限、开启／重播和关闭／原行为一致，
+并检查三视角实际蒙皮颜色响应。诊断恢复自己接管的开关与渲染状态；它不启用默认应用功能。
+当前一套自备服装／坐姿已在 D3D11 和 Vulkan 上完成上述对照，并独立核对整图
+颜色、几何深度与背景不变；只证明该输入下约束进入实际蒙皮，不代表全部坐姿穿模已解决。
 
 ## TAA 分类接口
 

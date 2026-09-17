@@ -130,7 +130,10 @@ namespace ActorAnimation
     [Serializable]
     public sealed class SwingReferenceLimitInfo
     {
-        public Transform bone;
+        // Some authoring inputs point at a dynamic-bone component, others at
+        // its Transform. Keep the serialized object pointer type-safe; treating
+        // a component's native pointer as a Transform can crash the Player.
+        public UnityEngine.Object bone;
         public SerializableBool3 min;
         public SerializableBool3 max;
     }
