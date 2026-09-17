@@ -57,7 +57,9 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertIn('context.filesDir, "session-playback.mp4"', importer)
         self.assertIn("256L * 1024L * 1024L", importer)
         self.assertIn("playbackDataset = if (replayMode) playbackDataset else null", screen)
-        self.assertIn("key(replayMode, playbackRevision)", screen)
+        self.assertIn("key(replayMode, playbackRevision, replayRun)", screen)
+        self.assertIn("PlaybackStatus.FINISHED", screen)
+        self.assertIn("pauseForModeSwitch()\n                            replayRun++", screen)
 
     def test_model_instance_recreated_across_independent_scenes(self):
         screen = (APP / "app/src/main/java/org/digital_kotone/arphoto/PhotoScreen.kt").read_text(encoding="utf-8")

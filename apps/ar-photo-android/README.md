@@ -78,6 +78,9 @@ and select an ARCore-recorded MP4 (or select **导入会话 MP4** while in AR mo
 The app keeps one copy, limited to 256 MB, in private storage; a normal camera
 video is not a valid ARCore dataset. The app will ask ARCore to validate it
 when playback begins. This lets you reuse a session from a different phone.
+The dataset is finite. After it ends, tap **重新播放会话** to restart the ARCore
+session and retry plane placement or capture; you can also restart early with
+**从头播放会话**. A plain MP4 video cannot be used here.
 
 An externally published recording in SceneView's Android demo is suitable
 for a local test: [Pixel 9 ARCore session](https://github.com/sceneview/sceneview/blob/main/samples/android-demo/src/debug/assets/ar-recordings/bundled-pixel9-sample.mp4).
@@ -89,7 +92,9 @@ Its SHA-256 in our test was
 The debug APK has been built. On the API 36.1 emulator, the synthetic
 preview/import/photo flow worked; the public ARCore recording also replayed,
 detected a floor, accepted a tap-to-place anchor, resized the stand-in, and
-saved a composited PNG. Switching out of playback requires pausing its ARCore
+saved a composited PNG. The emulator also reported the dataset's finished
+status and started the MP4 player again when **重新播放会话** was tapped. Switching
+out of playback requires pausing its ARCore
 session before SceneView destroys it; this was tested in the emulator. Live
 camera tracking and session recording are **not yet phone-verified**. The
 emulator's flat `emulated` camera caused ARCore's native feature tracker to

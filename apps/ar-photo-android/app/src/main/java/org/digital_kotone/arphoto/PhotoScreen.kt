@@ -42,6 +42,7 @@ import com.google.ar.core.Anchor
 import com.google.ar.core.Config
 import com.google.ar.core.Frame
 import com.google.ar.core.Plane
+import com.google.ar.core.PlaybackStatus
 import com.google.ar.core.Session
 import io.github.sceneview.SceneView
 import io.github.sceneview.SurfaceType
@@ -82,6 +83,7 @@ internal fun PhotoScreen(
     }
     var arMode by rememberSaveable { mutableStateOf(false) }
     var replayMode by rememberSaveable { mutableStateOf(false) }
+    var replayRun by rememberSaveable { mutableIntStateOf(0) }
     // Each mode owns a separate scene. Recreate the Filament ModelInstance when
     // crossing scenes or replacing the same app-private file with a new GLB.
     // The named URL overload is required for file:// locations.
@@ -107,6 +109,7 @@ internal fun PhotoScreen(
     var chromeVisible by remember { mutableStateOf(true) }
     var sessionReady by remember { mutableStateOf(false) }
     var recording by remember { mutableStateOf(false) }
+    var playbackFinished by remember { mutableStateOf(false) }
     var anchor by remember { mutableStateOf<Anchor?>(null) }
     val latestFrame = remember { AtomicReference<Frame?>(null) }
     val currentSession = remember { AtomicReference<Session?>(null) }
@@ -129,13 +132,14 @@ internal fun PhotoScreen(
 
     LaunchedEffect(modelLocation, modelRevision) { animationIndex = 0 }
     LaunchedEffect(playbackDataset) { if (playbackDataset == null) replayMode = false }
-    DisposableEffect(arMode, replayMode, playbackRevision) {
+    DisposableEffect(arMode, replayMode, playbackRevision, replayRun) {
         onDispose {
             currentSession.getAndSet(null)?.let { session ->
                 if (recorder.isRecording) recorder.stop(session)
             }
             sessionReady = false
             recording = false
+            playbackFinished = false
             anchor?.detach()
             anchor = null
             latestFrame.set(null)
@@ -147,7 +151,7 @@ internal fun PhotoScreen(
     MaterialTheme {
         Box(Modifier.fillMaxSize().background(Color(0xFFEDE9F3))) {
             if (arMode) {
-                key(replayMode, playbackRevision) { ARSceneView(
+                key(replayMode, playbackRevision, replayRun) { ARSceneView(
                     modifier = Modifier.fillMaxSize(),
                     surfaceType = SurfaceType.TextureSurface,
                     engine = engine,
@@ -167,7 +171,14 @@ internal fun PhotoScreen(
                             onMessage(if (saved != null) "AR 会话已保存：$saved" else "AR 会话录制未能保存")
                         }
                     },
-                    onSessionUpdated = { _, frame -> latestFrame.set(frame) },
+                    onSessionUpdated = { session, frame ->
+                        latestFrame.set(frame)
+                        if (replayMode && !playbackFinished &&
+                            session.playbackStatus == PlaybackStatus.FINISHED) {
+                            playbackFinished = true
+                            onMessage("会话回放已结束；点击重新播放可再试放置与拍照")
+                        }
+                    },
                     onSessionFailed = { error ->
                         sessionReady = false
                         onMessage("AR 无法启动：${error.message ?: "请检查 ARCore 和相机权限"}")
@@ -302,6 +313,13 @@ internal fun PhotoScreen(
                     }
                     if (arMode) {
                         OutlinedButton(onClick = onPickDataset) { Text("导入会话 MP4") }
+                    }
+                    if (arMode && replayMode) {
+                        OutlinedButton(onClick = {
+                            pauseForModeSwitch()
+                            replayRun++
+                            onMessage("正在从头播放会话；等待平面检测")
+                        }) { Text(if (playbackFinished) "重新播放会话" else "从头播放会话") }
                     }
                     if (arMode && !replayMode) {
                         OutlinedButton(enabled = sessionReady, onClick = {
