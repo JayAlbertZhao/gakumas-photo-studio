@@ -12,7 +12,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 /** Saves an ARCore dataset (camera frames and motion data), not just a screen video. */
-internal class ArSessionRecorder(private val context: Context) {
+class ArSessionRecorder(private val context: Context) {
     private var activeUri: Uri? = null
     val isRecording: Boolean get() = activeUri != null
 

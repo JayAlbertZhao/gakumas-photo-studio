@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ArPhoto"
 include(":app")
+include(":ar-toolkit")

@@ -10,6 +10,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "apps" / "ar-photo-android"
 GENERATOR = APP / "tools" / "generate_sample_glb.py"
+TOOLKIT = APP / "ar-toolkit/src/main/java/org/digital_kotone/arphoto"
 
 
 class ArPhotoAndroidContractTest(unittest.TestCase):
@@ -36,15 +37,15 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
 
     def test_optional_ar_and_private_import_boundary(self):
         manifest = (APP / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
-        importer = (APP / "app/src/main/java/org/digital_kotone/arphoto/SubjectImporter.kt").read_text(encoding="utf-8")
+        importer = (TOOLKIT / "SubjectImporter.kt").read_text(encoding="utf-8")
         self.assertIn('android:value="optional"', manifest)
         self.assertIn('android:required="false"', manifest)
         self.assertIn('context.filesDir, "subject.glb"', importer)
         self.assertIn('uri.startsWith("data:")', importer)
 
     def test_recording_and_photo_are_distinct_outputs(self):
-        recorder = (APP / "app/src/main/java/org/digital_kotone/arphoto/ArSessionRecorder.kt").read_text(encoding="utf-8")
-        photos = (APP / "app/src/main/java/org/digital_kotone/arphoto/PhotoStore.kt").read_text(encoding="utf-8")
+        recorder = (TOOLKIT / "ArSessionRecorder.kt").read_text(encoding="utf-8")
+        photos = (TOOLKIT / "PhotoStore.kt").read_text(encoding="utf-8")
         self.assertIn("session.startRecording", recorder)
         self.assertIn("session.stopRecording", recorder)
         self.assertIn("Environment.DIRECTORY_MOVIES", recorder)
@@ -52,7 +53,7 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertIn("PixelCopy.request", photos)
 
     def test_replay_import_is_private_and_bound_before_session_start(self):
-        importer = (APP / "app/src/main/java/org/digital_kotone/arphoto/DatasetImporter.kt").read_text(encoding="utf-8")
+        importer = (TOOLKIT / "DatasetImporter.kt").read_text(encoding="utf-8")
         screen = (APP / "app/src/main/java/org/digital_kotone/arphoto/PhotoScreen.kt").read_text(encoding="utf-8")
         self.assertIn('context.filesDir, "session-playback.mp4"', importer)
         self.assertIn("256L * 1024L * 1024L", importer)
@@ -92,7 +93,7 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
     def test_imported_model_tracks_anchor_refinements(self):
         screen = (APP / "app/src/main/java/org/digital_kotone/arphoto/PhotoScreen.kt").read_text(encoding="utf-8")
         subject = (APP / "app/src/main/java/org/digital_kotone/arphoto/PhotoSubject.kt").read_text(encoding="utf-8")
-        placement = (APP / "app/src/main/java/org/digital_kotone/arphoto/AnchorPlacement.kt").read_text(encoding="utf-8")
+        placement = (TOOLKIT / "AnchorPlacement.kt").read_text(encoding="utf-8")
         self.assertIn("placed.trackingState == TrackingState.TRACKING", screen)
         self.assertIn("tracked.instance === imported", screen)
         self.assertIn("applyAnchorPose(tracked.node, tracked.alignment, placed.pose, yaw)", screen)
@@ -120,7 +121,17 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertIn("android-ar-build:", workflow)
         self.assertIn("'platforms;android-36'", workflow)
         self.assertIn("gradle-version: '9.2.1'", workflow)
-        self.assertIn("./gradlew :app:assembleDebug :app:lintDebug", workflow)
+        self.assertIn("./gradlew :app:assembleDebug :app:lintDebug :ar-toolkit:lintDebug", workflow)
+
+    def test_reusable_android_toolkit_is_consumed_by_app(self):
+        settings = (APP / "settings.gradle.kts").read_text(encoding="utf-8")
+        app_gradle = (APP / "app/build.gradle.kts").read_text(encoding="utf-8")
+        toolkit_gradle = (APP / "ar-toolkit/build.gradle.kts").read_text(encoding="utf-8")
+        self.assertIn('include(":ar-toolkit")', settings)
+        self.assertIn('implementation(project(":ar-toolkit"))', app_gradle)
+        self.assertIn('id("com.android.library")', toolkit_gradle)
+        for name in ("SubjectImporter", "DatasetImporter", "ArSessionRecorder", "PhotoStore"):
+            self.assertTrue((TOOLKIT / f"{name}.kt").is_file())
 
 
 if __name__ == "__main__":

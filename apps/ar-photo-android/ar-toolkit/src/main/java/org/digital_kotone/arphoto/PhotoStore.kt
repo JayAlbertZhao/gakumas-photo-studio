@@ -16,7 +16,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.coroutines.resume
 
-internal object PhotoStore {
+object PhotoStore {
     /** Captures the composited window, including the camera TextureView and 3D subject. */
     suspend fun captureAndSave(activity: ComponentActivity): String? {
         val width = activity.window.decorView.width

@@ -6,7 +6,7 @@ import java.io.File
 import java.io.FileOutputStream
 
 /** Keeps one local ARCore recording for repeatable playback; no network or repo assets. */
-internal object DatasetImporter {
+object DatasetImporter {
     private const val MAX_BYTES = 256L * 1024L * 1024L
 
     fun savedDataset(context: Context): File? =

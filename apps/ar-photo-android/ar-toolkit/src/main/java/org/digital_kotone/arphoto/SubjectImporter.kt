@@ -9,7 +9,7 @@ import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-internal object SubjectImporter {
+object SubjectImporter {
     private const val MAX_BYTES = 80L * 1024L * 1024L
     private const val MAX_JSON_BYTES = 4 * 1024 * 1024
 

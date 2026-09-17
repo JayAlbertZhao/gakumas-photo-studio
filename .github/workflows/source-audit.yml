@@ -34,5 +34,5 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.2.1'
-      - run: ./gradlew :app:assembleDebug :app:lintDebug --no-daemon --max-workers=2
+      - run: ./gradlew :app:assembleDebug :app:lintDebug :ar-toolkit:lintDebug --no-daemon --max-workers=2
         working-directory: apps/ar-photo-android

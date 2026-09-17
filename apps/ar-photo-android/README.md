@@ -7,6 +7,15 @@ to use. The native application and the [Unity toolkit AR sample](../../packages/
 are separate implementations today; the native application does not embed the
 Unity renderer or consume its C# API.
 
+The Gradle project separates the reusable `:ar-toolkit` Android library from
+the `:app` UI host. The library owns private GLB/dataset import, ARCore session
+recording, composited PNG saving, and full-pose placement of imported models;
+the app supplies permission/install flow and Compose controls. Other Android
+hosts can depend on `project(":ar-toolkit")` after including the module. This
+is an Android API boundary, not a port of the Unity character renderer: a GLB
+must still be supplied independently and its rendering may differ from desktop
+Photo Studio.
+
 ## Build
 
 - Open this directory as a project in Android Studio. Use JDK 17 or later and
@@ -19,9 +28,9 @@ Unity renderer or consume its C# API.
 - The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
   The APK, downloaded dependencies, SDK path, and imported models are not
   published in this repository.
-- CI builds the same debug APK and runs Android lint on Linux; it does not
-  upload an APK or include imported assets. Emulator and device checks remain
-  separate from this compile-time gate.
+- CI builds the same debug APK and runs Android lint on the app and library on
+  Linux; it does not upload an APK or include imported assets. Emulator and
+  device checks remain separate from this compile-time gate.
 
 Android 10 (API 29) is the minimum. The manifest marks ARCore as optional so
 the synthetic preview also runs on a device without ARCore. For real AR, use an
