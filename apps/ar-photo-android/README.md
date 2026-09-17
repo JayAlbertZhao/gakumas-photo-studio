@@ -67,6 +67,13 @@ python -I tools/generate_sample_glb.py "$env:TEMP\ar-photo-sample.glb"
 adb push "$env:TEMP\ar-photo-sample.glb" /sdcard/Download/ar-photo-sample.glb
 ```
 
+To exercise animation selection without obtaining a character asset, add
+`--animated` to the generator command. This produces the same original diamond
+with two independent clips, `Bounce` and `Slide`. Import it through the same
+picker, use the previous/next clip buttons, and resize it to verify that the
+selected clip survives model-instance reloads. The fixture is deliberately
+simple and is not evidence of parity with any game's character animation.
+
 Tap **导入 GLB** and select the file. The app copies and validates a binary
 glTF 2.0 GLB (at most 80 MB) into private app storage; it rejects external
 buffer/image references and retains the previous model when import fails. Only

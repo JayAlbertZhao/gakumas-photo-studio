@@ -2,6 +2,7 @@ package org.digital_kotone.arphoto
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -15,6 +16,7 @@ import io.github.sceneview.math.Rotation
 import io.github.sceneview.math.colorOf
 import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.node.ModelNode as ModelNodeImpl
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.sin
 
 @Composable
@@ -30,17 +32,22 @@ internal fun NodeScope.PhotoSubject(
     onImportedNodeReady: ((ModelNodeImpl, Position) -> Unit)? = null,
 ) {
     if (imported != null) {
+        val animationNode = remember(imported) { AtomicReference<ModelNodeImpl?>(null) }
+        val activeAnimation = remember(imported) { AtomicReference<String?>(null) }
         ModelNode(
             modelInstance = imported,
             scaleToUnits = 1.6f * size,
             centerOrigin = Position(0f, -1f, 0f),
             position = importedPosition,
             rotation = if (anchorPose == null) Rotation(y = yaw) else Rotation(0f),
-            animationName = animationName,
-            autoAnimate = true,
+            // Playing every clip at once makes the selected animation ineffective.
+            // SceneView 4.25's named-animation dispose callback can access an
+            // already-destroyed Filament animator when the model is reloaded.
+            autoAnimate = false,
             // Apply before the model enters Filament's scene. Declarative changes to
             // the parent node do not reliably move loaded GLB renderables in 4.25.
             apply = {
+                animationNode.set(this)
                 val offset = position
                 if (anchorPose != null) {
                     applyAnchorPose(this, offset, anchorPose, yaw)
@@ -51,6 +58,14 @@ internal fun NodeScope.PhotoSubject(
                 onImportedNodeReady?.invoke(this, offset)
             },
         )
+        SideEffect {
+            val node = animationNode.get()
+            if (node != null && activeAnimation.get() != animationName) {
+                activeAnimation.get()?.let { node.stopAnimation(it) }
+                animationName?.let { node.playAnimation(it) }
+                activeAnimation.set(animationName)
+            }
+        }
         return
     }
 

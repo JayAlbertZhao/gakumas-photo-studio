@@ -35,6 +35,28 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertEqual(binary_offset + 8 + binary_size, len(data))
         self.assertGreaterEqual(binary_size, document["buffers"][0]["byteLength"])
 
+    def test_animated_glb_has_two_selectable_self_contained_clips(self):
+        spec = importlib.util.spec_from_file_location("ar_photo_sample", GENERATOR)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        data = module.make_glb(animated=True)
+        json_size = struct.unpack_from("<I", data, 12)[0]
+        document = json.loads(data[20:20 + json_size])
+        self.assertEqual([clip["name"] for clip in document["animations"]], ["Bounce", "Slide"])
+        self.assertTrue(all(clip["channels"][0]["target"] ==
+                            {"node": 0, "path": "translation"} for clip in document["animations"]))
+        self.assertTrue(all("uri" not in entry for entry in document["buffers"]))
+        self.assertEqual(document["accessors"][2]["min"], [0.0])
+        self.assertEqual(document["accessors"][2]["max"], [2.0])
+        binary_offset = 20 + json_size + 8
+        time_offset = binary_offset + document["bufferViews"][2]["byteOffset"]
+        self.assertEqual(struct.unpack_from("<3f", data, time_offset), (0.0, 1.0, 2.0))
+        subject = (APP / "app/src/main/java/org/digital_kotone/arphoto/PhotoSubject.kt").read_text(encoding="utf-8")
+        self.assertIn("autoAnimate = false", subject)
+        self.assertIn("activeAnimation.get()?.let { node.stopAnimation(it) }", subject)
+        self.assertIn("animationName?.let { node.playAnimation(it) }", subject)
+        self.assertNotIn("animationName = animationName", subject)
+
     def test_optional_ar_and_private_import_boundary(self):
         manifest = (APP / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
         importer = (TOOLKIT / "SubjectImporter.kt").read_text(encoding="utf-8")
