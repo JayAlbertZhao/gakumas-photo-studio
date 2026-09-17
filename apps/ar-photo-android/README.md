@@ -83,6 +83,9 @@ when no model is loaded.
 
 Tap the preview to move the subject; use the size and rotation sliders, then
 tap **拍照**. A PNG without the control cards is saved to `Pictures/AR Photo/`.
+During capture the AR plane grid and its shadow-receiver overlay are hidden as
+well; they are placement aids, not part of the photo. The view settles briefly
+before the PNG is taken so the previous overlay frame is not captured.
 The emulator rendered both our generated GLB and Khronos' public Box.glb.
 Preview placement, size, rotation, and reset visibly changed the Box; the app
 reloads its model instance after imported-model gestures because SceneView

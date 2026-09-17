@@ -68,11 +68,13 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
     def test_recording_and_photo_are_distinct_outputs(self):
         recorder = (TOOLKIT / "ArSessionRecorder.kt").read_text(encoding="utf-8")
         photos = (TOOLKIT / "PhotoStore.kt").read_text(encoding="utf-8")
+        screen = (APP / "app/src/main/java/org/digital_kotone/arphoto/PhotoScreen.kt").read_text(encoding="utf-8")
         self.assertIn("session.startRecording", recorder)
         self.assertIn("session.stopRecording", recorder)
         self.assertIn("Environment.DIRECTORY_MOVIES", recorder)
         self.assertIn("Environment.DIRECTORY_PICTURES", photos)
         self.assertIn("PixelCopy.request", photos)
+        self.assertIn("planeRenderer = !captureInProgress", screen)
 
     def test_replay_import_is_private_and_bound_before_session_start(self):
         importer = (TOOLKIT / "DatasetImporter.kt").read_text(encoding="utf-8")

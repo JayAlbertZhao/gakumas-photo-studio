@@ -233,6 +233,9 @@ internal fun PhotoScreen(
                     modelLoader = modelLoader,
                     materialLoader = materialLoader,
                     playbackDataset = if (replayMode) playbackDataset else null,
+                    // The plane grid includes a shadow-receiver mesh; keep it for
+                    // placement, but exclude it from the saved camera composite.
+                    planeRenderer = !captureInProgress,
                     onSessionCreated = { currentSession.set(it) },
                     onSessionResumed = {
                         currentSession.set(it)
@@ -413,6 +416,10 @@ internal fun PhotoScreen(
                                 try {
                                     withFrameNanos { }
                                     withFrameNanos { }
+                                    // Plane visualizers are removed asynchronously from
+                                    // Filament; two Compose frames alone still captured
+                                    // the old grid and opaque shadow on the emulator.
+                                    delay(300)
                                     onCapture()
                                 } finally {
                                     chromeVisible = true
