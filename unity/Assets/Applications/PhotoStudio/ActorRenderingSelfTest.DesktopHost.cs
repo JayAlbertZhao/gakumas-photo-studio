@@ -220,6 +220,8 @@ namespace GakumasPhotoMode
             VerifyProjectionJitter(report);
             VerifyShortExposureReconstruction(report);
             yield return VerifyFxGeometryExposure(report);
+            VerifyOpaqueExposureSample(report);
+            VerifyCoherentOpaqueFxExposure(report);
         }
 
         private IEnumerator VerifyDesktopSkinMotion(Report report,DesktopFrameRenderer host,Camera camera,DesktopFrameRenderer.Settings settings,ulong sequence,Action<ulong> completed)

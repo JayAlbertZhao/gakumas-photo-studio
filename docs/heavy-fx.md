@@ -31,7 +31,7 @@ fx.ResetMotionHistory();
   纹理版本、拓扑和表面实例变化会冷启动。原地修改 UV／顶点颜色等程序数据时，
   调用方须递增 `surface.motionRevision`。不要每帧重新创建表面实例。
 - 冷帧、暂停、时间倒退／长间隔、投影变化和超过阈值的相机切换返回当前几何。
-  曝光仍使用**当前不透明颜色和深度**，DOF 仍只在之后执行一次。相机运动、
+  仅启用几何积分时仍使用**当前不透明颜色和深度**，DOF 仍只在之后执行一次。相机运动、
   移动遮挡物、透明景深和时间变化的光照尚未实现联合积分。真实角色联合诊断已
   发现相机轨迹相对旧路径的局部误差增加；此选项不应作为已验收的全场景曝光默认值。
 - 需要 geometry shader、float32 渲染／混合目标；没有移动平台验收。每个表面需要
@@ -47,6 +47,49 @@ fx.ResetMotionHistory();
   工作附件，不能当成时间积分后的独立透明层复用。
 
 真实角色开关与保留的失败见 [联合曝光诊断](motion-blur.md#透明特效景深与曝光的联合诊断)。
+
+### 可选不透明背景的同相位重投影
+
+默认 `settings.exposure.reprojectOpaque = false`。开启后，显式提供未混入透明层的
+当前 HDR、当前运动／置信度，以及当前表面在前次采样中的视深度：
+
+```csharp
+settings.exposure.reprojectOpaque = true;
+var motion = new MotionBlurInput(opaqueHdr, motionDepthConfidence, sampleInterval);
+fx.TryRender(opaqueHdr, new FogVolumeDepth(currentEyeDepth), camera, settings,
+    timelineSeconds, out var frame, opaqueMotion: motion,
+    expectedPreviousDepth: previousEyeDepthOfCurrentSurface);
+```
+
+`motionDepthConfidence` 为 float4：RG 是当前 UV 减前次 UV，B 为当前正视深度，
+A 为 1 表示有效对应；其他值保留当前像素。两个深度附件均为 RFloat。
+`expectedPreviousDepth` 是**当前可见表面**在前次相机／姿态下的深度，不能传上一帧
+屏幕深度图。输入采样间隔须与 FX 几何端点一致，且此路径目前要求无 jitter。
+核心输入不依赖角色应用；`SrpActorForward.Frame` 已提供适配所需的端点附件。
+
+每个共享快门时刻先由 `OpaqueExposureRenderer` 重投影未混合颜色及深度，重新生成
+低分辨率深度范围，再按原顺序渲染透明几何并合成。积分发生在完整合成之后。
+透视使用前／当前 clip W 比例；正交使用单独分支。反向流求解固定执行四次，
+缺失／越界对应和不兼容的深度／运动样本回退当前值，不编造看不见的表面。
+新增颜色／深度工作附件名义大小为每像素 20 字节，纳入原有目标预算。
+
+在 `DesktopFrameRenderer.Settings` 中还须启用 `actorMotion`、需要时启用
+`includeSceneMotion`，并启用 `motionBlur`，使它与 FX 使用相同的 ShutterAngle
+及 maximumSampleInterval。当前集成明确拒绝 TAA／jitter；不会暗中关闭调用方选项。
+`FrameMotionBlur.TryPrepareOpaqueInput` 只生成未混合的 guide 和时钟，不先做一次
+无用的颜色模糊。宿主在联合积分后执行一次 DOF，不再对结果二次 Motion Blur；
+返回帧的 `coherentOpaqueExposure` 为 true，传统 `motionBlur` 分项为空。
+
+独立 GPU 对照覆盖解析运动平面、透视／正交深度、双透明面相反运动及遮挡穿越，
+包含 Full／Half／Quarter 和“冻结不透明背景”的负控制。D3D11／Vulkan 各新增
+61 项控制；联合颜色／深度的最大误差小于 5e-7。真实角色 D3D11 原生帧确认
+16 个相同快门相位的颜色／深度附件实际流入对应 FX，完整合成积分再流入 DOF，
+没有二次 Motion Blur。与上一几何积分相机捕获相比，draw 数从 179 增至 207；
+512² 时两张额外不透明工作附件共 5 MiB。此处是资源／调用计数，不是 GPU 帧时收益。
+
+这仍是当前可见图像的重建，不是完整场景的逐时刻重渲染。遮挡显露处缺少隐藏颜色，
+DOF 使用当前深度且只执行一次；相机轮廓和少量动画区域仍有严格质量失败。
+默认应用保持旧路径，不把此选项标作全场景、物理镜头或移动性能验收完成。
 
 ## 输入和顺序
 
@@ -90,7 +133,7 @@ if (fx.TryRender(opaqueHdr, new FogVolumeDepth(opaqueEyeDepth), camera,
 
 `Frame` 是借用，下一次调用、任意自有附件丢失、失败／关闭及 Dispose 后失效。`TryGetBatchInfo` 返回当前计划；`TryGetLastBatch` 只返回该尺寸最后一次使用后的附件，`repairMask` 只保留最后一个批次的完整尺寸决策，不保存历史批次。Full 的决策图全零。所有失败保留调用者输入，不发布部分完成的 HDR。
 
-设完整尺寸像素数为 N，每个实际使用分辨率的像素数为 L，则 `TargetBytes = 33*N + 24*ΣL + 4*可见性源数`。33 来自两张 RGBAFloat HDR 和一张 R8 决策图；阴影图仍另计。这个桌面正确性后端不以附件总数或分辨率缩小宣称移动端性能收益。
+设完整尺寸像素数为 N，每个实际使用分辨率的像素数为 L，未启用曝光时 `TargetBytes = 33*N + 24*ΣL + 4*可见性源数`。33 来自两张 RGBAFloat HDR 和一张 R8 决策图；启用曝光另计积分附件及顶点历史，同相位不透明重投影再增加 `20*N`；阴影图仍另计。这个桌面正确性后端不以附件总数或分辨率缩小宣称移动端性能收益。
 
 ## 摄影宿主
 

@@ -251,7 +251,10 @@ class DesktopHostContract(unittest.TestCase):
         self.assertNotIn('Time.', adapter)
         self.assertNotIn('.Submit(', adapter)
         self.assertIn('var preTemporalColor=finalColor;', SOURCE)
-        self.assertIn('else motionBlur.ResetHistory();', SOURCE)
+        # Coherent geometry exposure advances the same explicit opaque guide
+        # clock before FX; do not erase it when skipping a second color blur.
+        self.assertIn('else if(!coherent)motionBlur.ResetHistory();', SOURCE)
+        self.assertIn('motionBlur.TryPrepareOpaqueInput(actorFrame', SOURCE)
 
     def test_fsr_requires_real_low_resolution_hdr_and_retires_borrowed_frames(self):
         fsr = (RUNTIME / 'FsrRenderer.cs').read_text(encoding='utf-8')

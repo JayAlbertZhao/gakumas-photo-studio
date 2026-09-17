@@ -6,6 +6,36 @@ RUNTIME = Path(__file__).resolve().parents[1] / 'packages/com.digital-kotone.too
 
 
 class HeavyFxContract(unittest.TestCase):
+    def test_opaque_and_transparent_share_phase_and_are_not_blurred_twice(self):
+        code=(RUNTIME/'HeavyFxRenderer.cs').read_text(encoding='utf-8')
+        start=code.index('for(int sample=0;sample<ExposureSamples;sample++)')
+        self.assertLess(code.index('opaqueExposure.TryRender(',start),code.index('foreach(var batch in batches)',start))
+        self.assertIn('phaseDepth=subframe.eyeDepth',code)
+        self.assertIn('opaqueExposure.Owns(t)',code)
+        host=(RUNTIME/'DesktopFrameRenderer.cs').read_text(encoding='utf-8')
+        for token in ('motionBlur.TryPrepareOpaqueInput','if(s.motionBlur.enabled&&!coherent)',
+                      'actorFrame.expectedPreviousDepth','coherentOpaqueExposure'):
+            self.assertIn(token,host)
+
+    def test_opaque_shutter_consumes_unmixed_explicit_endpoint_data(self):
+        code=(RUNTIME/'OpaqueExposureRenderer.cs').read_text(encoding='utf-8')
+        for token in ('MotionBlurInput input','currentEyeDepth','expectedPreviousEyeDepth',
+                      'float phase','bool orthographic','Graphics.ExecuteCommandBuffer',
+                      'currentEyeDepth==expectedPreviousEyeDepth','Owns(source)',
+                      'input.jitterDeltaUv!=Vector2.zero','source.width*source.height*20'):
+            self.assertIn(token,code)
+        for token in ('Camera.Render(', 'BakeMesh(', 'ReadPixels(', 'Shader.SetGlobal', 'Time.time', 'FindObjectsOfType'):
+            self.assertNotIn(token,code)
+
+    def test_opaque_shutter_returns_color_and_depth_at_same_phase(self):
+        source=(RUNTIME/'Resources/OpaqueExposure.shader').read_text(encoding='utf-8')
+        for token in ('float4 color:SV_Target0;float depth:SV_Target1',
+                      'phaseDepth=z+(z-oldZ)*_OpaqueSample.z',
+                      '_OpaqueOrthographic>.5?1:oldZ/phaseDepth',
+                      'float2 offset=-shifted.xy','result.color.a=original.color.a',
+                      'UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_OpaqueColor)'):
+            self.assertIn(token,source)
+
     def test_geometry_exposure_is_opt_in_and_tracks_actual_gpu_endpoints(self):
         code=(RUNTIME/'FxGeometryExposure.cs').read_text(encoding='utf-8')
         self.assertIn('public bool enabled;',code)

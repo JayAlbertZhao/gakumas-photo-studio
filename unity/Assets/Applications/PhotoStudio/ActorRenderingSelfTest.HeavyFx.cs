@@ -144,6 +144,136 @@ namespace GakumasPhotoMode
             skin.SetPropertyBlock(null);rig.SetActive(false);
         }
 
+        private void VerifyOpaqueExposureSample(Report report)
+        {
+            const int w=61,h=43;const float dx=3.125f,dy=-1.75f,z=5;
+            void Check(string name,bool ok,float error=0)=>FrameworkCheck(report,"opaque-exposure-"+name,ok,error);
+            RenderTexture Target(RenderTextureFormat format)
+            {var t=Own(new RenderTexture(w,h,0,format,RenderTextureReadWrite.Linear){filterMode=FilterMode.Point});t.Create();return t;}
+            var source=Target(RenderTextureFormat.ARGBFloat);var guide=Target(RenderTextureFormat.ARGBFloat);
+            var depth=Target(RenderTextureFormat.RFloat);var previous=Target(RenderTextureFormat.RFloat);
+            var upload=Own(new Texture2D(w,h,TextureFormat.RGBAFloat,false,true));var pixels=new Color[w*h];
+            void Upload(RenderTexture t,Func<int,int,Color> fn)
+            {for(int y=0;y<h;y++)for(int x=0;x<w;x++)pixels[y*w+x]=fn(x,y);upload.SetPixels(pixels);upload.Apply();Graphics.Blit(upload,t);}
+            Upload(source,(x,y)=>new Color(.5f+.3f*Mathf.Sin(x*.7f),.5f+.3f*Mathf.Cos(y*.6f),.1f+x*.01f,.2f+y*.01f));
+            var current=ReadSceneTarget(source);Upload(guide,(x,y)=>new Color(dx/w,dy/h,z,1));Upload(depth,(x,y)=>new Color(z,0,0,0));
+            using var renderer=new OpaqueExposureRenderer();
+            var input=new MotionBlurInput(source,guide,.02f);
+            foreach(bool ortho in new[]{false,true})foreach(float oldZ in new[]{5f,8f})foreach(float phase in new[]{-.25f,-.0625f,.0625f,.25f})
+            {
+                Upload(previous,(x,y)=>new Color(oldZ,0,0,0));
+                bool ok=renderer.TryRender(input,depth,previous,phase,.02f,ortho,32,out var frame);
+                if(!ok)throw new InvalidOperationException(renderer.UnavailableReason);
+                var actual=ReadSceneTarget(frame.color);var actualDepth=ReadSceneTarget(frame.eyeDepth);
+                // Independently project one current and previous clip-space point.
+                // Constant plane flow gives an analytic inverse for every pixel.
+                double newW=ortho?1:z,oldW=ortho?1:oldZ;
+                double clipX=(2*.5/w-1)*newW,oldClipX=(2*(.5-dx)/w-1)*oldW;
+                double clipY=(2*.5/h-1)*newW,oldClipY=(2*(.5-dy)/h-1)*oldW;
+                double phaseW=newW+(newW-oldW)*phase;
+                double shiftX=((clipX+(clipX-oldClipX)*phase)/phaseW+1)*w/2-.5;
+                double shiftY=((clipY+(clipY-oldClipY)*phase)/phaseW+1)*h/2-.5;
+                double tx=-shiftX,ty=-shiftY;int ox=(int)Math.Floor(tx),oy=(int)Math.Floor(ty);
+                int ax=(int)Math.Floor(tx+.5),ay=(int)Math.Floor(ty+.5);double fx=tx-ox,fy=ty-oy;
+                float maximum=0,positive=0,alpha=0;
+                for(int y=0;y<h;y++)for(int x=0;x<w;x++)
+                {
+                    int p=y*w+x;var expected=current[p];double expectedDepth=z;
+                    if(x+ax>=0&&x+ax<w&&y+ay>=0&&y+ay<h)
+                    {
+                        var sum=new double[4];expectedDepth=0;
+                        for(int sy=0;sy<2;sy++)for(int sx=0;sx<2;sx++)
+                        {
+                            int xx=x+ox+sx,yy=y+oy+sy;bool valid=xx>=0&&xx<w&&yy>=0&&yy<h;
+                            double weight=(sx==0?1-fx:fx)*(sy==0?1-fy:fy);var color=valid?current[yy*w+xx]:current[p];
+                            for(int c=0;c<4;c++)sum[c]+=color[c]*weight;
+                            expectedDepth+=(valid?z+(z-oldZ)*phase:z)*weight;
+                        }
+                        expected=new Color((float)sum[0],(float)sum[1],(float)sum[2],current[p].a);
+                    }
+                    for(int c=0;c<4;c++){maximum=Mathf.Max(maximum,Mathf.Abs(actual[p][c]-expected[c]));positive=Mathf.Max(positive,Mathf.Abs(actual[p][c]-current[p][c]));}
+                    maximum=Mathf.Max(maximum,Mathf.Abs(actualDepth[p].r-(float)expectedDepth));alpha=Mathf.Max(alpha,Mathf.Abs(actual[p].a-current[p].a));
+                }
+                string label=ortho+"-"+oldZ+"-"+phase;
+                Check(label+"-analytic-color-and-depth",maximum<.0002f,maximum);
+                Check(label+"-nonzero-current-alpha-exact",positive>.001f&&alpha==0,positive);
+            }
+            renderer.TryRender(input,depth,previous,0,.02f,false,32,out var zero);Check("zero-phase-exact",ScenePixelsEqual(current,ReadSceneTarget(zero.color)));
+            renderer.TryRender(new MotionBlurInput(source,guide,0),depth,previous,.25f,.02f,false,32,out var cold);Check("cold-clock-exact",ScenePixelsEqual(current,ReadSceneTarget(cold.color)));
+            Check("owned-target-budget",renderer.TargetCount==2&&renderer.TargetBytes==(long)w*h*20);
+            Check("owned-source-rejected",!renderer.TryRender(new MotionBlurInput(cold.color,guide,.02f),depth,previous,.25f,.02f,false,32,out _)&&renderer.TargetCount==0);
+            Check("wrong-previous-depth-alias-rejected",!renderer.TryRender(input,depth,depth,.25f,.02f,false,32,out _));
+            Check("jitter-not-silently-ignored",!renderer.TryRender(new MotionBlurInput(source,guide,.02f,new Vector2(.01f,0)),depth,previous,.25f,.02f,false,32,out _));
+        }
+
+        private void VerifyCoherentOpaqueFxExposure(Report report)
+        {
+            const int w=61,h=43;const float dx=3.125f,dy=-1.75f;
+            void Check(string n,bool ok,float error=0)=>FrameworkCheck(report,"coherent-opaque-fx-"+n,ok,error);
+            float Difference(Color[] a,Color[] b){float d=0;for(int i=0;i<a.Length;i++)for(int c=0;c<4;c++)d=Mathf.Max(d,Mathf.Abs(a[i][c]-b[i][c]));return d;}
+            RenderTexture Target(RenderTextureFormat f){var t=Own(new RenderTexture(w,h,0,f,RenderTextureReadWrite.Linear){filterMode=FilterMode.Point});t.Create();return t;}
+            var source=Target(RenderTextureFormat.ARGBFloat);var guide=Target(RenderTextureFormat.ARGBFloat);
+            var depth=Target(RenderTextureFormat.RFloat);var previous=Target(RenderTextureFormat.RFloat);
+            var sampleSource=Target(RenderTextureFormat.ARGBFloat);var sampleDepth=Target(RenderTextureFormat.RFloat);
+            var upload=Own(new Texture2D(w,h,TextureFormat.RGBAFloat,false,true));var values=new Color[w*h];
+            void Upload(RenderTexture t,Func<int,int,Color> fn)
+            {for(int y=0;y<h;y++)for(int x=0;x<w;x++)values[y*w+x]=fn(x,y);upload.SetPixels(values);upload.Apply();Graphics.Blit(upload,t);}
+            Upload(source,(x,y)=>new Color(.6f+.4f*Mathf.Sin(x*.8f),.6f+.4f*Mathf.Cos(y*.7f),.2f+x*.01f,.2f+y*.01f));var original=ReadSceneTarget(source);
+            Upload(depth,(x,y)=>new Color(5,0,0,0));Upload(previous,(x,y)=>new Color(8,0,0,0));Upload(guide,(x,y)=>new Color(dx/w,dy/h,5,1));
+            var go=Own(new GameObject("Shared opaque and transparent shutter camera"));var camera=go.AddComponent<Camera>();camera.enabled=false;camera.orthographic=true;
+            camera.aspect=w/(float)h;camera.orthographicSize=1.5f;camera.nearClipPlane=.1f;camera.farClipPlane=20;
+            var mesh=Own(new Mesh());mesh.vertices=new[]{new Vector3(-.7f,-.7f,0),new Vector3(.7f,-.7f,0),new Vector3(.7f,.7f,0),new Vector3(-.7f,.7f,0)};
+            mesh.uv=new[]{Vector2.zero,Vector2.right,Vector2.one,Vector2.up};mesh.triangles=new[]{0,1,2,0,2,3};mesh.RecalculateBounds();
+            var rear=new LowResolutionFxSurface {mesh=mesh,opacity=.65f,radialSoftness=.7f,linearRadiance=new Vector3(1.5f,.2f,.1f)};
+            var front=new LowResolutionFxSurface {mesh=mesh,opacity=.7f,radialSoftness=.6f,linearRadiance=new Vector3(.1f,.6f,1.8f)};
+            var settings=new HeavyFxSettings {enabled=true};settings.geometry.enabled=true;settings.geometry.surfaces=new[]{rear,front};settings.exposure.enabled=true;settings.exposure.reprojectOpaque=true;settings.exposure.samples=16;
+            var refSettings=new HeavyFxSettings {enabled=true};refSettings.geometry.enabled=true;refSettings.geometry.surfaces=settings.geometry.surfaces;
+            using var actualRenderer=new HeavyFxRenderer();using var referenceRenderer=new HeavyFxRenderer();
+            void Pose(float t){rear.localToWorld=Matrix4x4.Translate(new Vector3(-.1f+.8f*t,0,5.1f));front.localToWorld=Matrix4x4.Translate(new Vector3(.1f-.6f*t,.1f,4.6f));}
+            HeavyFxRenderer.Frame Actual(double time,float interval)
+            {if(!actualRenderer.TryRender(source,new FogVolumeDepth(depth),camera,settings,time,out var f,opaqueMotion:new MotionBlurInput(source,guide,interval),expectedPreviousDepth:previous))throw new InvalidOperationException(actualRenderer.UnavailableReason);return f;}
+            // CPU authored image translation plus independent current geometry
+            // draws at each sub-time. No OpaqueExposureRenderer in the oracle.
+            Color[] Reference(float t)
+            {
+                double tx=-dx*t,ty=-dy*t;int ox=(int)Math.Floor(tx),oy=(int)Math.Floor(ty);double fx=tx-ox,fy=ty-oy;
+                int ax=(int)Math.Floor(tx+.5),ay=(int)Math.Floor(ty+.5);
+                bool Anchor(int x,int y)=>x+ax>=0&&x+ax<w&&y+ay>=0&&y+ay<h;
+                Upload(sampleSource,(x,y)=>
+                {
+                    var originalPixel=original[y*w+x];if(!Anchor(x,y))return originalPixel;
+                    var sum=new double[3];for(int yy=0;yy<2;yy++)for(int xx=0;xx<2;xx++)
+                    {int px=x+ox+xx,py=y+oy+yy;var c=px>=0&&px<w&&py>=0&&py<h?original[py*w+px]:originalPixel;double weight=(xx==0?1-fx:fx)*(yy==0?1-fy:fy);for(int k=0;k<3;k++)sum[k]+=c[k]*weight;}
+                    return new Color((float)sum[0],(float)sum[1],(float)sum[2],originalPixel.a);
+                });
+                Upload(sampleDepth,(x,y)=>
+                {
+                    if(!Anchor(x,y))return new Color(5,0,0,0);double sum=0;
+                    for(int yy=0;yy<2;yy++)for(int xx=0;xx<2;xx++){int px=x+ox+xx,py=y+oy+yy;bool valid=px>=0&&px<w&&py>=0&&py<h;sum+=(valid?5-3*t:5)*(xx==0?1-fx:fx)*(yy==0?1-fy:fy);}
+                    return new Color((float)sum,0,0,0);
+                });
+                Pose(t);if(!referenceRenderer.TryRender(sampleSource,new FogVolumeDepth(sampleDepth),camera,refSettings,0,out var f))throw new InvalidOperationException(referenceRenderer.UnavailableReason);
+                return ReadSceneTarget(f.color);
+            }
+            foreach(var resolution in new[]{FxResolution.Full,FxResolution.Half,FxResolution.Quarter})
+            {
+                rear.resolution=front.resolution=resolution;settings.exposure.reprojectOpaque=true;actualRenderer.ResetMotionHistory();Pose(-1);Actual(0,0);Pose(0);var f=Actual(.02,.02f);var actual=ReadSceneTarget(f.color);
+                Check(resolution+"-shared-phase-accounting",f.opaqueExposure&&f.geometryExposureSamples==16&&actualRenderer.TargetCount==12);
+                var sum=new double[w*h*4];for(int i=0;i<16;i++){var sample=Reference(((i+.5f)/16*2-1)*.25f);for(int p=0;p<sample.Length;p++)for(int c=0;c<4;c++)sum[p*4+c]+=sample[p][c]/16;}
+                var expected=new Color[w*h];for(int p=0;p<expected.Length;p++)for(int c=0;c<4;c++)expected[p][c]=(float)sum[p*4+c];
+                float error=Difference(actual,expected);Check(resolution+"-independent-moving-background-and-occlusion",error<.0002f,error);
+                var sharp=Reference(0);Check(resolution+"-positive-coverage-color-depth",Difference(actual,sharp)>.001f,Difference(actual,sharp));
+                actualRenderer.ResetMotionHistory();Pose(-1);Actual(0,0);Pose(0);var replay=ReadSceneTarget(Actual(.02,.02f).color);Check(resolution+"-repeat-exact",Difference(actual,replay)==0,Difference(actual,replay));
+                var paused=ReadSceneTarget(Actual(.02,0).color);Check(resolution+"-pause-exact",Difference(paused,sharp)==0,Difference(paused,sharp));
+                settings.exposure.reprojectOpaque=false;actualRenderer.ResetMotionHistory();Pose(-1);Actual(0,0);Pose(0);var frozen=ReadSceneTarget(Actual(.02,.02f).color);
+                Check(resolution+"-frozen-opaque-negative-control",Difference(frozen,expected)>.001f,Difference(frozen,expected));
+                Check(resolution+"-disable-releases-warp-targets",actualRenderer.TargetCount==10);
+            }
+            settings.exposure.reprojectOpaque=true;actualRenderer.ResetMotionHistory();Pose(0);Actual(0,0);
+            Check("clock-mismatch-rejected",!actualRenderer.TryRender(source,new FogVolumeDepth(depth),camera,settings,.02,out _,opaqueMotion:new MotionBlurInput(source,guide,.04f),expectedPreviousDepth:previous)&&actualRenderer.TargetCount==0);
+            Check("missing-opaque-input-rejected",!actualRenderer.TryRender(source,new FogVolumeDepth(depth),camera,settings,1,out _)&&actualRenderer.TargetCount==0);
+        }
+
         private IEnumerator VerifyHeavyFx(Report report)
         {
             yield return null;

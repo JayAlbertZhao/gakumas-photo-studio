@@ -38,7 +38,28 @@ namespace GakumasPhotoMode
             MotionBlurSettings settings,double timeSeconds,Vector2 jitterUv,bool dejittered,int maximumMiB,
             out Frame frame,out string error)
         {
-            frame=default;error=null;ready=false;
+            frame=default;
+            if(!PrepareInput(current,source,preTemporalColor,settings,timeSeconds,jitterUv,dejittered,maximumMiB,out var prepared,out error))return false;
+            try
+            {
+                if(!renderer.TryRender(prepared,settings,out blurFrame))return Fail(renderer.UnavailableReason,out error);
+                ready=true;frame=new Frame(this);return true;
+            }
+            catch(Exception exception){return Fail("Frame motion blur failed: "+exception.Message,out error);}
+        }
+
+        /// <summary>Produce only the unmixed opaque guide and explicit interval,
+        /// without allocating or rendering a blurred color. Borrowed targets are
+        /// valid until the next preparation/render/dispose; consume immediately.</summary>
+        public bool TryPrepareOpaqueInput(SrpActorForward.Frame current,MotionBlurSettings settings,double timeSeconds,
+            int maximumMiB,out MotionBlurInput prepared,out string error)
+            =>PrepareInput(current,current.color,current.color,settings,timeSeconds,Vector2.zero,false,maximumMiB,out prepared,out error);
+
+        private bool PrepareInput(SrpActorForward.Frame current,RenderTexture source,RenderTexture preTemporalColor,
+            MotionBlurSettings settings,double timeSeconds,Vector2 jitterUv,bool dejittered,int maximumMiB,
+            out MotionBlurInput prepared,out string error)
+        {
+            prepared=default;error=null;ready=false;
             if(disposed||!current.IsCurrent||current.motionDepthIdentity==null||current.sequence<=sequence||
                 settings==null||!settings.enabled||!settings.IsValid||double.IsNaN(timeSeconds)||double.IsInfinity(timeSeconds)||
                 !MotionBlurSettings.Range(jitterUv.x,-.5f,.5f)||!MotionBlurSettings.Range(jitterUv.y,-.5f,.5f))
@@ -70,11 +91,10 @@ namespace GakumasPhotoMode
                     commands.SetViewport(new Rect(0,0,w,h));commands.DrawMesh(quad,Matrix4x4.identity,material,0,0);
                     Graphics.ExecuteCommandBuffer(commands);
                 }
-                var blurInput=new MotionBlurInput(source,guide,interval,continuity?jitterUv-previousJitter:Vector2.zero,
+                prepared=new MotionBlurInput(source,guide,interval,continuity?jitterUv-previousJitter:Vector2.zero,
                     dejittered?-jitterUv:Vector2.zero,protection);
-                if(!renderer.TryRender(blurInput,settings,out blurFrame))return Fail(renderer.UnavailableReason,out error);
                 input=current;sequence=current.sequence;previousTime=timeSeconds;previousJitter=jitterUv;
-                NominalTextureBytes=bytes;ready=clock=true;frame=new Frame(this);return true;
+                NominalTextureBytes=bytes;clock=true;return true;
             }
             catch(Exception exception){return Fail("Frame motion blur failed: "+exception.Message,out error);}
             finally {RenderTexture.active=active!=null&&active.IsCreated()?active:null;}

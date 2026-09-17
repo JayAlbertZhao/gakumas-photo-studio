@@ -23,8 +23,9 @@ namespace GakumasPhotoMode
             private readonly uint generation;
             public readonly RenderTexture color, shadowAtlas, opticalVisibility, repairMask;
             public readonly int geometryExposureSamples;
+            public readonly bool opaqueExposure;
             internal Frame(HeavyFxRenderer value)
-            { owner=value;generation=value.generation;color=value.current;shadowAtlas=value.shadows.Atlas;opticalVisibility=value.optics.SharedVisibility;repairMask=value.repair;geometryExposureSamples=value.ExposureSamples; }
+            { owner=value;generation=value.generation;color=value.current;shadowAtlas=value.shadows.Atlas;opticalVisibility=value.optics.SharedVisibility;repairMask=value.repair;geometryExposureSamples=value.ExposureSamples;opaqueExposure=value.opaqueSubframe.HasValue; }
             public bool IsCurrent => owner!=null&&owner.hasFrame&&generation==owner.generation&&owner.Created;
             public bool TryGetLastBatch(FxResolution resolution,out RenderTexture effect,out RenderTexture depthRange)
             {
@@ -50,6 +51,8 @@ namespace GakumasPhotoMode
         private readonly FogVolumeSettings viewOnly=new FogVolumeSettings{enabled=true};
         private readonly FxForwardLightingBinding surfaceLighting=new FxForwardLightingBinding(true);
         private readonly FxGeometryExposure exposure=new FxGeometryExposure();
+        private readonly OpaqueExposureRenderer opaqueExposure=new OpaqueExposureRenderer();
+        private OpaqueExposureRenderer.Frame? opaqueSubframe;
         private static readonly int MediumShadowMatrix=Shader.PropertyToID("_FxMediumShadowMatrix"), MediumShadowST=Shader.PropertyToID("_FxMediumShadowST"),
             MediumShadowDepth=Shader.PropertyToID("_FxMediumShadowDepth"), MediumShadowOptions=Shader.PropertyToID("_FxMediumShadowOptions");
         private Material resolve, surfaceMaterial, mediumMaterial, litSurfaceMaterial;
@@ -71,7 +74,7 @@ namespace GakumasPhotoMode
         public SceneForwardLightBackend LightingBackend => surfaceLighting.Backend;
         public string LightingFallbackReason => surfaceLighting.FallbackReason;
         public int TargetCount
-        {get{int count=a!=null?3:0;foreach(var s in scratch)if(s!=null)count+=2;return count+(optics.SharedVisibility!=null?1:0)+(shadows.Atlas!=null?1:0)+(exposureSum!=null?1:0)+exposure.TargetCount;}}
+        {get{int count=a!=null?3:0;foreach(var s in scratch)if(s!=null)count+=2;return count+(optics.SharedVisibility!=null?1:0)+(shadows.Atlas!=null?1:0)+(exposureSum!=null?1:0)+exposure.TargetCount+opaqueExposure.TargetCount;}}
         public string UnavailableReason {get;private set;}
         public int ExposureSamples {get;private set;}=1;
         public int ExposureSnapshotDrawCalls=>exposure.SnapshotDrawCalls;
@@ -83,6 +86,7 @@ namespace GakumasPhotoMode
             {
                 if(a==null||!a.IsCreated()||b==null||!b.IsCreated()||repair==null||!repair.IsCreated()||!surfaceLighting.IsCreated||(needsOptics&&!optics.SharedCreated)||(shadows.Atlas!=null&&!shadows.Atlas.IsCreated()))return false;
                 if(!exposure.IsCreated||(exposureSum!=null&&!exposureSum.IsCreated()))return false;
+                if(opaqueSubframe.HasValue&&!opaqueSubframe.Value.IsCurrent)return false;
                 foreach(var s in scratch)if(s!=null&&(s.effect==null||!s.effect.IsCreated()||s.range==null||!s.range.IsCreated()))return false;
                 return true;
             }
@@ -91,7 +95,7 @@ namespace GakumasPhotoMode
         {frame=default;if(!hasFrame||!Created)return false;frame=new Frame(this);return true;}
 
         public bool TryRender(RenderTexture source,FogVolumeDepth depth,Camera camera,HeavyFxSettings settings,
-            double timeSeconds,out Frame frame,RenderTexture protection=null)
+            double timeSeconds,out Frame frame,RenderTexture protection=null,MotionBlurInput? opaqueMotion=null,RenderTexture expectedPreviousDepth=null)
         {
             frame=default;generation++;hasFrame=false;DrawCalls=ReplayDrawCalls=0;UnavailableReason=null;
             if(settings==null||!settings.enabled){Release();return false;}
@@ -103,6 +107,9 @@ namespace GakumasPhotoMode
             bool hasGeometry=settings.geometry!=null&&settings.geometry.enabled;
             bool hasOptics=settings.optics!=null&&settings.optics.enabled;
             bool expose=settings.exposure!=null&&settings.exposure.enabled;
+            bool exposeOpaque=expose&&settings.exposure.reprojectOpaque;
+            if(exposeOpaque&&(!opaqueMotion.HasValue||opaqueMotion.Value.color!=source||expectedPreviousDepth==null||depth.encoding!=FogDepthEncoding.LinearEye))
+                return Fail("Coherent opaque exposure requires unmixed motion, previous surface depth and current linear eye depth");
             if(expose&&(hasMedium||hasOptics||!hasGeometry||!settings.exposure.IsValid))
                 return Fail("Geometry exposure requires valid settings and geometry without joint medium or optics");
             string reason;
@@ -142,11 +149,12 @@ namespace GakumasPhotoMode
                     {opticalBatch=new Batch{resolution=(FxResolution)settings.optics.resolution,start=surfaces.Count,end=surfaces.Count};batches.Add(opticalBatch);opticalBatchNew=true;}
                     opticalBatch.optics=true;
                 }
-                if(batches.Count==0){Release();return false;}
+                if(batches.Count==0&&!exposeOpaque){Release();return false;}
                 foreach(var batch in batches)needed[Index(batch.resolution)]=true;
                 long budget=(long)source.width*source.height*33+(hasOptics?LensFlareSettings.MaximumEmitters*4:0);
                 for(int i=0;i<3;i++)if(needed[i])budget+=(long)Divide(source.width,1<<i)*Divide(source.height,1<<i)*24;
                 if(expose)budget+=(long)source.width*source.height*16;
+                if(exposeOpaque)budget+=(long)source.width*source.height*20;
                 if(budget>(long)settings.maximumTargetMiB*1024*1024)return Fail("Joint owned targets exceed the explicit memory budget");
                 var shader=Resources.Load<Shader>("HeavyFx");
                 if(shader==null||!shader.isSupported||!Supported(GraphicsFormat.R32G32B32A32_SFloat)||!Supported(GraphicsFormat.R32G32_SFloat)||!Supported(GraphicsFormat.R8_UNorm)||
@@ -158,6 +166,9 @@ namespace GakumasPhotoMode
                 if(!exposure.Prepare(settings.exposure,camera,surfaces,timeSeconds,source.width,source.height,
                     (long)settings.maximumTargetMiB*1048576-budget,out reason))return Fail(reason);
                 ExposureSamples=exposure.Samples;
+                if(exposeOpaque&&opaqueMotion.Value.sampleInterval>0&&exposure.SampleInterval>0&&Math.Abs(opaqueMotion.Value.sampleInterval-exposure.SampleInterval)>.000001)
+                    return Fail("Opaque and FX endpoints must use the same explicit sample interval");
+                if(!exposeOpaque){opaqueExposure.Dispose();opaqueSubframe=null;}
                 if(expose)
                 {
                     if(exposureSum==null)exposureSum=Allocate(source.width,source.height,RenderTextureFormat.ARGBFloat,"coherent shutter accumulation");
@@ -175,7 +186,7 @@ namespace GakumasPhotoMode
                 needsOptics=optics.ElementCount>0;
                 if(hasOptics&&!needsOptics)
                 {opticalBatch.optics=false;if(opticalBatchNew)batches.Remove(opticalBatch);}
-                if(batches.Count==0){Release();return false;}
+                if(batches.Count==0&&!exposeOpaque){Release();return false;}
                 Array.Clear(needed,0,needed.Length);foreach(var batch in batches)needed[Index(batch.resolution)]=true;
                 TargetBytes=(long)source.width*source.height*33+(optics.SharedVisibility!=null?(long)optics.SharedVisibility.width*4:0);
                 for(int i=0;i<3;i++)
@@ -186,15 +197,17 @@ namespace GakumasPhotoMode
                     TargetBytes+=(long)w*h*24;
                 }
                 TargetBytes+=exposure.TextureBytes+(exposureSum!=null?(long)source.width*source.height*16:0);
+                if(exposeOpaque)TargetBytes+=(long)source.width*source.height*20;
                 if(resolve==null)resolve=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
                 if(surfaceMaterial==null)surfaceMaterial=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
                 if(surfaceLighting.Active&&litSurfaceMaterial==null)litSurfaceMaterial=new Material(surfaceLighting.SurfaceShader){hideFlags=HideFlags.HideAndDontSave};
                 if(!surfaceLighting.Active&&litSurfaceMaterial!=null){UnityEngine.Object.Destroy(litSurfaceMaterial);litSurfaceMaterial=null;}
                 if(mediumMaterial==null)mediumMaterial=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
+                RenderTexture phaseDepth=depth.texture;
                 void Common(Material material,FxResolution resolution,int phase,Scratch targets,bool readEffect)
                 {
                     view.Apply(material);material.SetMatrix("_FxViewProjection",GL.GetGPUProjectionMatrix(camera.projectionMatrix,true)*camera.worldToCameraMatrix);
-                    material.SetTexture("_FxDepth",depth.texture);material.SetTexture("_FxProtection",protection);
+                    material.SetTexture("_FxDepth",phaseDepth);material.SetTexture("_FxProtection",protection);
                     material.SetTexture("_FxDepthRange",targets!=null?targets.range:Texture2D.blackTexture);
                     material.SetTexture("_FxEffect",readEffect&&targets!=null?targets.effect:Texture2D.blackTexture);
                     material.SetTexture("_FxRepair",repair);
@@ -277,15 +290,23 @@ namespace GakumasPhotoMode
                 var shadowCommands=new CommandBuffer{name="Toolkit joint current medium shadows"};
                 try{shadows.Record(shadowCommands);Graphics.ExecuteCommandBuffer(shadowCommands);}finally{shadowCommands.Release();}
                 DrawCalls=optics.DrawCalls+exposure.SnapshotDrawCalls;
-                Common(resolve,FxResolution.Full,0,null,false);Graphics.Blit(source,a,resolve,7);DrawCalls++;current=a;
-                for(int i=0;i<3;i++)if(needed[i])
-                {Common(resolve,(FxResolution)(1<<i),1,null,false);Graphics.Blit(source,scratch[i].range,resolve,0);DrawCalls++;}
+                void DepthRanges()
+                {for(int i=0;i<3;i++)if(needed[i]){Common(resolve,(FxResolution)(1<<i),1,null,false);Graphics.Blit(source,scratch[i].range,resolve,0);DrawCalls++;}}
+                if(!exposeOpaque)
+                {Common(resolve,FxResolution.Full,0,null,false);Graphics.Blit(source,a,resolve,7);DrawCalls++;current=a;DepthRanges();}
                 if(ExposureSamples>1)
                 {RenderTexture.active=exposureSum;GL.Clear(false,true,Color.clear);exposureResolve.SetFloat("_FxExposureWeight",1f/ExposureSamples);}
                 for(int sample=0;sample<ExposureSamples;sample++)
                 {
                     exposurePhase=ExposureSamples>1?((sample+.5f)/ExposureSamples*2-1)*exposure.HalfDisplacementScale:0;
-                    if(sample>0){Common(resolve,FxResolution.Full,0,null,false);Graphics.Blit(source,a,resolve,7);DrawCalls++;current=a;}
+                    if(exposeOpaque)
+                    {
+                        if(!opaqueExposure.TryRender(opaqueMotion.Value,depth.texture,expectedPreviousDepth,exposurePhase,
+                            settings.exposure.opaqueDepthTolerance,camera.orthographic,settings.maximumTargetMiB,out var subframe))return Fail(opaqueExposure.UnavailableReason);
+                        opaqueSubframe=subframe;phaseDepth=subframe.eyeDepth;DrawCalls+=opaqueExposure.DrawCalls;
+                        Common(resolve,FxResolution.Full,0,null,false);Graphics.Blit(subframe.color,a,resolve,7);DrawCalls++;current=a;DepthRanges();
+                    }
+                    else if(sample>0){Common(resolve,FxResolution.Full,0,null,false);Graphics.Blit(source,a,resolve,7);DrawCalls++;current=a;}
                     // Composite ALL ordered surfaces at the same shutter time
                     // before averaging: average alpha layers cannot be multiplied
                     // independently when their coverage changes together.
@@ -334,7 +355,7 @@ namespace GakumasPhotoMode
         private static int Divide(int value,int divisor)=>(value+divisor-1)/divisor;
         private bool Owns(RenderTexture t)
         {
-            if(t==null)return false;if(t==a||t==b||t==repair||t==exposureSum||exposure.Owns(t)||t==optics.SharedVisibility||t==shadows.Atlas||surfaceLighting.Owns(t))return true;
+            if(t==null)return false;if(t==a||t==b||t==repair||t==exposureSum||exposure.Owns(t)||opaqueExposure.Owns(t)||t==optics.SharedVisibility||t==shadows.Atlas||surfaceLighting.Owns(t))return true;
             foreach(var s in scratch)if(s!=null&&(t==s.effect||t==s.range))return true;return false;
         }
         private static RenderTexture Allocate(int w,int h,RenderTextureFormat format,string name)
@@ -349,6 +370,7 @@ namespace GakumasPhotoMode
         {
             if(Owns(RenderTexture.active))RenderTexture.active=null;
             DestroyTarget(a);DestroyTarget(b);DestroyTarget(repair);DestroyTarget(exposureSum);a=b=current=repair=exposureSum=null;for(int i=0;i<3;i++)ReleaseScratch(i);hasFrame=false;TargetBytes=0;exposure.ResetHistory();
+            opaqueExposure.Dispose();opaqueSubframe=null;
         }
         private void Release()
         {

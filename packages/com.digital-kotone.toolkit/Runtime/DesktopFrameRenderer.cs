@@ -78,6 +78,7 @@ namespace GakumasPhotoMode
             public readonly OpaqueFrame opaque;
             public readonly FrameTemporalAntialiasing.Frame? temporal;
             public readonly FrameMotionBlur.Frame? motionBlur;
+            public readonly bool coherentOpaqueExposure;
             public readonly BloomRenderer.Frame? bloom;
             public readonly FsrRenderer.Frame? fsr;
             public readonly DiffusionRenderer.Frame? diffusion;
@@ -93,6 +94,7 @@ namespace GakumasPhotoMode
                 encodedCoC=value.dofFrame.HasValue?value.dofFrame.Value.encodedCoC:null;
                 temporal=value.temporalFrame;
                 motionBlur=value.motionBlurFrame;
+                coherentOpaqueExposure=value.effectFrame.HasValue&&value.effectFrame.Value.opaqueExposure;
                 bloom=value.bloomFrame;
                 fsr=value.fsrFrame;
                 diffusion=value.diffusionFrame;
@@ -247,9 +249,21 @@ namespace GakumasPhotoMode
             try
             {
                 var s = Configuration; finalColor = actorFrame.color;postDepth=actorFrame.eyeDepth;
+                bool coherent=s.effects.enabled&&s.effects.exposure!=null&&s.effects.exposure.enabled&&s.effects.exposure.reprojectOpaque;
+                MotionBlurInput? opaqueExposureInput=null;
+                if(coherent)
+                {
+                    if(!s.motionBlur.enabled||s.motionBlur.exposure!=MotionBlurExposure.ShutterAngle||
+                        s.motionBlur.shutterAngle!=s.effects.exposure.shutterAngle||s.motionBlur.maximumSampleInterval!=s.effects.exposure.maximumSampleInterval||
+                        s.temporal.enabled||s.motionBlurJitterUv!=Vector2.zero)
+                    {error="Coherent opaque/FX exposure requires matching shutter clocks and unjittered input without TAA";return Fail(error);}
+                    if(!motionBlur.TryPrepareOpaqueInput(actorFrame,s.motionBlur,timeSeconds,s.motionBlurMaximumMiB,out var prepared,out error))return Fail(error);
+                    opaqueExposureInput=prepared;
+                }
                 if (s.effects.enabled)
                 {
-                    if (effects.TryRender(finalColor, new FogVolumeDepth(actorFrame.eyeDepth), Camera, s.effects, timeSeconds, out var current))
+                    if (effects.TryRender(finalColor, new FogVolumeDepth(actorFrame.eyeDepth), Camera, s.effects, timeSeconds, out var current,
+                        opaqueMotion:opaqueExposureInput,expectedPreviousDepth:coherent?actorFrame.expectedPreviousDepth:null))
                     { effectFrame = current; finalColor = current.color; }
                     else if (effects.UnavailableReason != null) { error = effects.UnavailableReason; return Fail(error); }
                     // An enabled but empty effects list is an explicit no-op.
@@ -273,14 +287,14 @@ namespace GakumasPhotoMode
                     { error = dof.UnavailableReason; return Fail(error); }
                     dofFrame = current; finalColor = current.color;
                 }
-                if(s.motionBlur.enabled)
+                if(s.motionBlur.enabled&&!coherent)
                 {
                     var jitter=s.temporal.enabled?s.temporal.jitterUv:s.motionBlurJitterUv;
                     if(!motionBlur.TryRender(actorFrame,finalColor,preTemporalColor,s.motionBlur,timeSeconds,jitter,
                         temporalFrame.HasValue,s.motionBlurMaximumMiB,out var current,out error))return Fail(error);
                     motionBlurFrame=current;finalColor=current.color;
                 }
-                else motionBlur.ResetHistory();
+                else if(!coherent)motionBlur.ResetHistory();
                 if(s.bloom.enabled)
                 {
                     if(!bloom.TryRender(finalColor,s.bloom,out var current)){error=bloom.UnavailableReason;return Fail(error);}

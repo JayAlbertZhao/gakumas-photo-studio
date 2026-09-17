@@ -12,6 +12,9 @@ namespace GakumasPhotoMode
     public sealed class FxGeometryExposureSettings
     {
         public bool enabled;
+        // Requires an explicit unmixed opaque motion/depth endpoint input.
+        public bool reprojectOpaque;
+        public float opaqueDepthTolerance=.02f;
         public int samples=8;
         public float shutterAngle=180;
         public float maximumSampleInterval=.25f;
@@ -19,6 +22,7 @@ namespace GakumasPhotoMode
         public float cameraCutDistance=1,cameraCutAngle=30;
         public bool IsValid => (samples==2||samples==4||samples==8||samples==16||samples==32)&&
             MotionBlurSettings.Range(shutterAngle,0,360)&&MotionBlurSettings.Range(maximumSampleInterval,.001f,10)&&
+            MotionBlurSettings.Range(opaqueDepthTolerance,.000001f,10000)&&
             maximumTrackedVertices>0&&maximumTrackedVertices<=4000000&&
             MotionBlurSettings.Range(cameraCutDistance,0,100000)&&MotionBlurSettings.Range(cameraCutAngle,0,180);
     }
@@ -49,6 +53,7 @@ namespace GakumasPhotoMode
         private bool clock;
         public int Samples {get;private set;}=1;
         public float HalfDisplacementScale {get;private set;}
+        public float SampleInterval {get;private set;}
         public int SnapshotDrawCalls {get;private set;}
         public long TextureBytes {get;private set;}
         public int TargetCount=>entries.Count*2;
@@ -61,7 +66,7 @@ namespace GakumasPhotoMode
         public bool Prepare(FxGeometryExposureSettings settings,Camera currentCamera,IList<LowResolutionFxSurface> surfaces,
             double seconds,int w,int h,long remainingBytes,out string error)
         {
-            error=null;Samples=1;HalfDisplacementScale=0;SnapshotDrawCalls=TrackedVertices=0;active.Clear();
+            error=null;Samples=1;HalfDisplacementScale=0;SampleInterval=0;SnapshotDrawCalls=TrackedVertices=0;active.Clear();
             if(settings==null||!settings.enabled){Dispose();return true;}
             if(!settings.IsValid||currentCamera==null||double.IsNaN(seconds)||double.IsInfinity(seconds))
             {error="Invalid explicit FX exposure settings, camera or time";return false;}
@@ -75,6 +80,7 @@ namespace GakumasPhotoMode
                 Vector3.Angle(view.inverse.MultiplyVector(Vector3.forward),previousView.inverse.MultiplyVector(Vector3.forward))<=settings.cameraCutAngle&&
                 Vector3.Angle(view.inverse.MultiplyVector(Vector3.up),previousView.inverse.MultiplyVector(Vector3.up))<=settings.cameraCutAngle;
             var present=new HashSet<LowResolutionFxSurface>();long wanted=0;
+            SampleInterval=continuous?(float)interval:0;
             foreach(var s in surfaces)
             {
                 if(!present.Add(s)){error="FX exposure requires unique surface instances";return false;}
@@ -108,7 +114,7 @@ namespace GakumasPhotoMode
             var removed=new List<LowResolutionFxSurface>();foreach(var pair in entries)if(!present.Contains(pair.Key)){Release(pair.Value);removed.Add(pair.Key);}
             foreach(var key in removed)entries.Remove(key);
             TextureBytes=wanted;
-            bool moving=false;foreach(var e in active)moving|=e.continuous;
+            bool moving=settings.reprojectOpaque&&continuous;foreach(var e in active)moving|=e.continuous;
             if(moving&&settings.shutterAngle>0){Samples=settings.samples;HalfDisplacementScale=settings.shutterAngle/720;}
             return true;
         }
@@ -139,7 +145,7 @@ namespace GakumasPhotoMode
             foreach(var e in active){var swap=e.oldVertices;e.oldVertices=e.newVertices;e.newVertices=swap;e.previous=e.pending;}
             previousView=view;previousProjection=projection;previousCamera=camera;previousTime=time;previousWidth=width;previousHeight=height;clock=true;
         }
-        public void ResetHistory(){clock=false;Samples=1;HalfDisplacementScale=0;foreach(var e in entries.Values)e.continuous=false;}
+        public void ResetHistory(){clock=false;Samples=1;HalfDisplacementScale=SampleInterval=0;foreach(var e in entries.Values)e.continuous=false;}
         private static bool SameProjection(Matrix4x4 a,Matrix4x4 b)
         {for(int i=0;i<16;i++)if(a[i]!=b[i])return false;return true;}
         private static bool Compatible(State a,State b)

@@ -24,6 +24,7 @@ namespace GakumasPhotoMode
             public bool subpixelReconstruction;
             public bool coupledPost;
             public bool geometryExposure;
+            public bool opaqueExposure;
             public float transparentStepInCharacterHeights=.04f;
             public List<ExposureMetric> measurements=new List<ExposureMetric>();
         }
@@ -34,6 +35,7 @@ namespace GakumasPhotoMode
             var position=camera.transform.position;var rotation=camera.transform.rotation;var projection=camera.projectionMatrix;
             var grade=s.colorGrade;int visibility=camera.cullingMask;
             var priorSurfaces=s.effects.geometry.surfaces;
+            bool priorOpaqueExposure=s.effects.exposure.reprojectOpaque;
             void Check(string name,bool ok,float value=0)=>report.checks.Add(new Check {name="desktop-character-exposure-"+name,accepted=ok,value=value});
             Color[] Average(List<Color[]> frames)
             {
@@ -68,6 +70,8 @@ namespace GakumasPhotoMode
                 s.motionBlur.subpixelReconstruction=observations.subpixelReconstruction;
                 observations.coupledPost=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_COUPLED_POST")=="1";
                 observations.geometryExposure=observations.coupledPost&&Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_FX_GEOMETRY")=="1";
+                observations.opaqueExposure=observations.geometryExposure&&Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_OPAQUE")=="1";
+                s.effects.exposure.reprojectOpaque=observations.opaqueExposure;
                 s.effects.exposure.samples=16;s.effects.exposure.shutterAngle=observations.shutterAngle;
                 LowResolutionFxSurface transparent=null;
                 if(observations.coupledPost)
@@ -180,6 +184,7 @@ namespace GakumasPhotoMode
             {
                 example.ResetHistory();s.motionBlur.enabled=false;s.effects.exposure.enabled=false;s.colorGrade=grade;camera.cullingMask=visibility;
                 s.effects.geometry.surfaces=priorSurfaces;
+                s.effects.exposure.reprojectOpaque=priorOpaqueExposure;
                 camera.transform.SetPositionAndRotation(position,rotation);camera.projectionMatrix=projection;
                 File.WriteAllText(Path.Combine(directory,"character-exposure-diagnostics.json"),JsonUtility.ToJson(observations,true));
             }
