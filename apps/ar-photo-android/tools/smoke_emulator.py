@@ -6,11 +6,13 @@ Build :app:assembleDebug before running this script.
 
 import argparse
 import importlib.util
+import json
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
+import struct
 import tempfile
 import time
 import uuid
@@ -79,14 +81,53 @@ def wait_for_text(adb: str, serial: str, value: str, timeout: float = 25.0) -> E
     raise RuntimeError(f"app did not show {value!r} within {timeout:g}s")
 
 
+def wait_for_prefix(adb: str, serial: str, prefix: str, timeout: float = 25.0) -> ET.Element:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        root = hierarchy(adb, serial)
+        if any(node.get("text", "").startswith(prefix) for node in root.iter("node")):
+            return root
+        time.sleep(0.5)
+    raise RuntimeError(f"app did not show a message starting with {prefix!r}")
+
+
+def with_external_image_uri(glb: bytes) -> bytes:
+    """Make a rejectable GLB while keeping its header and binary chunk well-formed."""
+    json_size = struct.unpack_from("<I", glb, 12)[0]
+    document = json.loads(glb[20:20 + json_size])
+    document["images"] = [{"uri": "untrusted-external.png"}]
+    payload = json.dumps(document, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    payload += b" " * (-len(payload) % 4)
+    binary_chunk = glb[20 + json_size:]
+    return (struct.pack("<4sII", b"glTF", 2, 20 + len(payload) + len(binary_chunk))
+            + struct.pack("<I4s", len(payload), b"JSON") + payload + binary_chunk)
+
+
 def tap(adb: str, serial: str, point: tuple[int, int]) -> None:
     run(adb, serial, "shell", "input", "tap", str(point[0]), str(point[1]))
 
 
-def import_via_picker(adb: str, serial: str, filename: str) -> None:
-    root = wait_for_text(adb, serial, "导入 GLB")
-    time.sleep(1.0)
-    tap(adb, serial, bounds_center(find_text(root, "导入 GLB").get("bounds")))
+def import_via_picker(adb: str, serial: str, filename: str, *, reject: bool = False) -> None:
+    picker_open = False
+    for _ in range(3):
+        root = wait_for_text(adb, serial, "导入 GLB")
+        time.sleep(1.0)
+        tap(adb, serial, bounds_center(find_text(root, "导入 GLB").get("bounds")))
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            try:
+                root = hierarchy(adb, serial)
+                if any(node.get("package", "").endswith(".documentsui")
+                       for node in root.iter("node")):
+                    picker_open = True
+                    break
+            except (subprocess.CalledProcessError, ET.ParseError):
+                pass
+            time.sleep(0.5)
+        if picker_open:
+            break
+    if not picker_open:
+        raise RuntimeError("Import GLB did not open DocumentsUI")
     try:
         root = wait_for_text(adb, serial, filename, timeout=8.0)
     except RuntimeError:
@@ -107,7 +148,12 @@ def import_via_picker(adb: str, serial: str, filename: str) -> None:
         tap(adb, serial, bounds_center(downloads.get("bounds")))
         root = wait_for_text(adb, serial, filename, timeout=12.0)
     tap(adb, serial, bounds_center(find_text(root, filename).get("bounds")))
-    wait_for_text(adb, serial, "已导入：subject.glb")
+    if reject:
+        root = wait_for_prefix(adb, serial, "导入失败")
+        if find_text(root, "Bounce") is None:
+            raise RuntimeError("previous animated model was lost after rejected import")
+    else:
+        wait_for_text(adb, serial, "已导入：subject.glb")
 
 
 def main() -> None:
@@ -142,6 +188,15 @@ def main() -> None:
                 import_via_picker(adb, args.serial, filename)
             finally:
                 run(adb, args.serial, "shell", "rm", "-f", remote)
+            rejected = Path(directory) / "external-reference.glb"
+            rejected.write_bytes(with_external_image_uri(fixture.read_bytes()))
+            filename = f"ar-photo-reject-{uuid.uuid4().hex}.glb"
+            remote = f"/sdcard/Download/{filename}"
+            try:
+                run(adb, args.serial, "push", str(rejected), remote)
+                import_via_picker(adb, args.serial, filename, reject=True)
+            finally:
+                run(adb, args.serial, "shell", "rm", "-f", remote)
         else:
             remote = f"/data/local/tmp/ar-photo-smoke-{uuid.uuid4().hex}.glb"
             try:
@@ -155,12 +210,19 @@ def main() -> None:
     run(adb, args.serial, "shell", "am", "start", "-n", f"{PACKAGE}/.MainActivity")
     root = wait_for_text(adb, args.serial, "Bounce")
     initial_pid = run(adb, args.serial, "shell", "pidof", PACKAGE)
-    next_button = find_text(root, "下一段")
-    if next_button is None:
-        raise RuntimeError("next-animation button not found")
-    time.sleep(1.0)  # allow the freshly restored scene to become interactive
-    tap(adb, args.serial, bounds_center(next_button.get("bounds")))
-    root = wait_for_text(adb, args.serial, "Slide")
+    for _ in range(3):
+        next_button = find_text(root, "下一段")
+        if next_button is None:
+            raise RuntimeError("next-animation button not found")
+        time.sleep(1.0)  # allow the freshly restored scene to become interactive
+        tap(adb, args.serial, bounds_center(next_button.get("bounds")))
+        try:
+            root = wait_for_text(adb, args.serial, "Slide", timeout=6.0)
+            break
+        except RuntimeError:
+            root = wait_for_text(adb, args.serial, "Bounce")
+    else:
+        raise RuntimeError("next-animation button did not select Slide")
     slider = next((node for node in root.iter("node")
                    if node.get("class") == "android.widget.SeekBar"), None)
     if slider is None:
@@ -182,7 +244,7 @@ def main() -> None:
     final_pid = run(adb, args.serial, "shell", "pidof", PACKAGE)
     if not initial_pid or final_pid != initial_pid:
         raise RuntimeError(f"app process changed during animation/resize: {initial_pid} -> {final_pid}")
-    print(f"PASS: import={'picker' if args.via_picker else 'private fixture'}, "
+    print(f"PASS: import={'picker + external-reference rejection' if args.via_picker else 'private fixture'}, "
           f"Bounce -> Slide, {previous_size} -> {size_label(root)}, "
           "Slide retained, app process remained alive")
 

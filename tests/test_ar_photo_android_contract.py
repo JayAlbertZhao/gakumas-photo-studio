@@ -67,6 +67,14 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         root = ET.fromstring('<hierarchy><node text="大小 1.0×"/><node text="Slide"/></hierarchy>')
         self.assertEqual(module.size_label(root), "大小 1.0×")
         self.assertIsNotNone(module.find_text(root, "Slide"))
+        generator_spec = importlib.util.spec_from_file_location("ar_photo_sample", GENERATOR)
+        generator = importlib.util.module_from_spec(generator_spec)
+        generator_spec.loader.exec_module(generator)
+        invalid = module.with_external_image_uri(generator.make_glb(animated=True))
+        self.assertEqual(struct.unpack_from("<I", invalid, 8)[0], len(invalid))
+        json_size = struct.unpack_from("<I", invalid, 12)[0]
+        document = json.loads(invalid[20:20 + json_size])
+        self.assertEqual(document["images"], [{"uri": "untrusted-external.png"}])
 
     def test_optional_ar_and_private_import_boundary(self):
         manifest = (APP / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
