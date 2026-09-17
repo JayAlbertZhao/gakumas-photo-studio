@@ -730,6 +730,35 @@ class FrameworkContractTests(unittest.TestCase):
                       'useExternalReferenceLimits = oldExternal[i]', 'forceMatrixRecalculationPerRender = oldMatrices[i]'):
             self.assertIn(token, actual)
 
+    def test_skirt_helpers_are_explicit_continuous_and_keep_legacy_default(self):
+        source = (RUNTIME / 'HairDynamicsSystem.cs').read_text(encoding='utf-8')
+        shell = (RUNTIME / 'Compatibility/ActorAnimationStub/ActorSwingDynamicBone.cs').read_text(encoding='utf-8')
+        setting = shell.split('public sealed class QuartzSkirtSetting', 1)[1].split('public sealed class SwingChain', 1)[0]
+        self.assertIn('public UnityEngine.Object referenceBone;', setting)
+        for token in ('public bool useAuthoredSkirtHelpers;', 'SkirtReferenceTransform(driver.setting.referenceBone)',
+                      'source as GameObject', 'current * Quaternion.Inverse(initial)',
+                      'outer * angle + (inner - outer) * Mathf.Clamp(angle, minimum, maximum)',
+                      'driver.transform.localRotation = authored;', 'driver.restLocalRotation *',
+                      'setting.rotationOrder < 0 || setting.rotationOrder > 5'):
+            self.assertIn(token, source)
+        self.assertNotIn('useAuthoredSkirtHelpers = true', source)
+
+    def test_skirt_helper_diagnostics_reject_zero_response_and_replay_drift(self):
+        folder = ROOT / 'unity/Assets/Applications/PhotoStudio'
+        generated = (folder / 'ActorRenderingSelfTest.SecondaryMotion.cs').read_text(encoding='utf-8')
+        for token in ('axial-order-', 'parent-frame-order-', 'compound-boundary-order-',
+                      'continuous-dual-gain-', 'outside-interval-positive-response',
+                      'name-free-registration-', 'explicit-absolute-output-', 'disable-restores-legacy-',
+                      'unsupported-order-explicitly-rejected'):
+            self.assertIn(token, generated)
+        actual = (folder / 'SrpActorCharacterValidation.SecondaryMotion.cs').read_text(encoding='utf-8')
+        for token in ('input-is-nonzero-four-hundredths-degree', 'small-input-continuous-helper-output',
+                      'large-bend-nonzero-positive-control', 'Mathf.Atan2', 'helper-visible-skinned-response',
+                      's.useExternalReferenceLimits = authoredSkirt || external',
+                      's.useAuthoredSkirtHelpers = authoredSkirt && external',
+                      'useAuthoredSkirtHelpers = oldSkirt[i]', 'useAuthoredSkirtHelpers = oldAuthored[i]'):
+            self.assertIn(token, actual)
+
     def test_secondary_motion_metadata_has_importable_guid(self):
         folder = ROOT / 'unity/Assets/Applications/PhotoStudio'
         seen = set()

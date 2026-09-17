@@ -227,7 +227,9 @@ namespace GakumasPhotoMode
                     finally { foreach(var r in renderers){r.sharedMaterials=sources[r];r.receiveShadows=receiveShadows[r];}GraphicsSettings.renderPipelineAsset=pipeline;QualitySettings.renderPipeline=pipeline; }
                     Check(name+"-source-materials-not-mutated",SourceSnapshot(renderers)==sourceBefore);return actual;
                 }
-                if(Environment.GetCommandLineArgs().Contains("--validate-secondary-reference-limits"))
+                if(Environment.GetCommandLineArgs().Contains("--validate-skirt-helper-boundary"))
+                    VerifySkirtHelperBoundary(report,View,Run);
+                else if(Environment.GetCommandLineArgs().Contains("--validate-secondary-reference-limits"))
                     VerifyExternalReferenceCharacter(report,View,Run);
                 else
                 {

@@ -41,6 +41,8 @@ namespace GakumasPhotoMode
         // set (for example an outer jacket following a separate skirt solver).
         // The caller evaluates the referenced producer before this consumer.
         public bool useExternalReferenceLimits;
+        /// <summary>Use authored skirt reference frames and continuous per-axis gains. Default remains legacy.</summary>
+        public bool useAuthoredSkirtHelpers;
         /// <summary>Changed external clamps during the most recent integration step.</summary>
         public int ExternalReferenceLimitCorrections { get; private set; }
         private double? _explicitSimulationTime;
@@ -214,13 +216,14 @@ namespace GakumasPhotoMode
                         : "RightUpLeg";
                     Transform referenceBone = referenceBones.FirstOrDefault(
                         value => value.name == referenceName);
-                    if (referenceBone == null) continue;
+                    Transform authoredReference = SkirtReferenceTransform(driver.setting.referenceBone);
+                    if (referenceBone == null && (!useAuthoredSkirtHelpers || authoredReference == null)) continue;
                     _quartzSkirtDrivers.Add(new QuartzSkirtDriverState(
-                        driver, referenceBone));
+                        driver, referenceBone, authoredReference));
                     Debug.Log(string.Format(
                         "[PhotoMode] Quartz skirt {0}: reference={1} axis={2} inner={3} outer={4}",
                         driver.transform.name,
-                        referenceBone.name,
+                        referenceBone != null ? referenceBone.name : authoredReference.name,
                         driver.setting.connectionAxis,
                         driver.setting.innerCoefficient,
                         driver.setting.outerCoefficient));
@@ -1313,6 +1316,19 @@ namespace GakumasPhotoMode
             foreach (QuartzSkirtDriverState driver in _quartzSkirtDrivers)
             {
                 QuartzSkirtSetting setting = driver.setting;
+                if (useAuthoredSkirtHelpers)
+                {
+                    // Dedicated auxiliary output, evaluated before Swing. No
+                    // name-based left/right branch or guessed smoothing width.
+                    if (driver.authoredReferenceBone == null) continue;
+                    Quaternion authored = EvaluateAuthoredSkirtHelper(
+                        driver.authoredReferenceRestLocalRotation,
+                        driver.authoredReferenceBone.localRotation, setting);
+                    driver.transform.localRotation = authored;
+                    _quartzBaseRotations[driver.transform] = authored;
+                    continue;
+                }
+                if (driver.referenceBone == null) continue;
                 Vector3 delta = SignedEuler(
                     Quaternion.Inverse(driver.referenceRestLocalRotation) *
                     driver.referenceBone.localRotation);
@@ -1336,6 +1352,63 @@ namespace GakumasPhotoMode
                 driver.transform.localRotation = baseRotation;
                 _quartzBaseRotations[driver.transform] = baseRotation;
             }
+        }
+
+        private static Transform SkirtReferenceTransform(UnityEngine.Object source)
+        {
+            var bone = source as Transform;
+            if (bone != null) return bone;
+            var owner = source as GameObject;
+            return owner != null ? owner.transform : null;
+        }
+
+        // The transition interval changes the slope, not the output's range.
+        // This remains continuous at both boundaries, including unequal gains.
+        private static float SkirtAxisGain(float angle, float inner, float outer, float minimum, float maximum)
+        {
+            return outer * angle + (inner - outer) * Mathf.Clamp(angle, minimum, maximum);
+        }
+
+        private static Quaternion EvaluateAuthoredSkirtHelper(
+            Quaternion initial, Quaternion current, QuartzSkirtSetting setting)
+        {
+            if (setting.rotationOrder < 0 || setting.rotationOrder > 5)
+                throw new ArgumentOutOfRangeException(nameof(setting.rotationOrder));
+            var order = (Unity.Mathematics.math.RotationOrder)setting.rotationOrder;
+            // Parent-frame change: order matters for a nonidentity bind frame.
+            Quaternion relative = (current * Quaternion.Inverse(initial)).normalized;
+            var q = new Unity.Mathematics.quaternion(relative.x, relative.y, relative.z, relative.w);
+            Unity.Mathematics.float3 angles = Unity.Mathematics.math.Euler(q, order);
+            var reconstructed = Unity.Mathematics.quaternion.Euler(angles, order).value;
+            Vector3 direction = new Quaternion(reconstructed.x, reconstructed.y, reconstructed.z, reconstructed.w) * Vector3.up;
+            float denominator = 1f + direction.y;
+            float pitch = 2f * Mathf.Atan2(direction.z, denominator) * Mathf.Rad2Deg;
+            float yaw = -2f * Mathf.Atan2(direction.x, denominator) * Mathf.Rad2Deg;
+
+            // Y-axis bend/roll authoring uses ordered Euler for the direction,
+            // but the residual orientation is reconstructed in Unity ZXY.
+            Quaternion unityOrientation = Quaternion.Euler(new Vector3(angles.x, angles.y, angles.z) * Mathf.Rad2Deg);
+            Quaternion bend = Quaternion.FromToRotation(Vector3.up, direction);
+            Quaternion residual = (unityOrientation * Quaternion.Inverse(bend)).normalized;
+            residual.ToAngleAxis(out float roll, out Vector3 rollAxis);
+            if (Vector3.Dot(rollAxis, direction.normalized) < 0f) roll = -roll;
+            Vector3 channels = new Vector3(SkirtSignedAngle(roll), SkirtSignedAngle(yaw), SkirtSignedAngle(pitch));
+            for (int i = 0; i < 3; i++)
+                channels[i] = SkirtAxisGain(channels[i], setting.innerCoefficient[i], setting.outerCoefficient[i],
+                    setting.limitMin[i], setting.limitMax[i]);
+            return ComposeSkirtBendRoll(channels * Mathf.Deg2Rad);
+        }
+
+        private static float SkirtSignedAngle(float angle)
+        { return angle > 180f ? angle - 360f : angle < -180f ? angle + 360f : angle; }
+
+        private static Quaternion ComposeSkirtBendRoll(Vector3 radians)
+        {
+            float pitch = Mathf.Tan(radians.y * .5f), yaw = Mathf.Tan(-radians.z * .5f);
+            float scale = 2f / (1f + pitch * pitch + yaw * yaw);
+            Vector3 direction = new Vector3(scale - 1f, scale * yaw, scale * pitch);
+            Quaternion bend = Quaternion.FromToRotation(Vector3.right, direction);
+            return (Quaternion.AngleAxis(-radians.x * Mathf.Rad2Deg, Vector3.right) * bend).normalized;
         }
 
         private void ResetNodesToBasePose()
@@ -1687,14 +1760,19 @@ namespace GakumasPhotoMode
 
             public QuartzSkirtDriverState(
                 ActorAnimationQuartzDriverSkirtBone driver,
-                Transform resolvedReferenceBone)
+                Transform resolvedReferenceBone,
+                Transform authoredReference)
             {
                 transform = driver.transform;
                 setting = driver.setting;
                 restLocalRotation = transform.localRotation;
                 referenceBone = resolvedReferenceBone;
-                referenceRestLocalRotation = referenceBone.localRotation;
+                referenceRestLocalRotation = referenceBone != null ? referenceBone.localRotation : Quaternion.identity;
+                authoredReferenceBone = authoredReference;
+                authoredReferenceRestLocalRotation = authoredReference != null ? authoredReference.localRotation : Quaternion.identity;
             }
+            public readonly Transform authoredReferenceBone;
+            public readonly Quaternion authoredReferenceRestLocalRotation;
         }
 
         private sealed class ChainPointState

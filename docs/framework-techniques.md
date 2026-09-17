@@ -243,6 +243,39 @@ PPT 77 的外层衣物参考内层裙摆角度由 `HairDynamicsSystem.useExterna
 当前一套自备服装／坐姿已在 D3D11 和 Vulkan 上完成上述对照，并独立核对整图
 颜色、几何深度与背景不变；只证明该输入下约束进入实际蒙皮，不代表全部坐姿穿模已解决。
 
+## 连续裙摆辅助骨
+
+PPT 76 的腿部驱动裙摆辅助骨通过 `HairDynamicsSystem.useAuthoredSkirtHelpers`
+显式开启，默认 `false`。应用默认行为不变；新路径仍在 Swing 积分之前提供辅助骨基准，
+不替代碰撞求解器或自动安排跨求解器的执行顺序。
+
+在 `InitializeSkirt` 前配置开关及 `QuartzSkirtSetting.referenceBone`。
+引用接受明确指定的 `GameObject` 或 `Transform`，不按 Left/Right 名称猜测输入。
+初始化保存参考骨局部旋转；之后以当前旋转乘初始旋转的逆得到父坐标系变化，
+按 `rotationOrder`（0–5）分解，再应用各轴内外增益：
+`outer*x + (inner-outer)*clamp(x, limitMin, limitMax)`。
+区间内斜率为 inner、区间外为 outer，两端连续；这里的限值是增益过渡区间，
+不是最终输出的硬夹紧范围。调用方应提供有序的有限限值和增益。
+
+结果直接写专用辅助骨的局部旋转，不再乘辅助骨旧的 rest rotation；请勿把任意普通
+关节当作这种辅助输出。新路径不使用旧版 `connectionAxis` 的整组正负号增益切换。
+空引用或不支持的引用类型不驱动该辅助骨；无效旋转顺序明确报错。
+引用、初始姿势或拓扑变化后重新初始化。反向轴极点及 Euler 分支仍有坐标奇异性，
+本接口不承诺任意极端姿势全局连续。
+
+生成式诊断：`--self-test-actor-rendering <directory> --self-test-skirt-helpers-only`，
+覆盖六种旋转顺序、单轴几何、非单位初始坐标系、复合姿态边界、连续双增益、
+显式对象引用、旧默认及关闭恢复。自备角色的局部边界诊断使用
+`--photo-mode --validate-srp-actor-character <directory> --validate-skirt-helper-boundary
+--validate-authored-skirt-helpers`；省略最后的开关可保留旧算法反例。
+一套自备坐姿的同一 0.04° 输入扰动中，辅助骨跳变从约 79.44° 降至约 0.0011°，
+另以大角度输入验证辅助骨仍有响应。该扰动是受控边界探针，不表示原始动作自然跨过此边界。
+
+整链诊断使用 `--validate-secondary-reference-limits --validate-authored-skirt-helpers`：
+所有比较组保持外衣参考约束开启，只切换新辅助骨路径，执行 180 帧动画与风、三视角、
+逐帧骨骼重播和关闭恢复，并独立检查颜色／深度。当前 D3D11 坐姿对照通过；
+这是有限输入下的连续性与实际蒙皮证据，仍不能代替全服装接触质量、原版引擎一致性或移动端验收。
+
 ## TAA 分类接口
 
 ```csharp

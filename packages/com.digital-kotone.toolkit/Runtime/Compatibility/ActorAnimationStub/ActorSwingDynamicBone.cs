@@ -350,7 +350,9 @@ namespace ActorAnimation
         public Vector3 limitMin = new Vector3(-180f, -180f, -180f);
         public Vector3 limitMax = new Vector3(180f, 180f, 180f);
         public int connectionAxis;
-        public Transform referenceBone;
+        // Accept authoring GameObjects and caller-created Transform references
+        // without pretending that one native object type is the other.
+        public UnityEngine.Object referenceBone;
     }
 
     public sealed class ActorSwingChain : MonoBehaviour

@@ -7,6 +7,102 @@ namespace GakumasPhotoMode
 {
     public sealed partial class SrpActorCharacterValidation
     {
+        // A local continuity probe, not an original-game pose/collision oracle.
+        // Keep the actual clip's compound bend while crossing the legacy gate
+        // by just .04 degrees. A unit-gain helper must not jump tens of degrees.
+        private void VerifySkirtHelperBoundary(Report report, Action<int> view, Func<string, Color[]> run)
+        {
+            var root = app.CharacterRoot;
+            var bones = root.GetComponentsInChildren<Transform>(true);
+            var positions = bones.Select(b => b.localPosition).ToArray();
+            var rotations = bones.Select(b => b.localRotation).ToArray();
+            var skins = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            var matrixFlags = skins.Select(s => s.forceMatrixRecalculationPerRender).ToArray();
+            var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            var driversField = typeof(HairDynamicsSystem).GetField("_quartzSkirtDrivers", flags);
+            var apply = typeof(HairDynamicsSystem).GetMethod("ApplyQuartzDrivers", flags);
+            var toEuler = typeof(HairDynamicsSystem).GetMethod("SignedEuler",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            var solvers = root.GetComponentsInChildren<HairDynamicsSystem>(true)
+                .Where(s => ((System.Collections.ICollection)driversField.GetValue(s)).Count > 0).ToArray();
+            var drivers = solvers.SelectMany(s => ((System.Collections.IEnumerable)driversField.GetValue(s)).Cast<object>()).ToArray();
+            bool authored = Environment.GetCommandLineArgs().Contains("--validate-authored-skirt-helpers");
+            var oldAuthored = solvers.Select(s => s.useAuthoredSkirtHelpers).ToArray();
+            if (drivers.Length == 0) throw new InvalidOperationException("No authored skirt helper to probe.");
+            object Field(object value, string name) => value.GetType().GetField(name).GetValue(value);
+            var left = drivers.First(d => ((Transform)Field(d, "referenceBone")).name.StartsWith("Left", StringComparison.Ordinal));
+            var reference = (Transform)Field(left, "referenceBone");
+            var rest = (Quaternion)Field(left, "referenceRestLocalRotation");
+            var targets = drivers.Select(d => (Transform)Field(d, "transform")).ToArray();
+            void Check(string name, bool accepted, float value = 0) => report.checks.Add(new Check {
+                name = "skirt-boundary-" + name, accepted = accepted, value = value });
+            float Angle(Quaternion a, Quaternion b)
+            {
+                Quaternion q = Quaternion.Inverse(a) * b;
+                return 2f * Mathf.Atan2(new Vector3(q.x, q.y, q.z).magnitude, Mathf.Abs(q.w)) * Mathf.Rad2Deg;
+            }
+            void Restore()
+            { for (int i = 0; i < bones.Length; i++) { bones[i].localPosition = positions[i]; bones[i].localRotation = rotations[i]; } }
+            var pixels = new Dictionary<int, Color[]>();
+            Quaternion[] negativeTargets = null; Quaternion negativeInput = Quaternion.identity;
+            try
+            {
+                foreach (var solver in solvers) solver.useAuthoredSkirtHelpers = authored;
+                foreach (var skin in skins) skin.forceMatrixRecalculationPerRender = true;
+                if (authored)
+                {
+                    Check("explicit-assigned-reference-matches-counterexample", drivers.All(d =>
+                        (Transform)Field(d, "authoredReferenceBone") == (Transform)Field(d, "referenceBone")));
+                    // Positive control: a continuous output must not be obtained
+                    // merely by suppressing every helper, including large bends.
+                    float response = 0;
+                    foreach (var axis in new[] { Vector3.right, Vector3.forward })
+                    foreach (float degrees in new[] { -120f, 120f })
+                    {
+                        Restore(); reference.localRotation = Quaternion.AngleAxis(degrees, axis) * rest;
+                        foreach (var solver in solvers) apply.Invoke(solver, null);
+                        response = Mathf.Max(response, targets.Max(t => Quaternion.Angle(Quaternion.identity, t.localRotation)));
+                    }
+                    Check("large-bend-nonzero-positive-control", response > 5f && Finite(response), response);
+                }
+                Restore(); app.EvaluateMotion(.7f);
+                var delta = (Vector3)toEuler.Invoke(null, new object[] { Quaternion.Inverse(rest) * reference.localRotation });
+                Check("authored-helper-count", drivers.Length > 0, drivers.Length);
+                Check("clip-compound-bend-y-observation", Finite(delta.y), delta.y);
+                Check("clip-compound-bend-z-observation", Finite(delta.z), delta.z);
+                foreach (bool positive in new[] { false, true })
+                {
+                    Restore(); app.EvaluateMotion(.7f);
+                    reference.localRotation = rest * Quaternion.Euler(positive ? .02f : -.02f, delta.y, delta.z);
+                    foreach (var solver in solvers) apply.Invoke(solver, null);
+                    if (!positive) { negativeInput = reference.localRotation; negativeTargets = targets.Select(t => t.localRotation).ToArray(); }
+                    else
+                    {
+                        Quaternion inputDelta = Quaternion.Inverse(negativeInput) * reference.localRotation;
+                        float input = 2f * Mathf.Atan2(new Vector3(inputDelta.x, inputDelta.y, inputDelta.z).magnitude,
+                            Mathf.Abs(inputDelta.w)) * Mathf.Rad2Deg;
+                        float output = targets.Select((t, i) => Angle(negativeTargets[i], t.localRotation)).Max();
+                        Check("input-is-nonzero-four-hundredths-degree", input > .03f && input < .05f, input);
+                        Check("small-input-continuous-helper-output", output < 1f, output);
+                        for (int i = 0; i < targets.Length; i++)
+                            Check("helper-" + i + "-angle-jump-observation", true, Angle(negativeTargets[i], targets[i].localRotation));
+                    }
+                    foreach (int angle in new[] { 0, 90, 180 })
+                    {
+                        view(angle); var image = run("skirt-boundary-" + (positive ? "positive" : "negative") + "-view-" + angle);
+                        if (!positive) pixels[angle] = image;
+                        else Check("view-" + angle + "-changed-pixels-observation", true, Changed(pixels[angle], image, .001f));
+                    }
+                }
+            }
+            finally
+            {
+                Restore();
+                for (int i = 0; i < solvers.Length; i++) solvers[i].useAuthoredSkirtHelpers = oldAuthored[i];
+                for (int i = 0; i < skins.Length; i++) skins[i].forceMatrixRecalculationPerRender = matrixFlags[i];
+            }
+        }
+
         // Explicit producer-before-consumer diagnostic. Does not enable the
         // external-reference option in the application or promise mesh collision.
         private void VerifyExternalReferenceCharacter(Report report, Action<int> view, Func<string, Color[]> run)
@@ -26,6 +122,8 @@ namespace GakumasPhotoMode
             var oldMatrices = skins.Select(s => s.forceMatrixRecalculationPerRender).ToArray();
             var oldAutomatic = swings.Select(s => s.automaticSimulation).ToArray();
             var oldExternal = swings.Select(s => s.useExternalReferenceLimits).ToArray();
+            var oldSkirt = swings.Select(s => s.useAuthoredSkirtHelpers).ToArray();
+            bool authoredSkirt = Environment.GetCommandLineArgs().Contains("--validate-authored-skirt-helpers");
             var oldWind = swings.Select(s => s.naturalWind).ToArray();
             var oldTime = swings.Select(s => s.naturalWindTimeOverride).ToArray();
             var oldDiagnosticWind = swings.Select(s => s.windStrength).ToArray();
@@ -36,7 +134,7 @@ namespace GakumasPhotoMode
             helpers.AddRange(root.GetComponentsInChildren<QuartzLegAndRotationDeformationSystem>(true));
             helpers.AddRange(root.GetComponentsInChildren<QuartzGarmentDeformationSystem>(true));
             void Check(string name, bool accepted, float value = 0) => report.checks.Add(new Check {
-                name = "external-reference-character-" + name, accepted = accepted, value = value });
+                name = (authoredSkirt ? "authored-skirt-character-" : "external-reference-character-") + name, accepted = accepted, value = value });
             void Restore()
             {
                 for (int i = 0; i < bones.Length; i++)
@@ -66,7 +164,14 @@ namespace GakumasPhotoMode
                 {
                     bool external = mode == "enabled" || mode == "replay";
                     Restore(); Pose(0);
-                    foreach (var s in swings) { s.useExternalReferenceLimits = external; s.ResetSimulation(); }
+                    foreach (var s in swings)
+                    {
+                        // Isolate the new helper while retaining the previously
+                        // accepted external constraints in every comparison arm.
+                        s.useExternalReferenceLimits = authoredSkirt || external;
+                        s.useAuthoredSkirtHelpers = authoredSkirt && external;
+                        s.ResetSimulation();
+                    }
                     foreach (var s in breasts) s.ResetSimulation();
                     foreach (var s in slides) s.ResetSimulation();
                     float error = 0; int corrections = 0; bool finite = true;
@@ -86,7 +191,7 @@ namespace GakumasPhotoMode
                         }
                     }
                     Check(mode + "-180-frames-finite", finite);
-                    Check(mode + "-corrections", external ? corrections > 0 : corrections == 0, corrections);
+                    Check(mode + "-corrections", authoredSkirt || external ? corrections > 0 : corrections == 0, corrections);
                     if (mode != "legacy") Check(mode + "-all-bones", mode == "enabled" ? error > 1e-5f && Finite(error) : error == 0, error);
                     foreach (int angle in new[] { 0, 90, 180 })
                     {
@@ -101,7 +206,7 @@ namespace GakumasPhotoMode
                     }
                 }
                 int changed = legacyImages.Sum(pair => Changed(pair.Value, enabledImages[pair.Key], .001f));
-                Check("external-limit-visible-skinned-response", changed > 10, changed);
+                Check(authoredSkirt ? "helper-visible-skinned-response" : "external-limit-visible-skinned-response", changed > 10, changed);
             }
             finally
             {
@@ -110,6 +215,7 @@ namespace GakumasPhotoMode
                 for (int i = 0; i < swings.Length; i++)
                 {
                     swings[i].automaticSimulation = oldAutomatic[i]; swings[i].useExternalReferenceLimits = oldExternal[i];
+                    swings[i].useAuthoredSkirtHelpers = oldSkirt[i];
                     swings[i].naturalWind = oldWind[i]; swings[i].naturalWindTimeOverride = oldTime[i]; swings[i].windStrength = oldDiagnosticWind[i];
                 }
                 for (int i = 0; i < breasts.Length; i++) breasts[i].automaticSimulation = oldBreasts[i];

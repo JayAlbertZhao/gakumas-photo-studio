@@ -131,6 +131,107 @@ namespace GakumasPhotoMode
             return error;
         }
 
+        private void VerifyAuthoredSkirtHelpers(Report report)
+        {
+            var type = typeof(HairDynamicsSystem);
+            var flags = BindingFlags.Static | BindingFlags.NonPublic;
+            var evaluate = type.GetMethod("EvaluateAuthoredSkirtHelper", flags);
+            var gain = type.GetMethod("SkirtAxisGain", flags);
+            Quaternion Evaluate(Quaternion initial, Quaternion current, QuartzSkirtSetting setting) =>
+                (Quaternion)evaluate.Invoke(null, new object[] { initial, current, setting });
+            float Difference(Quaternion actual, Quaternion expected) => Mathf.Max(
+                (actual * Vector3.up - expected * Vector3.up).magnitude,
+                (actual * Vector3.right - expected * Vector3.right).magnitude);
+            void Check(string name, bool accepted, float value = 0) =>
+                FrameworkCheck(report, "skirt-helper-" + name, accepted, value);
+            void Equal(string name, Quaternion actual, Quaternion expected)
+            { float error = Difference(actual, expected); Check(name, error < 1e-4f, error); }
+            var setting = new QuartzSkirtSetting { innerCoefficient = Vector3.one,
+                outerCoefficient = Vector3.one, limitMin = Vector3.one * -10, limitMax = Vector3.one * 15 };
+            // Analytic single-axis geometry, independent of the decomposition code.
+            var inputAxes = new[] { Vector3.right, Vector3.up, Vector3.forward };
+            var outputAxes = new[] { Vector3.forward, Vector3.right, Vector3.up };
+            for (int order = 0; order < 6; order++)
+            {
+                setting.rotationOrder = order;
+                foreach (float degrees in new[] { -70f, -20f, 0f, 20f, 70f })
+                for (int axis = 0; axis < 3; axis++)
+                {
+                    Quaternion relative = Quaternion.AngleAxis(degrees, inputAxes[axis]);
+                    Quaternion expected = Quaternion.AngleAxis(-degrees, outputAxes[axis]);
+                    Equal("axial-order-" + order + "-axis-" + axis + "-angle-" + degrees,
+                        Evaluate(Quaternion.identity, relative, setting), expected);
+                    Quaternion initial = Quaternion.Euler(31, -27, 18);
+                    Equal("parent-frame-order-" + order + "-axis-" + axis + "-angle-" + degrees,
+                        Evaluate(initial, relative * initial, setting), expected);
+                }
+            }
+            float Gain(float angle) => (float)gain.Invoke(null, new object[] { angle, .25f, 2f, -10f, 15f });
+            float[] inputs = { -30, -10, -4, 0, 8, 15, 30 };
+            float[] expectedGains = { -42.5f, -2.5f, -1, 0, 2, 3.75f, 33.75f };
+            for (int i = 0; i < inputs.Length; i++)
+                Check("continuous-dual-gain-" + inputs[i], Mathf.Abs(Gain(inputs[i]) - expectedGains[i]) < 1e-5f);
+            foreach (float boundary in new[] { -10f, 15f })
+                Check("gain-boundary-" + boundary, Mathf.Abs(Gain(boundary + .001f) - Gain(boundary - .001f)) < .005f);
+            setting.rotationOrder = 0;
+            setting.innerCoefficient = Vector3.zero; setting.outerCoefficient = Vector3.zero;
+            Equal("zero-gain-identity", Evaluate(Quaternion.identity, Quaternion.Euler(15, 29, -65), setting), Quaternion.identity);
+            setting.outerCoefficient = Vector3.one;
+            Quaternion free = Evaluate(Quaternion.identity, Quaternion.AngleAxis(5, Vector3.right), setting);
+            Equal("free-interval", free, Quaternion.identity);
+            Equal("outside-interval-positive-response", Evaluate(Quaternion.identity,
+                Quaternion.AngleAxis(45, Vector3.right), setting), Quaternion.AngleAxis(-30, Vector3.forward));
+            for (int order = 0; order < 6; order++)
+            {
+                setting.rotationOrder = order;
+                setting.innerCoefficient = new Vector3(.2f, .5f, .1f);
+                setting.outerCoefficient = new Vector3(1, .8f, 1.2f);
+                Quaternion a = Evaluate(Quaternion.identity, Quaternion.Euler(-.02f, -1.9f, -79.4f), setting);
+                Quaternion b = Evaluate(Quaternion.identity, Quaternion.Euler(.02f, -1.9f, -79.4f), setting);
+                float difference = Difference(a, b);
+                Check("compound-boundary-order-" + order, difference < .005f, difference);
+                Check("compound-nonzero-order-" + order, Difference(a, Quaternion.identity) > .1f);
+            }
+            setting.rotationOrder = 6;
+            bool rejected = false;
+            try { Evaluate(Quaternion.identity, Quaternion.identity, setting); }
+            catch (TargetInvocationException e) { rejected = e.InnerException is ArgumentOutOfRangeException; }
+            Check("unsupported-order-explicitly-rejected", rejected);
+
+            // Exercise registration and output assignment as well as pure math.
+            // A misleading helper name must not choose the input in opt-in mode.
+            foreach (bool gameObjectReference in new[] { false, true })
+            {
+                var owner = Own(new GameObject("Generated explicit skirt"));
+                var reference = new GameObject("Caller-assigned input").transform;
+                reference.SetParent(owner.transform, false);
+                var wrong = new GameObject("LeftUpLeg").transform; wrong.SetParent(owner.transform, false);
+                var helper = new GameObject("Left misleading helper").transform; helper.SetParent(owner.transform, false);
+                Quaternion targetRest = Quaternion.Euler(11, 14, -9); helper.localRotation = targetRest;
+                var driver = helper.gameObject.AddComponent<ActorAnimationQuartzDriverSkirtBone>();
+                driver.setting = new QuartzSkirtSetting { referenceBone = gameObjectReference ? (UnityEngine.Object)reference.gameObject : reference,
+                    innerCoefficient = Vector3.one, outerCoefficient = Vector3.one };
+                var solver = owner.AddComponent<HairDynamicsSystem>(); solver.automaticSimulation = false;
+                Check("default-off-" + gameObjectReference, !solver.useAuthoredSkirtHelpers);
+                solver.InitializeSkirt(owner.transform, owner.transform, owner.transform, null);
+                var apply = type.GetMethod("ApplyQuartzDrivers", BindingFlags.Instance | BindingFlags.NonPublic);
+                reference.localRotation = Quaternion.AngleAxis(40, Vector3.right);
+                wrong.localRotation = Quaternion.Euler(0, 0, 12);
+                apply.Invoke(solver, null);
+                Equal("legacy-rest-and-name-" + gameObjectReference, helper.localRotation, targetRest * Quaternion.Euler(0, 0, 12));
+                solver.useAuthoredSkirtHelpers = true; apply.Invoke(solver, null);
+                Equal("explicit-absolute-output-" + gameObjectReference, helper.localRotation, Quaternion.AngleAxis(-40, Vector3.forward));
+                solver.useAuthoredSkirtHelpers = false; apply.Invoke(solver, null);
+                Equal("disable-restores-legacy-" + gameObjectReference, helper.localRotation, targetRest * Quaternion.Euler(0, 0, 12));
+                // No conventional reference name exists on a fresh opt-in rig.
+                wrong.name = "Unrelated"; reference.localRotation = Quaternion.identity;
+                solver.useAuthoredSkirtHelpers = true;
+                solver.InitializeSkirt(owner.transform, owner.transform, owner.transform, null);
+                reference.localRotation = Quaternion.AngleAxis(40, Vector3.right); apply.Invoke(solver, null);
+                Equal("name-free-registration-" + gameObjectReference, helper.localRotation, Quaternion.AngleAxis(-40, Vector3.forward));
+            }
+        }
+
         private void VerifyExternalReferenceLimits(Report report)
         {
             var fixture = CreateSecondaryFixture("swing"); fixture.automatic(false);
