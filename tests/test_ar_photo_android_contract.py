@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import struct
 import unittest
+import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,6 +57,16 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertIn("activeAnimation.get()?.let { node.stopAnimation(it) }", subject)
         self.assertIn("animationName?.let { node.playAnimation(it) }", subject)
         self.assertNotIn("animationName = animationName", subject)
+
+    def test_emulator_smoke_accessibility_helpers(self):
+        script = APP / "tools/smoke_emulator.py"
+        spec = importlib.util.spec_from_file_location("ar_photo_smoke", script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(module.bounds_center("[609,2133][845,2259]"), (727, 2196))
+        root = ET.fromstring('<hierarchy><node text="大小 1.0×"/><node text="Slide"/></hierarchy>')
+        self.assertEqual(module.size_label(root), "大小 1.0×")
+        self.assertIsNotNone(module.find_text(root, "Slide"))
 
     def test_optional_ar_and_private_import_boundary(self):
         manifest = (APP / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")

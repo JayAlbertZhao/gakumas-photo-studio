@@ -84,7 +84,10 @@ python -I tools/smoke_emulator.py --serial emulator-5554
 It installs the debug APK, replaces that emulator's last private imported GLB
 with the generated fixture, then checks clip switching and resizing without
 an app-process crash. Use a disposable emulator; the command refuses physical
-devices. It does not test real camera tracking or ARCore recording.
+devices. Add `--via-picker` to test the real **Import GLB** document-picker
+flow instead of injecting the fixture into debug-app storage; the temporary
+file in Downloads is removed after import. Neither mode tests real camera
+tracking or ARCore recording.
 
 Tap **导入 GLB** and select the file. The app copies and validates a binary
 glTF 2.0 GLB (at most 80 MB) into private app storage; it rejects external

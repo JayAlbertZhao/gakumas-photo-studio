@@ -83,11 +83,40 @@ def tap(adb: str, serial: str, point: tuple[int, int]) -> None:
     run(adb, serial, "shell", "input", "tap", str(point[0]), str(point[1]))
 
 
+def import_via_picker(adb: str, serial: str, filename: str) -> None:
+    root = wait_for_text(adb, serial, "导入 GLB")
+    time.sleep(1.0)
+    tap(adb, serial, bounds_center(find_text(root, "导入 GLB").get("bounds")))
+    try:
+        root = wait_for_text(adb, serial, filename, timeout=8.0)
+    except RuntimeError:
+        # DocumentsUI may reopen at a different location. Navigate to the
+        # Downloads root rather than assuming its last-used directory.
+        root = hierarchy(adb, serial)
+        drawer = next((node for node in root.iter("node")
+                       if node.get("content-desc") == "Show roots"), None)
+        if drawer is None:
+            raise RuntimeError("DocumentsUI file not visible and roots drawer not found")
+        tap(adb, serial, bounds_center(drawer.get("bounds")))
+        root = hierarchy(adb, serial)
+        downloads = next((node for node in root.iter("node")
+                          if node.get("text") == "Downloads" and
+                          node.get("resource-id") == "android:id/title"), None)
+        if downloads is None:
+            raise RuntimeError("DocumentsUI Downloads root not found")
+        tap(adb, serial, bounds_center(downloads.get("bounds")))
+        root = wait_for_text(adb, serial, filename, timeout=12.0)
+    tap(adb, serial, bounds_center(find_text(root, filename).get("bounds")))
+    wait_for_text(adb, serial, "已导入：subject.glb")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial", required=True, help="adb emulator serial, e.g. emulator-5554")
     parser.add_argument("--apk", type=Path,
                         default=ROOT / "app/build/outputs/apk/debug/app-debug.apk")
+    parser.add_argument("--via-picker", action="store_true",
+                        help="also exercise the user-facing GLB document picker and importer")
     args = parser.parse_args()
     if not args.serial.startswith("emulator-"):
         parser.error("only emulator-* serials are accepted; this test replaces app-private data")
@@ -103,18 +132,27 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="ar-photo-smoke-") as directory:
         fixture = Path(directory) / "animated.glb"
         fixture.write_bytes(module.make_glb(animated=True))
-        remote = f"/data/local/tmp/ar-photo-smoke-{uuid.uuid4().hex}.glb"
         print(run(adb, args.serial, "install", "-r", str(args.apk)))
-        run(adb, args.serial, "shell", "monkey", "-p", PACKAGE, "1")
-        try:
-            run(adb, args.serial, "push", str(fixture), remote)
-            run(adb, args.serial, "shell", "run-as", PACKAGE, "mkdir", "-p", "files")
-            run(adb, args.serial, "shell", "run-as", PACKAGE, "cp", remote, "files/subject.glb")
-        finally:
-            run(adb, args.serial, "shell", "rm", "-f", remote)
+        run(adb, args.serial, "shell", "am", "start", "-n", f"{PACKAGE}/.MainActivity")
+        if args.via_picker:
+            filename = f"ar-photo-smoke-{uuid.uuid4().hex}.glb"
+            remote = f"/sdcard/Download/{filename}"
+            try:
+                run(adb, args.serial, "push", str(fixture), remote)
+                import_via_picker(adb, args.serial, filename)
+            finally:
+                run(adb, args.serial, "shell", "rm", "-f", remote)
+        else:
+            remote = f"/data/local/tmp/ar-photo-smoke-{uuid.uuid4().hex}.glb"
+            try:
+                run(adb, args.serial, "push", str(fixture), remote)
+                run(adb, args.serial, "shell", "run-as", PACKAGE, "mkdir", "-p", "files")
+                run(adb, args.serial, "shell", "run-as", PACKAGE, "cp", remote, "files/subject.glb")
+            finally:
+                run(adb, args.serial, "shell", "rm", "-f", remote)
 
     run(adb, args.serial, "shell", "am", "force-stop", PACKAGE)
-    run(adb, args.serial, "shell", "monkey", "-p", PACKAGE, "1")
+    run(adb, args.serial, "shell", "am", "start", "-n", f"{PACKAGE}/.MainActivity")
     root = wait_for_text(adb, args.serial, "Bounce")
     initial_pid = run(adb, args.serial, "shell", "pidof", PACKAGE)
     next_button = find_text(root, "下一段")
@@ -144,7 +182,8 @@ def main() -> None:
     final_pid = run(adb, args.serial, "shell", "pidof", PACKAGE)
     if not initial_pid or final_pid != initial_pid:
         raise RuntimeError(f"app process changed during animation/resize: {initial_pid} -> {final_pid}")
-    print(f"PASS: Bounce -> Slide, {previous_size} -> {size_label(root)}, "
+    print(f"PASS: import={'picker' if args.via_picker else 'private fixture'}, "
+          f"Bounce -> Slide, {previous_size} -> {size_label(root)}, "
           "Slide retained, app process remained alive")
 
 
