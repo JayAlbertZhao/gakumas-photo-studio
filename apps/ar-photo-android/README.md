@@ -170,3 +170,29 @@ again. The fresh-install/update prompt was not exercised in that check. The
 emulator's flat `emulated` camera caused ARCore's
 native feature tracker to abort, so use a supported phone for that acceptance
 test. Do not use this as a production AR capture tool until those checks pass.
+
+## Supported-phone acceptance gate (not yet run)
+
+Use a disposable/test installation on an [ARCore-supported device](https://developers.google.com/ar/devices)
+with Google Play Services for AR. Import only an original/self-owned animated
+GLB, and keep any recorded surroundings off the public repository. Before
+calling the real-camera path ready, verify all of the following on-device:
+
+- Grant camera permission, scan a textured horizontal floor, place the model,
+  walk around it, and confirm its position and orientation stay attached to
+  the same physical spot while ARCore refines tracking. Re-place it, resize,
+  rotate, and switch animation clips without a crash or stale renderable.
+- Capture a PNG and inspect the file in `Pictures/AR Photo/`: live camera and
+  model must both be present, while controls, plane grid, and the opaque
+  shadow-receiver overlay must be absent.
+- Record at least 15 seconds of AR session data, stop, verify a nonempty MP4
+  under `Movies/AR Photo/`, re-import that MP4, replay it to the end, and use
+  **重新播放会话**. A normal camera video should fail as an ARCore dataset.
+- Pause/resume the app and switch synthetic/real/replay modes during a session;
+  verify that no native crash, leaked recording, or frozen camera remains.
+  Repeat with permission denied and with Google Play Services for AR disabled
+  or unavailable; the synthetic preview must still work.
+
+If any check fails, keep the phone model, Android version, ARCore service
+version, exact steps, and a filtered `adb logcat` trace for diagnosis. Do not
+publish raw camera recordings or private model files with the issue report.
