@@ -14,6 +14,7 @@
     "apps/ar-photo-android/README.md",
     "apps/ar-photo-android/app/build.gradle.kts",
     "apps/ar-photo-android/app/src/main/AndroidManifest.xml",
+    "apps/ar-photo-android/app/src/main/java/org/digital_kotone/arphoto/AnchorPlacement.kt",
     "apps/ar-photo-android/app/src/main/java/org/digital_kotone/arphoto/ArSessionRecorder.kt",
     "apps/ar-photo-android/app/src/main/java/org/digital_kotone/arphoto/DatasetImporter.kt",
     "apps/ar-photo-android/app/src/main/java/org/digital_kotone/arphoto/MainActivity.kt",

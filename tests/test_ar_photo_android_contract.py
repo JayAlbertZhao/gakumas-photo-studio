@@ -73,7 +73,7 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertIn("onValueChangeFinished", screen)
         self.assertIn("scaleToUnits = 1.6f * size", subject)
         self.assertIn("position = Position(offset.x + importedPosition.x", subject)
-        self.assertIn("Position(placed.pose.tx(), placed.pose.ty(), placed.pose.tz())", screen)
+        self.assertIn("anchorPose = placed.pose", screen)
         self.assertIn("renderer.clearOptions = renderer.clearOptions.apply", screen)
         self.assertIn("clear = true", screen)
         self.assertNotIn("previewRoot.get()?.position", screen)
@@ -92,11 +92,15 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
     def test_imported_model_tracks_anchor_refinements(self):
         screen = (APP / "app/src/main/java/org/digital_kotone/arphoto/PhotoScreen.kt").read_text(encoding="utf-8")
         subject = (APP / "app/src/main/java/org/digital_kotone/arphoto/PhotoSubject.kt").read_text(encoding="utf-8")
+        placement = (APP / "app/src/main/java/org/digital_kotone/arphoto/AnchorPlacement.kt").read_text(encoding="utf-8")
         self.assertIn("placed.trackingState == TrackingState.TRACKING", screen)
         self.assertIn("tracked.instance === imported", screen)
-        self.assertIn("tracked.node.position = Position(offset.x + pose.tx()", screen)
+        self.assertIn("applyAnchorPose(tracked.node, tracked.alignment, placed.pose, yaw)", screen)
         self.assertIn("trackedImportedNode.set(null)", screen)
         self.assertIn("onImportedNodeReady?.invoke(this, offset)", subject)
+        self.assertIn("anchorPose.transformPoint(floatArrayOf(alignment.x, alignment.y, alignment.z))", placement)
+        self.assertIn("anchorPose.compose(Pose.makeRotation", placement)
+        self.assertIn("node.quaternion = Quaternion(rotation.qx()", placement)
 
     def test_arcore_install_preflight_precedes_optional_ar_scene(self):
         activity = (APP / "app/src/main/java/org/digital_kotone/arphoto/MainActivity.kt").read_text(encoding="utf-8")

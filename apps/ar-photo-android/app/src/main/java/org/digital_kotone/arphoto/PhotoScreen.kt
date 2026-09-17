@@ -255,10 +255,7 @@ internal fun PhotoScreen(
                         val tracked = trackedImportedNode.get()
                         if (placed != null && placed.trackingState == TrackingState.TRACKING &&
                             tracked != null && tracked.instance === imported) {
-                            val pose = placed.pose
-                            val offset = tracked.alignment
-                            tracked.node.position = Position(offset.x + pose.tx(),
-                                offset.y + pose.ty(), offset.z + pose.tz())
+                            applyAnchorPose(tracked.node, tracked.alignment, placed.pose, yaw)
                         }
                         if (replayMode && !playbackFinished &&
                             session.playbackStatus == PlaybackStatus.FINISHED) {
@@ -306,7 +303,8 @@ internal fun PhotoScreen(
                             Node {
                                 PhotoSubject(imported, materialLoader, wave,
                                     animationNames.getOrNull(animationIndex), scale, yaw,
-                                    Position(placed.pose.tx(), placed.pose.ty(), placed.pose.tz()),
+                                    Position(0f, 0f, 0f),
+                                    anchorPose = placed.pose,
                                     onImportedNodeReady = { node, alignment ->
                                         trackedImportedNode.set(TrackedImportedNode(imported, node, alignment))
                                     })

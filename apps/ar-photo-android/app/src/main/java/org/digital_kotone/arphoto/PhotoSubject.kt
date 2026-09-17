@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import com.google.ar.core.Pose
 import io.github.sceneview.NodeScope
 import io.github.sceneview.loaders.MaterialLoader
 import io.github.sceneview.math.Position
@@ -25,6 +26,7 @@ internal fun NodeScope.PhotoSubject(
     size: Float,
     yaw: Float,
     importedPosition: Position,
+    anchorPose: Pose? = null,
     onImportedNodeReady: ((ModelNodeImpl, Position) -> Unit)? = null,
 ) {
     if (imported != null) {
@@ -33,15 +35,19 @@ internal fun NodeScope.PhotoSubject(
             scaleToUnits = 1.6f * size,
             centerOrigin = Position(0f, -1f, 0f),
             position = importedPosition,
-            rotation = Rotation(y = yaw),
+            rotation = if (anchorPose == null) Rotation(y = yaw) else Rotation(0f),
             animationName = animationName,
             autoAnimate = true,
-            // Apply before the model enters Filament's scene. In SceneView 4.25,
-            // a later position update does not move imported GLB renderables.
+            // Apply before the model enters Filament's scene. Declarative changes to
+            // the parent node do not reliably move loaded GLB renderables in 4.25.
             apply = {
                 val offset = position
-                position = Position(offset.x + importedPosition.x,
-                    offset.y + importedPosition.y, offset.z + importedPosition.z)
+                if (anchorPose != null) {
+                    applyAnchorPose(this, offset, anchorPose, yaw)
+                } else {
+                    position = Position(offset.x + importedPosition.x,
+                        offset.y + importedPosition.y, offset.z + importedPosition.z)
+                }
                 onImportedNodeReady?.invoke(this, offset)
             },
         )
