@@ -101,7 +101,7 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertIn("Environment.DIRECTORY_MOVIES", recorder)
         self.assertIn("Environment.DIRECTORY_PICTURES", photos)
         self.assertIn("PixelCopy.request", photos)
-        self.assertIn("planeRenderer = !captureInProgress", screen)
+        self.assertIn("planeRenderer = anchor == null && !captureInProgress", screen)
 
     def test_replay_import_is_private_and_bound_before_session_start(self):
         importer = (TOOLKIT / "DatasetImporter.kt").read_text(encoding="utf-8")

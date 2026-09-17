@@ -233,9 +233,11 @@ internal fun PhotoScreen(
                     modelLoader = modelLoader,
                     materialLoader = materialLoader,
                     playbackDataset = if (replayMode) playbackDataset else null,
-                    // The plane grid includes a shadow-receiver mesh; keep it for
-                    // placement, but exclude it from the saved camera composite.
-                    planeRenderer = !captureInProgress,
+                    // The plane grid includes a shadow-receiver mesh. Show it
+                    // while finding a surface, then remove it after placement
+                    // and during capture. ARCore hit testing still works when
+                    // the visualization is hidden, so taps can re-place it.
+                    planeRenderer = anchor == null && !captureInProgress,
                     onSessionCreated = { currentSession.set(it) },
                     onSessionResumed = {
                         currentSession.set(it)
