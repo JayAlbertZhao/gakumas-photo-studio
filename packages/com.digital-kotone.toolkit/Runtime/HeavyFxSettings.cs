@@ -10,6 +10,7 @@ namespace GakumasPhotoMode
         public LowResolutionFxSettings geometry = new LowResolutionFxSettings();
         public VolumetricLightingSettings medium = new VolumetricLightingSettings();
         public LensFlareSettings optics = new LensFlareSettings();
+        public FxGeometryExposureSettings exposure = new FxGeometryExposureSettings();
         // Joint reconstruction is deliberately stricter than independent geometry defaults.
         public float depthAbsoluteTolerance = .001f;
         public float depthRelativeTolerance = .0001f;

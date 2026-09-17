@@ -254,6 +254,7 @@ namespace GakumasPhotoMode
                     else if (effects.UnavailableReason != null) { error = effects.UnavailableReason; return Fail(error); }
                     // An enabled but empty effects list is an explicit no-op.
                 }
+                else effects.ResetMotionHistory();
                 var preTemporalColor=finalColor;
                 if(s.temporal.enabled)
                 {
@@ -358,7 +359,7 @@ namespace GakumasPhotoMode
         {
             if (disposed) return;
             if (phase == Phase.Failed) { reflection.ResetHistory();actor.ResetMotionHistoryAfterGpuCompletion();temporal.ResetHistory(); }
-            if (phase == Phase.Failed) motionBlur.ResetHistory();
+            if (phase == Phase.Failed) {motionBlur.ResetHistory();effects.ResetMotionHistory();}
             draws?.Dispose(); draws = null; scene?.Dispose(); scene = null;
             shadowFrame = null; planarFrame = null; reflectionFrame = null;
             effectFrame = null; temporalFrame=null; dofFrame = null; gradeFrame = null;
@@ -371,7 +372,7 @@ namespace GakumasPhotoMode
             actorFrame = default; finalColor = null; phase = Phase.Idle;
         }
         public void ResetHistoryAfterGpuCompletion()
-        { RetireAfterGpuCompletion(); reflection.ResetHistory();actor.ResetMotionHistoryAfterGpuCompletion();temporal.ResetHistory();motionBlur.ResetHistory(); }
+        { RetireAfterGpuCompletion(); reflection.ResetHistory();actor.ResetMotionHistoryAfterGpuCompletion();temporal.ResetHistory();motionBlur.ResetHistory();effects.ResetMotionHistory(); }
         /// <summary>Dispose only after submitted GPU work no longer uses these resources.</summary>
         public void Dispose()
         {

@@ -90,6 +90,7 @@ Shader "Hidden/GakumasPhotoMode/HeavyFx"
             CGPROGRAM
             #pragma target 4.5
             #pragma multi_compile __ SCENE_LIGHT_SHADOWS
+            #pragma multi_compile_local __ FX_GEOMETRY_EXPOSURE
             #pragma vertex SurfaceVertex
             #pragma fragment SurfaceColor
             ENDCG
@@ -101,6 +102,7 @@ Shader "Hidden/GakumasPhotoMode/HeavyFx"
             CGPROGRAM
             #pragma target 4.5
             #pragma multi_compile __ SCENE_LIGHT_SHADOWS
+            #pragma multi_compile_local __ FX_GEOMETRY_EXPOSURE
             #pragma vertex SurfaceVertex
             #pragma fragment SurfaceColor
             ENDCG

@@ -12,6 +12,9 @@ namespace GakumasPhotoMode
     public sealed class LowResolutionFxSurface
     {
         public bool enabled = true;
+        // Increment after discontinuous UV/color/topology or procedural-content
+        // changes which should not interpolate with the preceding exposure pose.
+        public uint motionRevision;
         // Exactly one geometry source. Renderer supports current Unity deformation;
         // mesh/matrix also permits an independently generated particle mesh.
         public Renderer renderer;

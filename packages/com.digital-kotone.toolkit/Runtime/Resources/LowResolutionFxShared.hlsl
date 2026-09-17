@@ -138,18 +138,48 @@
             }
             return sum>1e-6?color/sum:original;
         }
-        struct FxVertex { float4 vertex:POSITION; float2 uv:TEXCOORD0; float4 color:COLOR; };
-        struct FxVarying { float4 pos:SV_POSITION; float2 uv:TEXCOORD0; float3 world:TEXCOORD1; float4 color:COLOR; };
+        struct FxVertex { float4 vertex:POSITION; float2 uv:TEXCOORD0; float4 color:COLOR;
+            #ifdef FX_GEOMETRY_EXPOSURE
+            uint id:SV_VertexID;
+            #endif
+        };
+        struct FxVarying { float4 pos:SV_POSITION; float2 uv:TEXCOORD0; float3 world:TEXCOORD1; float4 color:COLOR;
+            #ifdef FX_GEOMETRY_EXPOSURE
+            float eye:TEXCOORD3;
+            #endif
+        };
+        #ifdef FX_GEOMETRY_EXPOSURE
+        UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_FxExposurePreviousVertices);
+        float4x4 _FxExposurePreviousViewProjection,_FxExposurePreviousView;
+        float4 _FxExposureSnapshot;
+        #endif
         FxVarying SurfaceVertex(FxVertex v)
         {
             FxVarying o; float4 world=mul(unity_ObjectToWorld,v.vertex);
-            o.pos=mul(_FxViewProjection,world); o.world=world.xyz; o.uv=v.uv; o.color=v.color; return o;
+            o.pos=mul(_FxViewProjection,world); o.world=world.xyz; o.uv=v.uv; o.color=v.color;
+            #ifdef FX_GEOMETRY_EXPOSURE
+            o.eye=-mul(_FogWorldToView,world).z;
+            uint index=v.id,width=(uint)_FxExposureSnapshot.x;
+            float4 old=_FxExposurePreviousVertices.Load(int3(index%width,index/width,0));
+            float4 oldClip=mul(_FxExposurePreviousViewProjection,old);
+            if(old.w>.9999&&oldClip.w>1e-6)
+            {
+                float phase=_FxExposureSnapshot.y;
+                o.pos+=(o.pos-oldClip)*phase;
+                o.world+=(world.xyz-old.xyz)*phase;
+                o.eye+=(o.eye+mul(_FxExposurePreviousView,old).z)*phase;
+            }
+            #endif
+            return o;
         }
         float4 FxSample(FxVarying input,out float eye,out float2 fullPixel)
         {
             fullPixel=_FxInput.w>.5 && _FxInput.w<1.5?input.pos.xy*_FogScreen.xy/_FxLowSize.xy:input.pos.xy;
             int2 pixel=clamp((int2)fullPixel,int2(0,0),(int2)_FogScreen.xy-1);
             eye=-mul(_FogWorldToView,float4(input.world,1)).z;
+            #ifdef FX_GEOMETRY_EXPOSURE
+            eye=input.eye;
+            #endif
             if(!FogFinite(eye) || eye<_FogViewParameters.x || eye>_FogViewParameters.y) discard;
             if(_FxInput.w>1.5 && !FxNeedsRepair(fullPixel,_FxSurface.x>1.5)) discard;
             float opaque=_FxInput.w>.5 && _FxInput.w<1.5?_FxDepthRange.Load(int3((int2)input.pos.xy,0)).x:FxDepthAt(pixel);

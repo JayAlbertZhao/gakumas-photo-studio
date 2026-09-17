@@ -4,6 +4,50 @@
 
 PDF15／30／31 给出低分辨率透明、扭曲、上采样及随后 TAA 的顺序，并列举重粒子、光晕和体积光。PPT129／131 列出光学与动态光体积效果，但未公开联合混合公式。本模块采用独立规则，不附带原版 shader、VLB、ProFlare 或参考资料。
 
+## 实验性透明几何曝光
+
+`HeavyFxSettings.exposure` 默认关闭。它给每个显式提交的表面保存 GPU 顶点端点，
+在共享的快门时刻移动几何、按原有顺序合成全部 alpha／additive 层，最后平均完整
+合成结果。没有把多个透明层塞进一个像素速度，也没有先分别平均每层后再合成；
+后者会丢失遮挡覆盖的时间相关性。
+
+```csharp
+settings.exposure.enabled = true;
+settings.exposure.samples = 8;              // 2、4、8、16、32
+settings.exposure.shutterAngle = 180;       // 当前时刻为中心，0–360 度
+settings.exposure.maximumTrackedVertices = 1000000;
+// TryRender 的 timelineSeconds 必须与几何采样时间一致。
+// 跳转、换镜头、跳过本相机的渲染之后：
+fx.ResetMotionHistory();
+```
+
+这是有明确边界的独立桌面实现：
+
+- 只接受无光照的 alpha／additive 三角形，网格拓扑须可读；支持显式 DrawMesh 或
+  Renderer 的实际 GPU 顶点流。拒绝静态合批、Renderer property block、扭曲、
+  联合介质／镜头光学以及启用的几何雾，不静默借用不匹配的 shader。
+  不复刻源材质自己的顶点位移程序；程序生成／修改的 UV、颜色及纹理内容须由宿主管理版本。
+- 两个端点之间按顶点线性外推；不能恢复瞬时加速度、旋转曲线或突变拓扑。材质、
+  纹理版本、拓扑和表面实例变化会冷启动。原地修改 UV／顶点颜色等程序数据时，
+  调用方须递增 `surface.motionRevision`。不要每帧重新创建表面实例。
+- 冷帧、暂停、时间倒退／长间隔、投影变化和超过阈值的相机切换返回当前几何。
+  曝光仍使用**当前不透明颜色和深度**，DOF 仍只在之后执行一次。相机运动、
+  移动遮挡物、透明景深和时间变化的光照尚未实现联合积分。真实角色联合诊断已
+  发现相机轨迹相对旧路径的局部误差增加；此选项不应作为已验收的全场景曝光默认值。
+- 需要 geometry shader、float32 渲染／混合目标；没有移动平台验收。每个表面需要
+  两张 float4 顶点快照，每顶点至少 32 字节并包含纹理尺寸填充；另有全分辨率
+  float4 积分附件。`maximumTargetMiB`／`TargetBytes` 是本模块目标的逻辑预算／
+  当前分配，不是驱动峰值、CPU 拓扑数组或整个场景显存预算。
+- 只有 FX 几何和合成按 samples 重复；不重复整场景／CPU 蒙皮／后处理。
+  静止但历史连续的几何也可能执行多个样本，因此开启后的成本并非自动为零。
+  `ExposureSamples`、`ExposureSnapshotDrawCalls`、`ExposureSnapshotBytes` 和
+  `DrawCalls` 可供宿主记录。快照绘制另提供分项计数，也包含在 `DrawCalls` 总数中。
+- `frame.color` 是曝光结果，alpha 和受保护像素直接保留当前源值。
+  `TryGetLastBatch` 的 effect／range 以及 `repairMask` 只是**最后一个子时刻**的
+  工作附件，不能当成时间积分后的独立透明层复用。
+
+真实角色开关与保留的失败见 [联合曝光诊断](motion-blur.md#透明特效景深与曝光的联合诊断)。
+
 ## 输入和顺序
 
 ```csharp

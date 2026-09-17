@@ -23,6 +23,7 @@ namespace GakumasPhotoMode
             public int referenceSamples=32,convergenceSamples=16;
             public bool subpixelReconstruction;
             public bool coupledPost;
+            public bool geometryExposure;
             public float transparentStepInCharacterHeights=.04f;
             public List<ExposureMetric> measurements=new List<ExposureMetric>();
         }
@@ -66,6 +67,8 @@ namespace GakumasPhotoMode
                 observations.subpixelReconstruction=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_SUBPIXEL")=="1";
                 s.motionBlur.subpixelReconstruction=observations.subpixelReconstruction;
                 observations.coupledPost=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_COUPLED_POST")=="1";
+                observations.geometryExposure=observations.coupledPost&&Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_FX_GEOMETRY")=="1";
+                s.effects.exposure.samples=16;s.effects.exposure.shutterAngle=observations.shutterAngle;
                 LowResolutionFxSurface transparent=null;
                 if(observations.coupledPost)
                 {
@@ -107,23 +110,23 @@ namespace GakumasPhotoMode
                         }
                         return run("exposure-"+label+"-"+name,clock,pose);
                     }
-                    Color[] Sequence(string name,bool blur)
+                    Color[] Sequence(string name,bool blur,bool expose=true)
                     {
-                        s.motionBlur.enabled=blur;example.ResetHistory();
+                        s.motionBlur.enabled=blur;s.effects.exposure.enabled=observations.geometryExposure&&blur&&expose;example.ResetHistory();
                         Render(name+"-previous",observations.centerTime-observations.sampleInterval);
                         return Render(name+"-current",observations.centerTime);
                     }
                     var current=Sequence("unblurred",false);var blurred=Sequence("blurred",true);
                     Color[] legacy=null;
                     if(observations.subpixelReconstruction)
-                    {s.motionBlur.subpixelReconstruction=false;legacy=Sequence("legacy",true);s.motionBlur.subpixelReconstruction=true;}
+                    {s.motionBlur.subpixelReconstruction=false;legacy=Sequence("legacy",true,false);s.motionBlur.subpixelReconstruction=true;}
                     var repeated=Sequence("replay",true);
                     Check(label+"-seek-replay-exact",MaximumDifference(blurred,repeated)==0,MaximumDifference(blurred,repeated));
                     s.motionBlur.enabled=true;example.ResetHistory();var cold=Render("cold",observations.centerTime);
                     Check(label+"-cold-no-exposure-exact",MaximumDifference(current,cold)==0,MaximumDifference(current,cold));
                     var paused=Render("paused",observations.centerTime);
                     Check(label+"-paused-no-exposure-exact",MaximumDifference(current,paused)==0,MaximumDifference(current,paused));
-                    s.motionBlur.enabled=false;
+                    s.motionBlur.enabled=false;s.effects.exposure.enabled=false;
                     Color[] noFx=null;
                     if(observations.coupledPost)
                     {
@@ -175,7 +178,7 @@ namespace GakumasPhotoMode
             }
             finally
             {
-                example.ResetHistory();s.motionBlur.enabled=false;s.colorGrade=grade;camera.cullingMask=visibility;
+                example.ResetHistory();s.motionBlur.enabled=false;s.effects.exposure.enabled=false;s.colorGrade=grade;camera.cullingMask=visibility;
                 s.effects.geometry.surfaces=priorSurfaces;
                 camera.transform.SetPositionAndRotation(position,rotation);camera.projectionMatrix=projection;
                 File.WriteAllText(Path.Combine(directory,"character-exposure-diagnostics.json"),JsonUtility.ToJson(observations,true));

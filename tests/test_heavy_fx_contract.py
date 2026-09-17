@@ -6,6 +6,39 @@ RUNTIME = Path(__file__).resolve().parents[1] / 'packages/com.digital-kotone.too
 
 
 class HeavyFxContract(unittest.TestCase):
+    def test_geometry_exposure_is_opt_in_and_tracks_actual_gpu_endpoints(self):
+        code=(RUNTIME/'FxGeometryExposure.cs').read_text(encoding='utf-8')
+        self.assertIn('public bool enabled;',code)
+        for token in ('commands.DrawRenderer','commands.DrawMesh','mesh.GetIndices','s.motionRevision',
+                      'time-previousTime','maximumTrackedVertices','remainingBytes','ResetHistory()',
+                      'camera==previousCamera','SameProjection(projection,previousProjection)','oldVertices=e.newVertices'):
+            self.assertIn(token,code)
+        for token in ('BakeMesh(', 'ReadPixels(', 'Time.time', 'FindObjectsOfType'):
+            self.assertNotIn(token,code)
+
+    def test_coherent_layer_compositing_precedes_shutter_average(self):
+        code=(RUNTIME/'HeavyFxRenderer.cs').read_text(encoding='utf-8')
+        start=code.index('for(int sample=0;sample<ExposureSamples;sample++)')
+        self.assertLess(start,code.index('foreach(var batch in batches)',start))
+        self.assertLess(code.index('current=next;',start),code.index('Graphics.Blit(current,exposureSum',start))
+        for token in ('exposure.Capture()', 'exposure.Bind(material,s,exposurePhase)', 'exposure.Complete()',
+                      'exposure.TextureBytes', 'exposure.Dispose()', 't==exposureSum', 'exposure.ResetHistory()'):
+            self.assertIn(token,code)
+        shader=(RUNTIME/'Resources/FxExposure.shader').read_text(encoding='utf-8')
+        for token in ('Blend One One ColorMask RGB', '_FxExposureSource.Load(p).a',
+                      'if(!isfinite(protection)||protection>0)return _FxExposureSource.Load(p)',
+                      'ACTUAL_FX_VERTEX_ENDPOINT','COHERENT_FX_SHUTTER_ACCUMULATION'):
+            self.assertIn(token,shader)
+
+    def test_geometry_shutter_does_not_substitute_a_composite_pixel_velocity(self):
+        source=(RUNTIME/'Resources/LowResolutionFxShared.hlsl').read_text(encoding='utf-8')
+        for token in ('FX_GEOMETRY_EXPOSURE', '_FxExposurePreviousVertices.Load',
+                      'o.pos+=(o.pos-oldClip)*phase', 'o.world+=(world.xyz-old.xyz)*phase', 'eye=input.eye'):
+            self.assertIn(token,source)
+        host=(RUNTIME/'DesktopFrameRenderer.cs').read_text(encoding='utf-8')
+        self.assertIn('else effects.ResetMotionHistory();',host)
+        self.assertIn('motionBlur.ResetHistory();effects.ResetMotionHistory();',host)
+
     def test_shared_work_not_a_chain_of_hdr_renderers(self):
         code = (RUNTIME / 'HeavyFxRenderer.cs').read_text(encoding='utf-8')
         for name in ('VolumetricLightingRenderer', 'LowResolutionFxRenderer()'):

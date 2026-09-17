@@ -6,6 +6,144 @@ namespace GakumasPhotoMode
 {
     public sealed partial class ActorRenderingSelfTest
     {
+        private IEnumerator VerifyFxGeometryExposure(Report report)
+        {
+            const int w=61,h=43;
+            void Check(string n,bool ok,float value=0)=>FrameworkCheck(report,"fx-geometry-exposure-"+n,ok,value);
+            float Difference(Color[] a,Color[] b){float d=0;for(int p=0;p<a.Length;p++)for(int c=0;c<4;c++)d=Mathf.Max(d,Mathf.Abs(a[p][c]-b[p][c]));return d;}
+            RenderTexture Target(RenderTextureFormat f){var t=Own(new RenderTexture(w,h,0,f,RenderTextureReadWrite.Linear){filterMode=FilterMode.Point});t.Create();return t;}
+            var source=Target(RenderTextureFormat.ARGBFloat);var depth=Target(RenderTextureFormat.RFloat);var mask=Target(RenderTextureFormat.R8);
+            var upload=Own(new Texture2D(w,h,TextureFormat.RGBAFloat,false,true));var pixels=new Color[w*h];
+            void Upload(RenderTexture t,Func<int,int,Color> value){for(int y=0;y<h;y++)for(int x=0;x<w;x++)pixels[y*w+x]=value(x,y);upload.SetPixels(pixels);upload.Apply();Graphics.Blit(upload,t);}
+            Upload(source,(x,y)=>new Color(.1f+x*.003f,.2f+y*.005f,.3f,.15f+x*.009f));var original=ReadSceneTarget(source);
+            Upload(depth,(x,y)=>new Color(12,0,0,0));Upload(mask,(x,y)=>new Color(x<9?1:0,0,0,0));
+            var go=Own(new GameObject("Independent coherent FX shutter camera"));var camera=go.AddComponent<Camera>();camera.enabled=false;camera.orthographic=true;
+            camera.orthographicSize=1.5f;camera.aspect=w/(float)h;camera.nearClipPlane=.1f;camera.farClipPlane=20;camera.fieldOfView=45;
+            var mesh=Own(new Mesh());mesh.vertices=new[]{new Vector3(-.7f,-.7f,0),new Vector3(.7f,-.7f,0),new Vector3(.7f,.7f,0),new Vector3(-.7f,.7f,0)};
+            mesh.uv=new[]{Vector2.zero,Vector2.right,Vector2.one,Vector2.up};mesh.triangles=new[]{0,1,2,0,2,3};mesh.RecalculateBounds();
+            var rear=new LowResolutionFxSurface {mesh=mesh,resolution=FxResolution.Full,opacity=.65f,radialSoftness=.7f,linearRadiance=new Vector3(1.5f,.2f,.1f)};
+            var front=new LowResolutionFxSurface {mesh=mesh,resolution=FxResolution.Full,opacity=.7f,radialSoftness=.6f,linearRadiance=new Vector3(.1f,.6f,1.8f)};
+            var surfaces=new[]{rear,front};var s=new HeavyFxSettings {enabled=true};s.geometry.enabled=true;s.geometry.surfaces=surfaces;
+            var referenceSettings=new HeavyFxSettings {enabled=true};referenceSettings.geometry.enabled=true;referenceSettings.geometry.surfaces=surfaces;
+            using var renderer=new HeavyFxRenderer();using var reference=new HeavyFxRenderer();
+            void Pose(float phase)
+            {
+                rear.localToWorld=Matrix4x4.TRS(new Vector3(-.1f+.8f*phase,0,5),Quaternion.identity,Vector3.one);
+                front.localToWorld=Matrix4x4.TRS(new Vector3(.1f-.6f*phase,.1f,4),Quaternion.identity,Vector3.one);
+            }
+            HeavyFxRenderer.Frame Frame(HeavyFxRenderer r,HeavyFxSettings settings,double time,RenderTexture protection=null)
+            {if(!r.TryRender(source,new FogVolumeDepth(depth),camera,settings,time,out var f,protection))throw new InvalidOperationException(r.UnavailableReason);return f;}
+            Color[] Mean(Func<int,Color[]> sample,int count)
+            {var sum=new double[w*h*4];for(int i=0;i<count;i++){var a=sample(i);for(int p=0;p<a.Length;p++)for(int c=0;c<4;c++)sum[p*4+c]+=a[p][c];}var mean=new Color[w*h];for(int p=0;p<mean.Length;p++)for(int c=0;c<4;c++)mean[p][c]=(float)(sum[p*4+c]/count);return mean;}
+            Check("default-disabled",!s.exposure.enabled);
+            foreach(var resolution in new[]{FxResolution.Full,FxResolution.Half,FxResolution.Quarter})foreach(bool perspective in new[]{false,true})
+            {
+                string label=resolution+"-"+perspective;camera.orthographic=!perspective;camera.ResetProjectionMatrix();
+                rear.resolution=front.resolution=resolution;s.exposure.enabled=true;s.exposure.samples=16;renderer.ResetMotionHistory();
+                Pose(-1);Frame(renderer,s,0);Pose(0);var frame=Frame(renderer,s,.02);var actual=ReadSceneTarget(frame.color);
+                Check(label+"-shared-clock-samples",frame.geometryExposureSamples==16&&renderer.ExposureSnapshotDrawCalls==2);
+                var expected=Mean(i=>{Pose(((i+.5f)/16*2-1)*.25f);return ReadSceneTarget(Frame(reference,referenceSettings,0).color);},16);
+                float error=Difference(actual,expected);Check(label+"-independent-time-geometry-whole-color",error<.0002f,error);
+                Pose(0);var sharp=ReadSceneTarget(Frame(reference,referenceSettings,0).color);
+                Check(label+"-positive-coverage-response",Difference(actual,sharp)>.001f,Difference(actual,sharp));
+                float alpha=0;for(int p=0;p<actual.Length;p++)alpha=Mathf.Max(alpha,Mathf.Abs(actual[p].a-original[p].a));
+                Check(label+"-alpha-exact",alpha==0,alpha);
+                renderer.ResetMotionHistory();Pose(-1);Frame(renderer,s,0);Pose(0);var replay=ReadSceneTarget(Frame(renderer,s,.02).color);
+                Check(label+"-replay-exact",Difference(actual,replay)==0,Difference(actual,replay));
+                var paused=ReadSceneTarget(Frame(renderer,s,.02).color);Check(label+"-paused-current-exact",Difference(paused,sharp)==0,Difference(paused,sharp));
+                renderer.ResetMotionHistory();var cold=ReadSceneTarget(Frame(renderer,s,.5).color);Check(label+"-reset-current-exact",Difference(cold,sharp)==0,Difference(cold,sharp));
+                SaveSsrPreview("fx-geometry-exposure-"+label,actual,w,h,false);
+            }
+            camera.orthographic=true;camera.ResetProjectionMatrix();rear.resolution=front.resolution=FxResolution.Full;
+            // A negative control: composing separately time-averaged alpha layers
+            // loses coverage correlation, even though each individual mean is right.
+            Color[] LayerMean(LowResolutionFxSurface surface)
+            {
+                referenceSettings.geometry.surfaces=new[]{surface};
+                return Mean(i=>{Pose(((i+.5f)/16*2-1)*.25f);var f=Frame(reference,referenceSettings,0);f.TryGetLastBatch(FxResolution.Full,out var layer,out _);return ReadSceneTarget(layer);},16);
+            }
+            var rearMean=LayerMean(rear);var frontMean=LayerMean(front);referenceSettings.geometry.surfaces=surfaces;
+            var coherent=Mean(i=>{Pose(((i+.5f)/16*2-1)*.25f);return ReadSceneTarget(Frame(reference,referenceSettings,0).color);},16);
+            var independent=new Color[w*h];for(int p=0;p<independent.Length;p++){independent[p]=frontMean[p]+rearMean[p]*(1-frontMean[p].a)+original[p]*((1-frontMean[p].a)*(1-rearMean[p].a));independent[p].a=original[p].a;}
+            Check("separate-layer-mean-negative-control",Difference(coherent,independent)>.001f,Difference(coherent,independent));
+            renderer.ResetMotionHistory();Pose(-1);Frame(renderer,s,0,mask);Pose(0);var protectedColor=ReadSceneTarget(Frame(renderer,s,.02,mask).color);
+            float protectedError=0;for(int y=0;y<h;y++)for(int x=0;x<9;x++)for(int c=0;c<4;c++)protectedError=Mathf.Max(protectedError,Mathf.Abs(protectedColor[y*w+x][c]-original[y*w+x][c]));
+            Check("protected-composite-exact",protectedError==0,protectedError);
+            Check("snapshot-owned-budget",renderer.ExposureSnapshotBytes==256&&renderer.TargetCount==10,renderer.ExposureSnapshotBytes);
+            Pose(0);var current=ReadSceneTarget(Frame(reference,referenceSettings,0).color);
+            var rewind=ReadSceneTarget(Frame(renderer,s,.01).color);Check("rewind-cold-exact",Difference(current,rewind)==0,Difference(current,rewind));
+            var longGap=ReadSceneTarget(Frame(renderer,s,10).color);Check("long-gap-cold-exact",Difference(current,longGap)==0,Difference(current,longGap));
+            s.exposure.shutterAngle=0;var zero=ReadSceneTarget(Frame(renderer,s,10.02).color);Check("zero-shutter-exact",Difference(current,zero)==0,Difference(current,zero));s.exposure.shutterAngle=180;
+            rear.motionRevision++;front.motionRevision++;var revised=ReadSceneTarget(Frame(renderer,s,10.04).color);Check("revision-cold-exact",Difference(current,revised)==0,Difference(current,revised));
+            s.exposure.samples=3;Check("invalid-sample-budget-rejected",!renderer.TryRender(source,new FogVolumeDepth(depth),camera,s,11,out _)&&renderer.TargetCount==0);s.exposure.samples=16;
+            s.medium.enabled=true;Check("unsupported-medium-explicit",!renderer.TryRender(source,new FogVolumeDepth(depth),camera,s,11,out _)&&renderer.UnavailableReason!=null);s.medium.enabled=false;
+            front.blend=FxBlend.Distortion;Check("unsupported-distortion-explicit",!renderer.TryRender(source,new FogVolumeDepth(depth),camera,s,11,out _)&&renderer.UnavailableReason!=null);front.blend=FxBlend.Alpha;
+            var lease=Frame(renderer,s,12);renderer.Dispose();Check("dispose-invalidates-and-releases",!lease.IsCurrent&&renderer.TargetCount==0);
+
+            // Independently change quadrature size, blend and ordered resolution
+            // boundaries. The oracle renders actual authored sub-time geometry.
+            front.blend=FxBlend.Additive;rear.resolution=FxResolution.Half;front.resolution=FxResolution.Quarter;
+            foreach(int samples in new[]{2,4,8,32})
+            {
+                s.exposure.samples=samples;renderer.ResetMotionHistory();Pose(-1);Frame(renderer,s,0);Pose(0);
+                var actual=ReadSceneTarget(Frame(renderer,s,.02).color);
+                var expected=Mean(i=>{Pose(((i+.5f)/samples*2-1)*.25f);return ReadSceneTarget(Frame(reference,referenceSettings,0).color);},samples);
+                float error=Difference(actual,expected);Check("mixed-alpha-additive-"+samples+"-independent-mean",error<.0002f,error);
+            }
+            front.blend=FxBlend.Alpha;rear.resolution=front.resolution=FxResolution.Full;s.exposure.samples=16;Pose(0);
+            void Cold(string name,double t)
+            {
+                var a=ReadSceneTarget(Frame(renderer,s,t).color);var b=ReadSceneTarget(Frame(reference,referenceSettings,0).color);
+                Check(name,renderer.ExposureSamples==1&&Difference(a,b)==0,Difference(a,b));
+            }
+            renderer.ResetMotionHistory();Frame(renderer,s,0);
+            camera.transform.position=Vector3.right*2;Cold("camera-cut-current-exact",.02);camera.transform.position=Vector3.zero;
+            Frame(renderer,s,0);camera.orthographicSize+=.01f;Cold("projection-change-current-exact",.02);camera.orthographicSize-=.01f;
+            Frame(renderer,s,0);mesh.triangles=new[]{0,1,3,1,2,3};Cold("same-count-topology-change-current-exact",.02);mesh.triangles=new[]{0,1,2,0,2,3};
+            s.exposure.maximumTrackedVertices=7;
+            Check("vertex-budget-rejects-and-releases",!renderer.TryRender(source,new FogVolumeDepth(depth),camera,s,1,out _)&&renderer.TargetCount==0);
+            s.exposure.maximumTrackedVertices=1000000;s.geometry.surfaces=new[]{rear,rear};
+            Check("duplicate-instance-rejected",!renderer.TryRender(source,new FogVolumeDepth(depth),camera,s,1,out _)&&renderer.TargetCount==0);
+            s.geometry.surfaces=surfaces;Frame(renderer,s,0);var owned=Frame(renderer,s,.02).color;
+            Check("owned-input-alias-rejected",!renderer.TryRender(owned,new FogVolumeDepth(depth),camera,s,.04,out _)&&renderer.TargetCount==0);
+            // Nonfinite RFloat masks have the same exact fallback as positive
+            // masks, including after accumulation and a null-mask transition.
+            var unusual=Target(RenderTextureFormat.RFloat);Upload(unusual,(x,y)=>new Color(x<9?float.NaN:0,0,0,0));
+            renderer.ResetMotionHistory();Pose(-1);Frame(renderer,s,0,unusual);Pose(0);
+            var protectedNan=ReadSceneTarget(Frame(renderer,s,.02,unusual).color);float nanError=0;
+            for(int y=0;y<h;y++)for(int x=0;x<9;x++)for(int c=0;c<4;c++)nanError=Mathf.Max(nanError,Mathf.Abs(protectedNan[y*w+x][c]-original[y*w+x][c]));
+            Check("nonfinite-protection-exact",nanError==0,nanError);
+            s.exposure.enabled=false;Frame(renderer,s,.04);
+            Check("disabled-releases-exposure-targets",renderer.ExposureSnapshotBytes==0&&renderer.TargetCount==5&&renderer.ExposureSamples==1);
+            s.exposure.enabled=true;
+
+            // A fixed renderer root and moving child bone ensure the endpoint
+            // shader sees the actual engine-deformed stream, not just a matrix.
+            var rig=Own(new GameObject("FX exposure actual GPU skin"));rig.layer=26;
+            var bone=Own(new GameObject("FX exposure child bone"));bone.transform.SetParent(rig.transform,false);
+            var skinMesh=Own(Instantiate(mesh));var weight=new BoneWeight {boneIndex0=0,weight0=1};
+            skinMesh.boneWeights=new[]{weight,weight,weight,weight};skinMesh.bindposes=new[]{Matrix4x4.identity};
+            skinMesh.normals=new[]{Vector3.back,Vector3.back,Vector3.back,Vector3.back};
+            var skin=rig.AddComponent<SkinnedMeshRenderer>();skin.sharedMesh=skinMesh;skin.bones=new[]{bone.transform};skin.rootBone=rig.transform;
+            skin.sharedMaterial=Own(new Material(Resources.Load<Shader>("HeavyFx")));skin.updateWhenOffscreen=true;skin.localBounds=new Bounds(new Vector3(0,0,5),Vector3.one*12);
+            var skinnedSurface=new LowResolutionFxSurface {renderer=skin,opacity=rear.opacity,radialSoftness=rear.radialSoftness,linearRadiance=rear.linearRadiance,resolution=FxResolution.Full};
+            s.geometry.surfaces=new[]{skinnedSurface};referenceSettings.geometry.surfaces=new[]{rear};
+            renderer.ResetMotionHistory();bone.transform.localPosition=new Vector3(-.8f,0,5);
+            yield return null;yield return null;
+            Frame(renderer,s,0);bone.transform.localPosition=new Vector3(0,0,5);
+            yield return null;yield return null;
+            var skinActual=ReadSceneTarget(Frame(renderer,s,.02).color);
+            var skinExpected=Mean(i=>{rear.localToWorld=Matrix4x4.Translate(new Vector3(((i+.5f)/16*2-1)*.25f*.8f,0,5));return ReadSceneTarget(Frame(reference,referenceSettings,0).color);},16);
+            float skinError=Difference(skinActual,skinExpected);Check("actual-skinned-endpoints-independent-mean",skinError<.0002f,skinError);
+            rear.localToWorld=Matrix4x4.Translate(new Vector3(0,0,5));var skinSharp=ReadSceneTarget(Frame(reference,referenceSettings,0).color);
+            var skinPaused=ReadSceneTarget(Frame(renderer,s,.02).color);
+            Check("actual-skin-current-matches-independent-matrix",Difference(skinPaused,skinSharp)<.0002f,Difference(skinPaused,skinSharp));
+            Check("actual-skin-positive-coverage",Difference(skinActual,skinSharp)>.001f,Difference(skinActual,skinSharp));
+            var block=new MaterialPropertyBlock();block.SetFloat("_Unsupported",1);skin.SetPropertyBlock(block);
+            Check("renderer-property-block-rejected",!renderer.TryRender(source,new FogVolumeDepth(depth),camera,s,.04,out _)&&renderer.TargetCount==0);
+            skin.SetPropertyBlock(null);rig.SetActive(false);
+        }
+
         private IEnumerator VerifyHeavyFx(Report report)
         {
             yield return null;
