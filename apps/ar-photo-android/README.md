@@ -24,6 +24,10 @@ the synthetic preview also runs on a device without ARCore. For real AR, use an
 [ARCore-supported device](https://developers.google.com/ar/devices) with
 Google Play Services for AR installed and grant camera permission. A dedicated
 depth camera is not required for the current plane-placement flow.
+The app requests camera permission only when you enter real AR or dataset
+playback. Granting it starts the selected mode automatically; denying it keeps
+the synthetic preview available. A previously imported dataset remains private
+to the app until its data is cleared or replaced.
 
 ## Offline test without a phone
 

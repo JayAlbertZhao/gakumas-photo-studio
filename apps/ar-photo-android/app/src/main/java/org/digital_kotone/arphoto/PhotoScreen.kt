@@ -1,5 +1,9 @@
 package org.digital_kotone.arphoto
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -96,6 +100,19 @@ internal fun PhotoScreen(
     var arMode by rememberSaveable { mutableStateOf(false) }
     var replayMode by rememberSaveable { mutableStateOf(false) }
     var replayRun by rememberSaveable { mutableIntStateOf(0) }
+    var permissionTargetReplay by rememberSaveable { mutableStateOf(false) }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            arMode = true
+            replayMode = permissionTargetReplay
+        } else {
+            arMode = false
+            replayMode = false
+            onMessage("未获得相机权限；仍可使用合成预览")
+        }
+    }
     // Each mode owns a separate scene. Recreate the Filament ModelInstance when
     // crossing scenes or replacing the same app-private file with a new GLB.
     // The named URL overload is required for file:// locations.
@@ -149,6 +166,18 @@ internal fun PhotoScreen(
             }
             runCatching { session.pause() }
         }
+    }
+
+    fun switchToArMode(replay: Boolean) {
+        if (context.checkSelfPermission(Manifest.permission.CAMERA) !=
+            PackageManager.PERMISSION_GRANTED) {
+            permissionTargetReplay = replay
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            return
+        }
+        if (arMode && replayMode != replay) pauseForModeSwitch()
+        arMode = true
+        replayMode = replay
     }
 
     LaunchedEffect(modelLocation, modelRevision) { animationIndex = 0 }
@@ -307,15 +336,11 @@ internal fun PhotoScreen(
                             arMode = false; replayMode = false
                         }, label = { Text("合成预览") })
                         FilterChip(selected = arMode && !replayMode, onClick = {
-                            if (arMode && replayMode) pauseForModeSwitch()
-                            arMode = true; replayMode = false
+                            switchToArMode(false)
                         }, label = { Text("真实 AR") })
                         FilterChip(selected = arMode && replayMode, onClick = {
                             if (playbackDataset == null) onPickDataset()
-                            else {
-                                if (arMode && !replayMode) pauseForModeSwitch()
-                                arMode = true; replayMode = true
-                            }
+                            else switchToArMode(true)
                         }, label = { Text("数据回放") })
                     }
                     if (arMode) Text(if (replayMode) "回放录制的相机与传感器数据；轻触检测到的平面放置。" else "扫描水平面并轻触放置；无设备可用合成预览。")

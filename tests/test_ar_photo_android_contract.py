@@ -79,6 +79,16 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertNotIn("previewRoot.get()?.position", screen)
         self.assertIn("modelRevision.intValue++", activity)
 
+    def test_camera_permission_gates_ar_scene_creation(self):
+        screen = (APP / "app/src/main/java/org/digital_kotone/arphoto/PhotoScreen.kt").read_text(encoding="utf-8")
+        self.assertIn("ActivityResultContracts.RequestPermission()", screen)
+        self.assertIn("var permissionTargetReplay by rememberSaveable", screen)
+        self.assertIn("context.checkSelfPermission(Manifest.permission.CAMERA)", screen)
+        self.assertIn("cameraPermissionLauncher.launch(Manifest.permission.CAMERA)", screen)
+        self.assertIn("replayMode = permissionTargetReplay", screen)
+        self.assertIn("switchToArMode(false)", screen)
+        self.assertIn("switchToArMode(true)", screen)
+
 
 if __name__ == "__main__":
     unittest.main()
