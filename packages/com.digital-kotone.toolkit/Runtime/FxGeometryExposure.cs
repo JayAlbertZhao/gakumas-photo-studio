@@ -14,6 +14,8 @@ namespace GakumasPhotoMode
         public bool enabled;
         // Requires an explicit unmixed opaque motion/depth endpoint input.
         public bool reprojectOpaque;
+        // Optional current-visible forward ownership; requires uint compute targets.
+        public bool forwardOpaqueOwnership;
         public float opaqueDepthTolerance=.02f;
         public int samples=8;
         public float shutterAngle=180;

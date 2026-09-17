@@ -230,7 +230,10 @@ class DesktopHostContract(unittest.TestCase):
                  'planar.TryRecord(', 'reflection.TryRecord(', 'actor.TryRecord(']
         positions = [SOURCE.index(x) for x in order]
         self.assertEqual(positions, sorted(positions))
-        post = [SOURCE.index(x) for x in ('effects.TryRender(', 'temporal.TryRender(', 'dof.TryRender(', 'motionBlur.TryRender(', 'bloom.TryRender(', 'fsr.TryRender(', 'diffusion.TryRender(', 'grade.TryRender(')]
+        # The optional phase filter calls DOF inside the FX integrator. Check
+        # the separate, unchanged default post chain after the effects branch.
+        start = SOURCE.index('if (s.effects.enabled)', SOURCE.index('TryFinishAfterSubmission'))
+        post = [SOURCE.index(x,start) for x in ('effects.TryRender(', 'temporal.TryRender(', 'dof.TryRender(', 'motionBlur.TryRender(', 'bloom.TryRender(', 'fsr.TryRender(', 'diffusion.TryRender(', 'grade.TryRender(')]
         self.assertEqual(post, sorted(post))
         self.assertIn('new FogVolumeDepth(actorFrame.eyeDepth)', SOURCE)
         self.assertNotIn('new Material(', SOURCE)
@@ -255,6 +258,13 @@ class DesktopHostContract(unittest.TestCase):
         # clock before FX; do not erase it when skipping a second color blur.
         self.assertIn('else if(!coherent)motionBlur.ResetHistory();', SOURCE)
         self.assertIn('motionBlur.TryPrepareOpaqueInput(actorFrame', SOURCE)
+
+    def test_lens_exposure_is_opt_in_and_does_not_publish_one_phase_depth_as_integral(self):
+        for token in ('public bool depthOfFieldDuringExposure;', 'coherent&&s.depthOfField.enabled&&s.depthOfFieldDuringExposure',
+                      'sampleFilter:sampleDof?', 's.depthOfField.enabled&&!sampleDof',
+                      'postEyeDepth=depthOfFieldExposureSamples>0?null:value.postDepth',
+                      'encodedCoC=depthOfFieldExposureSamples==0&&value.dofFrame.HasValue'):
+            self.assertIn(token,SOURCE)
 
     def test_fsr_requires_real_low_resolution_hdr_and_retires_borrowed_frames(self):
         fsr = (RUNTIME / 'FsrRenderer.cs').read_text(encoding='utf-8')

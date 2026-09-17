@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace GakumasPhotoMode
@@ -181,13 +182,12 @@ namespace GakumasPhotoMode
                     int p=y*w+x;var expected=current[p];double expectedDepth=z;
                     if(x+ax>=0&&x+ax<w&&y+ay>=0&&y+ay<h)
                     {
-                        var sum=new double[4];expectedDepth=0;
+                        var sum=new double[4];expectedDepth=z+(z-oldZ)*phase;
                         for(int sy=0;sy<2;sy++)for(int sx=0;sx<2;sx++)
                         {
                             int xx=x+ox+sx,yy=y+oy+sy;bool valid=xx>=0&&xx<w&&yy>=0&&yy<h;
                             double weight=(sx==0?1-fx:fx)*(sy==0?1-fy:fy);var color=valid?current[yy*w+xx]:current[p];
                             for(int c=0;c<4;c++)sum[c]+=color[c]*weight;
-                            expectedDepth+=(valid?z+(z-oldZ)*phase:z)*weight;
                         }
                         expected=new Color((float)sum[0],(float)sum[1],(float)sum[2],current[p].a);
                     }
@@ -204,6 +204,74 @@ namespace GakumasPhotoMode
             Check("owned-source-rejected",!renderer.TryRender(new MotionBlurInput(cold.color,guide,.02f),depth,previous,.25f,.02f,false,32,out _)&&renderer.TargetCount==0);
             Check("wrong-previous-depth-alias-rejected",!renderer.TryRender(input,depth,depth,.25f,.02f,false,32,out _));
             Check("jitter-not-silently-ignored",!renderer.TryRender(new MotionBlurInput(source,guide,.02f,new Vector2(.01f,0)),depth,previous,.25f,.02f,false,32,out _));
+            // Two disjoint constant-depth surfaces: filtering their color cannot
+            // create a third eye-depth plane, including along the moving edge.
+            Upload(depth,(x,y)=>new Color(x<w/2?2:9,0,0,0));Upload(previous,(x,y)=>new Color(x<w/2?2:9,0,0,0));
+            Upload(guide,(x,y)=>new Color((x<w/2?3.5f:.5f)/w,0,x<w/2?2:9,1));
+            foreach(float phase in new[]{-.25f,.25f})
+            {
+                if(!renderer.TryRender(input,depth,previous,phase,.02f,true,32,out var f))throw new InvalidOperationException(renderer.UnavailableReason);
+                var actualDepth=ReadSceneTarget(f.eyeDepth);int invented=0;foreach(var pixel in actualDepth)if(pixel.r!=2&&pixel.r!=9)invented++;
+                Check("discontinuous-planes-"+phase+"-no-invented-depth",invented==0,invented);
+            }
+            // Independent integer translations of two visible layers. Rasterize
+            // projected source centers on the CPU, choosing (eye depth, source ID).
+            // Include overlap, uncovered pixels, equal-depth ties and exclusions.
+            var flags=Target(RenderTextureFormat.R8);
+            Upload(flags,(x,y)=>new Color(x==w/2?4f/255:0,0,0,0));
+            input=new MotionBlurInput(source,guide,.02f,noJitterFlags:flags);
+            foreach(bool equalDepth in new[]{false,true})foreach(float phase in new[]{-.25f,.25f})
+            {
+                float Z(int x)=>equalDepth||x<w/2?2:9;
+                int Move(int x)=>x<w/2?8:-8;
+                Upload(depth,(x,y)=>new Color(Z(x),0,0,0));Upload(previous,(x,y)=>new Color(Z(x),0,0,0));
+                Upload(guide,(x,y)=>new Color((float)Move(x)/w,0,Z(x),1));
+                if(!renderer.TryRender(input,depth,previous,phase,.02f,true,32,out var fallback))throw new InvalidOperationException(renderer.UnavailableReason);
+                var expectedColor=ReadSceneTarget(fallback.color);var expectedDepth=ReadSceneTarget(fallback.eyeDepth);
+                var owners=new int[w*h];for(int p=0;p<owners.Length;p++)owners[p]=-1;
+                int collisions=0,holes=0;
+                for(int y=0;y<h;y++)for(int x=0;x<w;x++)
+                {
+                    if(x==w/2)continue;int xx=x+(int)(Move(x)*phase);if(xx<0||xx>=w)continue;
+                    int q=y*w+xx,p=y*w+x,old=owners[q];if(old>=0)collisions++;
+                    if(old<0||Z(x)<Z(old%w)||(Z(x)==Z(old%w)&&p<old))owners[q]=p;
+                }
+                for(int p=0;p<owners.Length;p++)
+                {
+                    int owner=owners[p];if(owner<0){holes++;continue;}if(p%w==w/2)continue;
+                    expectedColor[p]=current[owner];expectedColor[p].a=current[p].a;expectedDepth[p].r=Z(owner%w);
+                }
+                if(!renderer.TryRender(input,depth,previous,phase,.02f,true,32,out var f,forwardOwnership:true))throw new InvalidOperationException(renderer.UnavailableReason);
+                var actual=ReadSceneTarget(f.color);var actualDepth=ReadSceneTarget(f.eyeDepth);float maximum=0,alpha=0;
+                for(int p=0;p<actual.Length;p++)
+                {
+                    for(int c=0;c<4;c++)maximum=Mathf.Max(maximum,Mathf.Abs(actual[p][c]-expectedColor[p][c]));
+                    maximum=Mathf.Max(maximum,Mathf.Abs(actualDepth[p].r-expectedDepth[p].r));alpha=Mathf.Max(alpha,Mathf.Abs(actual[p].a-current[p].a));
+                }
+                string label="forward-owner-"+equalDepth+"-"+phase;
+                Check(label+"-independent-visible-owner-color-and-depth",maximum<.0002f&&alpha==0,maximum);
+                Check(label+"-nonvacuous-gap-and-overlap",holes>0&&(phase<0||collisions>0));
+                Check(label+"-explicit-storage-and-dispatches",renderer.TargetCount==4&&renderer.TargetBytes==(long)w*h*28&&renderer.DrawCalls==1&&renderer.DispatchCalls==3);
+                if(!renderer.TryRender(input,depth,previous,phase,.02f,true,32,out var repeat,forwardOwnership:true))throw new InvalidOperationException(renderer.UnavailableReason);
+                Check(label+"-repeat-deterministic",!f.IsCurrent&&ScenePixelsEqual(actual,ReadSceneTarget(repeat.color))&&ScenePixelsEqual(actualDepth,ReadSceneTarget(repeat.eyeDepth)));
+            }
+            renderer.TryRender(input,depth,previous,0,.02f,true,32,out var still,forwardOwnership:true);
+            Check("forward-owner-zero-phase-exact-no-dispatch",still.IsCurrent&&renderer.DispatchCalls==0&&ScenePixelsEqual(current,ReadSceneTarget(still.color)));
+            renderer.TryRender(new MotionBlurInput(source,guide,0),depth,previous,.25f,.02f,true,32,out var first,forwardOwnership:true);
+            Check("forward-owner-cold-exact-no-dispatch",first.IsCurrent&&renderer.DispatchCalls==0&&ScenePixelsEqual(current,ReadSceneTarget(first.color)));
+            renderer.TryRender(input,depth,previous,.25f,.02f,true,32,out var disabled);
+            Check("forward-owner-disabled-releases-extra-storage",disabled.IsCurrent&&renderer.TargetCount==2&&renderer.TargetBytes==(long)w*h*20&&renderer.DispatchCalls==0);
+            Upload(guide,(x,y)=>new Color((float)(x<w/2?8:-8)/w,0,x<w/2?2:9,x==w/2+1?0:1));
+            renderer.TryRender(input,depth,previous,.25f,.02f,true,32,out var invalid,forwardOwnership:true);
+            var invalidPixels=ReadSceneTarget(invalid.color);bool protectedExact=true;
+            for(int y=0;y<h;y++)for(int c=0;c<4;c++)protectedExact&=invalidPixels[y*w+w/2+1][c]==current[y*w+w/2+1][c];
+            Check("forward-owner-invalid-current-guide-protected",invalid.IsCurrent&&protectedExact);
+            var savedSource=ReadSceneTarget(source);
+            Check("forward-owner-budget-failure-releases-storage",!renderer.TryRender(input,depth,previous,.25f,.02f,true,0,out _,forwardOwnership:true)&&
+                renderer.TargetCount==0&&renderer.DispatchCalls==0&&ScenePixelsEqual(savedSource,ReadSceneTarget(source)));
+            Upload(guide,(x,y)=>new Color(1e10f,0,2,1));
+            renderer.TryRender(input,depth,previous,.25f,.02f,true,32,out var huge,forwardOwnership:true);
+            Check("forward-owner-huge-finite-flow-bounded-fallback",huge.IsCurrent&&ScenePixelsEqual(current,ReadSceneTarget(huge.color)));
         }
 
         private void VerifyCoherentOpaqueFxExposure(Report report)
@@ -229,12 +297,21 @@ namespace GakumasPhotoMode
             var settings=new HeavyFxSettings {enabled=true};settings.geometry.enabled=true;settings.geometry.surfaces=new[]{rear,front};settings.exposure.enabled=true;settings.exposure.reprojectOpaque=true;settings.exposure.samples=16;
             var refSettings=new HeavyFxSettings {enabled=true};refSettings.geometry.enabled=true;refSettings.geometry.surfaces=settings.geometry.surfaces;
             using var actualRenderer=new HeavyFxRenderer();using var referenceRenderer=new HeavyFxRenderer();
+            using var sampleDof=new BokehDepthOfFieldRenderer();using var referenceDof=new BokehDepthOfFieldRenderer();
+            var lens=new BokehDepthOfFieldSettings {enabled=true,focusMode=BokehFocusMode.FocusRange,focusNear=4.9f,focusFar=5.1f,nearTransition=.7f,farTransition=.7f,maximumRadius=.06f,nearBlur=1,farBlur=1};
+            var filterPhases=new List<float>();
+            bool Filter(RenderTexture color,RenderTexture eyeDepth,float phase,out RenderTexture output,out string error)
+            {
+                output=null;error=null;filterPhases.Add(phase);
+                if(!sampleDof.TryRender(color,eyeDepth,lens,out var f)){error=sampleDof.UnavailableReason;return false;}
+                output=f.color;return true;
+            }
             void Pose(float t){rear.localToWorld=Matrix4x4.Translate(new Vector3(-.1f+.8f*t,0,5.1f));front.localToWorld=Matrix4x4.Translate(new Vector3(.1f-.6f*t,.1f,4.6f));}
-            HeavyFxRenderer.Frame Actual(double time,float interval)
-            {if(!actualRenderer.TryRender(source,new FogVolumeDepth(depth),camera,settings,time,out var f,opaqueMotion:new MotionBlurInput(source,guide,interval),expectedPreviousDepth:previous))throw new InvalidOperationException(actualRenderer.UnavailableReason);return f;}
+            HeavyFxRenderer.Frame Actual(double time,float interval,HeavyFxRenderer.ExposureSampleFilter filter=null)
+            {if(!actualRenderer.TryRender(source,new FogVolumeDepth(depth),camera,settings,time,out var f,opaqueMotion:new MotionBlurInput(source,guide,interval),expectedPreviousDepth:previous,sampleFilter:filter))throw new InvalidOperationException(actualRenderer.UnavailableReason);return f;}
             // CPU authored image translation plus independent current geometry
             // draws at each sub-time. No OpaqueExposureRenderer in the oracle.
-            Color[] Reference(float t)
+            Color[] Reference(float t,bool filtered=false)
             {
                 double tx=-dx*t,ty=-dy*t;int ox=(int)Math.Floor(tx),oy=(int)Math.Floor(ty);double fx=tx-ox,fy=ty-oy;
                 int ax=(int)Math.Floor(tx+.5),ay=(int)Math.Floor(ty+.5);
@@ -248,12 +325,12 @@ namespace GakumasPhotoMode
                 });
                 Upload(sampleDepth,(x,y)=>
                 {
-                    if(!Anchor(x,y))return new Color(5,0,0,0);double sum=0;
-                    for(int yy=0;yy<2;yy++)for(int xx=0;xx<2;xx++){int px=x+ox+xx,py=y+oy+yy;bool valid=px>=0&&px<w&&py>=0&&py<h;sum+=(valid?5-3*t:5)*(xx==0?1-fx:fx)*(yy==0?1-fy:fy);}
-                    return new Color((float)sum,0,0,0);
+                    return new Color(Anchor(x,y)?5-3*t:5,0,0,0);
                 });
                 Pose(t);if(!referenceRenderer.TryRender(sampleSource,new FogVolumeDepth(sampleDepth),camera,refSettings,0,out var f))throw new InvalidOperationException(referenceRenderer.UnavailableReason);
-                return ReadSceneTarget(f.color);
+                if(!filtered)return ReadSceneTarget(f.color);
+                if(!referenceDof.TryRender(f.color,sampleDepth,lens,out var dof))throw new InvalidOperationException(referenceDof.UnavailableReason);
+                return ReadSceneTarget(dof.color);
             }
             foreach(var resolution in new[]{FxResolution.Full,FxResolution.Half,FxResolution.Quarter})
             {
@@ -272,6 +349,45 @@ namespace GakumasPhotoMode
             settings.exposure.reprojectOpaque=true;actualRenderer.ResetMotionHistory();Pose(0);Actual(0,0);
             Check("clock-mismatch-rejected",!actualRenderer.TryRender(source,new FogVolumeDepth(depth),camera,settings,.02,out _,opaqueMotion:new MotionBlurInput(source,guide,.04f),expectedPreviousDepth:previous)&&actualRenderer.TargetCount==0);
             Check("missing-opaque-input-rejected",!actualRenderer.TryRender(source,new FogVolumeDepth(depth),camera,settings,1,out _)&&actualRenderer.TargetCount==0);
+
+            // Lens filtering is nonlinear in time-varying depth/coverage. The
+            // oracle uses independently authored sub-time colors/depth/geometry,
+            // NOT the actual opaque warp and NOT a filter of the time mean.
+            foreach(var resolution in new[]{FxResolution.Full,FxResolution.Half,FxResolution.Quarter})
+            {
+                rear.resolution=front.resolution=resolution;actualRenderer.ResetMotionHistory();Pose(-1);Actual(0,0,Filter);Pose(0);filterPhases.Clear();
+                var actual=ReadSceneTarget(Actual(.02,.02f,Filter).color);
+                bool phases=filterPhases.Count==16;for(int i=0;i<filterPhases.Count;i++)phases&=filterPhases[i]==((i+.5f)/16*2-1)*.25f;
+                Check("shutter-dof-"+resolution+"-same-phase-calls",phases);
+                var sum=new double[w*h*4];for(int i=0;i<16;i++){var sample=Reference(((i+.5f)/16*2-1)*.25f,true);for(int p=0;p<sample.Length;p++)for(int c=0;c<4;c++)sum[p*4+c]+=sample[p][c]/16;}
+                var expected=new Color[w*h];for(int p=0;p<expected.Length;p++)for(int c=0;c<4;c++)expected[p][c]=(float)sum[p*4+c];
+                float error=Difference(actual,expected);Check("shutter-dof-"+resolution+"-independent-time-lens-color",error<.0002f,error);
+                actualRenderer.ResetMotionHistory();Pose(-1);Actual(0,0);Pose(0);var noLens=Actual(.02,.02f);
+                if(!sampleDof.TryRender(noLens.color,depth,lens,out var finalLens))throw new InvalidOperationException(sampleDof.UnavailableReason);
+                float negative=Difference(ReadSceneTarget(finalLens.color),expected);Check("shutter-dof-"+resolution+"-filter-after-mean-negative-control",negative>.001f,negative);
+                actualRenderer.ResetMotionHistory();Pose(-1);Actual(0,0,Filter);Pose(0);var replay=ReadSceneTarget(Actual(.02,.02f,Filter).color);
+                Check("shutter-dof-"+resolution+"-repeat-exact",Difference(actual,replay)==0,Difference(actual,replay));
+                filterPhases.Clear();var paused=ReadSceneTarget(Actual(.02,0,Filter).color);var sharp=Reference(0,true);
+                Check("shutter-dof-"+resolution+"-pause-one-phase",filterPhases.Count==1&&filterPhases[0]==0&&Difference(paused,sharp)<.0002f,Difference(paused,sharp));
+                float alpha=0;for(int p=0;p<actual.Length;p++)alpha=Mathf.Max(alpha,Mathf.Abs(actual[p].a-original[p].a));
+                Check("shutter-dof-"+resolution+"-alpha-exact",alpha==0,alpha);
+            }
+            bool Reject(RenderTexture color,RenderTexture eyeDepth,float phase,out RenderTexture output,out string error)
+            {output=null;error="independent filter rejection";return false;}
+            Pose(0);Check("shutter-dof-filter-failure-releases",!actualRenderer.TryRender(source,new FogVolumeDepth(depth),camera,settings,1,out _,opaqueMotion:new MotionBlurInput(source,guide,0),expectedPreviousDepth:previous,sampleFilter:Reject)&&actualRenderer.TargetCount==0);
+            bool BadOutput(RenderTexture color,RenderTexture eyeDepth,float phase,out RenderTexture output,out string error)
+            {output=eyeDepth;error=null;return true;}
+            Check("shutter-dof-filter-wrong-format-rejected",!actualRenderer.TryRender(source,new FogVolumeDepth(depth),camera,settings,1,out _,opaqueMotion:new MotionBlurInput(source,guide,0),expectedPreviousDepth:previous,sampleFilter:BadOutput)&&actualRenderer.TargetCount==0);
+            settings.exposure.reprojectOpaque=false;
+            Check("shutter-dof-filter-without-coherent-depth-rejected",!actualRenderer.TryRender(source,new FogVolumeDepth(depth),camera,settings,1,out _,sampleFilter:Filter)&&actualRenderer.TargetCount==0);
+            settings.exposure.reprojectOpaque=true;
+            bool Reenter(RenderTexture color,RenderTexture eyeDepth,float phase,out RenderTexture output,out string error)
+            {output=color;error=null;actualRenderer.TryRender(source,new FogVolumeDepth(depth),camera,settings,1,out _);return true;}
+            Check("shutter-dof-filter-reentry-rejects-outer",!actualRenderer.TryRender(source,new FogVolumeDepth(depth),camera,settings,1,out _,opaqueMotion:new MotionBlurInput(source,guide,0),expectedPreviousDepth:previous,sampleFilter:Reenter)&&actualRenderer.TargetCount==0);
+            bool Throw(RenderTexture color,RenderTexture eyeDepth,float phase,out RenderTexture output,out string error)
+            {throw new InvalidOperationException("Independent filter exception");}
+            Check("shutter-dof-filter-exception-releases",!actualRenderer.TryRender(source,new FogVolumeDepth(depth),camera,settings,1,out _,opaqueMotion:new MotionBlurInput(source,guide,0),expectedPreviousDepth:previous,sampleFilter:Throw)&&actualRenderer.TargetCount==0);
+            Check("shutter-dof-filter-failure-keeps-caller-input",source.IsCreated()&&depth.IsCreated()&&previous.IsCreated()&&Difference(ReadSceneTarget(source),original)==0);
         }
 
         private IEnumerator VerifyHeavyFx(Report report)

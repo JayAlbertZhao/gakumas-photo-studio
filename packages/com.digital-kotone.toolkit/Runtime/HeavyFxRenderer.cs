@@ -9,6 +9,13 @@ namespace GakumasPhotoMode
     /// <summary>Typed medium/surface/optical producers sharing ordered premultiplied work targets.</summary>
     public sealed class HeavyFxRenderer : IDisposable
     {
+        /// <summary>Optional same-time filter, called after ordered FX composition
+        /// and before shutter averaging. Borrowed inputs must not be modified or
+        /// retained; output is consumed immediately. Caller owns filter resources
+        /// and their separate budget. Only available with opaque reprojection.</summary>
+        public delegate bool ExposureSampleFilter(RenderTexture color,RenderTexture eyeDepth,float phase,
+            out RenderTexture filtered,out string error);
+        private bool invokingExposureFilter;
         private sealed class Scratch { public RenderTexture effect, range; }
         private sealed class Batch
         {
@@ -66,6 +73,7 @@ namespace GakumasPhotoMode
         public int BatchCount => batches.Count;
         public int ShadowCasterDrawCalls => shadows.CasterDrawCalls;
         public long TargetBytes {get;private set;}
+        public int OpaqueDispatchCalls {get;private set;}
         public int LightingBufferCount => surfaceLighting.BufferCount;
         public long LightingBufferBytes => surfaceLighting.BufferBytes;
         public int LightingTileCount => surfaceLighting.TileCount;
@@ -95,9 +103,11 @@ namespace GakumasPhotoMode
         {frame=default;if(!hasFrame||!Created)return false;frame=new Frame(this);return true;}
 
         public bool TryRender(RenderTexture source,FogVolumeDepth depth,Camera camera,HeavyFxSettings settings,
-            double timeSeconds,out Frame frame,RenderTexture protection=null,MotionBlurInput? opaqueMotion=null,RenderTexture expectedPreviousDepth=null)
+            double timeSeconds,out Frame frame,RenderTexture protection=null,MotionBlurInput? opaqueMotion=null,RenderTexture expectedPreviousDepth=null,
+            ExposureSampleFilter sampleFilter=null)
         {
-            frame=default;generation++;hasFrame=false;DrawCalls=ReplayDrawCalls=0;UnavailableReason=null;
+            if(invokingExposureFilter){frame=default;UnavailableReason="Exposure filters must not reenter their producer";return false;}
+            frame=default;generation++;hasFrame=false;DrawCalls=ReplayDrawCalls=OpaqueDispatchCalls=0;UnavailableReason=null;
             if(settings==null||!settings.enabled){Release();return false;}
             if(!Inputs(source,depth,protection))return Fail("Joint FX requires distinct matching current linear HDR/depth/protection targets");
             if(!Range(settings.depthAbsoluteTolerance,0,10)||!Range(settings.depthRelativeTolerance,0,1)||!Range(settings.effectEdgeThreshold,0,65504)||
@@ -108,6 +118,7 @@ namespace GakumasPhotoMode
             bool hasOptics=settings.optics!=null&&settings.optics.enabled;
             bool expose=settings.exposure!=null&&settings.exposure.enabled;
             bool exposeOpaque=expose&&settings.exposure.reprojectOpaque;
+            if(sampleFilter!=null&&!exposeOpaque)return Fail("Exposure sample filters require coherent opaque color and depth");
             if(exposeOpaque&&(!opaqueMotion.HasValue||opaqueMotion.Value.color!=source||expectedPreviousDepth==null||depth.encoding!=FogDepthEncoding.LinearEye))
                 return Fail("Coherent opaque exposure requires unmixed motion, previous surface depth and current linear eye depth");
             if(expose&&(hasMedium||hasOptics||!hasGeometry||!settings.exposure.IsValid))
@@ -155,6 +166,7 @@ namespace GakumasPhotoMode
                 for(int i=0;i<3;i++)if(needed[i])budget+=(long)Divide(source.width,1<<i)*Divide(source.height,1<<i)*24;
                 if(expose)budget+=(long)source.width*source.height*16;
                 if(exposeOpaque)budget+=(long)source.width*source.height*20;
+                if(exposeOpaque&&settings.exposure.forwardOpaqueOwnership)budget+=(long)source.width*source.height*8;
                 if(budget>(long)settings.maximumTargetMiB*1024*1024)return Fail("Joint owned targets exceed the explicit memory budget");
                 var shader=Resources.Load<Shader>("HeavyFx");
                 if(shader==null||!shader.isSupported||!Supported(GraphicsFormat.R32G32B32A32_SFloat)||!Supported(GraphicsFormat.R32G32_SFloat)||!Supported(GraphicsFormat.R8_UNorm)||
@@ -198,6 +210,7 @@ namespace GakumasPhotoMode
                 }
                 TargetBytes+=exposure.TextureBytes+(exposureSum!=null?(long)source.width*source.height*16:0);
                 if(exposeOpaque)TargetBytes+=(long)source.width*source.height*20;
+                if(exposeOpaque&&settings.exposure.forwardOpaqueOwnership)TargetBytes+=(long)source.width*source.height*8;
                 if(resolve==null)resolve=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
                 if(surfaceMaterial==null)surfaceMaterial=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
                 if(surfaceLighting.Active&&litSurfaceMaterial==null)litSurfaceMaterial=new Material(surfaceLighting.SurfaceShader){hideFlags=HideFlags.HideAndDontSave};
@@ -294,7 +307,8 @@ namespace GakumasPhotoMode
                 {for(int i=0;i<3;i++)if(needed[i]){Common(resolve,(FxResolution)(1<<i),1,null,false);Graphics.Blit(source,scratch[i].range,resolve,0);DrawCalls++;}}
                 if(!exposeOpaque)
                 {Common(resolve,FxResolution.Full,0,null,false);Graphics.Blit(source,a,resolve,7);DrawCalls++;current=a;DepthRanges();}
-                if(ExposureSamples>1)
+                bool integrate=ExposureSamples>1||sampleFilter!=null;
+                if(integrate)
                 {RenderTexture.active=exposureSum;GL.Clear(false,true,Color.clear);exposureResolve.SetFloat("_FxExposureWeight",1f/ExposureSamples);}
                 for(int sample=0;sample<ExposureSamples;sample++)
                 {
@@ -302,8 +316,10 @@ namespace GakumasPhotoMode
                     if(exposeOpaque)
                     {
                         if(!opaqueExposure.TryRender(opaqueMotion.Value,depth.texture,expectedPreviousDepth,exposurePhase,
-                            settings.exposure.opaqueDepthTolerance,camera.orthographic,settings.maximumTargetMiB,out var subframe))return Fail(opaqueExposure.UnavailableReason);
+                            settings.exposure.opaqueDepthTolerance,camera.orthographic,settings.maximumTargetMiB,out var subframe,
+                            settings.exposure.forwardOpaqueOwnership))return Fail(opaqueExposure.UnavailableReason);
                         opaqueSubframe=subframe;phaseDepth=subframe.eyeDepth;DrawCalls+=opaqueExposure.DrawCalls;
+                        OpaqueDispatchCalls+=opaqueExposure.DispatchCalls;
                         Common(resolve,FxResolution.Full,0,null,false);Graphics.Blit(subframe.color,a,resolve,7);DrawCalls++;current=a;DepthRanges();
                     }
                     else if(sample>0){Common(resolve,FxResolution.Full,0,null,false);Graphics.Blit(source,a,resolve,7);DrawCalls++;current=a;}
@@ -321,9 +337,23 @@ namespace GakumasPhotoMode
                         if(batch.resolution!=FxResolution.Full)DrawBatch(batch,next,2,targets);
                         current=next;
                     }
-                    if(ExposureSamples>1){Graphics.Blit(current,exposureSum,exposureResolve,0);DrawCalls++;}
+                    var sampleColor=current;
+                    if(sampleFilter!=null)
+                    {
+                        bool filtered;string filterError;
+                        invokingExposureFilter=true;
+                        try{filtered=sampleFilter(current,phaseDepth,exposurePhase,out sampleColor,out filterError);}
+                        finally{invokingExposureFilter=false;}
+                        if(!filtered||UnavailableReason!=null)return Fail("Exposure sample filter failed: "+(filterError??UnavailableReason));
+                        if(!Valid(sampleColor)||sampleColor.sRGB||sampleColor.memorylessMode!=RenderTextureMemoryless.None||
+                            sampleColor.width!=source.width||sampleColor.height!=source.height||
+                            sampleColor.graphicsFormat!=GraphicsFormat.R32G32B32A32_SFloat||
+                            (Owns(sampleColor)&&sampleColor!=current)||sampleColor==source)
+                            return Fail("Exposure sample filter must return matching stored float32 HDR, without producer target aliasing");
+                    }
+                    if(integrate){Graphics.Blit(sampleColor,exposureSum,exposureResolve,0);DrawCalls++;}
                 }
-                if(ExposureSamples>1)
+                if(integrate)
                 {
                     exposureResolve.SetTexture("_FxExposureSource",source);
                     exposureResolve.SetTexture("_FxExposureProtection",protection);
@@ -377,7 +407,7 @@ namespace GakumasPhotoMode
             ReleaseTargets();shadows.Dispose();optics.Dispose();surfaceLighting.Dispose();needsOptics=false;
             exposure.Dispose();ExposureSamples=1;if(exposureResolve!=null)UnityEngine.Object.Destroy(exposureResolve);exposureResolve=null;
             foreach(var material in new[]{resolve,surfaceMaterial,mediumMaterial,litSurfaceMaterial})if(material!=null)UnityEngine.Object.Destroy(material);
-            resolve=surfaceMaterial=mediumMaterial=litSurfaceMaterial=null;surfaces.Clear();batches.Clear();lights.Clear();shadowLights.Clear();DrawCalls=ReplayDrawCalls=0;
+            resolve=surfaceMaterial=mediumMaterial=litSurfaceMaterial=null;surfaces.Clear();batches.Clear();lights.Clear();shadowLights.Clear();DrawCalls=ReplayDrawCalls=OpaqueDispatchCalls=0;
         }
         private bool Fail(string reason){Release();UnavailableReason=reason;return false;}
         public void Dispose(){generation++;Release();}

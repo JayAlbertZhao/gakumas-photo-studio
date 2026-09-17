@@ -451,6 +451,8 @@
     "packages/com.digital-kotone.toolkit/Runtime/Resources/MotionBlur.shader.meta",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/OpaqueExposure.shader",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/OpaqueExposure.shader.meta",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/OpaqueExposureOwner.compute",
+    "packages/com.digital-kotone.toolkit/Runtime/Resources/OpaqueExposureOwner.compute.meta",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/OriginalStylePost.shader",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/OriginalStylePost.shader.meta",
     "packages/com.digital-kotone.toolkit/Runtime/Resources/PhotoColorGrade.shader",

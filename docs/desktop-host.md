@@ -561,3 +561,32 @@ Tex2D，无 MSAA、mip、动态尺寸或 Memoryless。blur 分支清除非有限
 Vulkan 原生捕获确认 FSR → 三张 blur 附件 → 一次合成 → 调色的实际资源读取，
 四份关键输出与运行时原始数据完全一致。完整角色／透明发丝动态外观、联合曝光／
 DOF 遮挡、其他设备和移动内存／帧时仍未由这些自制输入证明。
+
+## 可选逐快门时刻 DOF
+
+已有同相位不透明／透明曝光可以显式选择在积分前执行 DOF：
+
+```csharp
+settings.effects.exposure.forwardOpaqueOwnership = true;
+settings.depthOfFieldDuringExposure = true;
+```
+
+前提是 `effects.enabled`、`effects.exposure.enabled/reprojectOpaque`、透明几何、
+`includeSceneMotion`、`motionBlur.enabled` 和 `depthOfField.enabled` 已正确配置；
+这两个开关本身不会自动启用整条链。沿用联合曝光对 TAA／jitter 的互斥限制。
+两项均默认关闭，摄影应用和原有后处理次序不变。
+
+先选择同相位不透明可见表面，再合成该时刻的透明几何，执行 DOF，最后平均颜色。
+不在平均后重复 DOF／Motion Blur。冷启动和暂停只执行一次零相位过滤。
+`Frame.depthOfFieldExposureSamples` 报告实际 DOF 次数；此时 `postEyeDepth` 和
+`encodedCoC` 为 null，因为多个时刻的积分没有唯一对应的 lens depth／CoC。
+`eyeDepth` 仍是当前几何深度，不能将它解释为积分颜色的逐像素表面。
+
+正向归属额外需要 compute、R32UInt load-store 和 `8*N` 字节；每个非零相位有
+三次 dispatch。DOF 复用一套工作目标，但按相位重复绘制。16 相位的真实角色捕获
+有 48 次 owner dispatch 和 176 次 DOF draw；不是面向移动设备的低成本默认档位。
+过滤回调的借用、失败和资源预算契约见 [联合特效](heavy-fx.md#同相位后处理回调)。
+
+当前 D3D11／Vulkan 诊断限于一套自备服装、512²、三视角，以及相机／动画／透明片
+独立运动。该范围内原有角色和轮廓质量门限通过。透明层仍使用不透明表面 lens depth，
+当前可见面的重投影仍缺少隐藏表面；完整场景及其他设备须分别验收。

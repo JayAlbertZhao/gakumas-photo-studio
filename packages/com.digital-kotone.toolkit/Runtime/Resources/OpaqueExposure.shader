@@ -16,6 +16,8 @@ Shader "Hidden/GakumasPhotoMode/OpaqueExposure"
             Texture2D<float> _OpaqueDepth;
             Texture2D<float> _OpaquePreviousDepth;
             Texture2D<float> _OpaqueFlags;
+            Texture2D<uint> _OpaqueOwner;
+            float _OpaqueForwardOwnership;
             float4 _OpaqueSample; // width,height,phase,absolute depth tolerance
             float _OpaqueHasFlags,_OpaqueOrthographic;
             float4 Vertex(float4 p:POSITION):SV_POSITION{return float4(p.xy,0,1);}
@@ -44,28 +46,48 @@ Shader "Hidden/GakumasPhotoMode/OpaqueExposure"
                 int2 center=(int2)pixel.xy;Result original;
                 original.color=_OpaqueColor.Load(int3(center,0));original.depth=_OpaqueDepth.Load(int3(center,0));
                 if(_OpaqueSample.z==0)return original;
-                float3 shifted=Offset(center);if(shifted.z<=0)return original;
-                // Fixed-point inverse of the current-visible forward flow. It has
-                // no hidden surface data; invalid/outside correspondences preserve
-                // current input instead of inventing uncovered color or depth.
-                float2 offset=-shifted.xy;
-                [loop]for(int i=0;i<4;i++)
+                if(Data(center).z<=0)return original;
+                uint owner=_OpaqueForwardOwnership>.5?_OpaqueOwner.Load(int3(center,0)):0xffffffffu;
+                int2 anchor;
+                float2 offset;
+                if(owner!=0xffffffffu)
                 {
-                    int2 candidate=center+(int2)floor(offset+.5);
-                    shifted=Offset(candidate);if(shifted.z<=0)return original;
-                    offset=-shifted.xy;
+                    anchor=int2(owner%(uint)_OpaqueSample.x,owner/(uint)_OpaqueSample.x);
+                    float3 owned=Offset(anchor);if(owned.z<=0)return original;
+                    offset=-owned.xy;
                 }
-                int2 anchor=center+(int2)floor(offset+.5);float4 anchorData=Data(anchor);
+                else
+                {
+                    float3 shifted=Offset(center);if(shifted.z<=0)return original;
+                    // Fixed-point inverse fallback where no center projects here.
+                    // Reject huge/outside coordinates BEFORE integer conversion.
+                    offset=-shifted.xy;
+                    [loop]for(int i=0;i<4;i++)
+                    {
+                        float2 candidate=(float2)center+floor(offset+.5);
+                        if(any(candidate<0)||any(candidate>=_OpaqueSample.xy))return original;
+                        shifted=Offset((int2)candidate);if(shifted.z<=0)return original;
+                        offset=-shifted.xy;
+                    }
+                    float2 selected=(float2)center+floor(offset+.5);
+                    if(any(selected<0)||any(selected>=_OpaqueSample.xy))return original;
+                    anchor=(int2)selected;
+                }
+                float4 anchorData=Data(anchor);
                 if(anchorData.z<=0)return original;
+                float anchorDepth=anchorData.z+(anchorData.z-anchorData.w)*_OpaqueSample.z;
+                if(!isfinite(anchorDepth)||anchorDepth<=0)return original;
                 int2 origin=center+(int2)floor(offset);float2 fraction=frac(offset);
-                Result result;result.color=0;result.depth=0;
+                // Eye depth belongs to a selected visible surface, not to the
+                // bilinear COLOR mixture. Blending rejected foreground/background
+                // depths invents a third plane and therefore an unrelated CoC.
+                Result result;result.color=0;result.depth=anchorDepth;
                 [unroll]for(int y=0;y<2;y++)[unroll]for(int x=0;x<2;x++)
                 {
                     int2 p=origin+int2(x,y);float weight=(x==0?1-fraction.x:fraction.x)*(y==0?1-fraction.y:fraction.y);
                     float4 data=Data(p);float sampleZ=data.z+(data.z-data.w)*_OpaqueSample.z;
                     bool valid=data.z>0&&isfinite(sampleZ)&&sampleZ>0&&abs(data.z-anchorData.z)<=_OpaqueSample.w&&length(data.xy-anchorData.xy)<=.5;
                     result.color+=(valid?_OpaqueColor.Load(int3(clamp(p,int2(0,0),(int2)_OpaqueSample.xy-1),0)):original.color)*weight;
-                    result.depth+=(valid?sampleZ:original.depth)*weight;
                 }
                 result.color.a=original.color.a;
                 return result;

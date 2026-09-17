@@ -38,7 +38,8 @@ fx.ResetMotionHistory();
   两张 float4 顶点快照，每顶点至少 32 字节并包含纹理尺寸填充；另有全分辨率
   float4 积分附件。`maximumTargetMiB`／`TargetBytes` 是本模块目标的逻辑预算／
   当前分配，不是驱动峰值、CPU 拓扑数组或整个场景显存预算。
-- 只有 FX 几何和合成按 samples 重复；不重复整场景／CPU 蒙皮／后处理。
+- 基础模式只有 FX 几何和合成按 samples 重复，不重复整场景／CPU 蒙皮／后处理；
+  下述显式同相位后处理回调会按 samples 重复其过滤工作。
   静止但历史连续的几何也可能执行多个样本，因此开启后的成本并非自动为零。
   `ExposureSamples`、`ExposureSnapshotDrawCalls`、`ExposureSnapshotBytes` 和
   `DrawCalls` 可供宿主记录。快照绘制另提供分项计数，也包含在 `DrawCalls` 总数中。
@@ -71,6 +72,9 @@ A 为 1 表示有效对应；其他值保留当前像素。两个深度附件均
 低分辨率深度范围，再按原顺序渲染透明几何并合成。积分发生在完整合成之后。
 透视使用前／当前 clip W 比例；正交使用单独分支。反向流求解固定执行四次，
 缺失／越界对应和不兼容的深度／运动样本回退当前值，不编造看不见的表面。
+颜色可进行双线性重建；输出眼深度取选定可见表面的相位深度，不混合前／背景深度。
+旧的深度加权在轮廓处可能产生不存在的中间平面，进一步改变透明遮挡及景深 CoC。
+这项修正仍不能恢复真正的隐藏表面或保证逆向对应在遮挡边界选中了正确表面。
 新增颜色／深度工作附件名义大小为每像素 20 字节，纳入原有目标预算。
 
 在 `DesktopFrameRenderer.Settings` 中还须启用 `actorMotion`、需要时启用
@@ -88,8 +92,59 @@ A 为 1 表示有效对应；其他值保留当前像素。两个深度附件均
 512² 时两张额外不透明工作附件共 5 MiB。此处是资源／调用计数，不是 GPU 帧时收益。
 
 这仍是当前可见图像的重建，不是完整场景的逐时刻重渲染。遮挡显露处缺少隐藏颜色，
-DOF 使用当前深度且只执行一次；相机轮廓和少量动画区域仍有严格质量失败。
+基础配置的 DOF 使用当前深度且只执行一次；其相机轮廓和少量动画区域仍有严格质量失败。
 默认应用保持旧路径，不把此选项标作全场景、物理镜头或移动性能验收完成。
+
+## 可选正向可见面归属
+
+可另选 `settings.exposure.forwardOpaqueOwnership = true`，在当前可见像素正向投影
+发生重叠时，按正眼深度选择最近表面，等深度按源像素编号稳定决定。没有投影中心
+落入的像素沿用受限逆向重建；无效 guide／NoJitter 像素仍保护。它只使用当前可见
+数据，不能补出新露出的背面或屏幕外信息。
+
+此选项默认关闭，要求 compute／R32UInt load-store 能力；额外两张 uint 图共 `8*N`
+字节，计入分配前的联合预算和 `TargetBytes`。每个非零相位有清空、最小深度、稳定
+owner 三次 dispatch，分别由 `OpaqueExposureRenderer.DispatchCalls` 和联合生产者的
+`OpaqueDispatchCalls` 报告，不冒充 draw，也不据此宣称帧时改善。冷启动／零相位
+跳过 dispatch；关闭会释放这两张图。独立生产者对应可选参数 `forwardOwnership`。
+
+## 同相位后处理回调
+
+`TryRender(..., sampleFilter: filter)` 可在每个快门时刻的有序 FX 合成之后、
+曝光平均之前处理该时刻完整颜色。此回调仅支持 `reprojectOpaque` 模式，收到
+对应的颜色、眼深度与有符号快门相位；它不读取全局时间。
+
+```csharp
+bool Filter(RenderTexture color, RenderTexture eyeDepth, float phase,
+    out RenderTexture filtered, out string error)
+{
+    filtered = null;
+    error = null;
+    if (!lens.TryRender(color, eyeDepth, lensSettings, out var sample)) {
+        error = lens.UnavailableReason;
+        return false;
+    }
+    filtered = sample.color;
+    return true;
+}
+```
+
+输出必须是相同尺寸、已存储的线性 RGBAFloat。可以原样返回传入颜色；其他输出
+须由调用者管理，不能返回生产者的其他附件。输入只借用到本次回调结束，不得修改、
+释放、保留供异步使用或重入生产者；输出在下一次回调前即被消费。回调失败、异常、
+重入或非法输出会使整次曝光失败，不发布部分积分。冷启动／暂停也调用一次零相位
+回调；最终恢复原始 alpha／保护像素并返回生产者自己的目标。
+
+回调的资源、预算和 draw 数由调用者另计，`HeavyFxRenderer.TargetBytes/DrawCalls`
+仅统计其自身工作；回调不得将自己的分配误报为零成本。桌面宿主提供默认关闭的
+`depthOfFieldDuringExposure`，在联合不透明曝光与 DOF 同时启用时，复用宿主已有
+DOF 工作目标逐相位处理，跳过最后一次 DOF。它不增加一套每相位永久保留的目标，
+但会按采样数增加 DOF 工作量。
+
+返回 `Frame.depthOfFieldExposureSamples` 为实际 DOF 相位数；此时
+`Frame.postEyeDepth` 与 `encodedCoC` 为 null，避免把最后一个相位的深度／CoC
+冒充积分图像的唯一对应附件。`eyeDepth` 仍表示当前几何深度。该模式沿用不透明
+表面的 lens depth，未解决透明层独立镜头深度、隐藏表面或物理孔径积分。
 
 ## 输入和顺序
 

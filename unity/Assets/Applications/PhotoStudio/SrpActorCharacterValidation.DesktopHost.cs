@@ -53,7 +53,8 @@ namespace GakumasPhotoMode
                     inputs.SetVector("_HeadRightDirection",new Vector4(-head.right.x,-head.right.y,-head.right.z,1));
                     var pos=head.position+head.up*.1f;inputs.SetVector("_HeadPosition",new Vector4(pos.x,pos.y,pos.z,1));
                     inputs.SetVector("_ActorOutlineParameters",new Vector4(.04f,.12f,1f/3,Mathf.Tan(15.5f*Mathf.Deg2Rad)/Mathf.Tan(camera.fieldOfView*.5f*Mathf.Deg2Rad)));
-                    bool requested=Environment.GetEnvironmentVariable("GAKUMAS_SELFTEST_CAPTURE_DESKTOP_CHARACTER_CASE")==name;
+                    bool requested=Environment.GetEnvironmentVariable("GAKUMAS_SELFTEST_CAPTURE_DESKTOP_CHARACTER_CASE")==name||
+                        Environment.GetEnvironmentVariable("GAKUMAS_SELFTEST_CAPTURE_DESKTOP_CHARACTER_REFERENCE_CASE")==name;
                     bool began=requested&&RenderDocCaptureBridge.BeginOffscreenCapture();Color[] pixels;
                     try
                     {

@@ -31,6 +31,9 @@ namespace GakumasPhotoMode
             public readonly SrpTileReflection.Settings reflections = new SrpTileReflection.Settings();
             public readonly HeavyFxSettings effects = new HeavyFxSettings();
             public readonly BokehDepthOfFieldSettings depthOfField = new BokehDepthOfFieldSettings();
+            // Opt-in: apply this DOF to each coherent opaque/FX sub-time BEFORE
+            // averaging. Uses the same owned DOF targets; increases draw work.
+            public bool depthOfFieldDuringExposure;
             public int temporalDepthMaximumMiB=32;
             public readonly MotionBlurSettings motionBlur=new MotionBlurSettings();
             public readonly BloomRenderer.Settings bloom=new BloomRenderer.Settings();
@@ -79,6 +82,7 @@ namespace GakumasPhotoMode
             public readonly FrameTemporalAntialiasing.Frame? temporal;
             public readonly FrameMotionBlur.Frame? motionBlur;
             public readonly bool coherentOpaqueExposure;
+            public readonly int depthOfFieldExposureSamples;
             public readonly BloomRenderer.Frame? bloom;
             public readonly FsrRenderer.Frame? fsr;
             public readonly DiffusionRenderer.Frame? diffusion;
@@ -90,8 +94,10 @@ namespace GakumasPhotoMode
             {
                 owner = value; sequence = value.sequence; color = value.finalColor;
                 eyeDepth = value.actorFrame.eyeDepth; opaque = new OpaqueFrame(value);
-                postEyeDepth=value.postDepth;temporalDepth=value.temporalDepthFrame;
-                encodedCoC=value.dofFrame.HasValue?value.dofFrame.Value.encodedCoC:null;
+                depthOfFieldExposureSamples=value.depthOfFieldExposureSamples;
+                // An integral has no single corresponding lens depth or CoC.
+                postEyeDepth=depthOfFieldExposureSamples>0?null:value.postDepth;temporalDepth=value.temporalDepthFrame;
+                encodedCoC=depthOfFieldExposureSamples==0&&value.dofFrame.HasValue?value.dofFrame.Value.encodedCoC:null;
                 temporal=value.temporalFrame;
                 motionBlur=value.motionBlurFrame;
                 coherentOpaqueExposure=value.effectFrame.HasValue&&value.effectFrame.Value.opaqueExposure;
@@ -148,6 +154,7 @@ namespace GakumasPhotoMode
         private DiffusionRenderer.Frame? diffusionFrame;
         private ColorGradingRenderer.Frame? gradeFrame;
         private RenderTexture finalColor,postDepth;
+        private int depthOfFieldExposureSamples;
         private ulong sequence;
         private bool disposed;
 
@@ -248,8 +255,15 @@ namespace GakumasPhotoMode
             phase = Phase.Finishing;
             try
             {
-                var s = Configuration; finalColor = actorFrame.color;postDepth=actorFrame.eyeDepth;
+                var s = Configuration; finalColor = actorFrame.color;postDepth=actorFrame.eyeDepth;depthOfFieldExposureSamples=0;
                 bool coherent=s.effects.enabled&&s.effects.exposure!=null&&s.effects.exposure.enabled&&s.effects.exposure.reprojectOpaque;
+                bool sampleDof=coherent&&s.depthOfField.enabled&&s.depthOfFieldDuringExposure;
+                bool FilterDof(RenderTexture color,RenderTexture depth,float phase,out RenderTexture filtered,out string filterError)
+                {
+                    filtered=null;filterError=null;
+                    if(!dof.TryRender(color,depth,s.depthOfField,out var sample)){filterError=dof.UnavailableReason;return false;}
+                    filtered=sample.color;dofFrame=sample;depthOfFieldExposureSamples++;return true;
+                }
                 MotionBlurInput? opaqueExposureInput=null;
                 if(coherent)
                 {
@@ -263,7 +277,8 @@ namespace GakumasPhotoMode
                 if (s.effects.enabled)
                 {
                     if (effects.TryRender(finalColor, new FogVolumeDepth(actorFrame.eyeDepth), Camera, s.effects, timeSeconds, out var current,
-                        opaqueMotion:opaqueExposureInput,expectedPreviousDepth:coherent?actorFrame.expectedPreviousDepth:null))
+                        opaqueMotion:opaqueExposureInput,expectedPreviousDepth:coherent?actorFrame.expectedPreviousDepth:null,
+                        sampleFilter:sampleDof?(HeavyFxRenderer.ExposureSampleFilter)FilterDof:null))
                     { effectFrame = current; finalColor = current.color; }
                     else if (effects.UnavailableReason != null) { error = effects.UnavailableReason; return Fail(error); }
                     // An enabled but empty effects list is an explicit no-op.
@@ -276,7 +291,7 @@ namespace GakumasPhotoMode
                     temporalFrame=current;finalColor=current.color;
                 }
                 else temporal.ResetHistory();
-                if (s.depthOfField.enabled)
+                if (s.depthOfField.enabled&&!sampleDof)
                 {
                     if(NeedsTemporalDepth(s))
                     {

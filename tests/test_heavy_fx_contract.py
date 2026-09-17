@@ -6,6 +6,14 @@ RUNTIME = Path(__file__).resolve().parents[1] / 'packages/com.digital-kotone.too
 
 
 class HeavyFxContract(unittest.TestCase):
+    def test_optional_exposure_filter_validates_output_and_owns_no_filter_state(self):
+        code=(RUNTIME/'HeavyFxRenderer.cs').read_text(encoding='utf-8')
+        for token in ('ExposureSampleFilter sampleFilter=null', 'sampleFilter!=null&&!exposeOpaque',
+                      'invokingExposureFilter', 'sampleColor.memorylessMode!=RenderTextureMemoryless.None',
+                      '(Owns(sampleColor)&&sampleColor!=current)', 'sampleColor==source'):
+            self.assertIn(token,code)
+        self.assertNotIn('new BokehDepthOfFieldRenderer',code)
+
     def test_opaque_and_transparent_share_phase_and_are_not_blurred_twice(self):
         code=(RUNTIME/'HeavyFxRenderer.cs').read_text(encoding='utf-8')
         start=code.index('for(int sample=0;sample<ExposureSamples;sample++)')
@@ -32,9 +40,23 @@ class HeavyFxContract(unittest.TestCase):
         for token in ('float4 color:SV_Target0;float depth:SV_Target1',
                       'phaseDepth=z+(z-oldZ)*_OpaqueSample.z',
                       '_OpaqueOrthographic>.5?1:oldZ/phaseDepth',
-                      'float2 offset=-shifted.xy','result.color.a=original.color.a',
+                      'offset=-shifted.xy','result.color.a=original.color.a',
                       'UNITY_DECLARE_TEX2D_NOSAMPLER_FLOAT(_OpaqueColor)'):
             self.assertIn(token,source)
+        self.assertIn('result.depth=anchorDepth',source)
+        self.assertNotIn('result.depth+=',source)
+
+    def test_forward_ownership_is_explicit_bounded_and_deterministic(self):
+        code=(RUNTIME/'OpaqueExposureRenderer.cs').read_text(encoding='utf-8')
+        for token in ('bool forwardOwnership=false','FormatUsage.LoadStore','DispatchCalls',
+                      'source.width*source.height*8','Release(nearestDepth);Release(ownerIndex)',
+                      '"ClearOwners","SelectDepth","SelectOwner"'):
+            self.assertIn(token,code)
+        shader=(RUNTIME/'Resources/OpaqueExposureOwner.compute').read_text(encoding='utf-8')
+        for token in ('InterlockedMin(_NearestDepth[projected.xy],projected.z)',
+                      'InterlockedMin(_OwnerIndex[projected.xy],id.y*(uint)_OwnerSample.x+id.x)',
+                      'asuint(phaseDepth)','all(target>=0)&&all(target<_OwnerSample.xy)'):
+            self.assertIn(token,shader)
 
     def test_geometry_exposure_is_opt_in_and_tracks_actual_gpu_endpoints(self):
         code=(RUNTIME/'FxGeometryExposure.cs').read_text(encoding='utf-8')
@@ -50,7 +72,8 @@ class HeavyFxContract(unittest.TestCase):
         code=(RUNTIME/'HeavyFxRenderer.cs').read_text(encoding='utf-8')
         start=code.index('for(int sample=0;sample<ExposureSamples;sample++)')
         self.assertLess(start,code.index('foreach(var batch in batches)',start))
-        self.assertLess(code.index('current=next;',start),code.index('Graphics.Blit(current,exposureSum',start))
+        self.assertLess(code.index('current=next;',start),code.index('sampleFilter(current,phaseDepth,exposurePhase',start))
+        self.assertLess(code.index('sampleFilter(current,phaseDepth,exposurePhase',start),code.index('Graphics.Blit(sampleColor,exposureSum',start))
         for token in ('exposure.Capture()', 'exposure.Bind(material,s,exposurePhase)', 'exposure.Complete()',
                       'exposure.TextureBytes', 'exposure.Dispose()', 't==exposureSum', 'exposure.ResetHistory()'):
             self.assertIn(token,code)

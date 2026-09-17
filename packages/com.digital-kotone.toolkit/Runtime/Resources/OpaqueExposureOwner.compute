@@ -1,0 +1,55 @@
+#pragma kernel ClearOwners
+#pragma kernel SelectDepth
+#pragma kernel SelectOwner
+
+// Current-visible pixel centers only. This is not a hidden-surface cache.
+Texture2D<float4> _OwnerMotion;
+Texture2D<float> _OwnerDepth;
+Texture2D<float> _OwnerPreviousDepth;
+Texture2D<float> _OwnerFlags;
+RWTexture2D<uint> _NearestDepth;
+RWTexture2D<uint> _OwnerIndex;
+float4 _OwnerSample; // width,height,phase,unused
+float _OwnerHasFlags,_OwnerOrthographic;
+
+bool Inside(uint2 p) { return all(p < (uint2)_OwnerSample.xy); }
+uint3 Project(uint2 p)
+{
+    // Kernels bound-check before loading. Use one initialized return value;
+    // no conditional out-parameter initialization across shader translators.
+    bool excluded=_OwnerHasFlags>.5&&(((uint)round(_OwnerFlags.Load(int3(p,0))*255))&4u)!=0;
+    float4 m=_OwnerMotion.Load(int3(p,0));
+    float z=_OwnerDepth.Load(int3(p,0)),oldZ=_OwnerPreviousDepth.Load(int3(p,0));
+    bool valid=!excluded&&all(isfinite(m))&&m.w==1&&m.z>0&&isfinite(z)&&isfinite(oldZ)&&z>0&&oldZ>0;
+    float phaseDepth=z+(z-oldZ)*_OwnerSample.z;
+    valid=valid&&isfinite(phaseDepth)&&phaseDepth>.000001;
+    float2 shift=m.xy*_OwnerSample.xy*_OwnerSample.z*(_OwnerOrthographic>.5?1:oldZ/max(phaseDepth,.000001));
+    valid=valid&&all(isfinite(shift));
+    // Test in float before integer conversion; arbitrary finite motion may be huge.
+    float2 target=(float2)p+floor(shift+.5);
+    valid=valid&&all(target>=0)&&all(target<_OwnerSample.xy);
+    uint3 result=uint3(0,0,0xffffffffu);
+    if(valid)result=uint3((uint2)target,asuint(phaseDepth));
+    return result;
+}
+[numthreads(8,8,1)]
+void ClearOwners(uint3 id:SV_DispatchThreadID)
+{
+    if(!Inside(id.xy))return;
+    _NearestDepth[id.xy]=0xffffffffu;_OwnerIndex[id.xy]=0xffffffffu;
+}
+[numthreads(8,8,1)]
+void SelectDepth(uint3 id:SV_DispatchThreadID)
+{
+    if(!Inside(id.xy))return;
+    uint3 projected=Project(id.xy);
+    if(projected.z!=0xffffffffu)InterlockedMin(_NearestDepth[projected.xy],projected.z);
+}
+[numthreads(8,8,1)]
+void SelectOwner(uint3 id:SV_DispatchThreadID)
+{
+    if(!Inside(id.xy))return;
+    uint3 projected=Project(id.xy);
+    if(projected.z!=0xffffffffu&&_NearestDepth[projected.xy]==projected.z)
+        InterlockedMin(_OwnerIndex[projected.xy],id.y*(uint)_OwnerSample.x+id.x);
+}
