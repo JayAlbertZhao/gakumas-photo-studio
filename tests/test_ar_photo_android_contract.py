@@ -60,11 +60,20 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertIn("key(replayMode, playbackRevision, replayRun)", screen)
         self.assertIn("PlaybackStatus.FINISHED", screen)
         self.assertIn("pauseForModeSwitch()\n                            replayRun++", screen)
+        self.assertIn('Text("收起控件")', screen)
+        self.assertIn('Text("显示控件")', screen)
+        self.assertIn("else if (!captureInProgress)", screen)
 
     def test_model_instance_recreated_across_independent_scenes(self):
         screen = (APP / "app/src/main/java/org/digital_kotone/arphoto/PhotoScreen.kt").read_text(encoding="utf-8")
+        subject = (APP / "app/src/main/java/org/digital_kotone/arphoto/PhotoSubject.kt").read_text(encoding="utf-8")
         activity = (APP / "app/src/main/java/org/digital_kotone/arphoto/MainActivity.kt").read_text(encoding="utf-8")
-        self.assertIn("key(arMode, modelRevision)", screen)
+        self.assertIn("key(arMode, modelRevision, modelTransformRevision)", screen)
+        self.assertIn("LaunchedEffect(pendingModelTransformRevision)", screen)
+        self.assertIn("onValueChangeFinished", screen)
+        self.assertIn("scaleToUnits = 1.6f * size", subject)
+        self.assertIn("position = Position(offset.x + importedPosition.x", subject)
+        self.assertNotIn("previewRoot.get()?.position", screen)
         self.assertIn("modelRevision.intValue++", activity)
 
 

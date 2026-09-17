@@ -54,10 +54,12 @@ when no model is loaded.
 
 Tap the preview to move the subject; use the size and rotation sliders, then
 tap **拍照**. A PNG without the control cards is saved to `Pictures/AR Photo/`.
-The current emulator renders imported GLB geometry and saves it in the PNG,
-but imported-model scale/rotation did not visibly respond in our emulator test
-even though the scene node values changed. Treat imported-model manipulation
-as unverified until device testing; the procedural character's scaling worked.
+The emulator rendered both our generated GLB and Khronos' public Box.glb.
+Preview placement, size, rotation, and reset visibly changed the Box; the app
+reloads its model instance after imported-model gestures because SceneView
+4.25 did not visibly apply later transform updates to GLB renderables in this
+emulator. Rapid changes are coalesced before reloading. Live AR placement with
+an imported model still needs a supported-phone check.
 
 ## Real AR and dataset recording/playback
 
@@ -66,6 +68,9 @@ the detected plane to place the subject. Tap again to move it. This path uses
 ARCore's camera tracking and plane hit testing; it cannot be validated by a
 static camera image alone. Some emulator/ARCore combinations fail to open the
 emulated camera; test real tracking on a supported phone.
+Use **收起控件** to expose the full camera view when the bottom controls cover
+the floor; **显示控件** restores them. A tap without a plane hit reports that no
+horizontal surface was found rather than silently failing.
 
 The **拍照** button saves the composited view to `Pictures/AR Photo/`. The
 separate **录制 AR 会话** button starts an ARCore Recording & Playback dataset;

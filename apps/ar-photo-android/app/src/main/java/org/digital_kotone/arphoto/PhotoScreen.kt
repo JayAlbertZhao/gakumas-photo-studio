@@ -58,6 +58,7 @@ import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberOnGestureListener
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.util.concurrent.atomic.AtomicReference
 import java.io.File
 
@@ -87,7 +88,17 @@ internal fun PhotoScreen(
     // Each mode owns a separate scene. Recreate the Filament ModelInstance when
     // crossing scenes or replacing the same app-private file with a new GLB.
     // The named URL overload is required for file:// locations.
-    val imported = key(arMode, modelRevision) {
+    var modelTransformRevision by remember { mutableIntStateOf(0) }
+    var pendingModelTransformRevision by remember { mutableIntStateOf(0) }
+    // Imported GLBs need a fresh instance for visible transform changes. Coalesce
+    // quick successive UI actions so a slow file load cannot race another one.
+    LaunchedEffect(pendingModelTransformRevision) {
+        if (pendingModelTransformRevision != modelTransformRevision) {
+            delay(250)
+            modelTransformRevision = pendingModelTransformRevision
+        }
+    }
+    val imported = key(arMode, modelRevision, modelTransformRevision) {
         rememberModelInstance(modelLoader = modelLoader, fileLocation = modelLocation ?: "")
     }
     val animationNames = remember(imported) {
@@ -107,14 +118,13 @@ internal fun PhotoScreen(
     val currentPreviewWidth = rememberUpdatedState(previewWidth)
     val currentPreviewHeight = rememberUpdatedState(previewHeight)
     var chromeVisible by remember { mutableStateOf(true) }
+    var captureInProgress by remember { mutableStateOf(false) }
     var sessionReady by remember { mutableStateOf(false) }
     var recording by remember { mutableStateOf(false) }
     var playbackFinished by remember { mutableStateOf(false) }
     var anchor by remember { mutableStateOf<Anchor?>(null) }
     val latestFrame = remember { AtomicReference<Frame?>(null) }
     val currentSession = remember { AtomicReference<Session?>(null) }
-    val previewRoot = remember { AtomicReference<io.github.sceneview.node.Node?>(null) }
-    val arRoot = remember { AtomicReference<io.github.sceneview.node.Node?>(null) }
     val scope = rememberCoroutineScope()
 
     // SceneView recreates the ARCore Session when changing live/playback mode.
@@ -143,8 +153,6 @@ internal fun PhotoScreen(
             anchor?.detach()
             anchor = null
             latestFrame.set(null)
-            previewRoot.set(null)
-            arRoot.set(null)
         }
     }
 
@@ -200,16 +208,20 @@ internal fun PhotoScreen(
                             val next = hit.createAnchor()
                             anchor?.detach()
                             anchor = next
+                            if (imported != null) pendingModelTransformRevision++
                             onMessage("角色已放置；再次轻触可重新放置")
+                        } else {
+                            onMessage("尚未命中水平面；等待检测后轻触地面")
                         }
                     }),
                 ) {
                     anchor?.let { placed ->
                         AnchorNode(anchor = placed) {
-                            Node(rotation = Rotation(y = yaw), scale = Scale(scale),
-                                apply = { arRoot.set(this) }) {
+                            Node(rotation = Rotation(y = if (imported == null) yaw else 0f),
+                                scale = Scale(if (imported == null) scale else 1f)) {
                                 PhotoSubject(imported, materialLoader, wave,
-                                    animationNames.getOrNull(animationIndex))
+                                    animationNames.getOrNull(animationIndex), scale, yaw,
+                                    Position(0f, 0f, 0f))
                             }
                         }
                     }
@@ -235,16 +247,18 @@ internal fun PhotoScreen(
                         if (width > 0 && height > 0) {
                             previewX = ((event.x / width) - 0.5f) * 2.6f
                             previewY = (0.5f - (event.y / height)) * 3.4f
-                            previewRoot.get()?.position = Position(previewX, previewY, 0f)
+                            if (imported != null) pendingModelTransformRevision++
                             onMessage("已在合成场景放置角色；轻触可重新放置")
                         }
                     }),
                 ) {
-                    Node(position = Position(previewX, previewY, 0f),
-                        rotation = Rotation(y = yaw), scale = Scale(scale),
-                        apply = { previewRoot.set(this) }) {
+                    Node(position = if (imported == null) Position(previewX, previewY, 0f)
+                        else Position(0f, 0f, 0f),
+                        rotation = Rotation(y = if (imported == null) yaw else 0f),
+                        scale = Scale(if (imported == null) scale else 1f)) {
                         PhotoSubject(imported, materialLoader, wave,
-                            animationNames.getOrNull(animationIndex))
+                            animationNames.getOrNull(animationIndex), scale, yaw,
+                            Position(previewX, previewY, 0f))
                     }
                 }
             }
@@ -257,7 +271,12 @@ internal fun PhotoScreen(
                         .padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text("AR Photo", style = MaterialTheme.typography.titleLarge)
+                    Row(modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text("AR Photo", style = MaterialTheme.typography.titleLarge)
+                        OutlinedButton(onClick = { chromeVisible = false }) { Text("收起控件") }
+                    }
                     Text(message, style = MaterialTheme.typography.bodySmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(selected = !arMode, onClick = {
@@ -291,15 +310,12 @@ internal fun PhotoScreen(
                         OutlinedButton(onClick = onPickModel) { Text("导入 GLB") }
                         OutlinedButton(onClick = {
                             anchor?.detach(); anchor = null; scale = 1f; yaw = 0f
+                            if (imported != null) pendingModelTransformRevision++
                             previewX = 0f; previewY = 0f
-                            previewRoot.get()?.apply {
-                                position = Position(0f, 0f, 0f)
-                                rotation = Rotation(y = 0f)
-                                this.scale = Scale(1f)
-                            }
                         }) { Text("重置") }
                         Button(onClick = {
                             scope.launch {
+                                captureInProgress = true
                                 chromeVisible = false
                                 try {
                                     withFrameNanos { }
@@ -307,6 +323,7 @@ internal fun PhotoScreen(
                                     onCapture()
                                 } finally {
                                     chromeVisible = true
+                                    captureInProgress = false
                                 }
                             }
                         }) { Text("拍照") }
@@ -345,12 +362,14 @@ internal fun PhotoScreen(
                     Text("大小 ${"%.1f".format(scale)}×")
                     Slider(value = scale, onValueChange = {
                         scale = it
-                        (if (arMode) arRoot else previewRoot).get()?.scale = Scale(it)
+                    }, onValueChangeFinished = {
+                        if (imported != null) pendingModelTransformRevision++
                     }, valueRange = 0.3f..2.5f)
                     Text("旋转 ${yaw.toInt()}°")
                     Slider(value = yaw, onValueChange = {
                         yaw = it
-                        (if (arMode) arRoot else previewRoot).get()?.rotation = Rotation(y = it)
+                    }, onValueChangeFinished = {
+                        if (imported != null) pendingModelTransformRevision++
                     }, valueRange = 0f..360f)
                     if (animationNames.isNotEmpty()) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -367,6 +386,10 @@ internal fun PhotoScreen(
                         FilterChip(selected = wave, onClick = { wave = !wave }, label = { Text("占位角色挥手") })
                     }
                 }
+            } else if (!captureInProgress) {
+                OutlinedButton(onClick = { chromeVisible = true },
+                    modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding()
+                        .padding(16.dp)) { Text("显示控件") }
             }
         }
     }

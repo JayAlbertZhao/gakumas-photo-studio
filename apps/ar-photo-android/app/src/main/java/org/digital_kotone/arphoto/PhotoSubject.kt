@@ -21,14 +21,26 @@ internal fun NodeScope.PhotoSubject(
     materialLoader: MaterialLoader,
     wave: Boolean,
     animationName: String?,
+    size: Float,
+    yaw: Float,
+    importedPosition: Position,
 ) {
     if (imported != null) {
         ModelNode(
             modelInstance = imported,
-            scaleToUnits = 1.6f,
+            scaleToUnits = 1.6f * size,
             centerOrigin = Position(0f, -1f, 0f),
+            position = importedPosition,
+            rotation = Rotation(y = yaw),
             animationName = animationName,
             autoAnimate = true,
+            // Apply before the model enters Filament's scene. In SceneView 4.25,
+            // a later position update does not move imported GLB renderables.
+            apply = {
+                val offset = position
+                position = Position(offset.x + importedPosition.x,
+                    offset.y + importedPosition.y, offset.z + importedPosition.z)
+            },
         )
         return
     }
