@@ -273,8 +273,39 @@ PPT 76 的腿部驱动裙摆辅助骨通过 `HairDynamicsSystem.useAuthoredSkirt
 
 整链诊断使用 `--validate-secondary-reference-limits --validate-authored-skirt-helpers`：
 所有比较组保持外衣参考约束开启，只切换新辅助骨路径，执行 180 帧动画与风、三视角、
-逐帧骨骼重播和关闭恢复，并独立检查颜色／深度。当前 D3D11 坐姿对照通过；
+逐帧骨骼重播和关闭恢复，并独立检查颜色／深度。当前 D3D11／Vulkan 坐姿、D3D11 另一套坐姿动作对照通过；
 这是有限输入下的连续性与实际蒙皮证据，仍不能代替全服装接触质量、原版引擎一致性或移动端验收。
+
+## 衣物位置式辅助骨
+
+PPT 78 区分袖部的位置式运动与头发／外衣的旋转式运动。
+在 `InitializeGarment` 或 `Initialize` 前设置
+`HairDynamicsSystem.useAuthoredSlideDynamics = true` 可启用位置式分支；默认仍为 `false`，
+不自动改变 Photo Studio 的配置。该分支只处理子条目 `dynamicType == 1` 的边，
+其他边保留原有 Swing 路径。腿部软组织仍归 `BodySoftTissueDynamicsSystem`，不要重复注册。
+
+位置式边可以是重合骨，不投影到固定骨长，也不为了追逐端点而旋转父骨。
+重力、风、阻尼、刚度及轴向附加仍由子条目控制，使用相同的固定积分步。
+`limitInfo` 在父坐标系中限制相对初始局部位置的**位移**：整数单位为毫米，
+例如 `axisY = (-10, 10)` 表示上下各 1 cm，不是角度。
+`useLimit == 0` 不夹紧；动态碰撞器 `type == 4` 不启用身体球体后备碰撞。
+该独立实现让位置式附件继承动画／上游姿态，位移本身不额外制造 Swing 旋转。
+
+宿主先应用动画和辅助骨，再按生产者到消费者顺序显式推进求解器。
+关闭自动推进后调用 `AdvanceSimulation`，不要同时让 `LateUpdate` 积分。
+改变模式后调用 `ResetSimulation`；改变拓扑、初始位置或归属后重新初始化。
+此路径沿用单位尺度的骨架刚体坐标约定；未验证非均匀缩放及镜像层级。
+碰撞形状支持与此前相同，并不新增布料网格碰撞、自碰撞或完整接触求解。
+
+生成式诊断：`--self-test-actor-rendering <directory> --self-test-garment-slide-only`。
+覆盖重合／非重合骨的解析位移、无额外旋转、正负轴毫米边界、旋转父坐标系、
+禁用碰撞器、轴向附加、位置恢复力、动画附件、确定性重播及关闭恢复。
+自备角色诊断：`--photo-mode --validate-srp-actor-character <directory>
+--validate-secondary-reference-limits --validate-authored-garment-slides`。
+它固定开启既有外衣参考约束和连续裙摆辅助骨，只切换衣物位置式模式，
+核对实际条目归属、180 帧局部位移与毫米边界、三视角颜色／深度、重播及关闭恢复。
+当前两套自备服装的 D3D11 对照及其中一套的 Vulkan 对照已通过；这些是有限输入的几何与实际蒙皮证据，
+不代表已完成原版输出一致性、全部衣物接触质量或移动端验收。
 
 ## TAA 分类接口
 

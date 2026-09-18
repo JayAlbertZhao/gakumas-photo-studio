@@ -754,9 +754,37 @@ class FrameworkContractTests(unittest.TestCase):
         actual = (folder / 'SrpActorCharacterValidation.SecondaryMotion.cs').read_text(encoding='utf-8')
         for token in ('input-is-nonzero-four-hundredths-degree', 'small-input-continuous-helper-output',
                       'large-bend-nonzero-positive-control', 'Mathf.Atan2', 'helper-visible-skinned-response',
-                      's.useExternalReferenceLimits = authoredSkirt || external',
-                      's.useAuthoredSkirtHelpers = authoredSkirt && external',
+                      's.useExternalReferenceLimits = authoredSlide || authoredSkirt || external',
+                      's.useAuthoredSkirtHelpers = authoredSlide || (authoredSkirt && external)',
                       'useAuthoredSkirtHelpers = oldSkirt[i]', 'useAuthoredSkirtHelpers = oldAuthored[i]'):
+            self.assertIn(token, actual)
+
+    def test_positional_garment_is_explicit_and_not_projected_to_a_swing(self):
+        source = (RUNTIME / 'HairDynamicsSystem.cs').read_text(encoding='utf-8')
+        for token in ('public bool useAuthoredSlideDynamics;',
+                      'bool slide = useAuthoredSlideDynamics && child.setting.dynamicType == 1',
+                      'if (!slide && length < 0.0001f) continue',
+                      'collider == null || collider.type != 4',
+                      'millimetresToMetres = .001f', 'child.position = candidate;',
+                      'Quaternion.Inverse(parentRotation) * (candidate - origin) - child.restLocalPosition'):
+            self.assertIn(token, source)
+        branch = source.split('if (slide)', 1)[1].split('continue;', 1)[0]
+        self.assertNotIn('ConstrainLength', branch)
+        self.assertNotIn('ApplySegmentRotation', branch)
+        self.assertNotIn('useAuthoredSlideDynamics = true', source)
+
+    def test_positional_garment_diagnostics_reject_freeze_and_false_angular_response(self):
+        folder = ROOT / 'unity/Assets/Applications/PhotoStudio'
+        generated = (folder / 'ActorRenderingSelfTest.SecondaryMotion.cs').read_text(encoding='utf-8')
+        for token in ('analytic-translation', 'no-artificial-swing', 'nonzero-translation',
+                      'parent-frame-mm-limit-', 'disabled-collider-has-no-body-fallback',
+                      'axis-add-local-force-', 'positional-restoring-target-',
+                      'disable-reset-restores-legacy', 'reset-full-trajectory-exact'):
+            self.assertIn(token, generated)
+        actual = (folder / 'SrpActorCharacterValidation.SecondaryMotion.cs').read_text(encoding='utf-8')
+        for token in ('--validate-authored-garment-slides', 'actual-positional-entries-owned',
+                      'nonzero-local-translation', 'parent-frame-mm-bounds',
+                      'slide-visible-skinned-response', 'useAuthoredSlideDynamics = oldGarmentSlides[i]'):
             self.assertIn(token, actual)
 
     def test_secondary_motion_metadata_has_importable_guid(self):

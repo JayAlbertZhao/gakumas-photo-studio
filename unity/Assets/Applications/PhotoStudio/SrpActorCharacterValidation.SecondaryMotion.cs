@@ -124,6 +124,14 @@ namespace GakumasPhotoMode
             var oldExternal = swings.Select(s => s.useExternalReferenceLimits).ToArray();
             var oldSkirt = swings.Select(s => s.useAuthoredSkirtHelpers).ToArray();
             bool authoredSkirt = Environment.GetCommandLineArgs().Contains("--validate-authored-skirt-helpers");
+            bool authoredSlide = Environment.GetCommandLineArgs().Contains("--validate-authored-garment-slides");
+            var oldGarmentSlides = swings.Select(s => s.useAuthoredSlideDynamics).ToArray();
+            var nodeField = typeof(HairDynamicsSystem).GetField("_nodes",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            object Field(object value, string name) => value.GetType().GetField(name).GetValue(value);
+            var garmentSlideNodes = swings.Where(s => (string)label.GetValue(s) == "Garment")
+                .SelectMany(s => ((System.Collections.IEnumerable)nodeField.GetValue(s)).Cast<object>())
+                .Where(n => Field(n, "parent") != null && ((ActorAnimation.ActorSwingDynamicBone)Field(n, "setting")).dynamicType == 1).ToArray();
             var oldWind = swings.Select(s => s.naturalWind).ToArray();
             var oldTime = swings.Select(s => s.naturalWindTimeOverride).ToArray();
             var oldDiagnosticWind = swings.Select(s => s.windStrength).ToArray();
@@ -134,7 +142,7 @@ namespace GakumasPhotoMode
             helpers.AddRange(root.GetComponentsInChildren<QuartzLegAndRotationDeformationSystem>(true));
             helpers.AddRange(root.GetComponentsInChildren<QuartzGarmentDeformationSystem>(true));
             void Check(string name, bool accepted, float value = 0) => report.checks.Add(new Check {
-                name = (authoredSkirt ? "authored-skirt-character-" : "external-reference-character-") + name, accepted = accepted, value = value });
+                name = (authoredSlide ? "garment-slide-character-" : authoredSkirt ? "authored-skirt-character-" : "external-reference-character-") + name, accepted = accepted, value = value });
             void Restore()
             {
                 for (int i = 0; i < bones.Length; i++)
@@ -160,6 +168,7 @@ namespace GakumasPhotoMode
                 foreach (var s in slides) s.automaticSimulation = false;
                 Check("separate-producer-and-consumer", swings.Any(s => (string)label.GetValue(s) == "Skirt") &&
                     swings.Any(s => (string)label.GetValue(s) == "Garment"));
+                if (authoredSlide) Check("actual-positional-entries-owned", garmentSlideNodes.Length >= 2, garmentSlideNodes.Length);
                 foreach (string mode in new[] { "legacy", "enabled", "replay", "disabled" })
                 {
                     bool external = mode == "enabled" || mode == "replay";
@@ -168,13 +177,15 @@ namespace GakumasPhotoMode
                     {
                         // Isolate the new helper while retaining the previously
                         // accepted external constraints in every comparison arm.
-                        s.useExternalReferenceLimits = authoredSkirt || external;
-                        s.useAuthoredSkirtHelpers = authoredSkirt && external;
+                        s.useExternalReferenceLimits = authoredSlide || authoredSkirt || external;
+                        s.useAuthoredSkirtHelpers = authoredSlide || (authoredSkirt && external);
+                        s.useAuthoredSlideDynamics = authoredSlide && external && (string)label.GetValue(s) == "Garment";
                         s.ResetSimulation();
                     }
                     foreach (var s in breasts) s.ResetSimulation();
                     foreach (var s in slides) s.ResetSimulation();
                     float error = 0; int corrections = 0; bool finite = true;
+                    float slideResponse = 0, slideLimitError = 0;
                     for (int frame = 0; frame < 180; frame++)
                     {
                         float seconds = frame * .01667f; Pose(seconds);
@@ -183,6 +194,19 @@ namespace GakumasPhotoMode
                         foreach (var s in breasts) s.AdvanceSimulation(.01667f);
                         foreach (var s in slides) s.AdvanceSimulation(.01667f);
                         float[] state = State(); finite &= state.All(Finite);
+                        if (authoredSlide && external)
+                            foreach (var node in garmentSlideNodes)
+                            {
+                                var bone = (Transform)Field(node, "bone");
+                                Vector3 offset = bone.localPosition - (Vector3)Field(node, "restLocalPosition");
+                                slideResponse = Mathf.Max(slideResponse, offset.magnitude);
+                                var limit = ((ActorAnimation.ActorSwingDynamicBone)Field(node, "setting")).limitInfo;
+                                if (limit == null || limit.useLimit == 0) continue;
+                                var ranges = new[] { limit.axisX, limit.axisY, limit.axisZ };
+                                for (int axis = 0; axis < 3; axis++)
+                                    slideLimitError = Mathf.Max(slideLimitError,
+                                        ranges[axis].x * .001f - offset[axis], offset[axis] - ranges[axis].y * .001f);
+                            }
                         if (mode == "legacy") legacy.Add(state);
                         else
                         {
@@ -191,7 +215,12 @@ namespace GakumasPhotoMode
                         }
                     }
                     Check(mode + "-180-frames-finite", finite);
-                    Check(mode + "-corrections", authoredSkirt || external ? corrections > 0 : corrections == 0, corrections);
+                    Check(mode + "-corrections", authoredSlide ? corrections >= 0 : authoredSkirt || external ? corrections > 0 : corrections == 0, corrections);
+                    if (authoredSlide && external)
+                    {
+                        Check(mode + "-nonzero-local-translation", slideResponse > 1e-5f && Finite(slideResponse), slideResponse);
+                        Check(mode + "-parent-frame-mm-bounds", slideLimitError < 2e-5f && Finite(slideLimitError), slideLimitError);
+                    }
                     if (mode != "legacy") Check(mode + "-all-bones", mode == "enabled" ? error > 1e-5f && Finite(error) : error == 0, error);
                     foreach (int angle in new[] { 0, 90, 180 })
                     {
@@ -206,7 +235,7 @@ namespace GakumasPhotoMode
                     }
                 }
                 int changed = legacyImages.Sum(pair => Changed(pair.Value, enabledImages[pair.Key], .001f));
-                Check(authoredSkirt ? "helper-visible-skinned-response" : "external-limit-visible-skinned-response", changed > 10, changed);
+                Check(authoredSlide ? "slide-visible-skinned-response" : authoredSkirt ? "helper-visible-skinned-response" : "external-limit-visible-skinned-response", changed > 10, changed);
             }
             finally
             {
@@ -216,6 +245,7 @@ namespace GakumasPhotoMode
                 {
                     swings[i].automaticSimulation = oldAutomatic[i]; swings[i].useExternalReferenceLimits = oldExternal[i];
                     swings[i].useAuthoredSkirtHelpers = oldSkirt[i];
+                    swings[i].useAuthoredSlideDynamics = oldGarmentSlides[i];
                     swings[i].naturalWind = oldWind[i]; swings[i].naturalWindTimeOverride = oldTime[i]; swings[i].windStrength = oldDiagnosticWind[i];
                 }
                 for (int i = 0; i < breasts.Length; i++) breasts[i].automaticSimulation = oldBreasts[i];

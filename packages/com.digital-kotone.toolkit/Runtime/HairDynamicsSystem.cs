@@ -43,6 +43,9 @@ namespace GakumasPhotoMode
         public bool useExternalReferenceLimits;
         /// <summary>Use authored skirt reference frames and continuous per-axis gains. Default remains legacy.</summary>
         public bool useAuthoredSkirtHelpers;
+        /// <summary>Opt in before initialization to positional dynamicType=1 garment/hair links.
+        /// Slide limits are parent-frame millimetres; default preserves the legacy swing path.</summary>
+        public bool useAuthoredSlideDynamics;
         /// <summary>Changed external clamps during the most recent integration step.</summary>
         public int ExternalReferenceLimitCorrections { get; private set; }
         private double? _explicitSimulationTime;
@@ -626,6 +629,12 @@ namespace GakumasPhotoMode
                     node.position = node.authoredPosition;
                     node.defaultRotation = node.authoredRotation;
                     node.defaultWorldRotation = node.authoredRotation;
+                    // A positional edge cannot supply an angular solution for its
+                    // anchor. Follow the animated attachment instead of retaining
+                    // a swing rotation from an earlier frame.
+                    if (useAuthoredSlideDynamics && node.child != null &&
+                        node.child.setting.dynamicType == 1)
+                        node.rotation = node.authoredRotation;
                 }
             }
 
@@ -685,7 +694,8 @@ namespace GakumasPhotoMode
                 Quaternion authoredChildRotation =
                     targetWorldRotation * child.restLocalRotation;
                 float length = child.restLocalPosition.magnitude;
-                if (length < 0.0001f) continue;
+                bool slide = useAuthoredSlideDynamics && child.setting.dynamicType == 1;
+                if (!slide && length < 0.0001f) continue;
                 if ((child.position - authoredTip).sqrMagnitude > 0.25f)
                 {
                     child.position = authoredTip;
@@ -744,6 +754,27 @@ namespace GakumasPhotoMode
                         parent, child, simulationWorldRotation, acceleration);
                 Vector3 rawDelta = acceleration * integrationScale;
                 Vector3 candidate = child.position + rawDelta;
+                if (slide)
+                {
+                    // Slide is a positional degree of freedom, including at
+                    // coincident helper bones. Do not project onto a fixed-length
+                    // sphere or rotate the upstream link to reach the candidate.
+                    SwingCollider collider = child.setting.dynamicCollider;
+                    if (collider == null || collider.type != 4)
+                        candidate = ResolveCollision(child, origin, candidate, length);
+                    if (applyAuthoredLimits && !_disableHardLimitsForDiagnostics)
+                        candidate = ApplySlideLimit(child, origin, simulationWorldRotation, candidate);
+                    parent.childSpeed = rawDelta;
+                    child.position = candidate;
+                    // The independent runtime carries the attachment's animated
+                    // orientation through positional links; translation adds no
+                    // artificial swing. Downstream swing edges remain independent.
+                    child.rotation = simulationWorldRotation * child.restLocalRotation;
+                    child.defaultRotation = child.rotation;
+                    child.defaultWorldRotation = child.rotation;
+                    child.ready = true;
+                    continue;
+                }
                 candidate = ConstrainLength(origin, candidate, authoredDirection, length);
                 candidate = ResolveCollision(child, origin, candidate, length);
                 candidate = ConstrainLength(origin, candidate, authoredDirection, length);
@@ -788,6 +819,19 @@ namespace GakumasPhotoMode
                 node.defaultPosition += translation;
                 node = node.child;
             }
+        }
+
+        private static Vector3 ApplySlideLimit(Node child, Vector3 origin,
+            Quaternion parentRotation, Vector3 candidate)
+        {
+            SwingLimitInfo limit = child.setting.limitInfo;
+            if (limit == null || limit.useLimit == 0) return candidate;
+            Vector3 delta = Quaternion.Inverse(parentRotation) * (candidate - origin) - child.restLocalPosition;
+            const float millimetresToMetres = .001f;
+            delta.x = Mathf.Clamp(delta.x, limit.axisX.x * millimetresToMetres, limit.axisX.y * millimetresToMetres);
+            delta.y = Mathf.Clamp(delta.y, limit.axisY.x * millimetresToMetres, limit.axisY.y * millimetresToMetres);
+            delta.z = Mathf.Clamp(delta.z, limit.axisZ.x * millimetresToMetres, limit.axisZ.y * millimetresToMetres);
+            return origin + parentRotation * (child.restLocalPosition + delta);
         }
 
         private Vector3 GetRootCorrectionCancelPosition(
@@ -1146,6 +1190,12 @@ namespace GakumasPhotoMode
             Node parent = point.node;
             Node child = parent.child;
             if (child == null) return;
+            if (useAuthoredSlideDynamics && child.setting.dynamicType == 1)
+            {
+                child.position += translation;
+                child.ready = true;
+                return;
+            }
             Vector3 origin = parent.position;
             float length = child.restLocalPosition.magnitude;
             if (length < 0.0001f) return;

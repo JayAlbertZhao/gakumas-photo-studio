@@ -131,6 +131,179 @@ namespace GakumasPhotoMode
             return error;
         }
 
+        private void VerifyGarmentSlideTranslation(Report report)
+        {
+            // A positional mode must admit translation along its rest segment,
+            // including a coincident auxiliary pair. No assets or tuned forces.
+            var offsets = new[] { Vector3.zero, Vector3.down * .08f, Vector3.right * .08f };
+            for (int i = 0; i < offsets.Length; i++)
+            {
+                var owner = Own(new GameObject("Generated positional garment " + i));
+                var root = new GameObject("Sleeve anchor").transform; root.SetParent(owner.transform, false);
+                var tip = new GameObject("Sleeve slide output").transform; tip.SetParent(root, false);
+                tip.localPosition = offsets[i]; tip.localRotation = Quaternion.Euler(5, -12, 7);
+                var anchorSetting = root.gameObject.AddComponent<ActorSwingDynamicBone>();
+                var setting = tip.gameObject.AddComponent<ActorSwingDynamicBone>();
+                foreach (var s in new[] { anchorSetting, setting })
+                { s.dynamicType = 1; s.mass = 0; s.damping = 1; s.stiffness = 0; s.spring = 0; s.pendulum = 0; s.wind = 0; }
+                var solver = owner.AddComponent<HairDynamicsSystem>(); solver.automaticSimulation = false;
+                // No body collider fallback in this one-force analytic fixture.
+                solver.collisionStrength = 0;
+                // Reflection keeps the original failing build runnable before
+                // the explicit opt-in is implemented; the geometry oracle stays.
+                var option = typeof(HairDynamicsSystem).GetField("useAuthoredSlideDynamics");
+                if (option != null) option.SetValue(solver, true);
+                solver.InitializeGarment(owner.transform, owner.transform, owner.transform, null);
+                Vector3 before = tip.position; Quaternion rootRotation = root.rotation, tipRotation = tip.rotation;
+                setting.mass = 1;
+                solver.AdvanceSimulation(.01667f, 0);
+                Vector3 expected = before + Vector3.down * (.01f * .01667f * 40f);
+                float error = (tip.position - expected).magnitude;
+                float response = (tip.position - before).magnitude;
+                float rotationError = Mathf.Max((root.rotation * Vector3.up - rootRotation * Vector3.up).magnitude,
+                    (tip.rotation * Vector3.right - tipRotation * Vector3.right).magnitude);
+                FrameworkCheck(report, "garment-slide-" + i + "-nonempty-segment", solver.SimulatedBoneCount == 1, solver.SimulatedBoneCount);
+                FrameworkCheck(report, "garment-slide-" + i + "-analytic-translation", error < 1e-6f, error);
+                FrameworkCheck(report, "garment-slide-" + i + "-nonzero-translation", response > .006f && response < .007f, response);
+                FrameworkCheck(report, "garment-slide-" + i + "-no-artificial-swing", rotationError < 1e-6f, rotationError);
+            }
+            VerifyGarmentSlideContracts(report);
+        }
+
+        private void VerifyGarmentSlideContracts(Report report)
+        {
+            void Check(string name, bool accepted, float error = 0f) =>
+                FrameworkCheck(report, "garment-slide-contract-" + name, accepted, error);
+            void Near(string name, Vector3 actual, Vector3 expected)
+            { float error = (actual - expected).magnitude; Check(name, error < 2e-6f, error); }
+            SecondaryFixture Rig(bool slide, bool enabled, Vector3 offset, Quaternion rotation)
+            {
+                var owner = Own(new GameObject("Generated slide contract"));
+                owner.transform.rotation = rotation;
+                var anchor = new GameObject("Anchor").transform; anchor.SetParent(owner.transform, false);
+                var tip = new GameObject("Output").transform; tip.SetParent(anchor, false);
+                tip.localPosition = offset; tip.localRotation = Quaternion.Euler(11, -7, 3);
+                var a = anchor.gameObject.AddComponent<ActorSwingDynamicBone>();
+                var b = tip.gameObject.AddComponent<ActorSwingDynamicBone>();
+                foreach (var setting in new[] { a, b })
+                {
+                    setting.dynamicType = slide ? 1 : 0; setting.mass = 0; setting.damping = 1;
+                    setting.stiffness = 0; setting.spring = 0; setting.pendulum = 0; setting.wind = 0;
+                    setting.dynamicCollider = new SwingCollider { type = 4 };
+                }
+                var solver = owner.AddComponent<HairDynamicsSystem>(); solver.automaticSimulation = false;
+                Check("default-off-" + slide + "-" + enabled, !solver.useAuthoredSlideDynamics);
+                solver.useAuthoredSlideDynamics = enabled;
+                solver.InitializeGarment(owner.transform, owner.transform, owner.transform, null);
+                return new SecondaryFixture { root = owner.transform, solver = solver,
+                    automatic = value => solver.automaticSimulation = value, advance = solver.AdvanceSimulation,
+                    bones = new[] { owner.transform, anchor, tip },
+                    positions = new[] { Vector3.zero, Vector3.zero, offset },
+                    rotations = new[] { rotation, Quaternion.identity, tip.localRotation } };
+            }
+            ActorSwingDynamicBone Setting(SecondaryFixture f) => f.bones[2].GetComponent<ActorSwingDynamicBone>();
+            const float step = .01667f;
+            float distance = .01f * step * 40f;
+            // Disabled authored colliders must not fall back to large body spheres.
+            var disabled = Rig(true, true, Vector3.zero, Quaternion.identity);
+            Setting(disabled).mass = 1; disabled.advance(step, 0);
+            Near("disabled-collider-has-no-body-fallback", disabled.bones[2].position, Vector3.down * distance);
+            foreach (Quaternion rotation in new[] { Quaternion.identity, Quaternion.Euler(17, 31, -26) })
+            for (int axis = 0; axis < 3; axis++)
+            foreach (int sign in new[] { -1, 1 })
+            {
+                string suffix = rotation.eulerAngles + "-" + axis + "-" + sign;
+                var rig = Rig(true, true, new Vector3(.08f, -.03f, .02f), rotation);
+                var solver = (HairDynamicsSystem)rig.solver;
+                var setting = Setting(rig);
+                setting.limitInfo = new SwingLimitInfo { useLimit = 1,
+                    axisX = new Vector2Int(-2, 3), axisY = new Vector2Int(-4, 5), axisZ = new Vector2Int(-6, 7) };
+                setting.wind = 1; setting.useWindGlobalForce = true;
+                var force = Vector3.zero; force[axis] = sign * .1f;
+                solver.naturalWind = new NaturalWindSettings { enabled = true, steadyForce = rotation * force,
+                    sineAmplitude = Vector3.zero, randomAmplitude = Vector3.zero, useGustEnvelope = false };
+                rig.advance(step, 0);
+                Vector3 expected = rig.positions[2]; expected[axis] += (sign < 0 ? -(2 + axis * 2) : 3 + axis * 2) * .001f;
+                Near("parent-frame-mm-limit-" + suffix, rig.bones[2].localPosition, expected);
+                Near("translation-does-not-rotate-parent-" + suffix, rig.bones[1].localRotation * Vector3.up, Vector3.up);
+                Near("translation-preserves-authored-orientation-" + suffix,
+                    rig.bones[2].localRotation * Vector3.right, rig.rotations[2] * Vector3.right);
+            }
+            var animated = Rig(true, true, Vector3.right * .08f, Quaternion.identity);
+            animated.root.rotation = Quaternion.Euler(20, 30, 40);
+            animated.advance(step, 0);
+            Near("animated-anchor-orientation", animated.bones[1].rotation * Vector3.up, animated.root.rotation * Vector3.up);
+            Near("animated-slide-orientation", animated.bones[2].localRotation * Vector3.right, animated.rotations[2] * Vector3.right);
+            foreach (int sign in new[] { -1, 1 })
+            {
+                Quaternion frame = Quaternion.Euler(-11, 23, 37);
+                var axisRig = Rig(true, true, Vector3.zero, frame);
+                var solver = (HairDynamicsSystem)axisRig.solver; var setting = Setting(axisRig);
+                setting.wind = 1; setting.axisAddXToY = .5f; setting.axisAddXToZ = .25f;
+                solver.naturalWind = new NaturalWindSettings { enabled = true,
+                    steadyForce = frame * (Vector3.right * (sign * .02f)),
+                    sineAmplitude = Vector3.zero, randomAmplitude = Vector3.zero, useGustEnvelope = false };
+                axisRig.advance(step, 0);
+                Near("axis-add-local-force-" + sign, axisRig.bones[2].position,
+                    frame * (new Vector3(.02f, .01f, .005f) * (sign * step * 40f)));
+            }
+            foreach (float length in new[] { 0f, .08f })
+            {
+                var springRig = Rig(true, true, Vector3.right * length, Quaternion.identity);
+                var solver = (HairDynamicsSystem)springRig.solver; var setting = Setting(springRig);
+                // Set one initial condition directly, not by warming to a tuned
+                // equilibrium: zero velocity, known 2 cm positional error.
+                object child = null;
+                foreach (object node in (System.Collections.IEnumerable)DynamicField(solver, "_nodes"))
+                    if (DynamicField(node, "parent") != null) child = node;
+                child.GetType().GetField("position").SetValue(child, springRig.bones[2].position + Vector3.up * .02f);
+                setting.stiffness = .2f; setting.pendulum = .1f; setting.pendulumRange = .5f;
+                springRig.advance(step, 0);
+                // Distance/range = .02 * 10 / .5 = .4. Restoring gain = .14.
+                Near("positional-restoring-target-" + length, springRig.bones[2].position,
+                    springRig.positions[2] + Vector3.up * (.02f * (1f - .14f * step * 40f)));
+                solver.strength = 0;
+                springRig.advance(step, 0);
+                Near("zero-strength-restores-authored-position-" + length, springRig.bones[2].localPosition, springRig.positions[2]);
+            }
+            // An upstream swing remains untouched by enabling positional support.
+            var legacySwing = Rig(false, false, Vector3.down * .08f, Quaternion.identity);
+            var optSwing = Rig(false, true, Vector3.down * .08f, Quaternion.identity);
+            Setting(legacySwing).mass = Setting(optSwing).mass = .2f;
+            for (int frame = 0; frame < 60; frame++)
+            { legacySwing.Pose(frame); optSwing.Pose(frame); legacySwing.advance(step, frame * step); optSwing.advance(step, frame * step); }
+            Check("non-slide-path-exact", SecondaryDifference(legacySwing.Snapshot(), optSwing.Snapshot()) == 0f);
+            var legacy = Rig(true, false, Vector3.right * .08f, Quaternion.identity);
+            var toggled = Rig(true, true, Vector3.right * .08f, Quaternion.identity);
+            Setting(toggled).mass = 1; toggled.advance(step, 0);
+            Setting(toggled).mass = 0; ((HairDynamicsSystem)toggled.solver).useAuthoredSlideDynamics = false;
+            ((HairDynamicsSystem)toggled.solver).ResetSimulation();
+            Check("disable-reset-restores-legacy", SecondaryDifference(legacy.Snapshot(), toggled.Snapshot()) == 0f);
+            var replay = Rig(true, true, Vector3.zero, Quaternion.identity);
+            var repeat = Rig(true, true, Vector3.zero, Quaternion.identity);
+            foreach (var f in new[] { replay, repeat })
+            {
+                var s = Setting(f); s.mass = .4f; s.damping = .4f; s.stiffness = .2f; s.spring = .1f;
+                s.limitInfo = new SwingLimitInfo { useLimit = 1,
+                    axisX = new Vector2Int(-15, 15), axisY = new Vector2Int(-10, 10), axisZ = new Vector2Int(-10, 10) };
+                ((HairDynamicsSystem)f.solver).ResetSimulation();
+            }
+            var trajectory = new List<float[]>(); float errorReplay = 0;
+            for (int frame = 0; frame < 180; frame++)
+            {
+                replay.Pose(frame); repeat.Pose(frame);
+                replay.advance(step, frame * step); repeat.advance(step, frame * step);
+                trajectory.Add(replay.Snapshot());
+                errorReplay = Mathf.Max(errorReplay, SecondaryDifference(replay.Snapshot(), repeat.Snapshot()));
+            }
+            Check("animated-three-second-exact-replay", errorReplay == 0f, errorReplay);
+            replay.root.position = Vector3.zero; replay.root.rotation = Quaternion.identity;
+            ((HairDynamicsSystem)replay.solver).ResetSimulation(); float errorReset = 0;
+            for (int frame = 0; frame < 180; frame++)
+            { replay.Pose(frame); replay.advance(step, frame * step); errorReset = Mathf.Max(errorReset, SecondaryDifference(replay.Snapshot(), trajectory[frame])); }
+            Check("reset-full-trajectory-exact", errorReset == 0f, errorReset);
+        }
+
         private void VerifyAuthoredSkirtHelpers(Report report)
         {
             var type = typeof(HairDynamicsSystem);
