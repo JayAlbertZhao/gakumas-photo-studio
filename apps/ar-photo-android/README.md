@@ -26,11 +26,17 @@ Photo Studio.
   downloads Gradle and Android dependencies; no project-specific assets are
   downloaded.
 - The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
-  The APK, downloaded dependencies, SDK path, and imported models are not
-  published in this repository.
+  It is not committed to this repository. To install a locally built copy,
+  run `adb install -r app/build/outputs/apk/debug/app-debug.apk` with a device
+  connected. Downloaded dependencies, SDK paths, and imported models are not
+  published.
 - CI builds the same debug APK and runs Android lint on the app and library on
-  Linux; it does not upload an APK or include imported assets. Emulator and
-  device checks remain separate from this compile-time gate.
+  Linux. Successful push runs also provide a short-lived
+  `ar-photo-debug-apk` download in that run's GitHub Actions artifacts. Unzip
+  it and install `app-debug.apk` to try the app without building it locally.
+  This is a debug-signed test build, not a production release; it contains no
+  imported models or ARCore recordings. Emulator and device checks remain
+  separate from this compile-time gate.
 
 Android 10 (API 29) is the minimum. The manifest marks ARCore as optional so
 the synthetic preview also runs on a device without ARCore. For real AR, use an

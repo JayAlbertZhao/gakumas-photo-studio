@@ -188,6 +188,14 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         self.assertIn("'platforms;android-36'", workflow)
         self.assertIn("gradle-version: '9.2.1'", workflow)
         self.assertIn("./gradlew :app:assembleDebug :app:lintDebug :ar-toolkit:lintDebug", workflow)
+        self.assertIn("actions/upload-artifact@v4", workflow)
+        self.assertIn("Check APK before public artifact upload", workflow)
+        self.assertIn("Unreviewed APK payload", workflow)
+        self.assertIn("if: github.event_name == 'push'", workflow)
+        self.assertIn("path: apps/ar-photo-android/app/build/outputs/apk/debug/app-debug.apk", workflow)
+        self.assertIn("retention-days: 2", workflow)
+        self.assertNotIn("**/*.glb", workflow)
+        self.assertNotIn("**/*.mp4", workflow)
 
     def test_reusable_android_toolkit_is_consumed_by_app(self):
         settings = (APP / "settings.gradle.kts").read_text(encoding="utf-8")

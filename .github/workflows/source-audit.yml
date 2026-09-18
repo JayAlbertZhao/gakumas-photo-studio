@@ -36,3 +36,27 @@ jobs:
           gradle-version: '9.2.1'
       - run: ./gradlew :app:assembleDebug :app:lintDebug :ar-toolkit:lintDebug --no-daemon --max-workers=2
         working-directory: apps/ar-photo-android
+      - name: Check APK before public artifact upload
+        if: github.event_name == 'push'
+        run: |
+          python - <<'PY'
+          from zipfile import ZipFile
+          path = 'apps/ar-photo-android/app/build/outputs/apk/debug/app-debug.apk'
+          with ZipFile(path) as apk:
+              names = apk.namelist()
+          approved = ('assets/environments/neutral/', 'assets/materials/', 'assets/textures/')
+          unexpected = [name for name in names if name.startswith('assets/')
+                        and not name.endswith('/') and not name.startswith(approved)]
+          forbidden = [name for name in names if name.lower().endswith(
+              ('.glb', '.gltf', '.mp4', '.bundle', '.assetbundle', '.fbx', '.vrm'))]
+          if unexpected or forbidden:
+              raise SystemExit(f'Unreviewed APK payload: assets={unexpected}, media={forbidden}')
+          print('APK asset boundary accepted')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: ar-photo-debug-apk
+          path: apps/ar-photo-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 2
