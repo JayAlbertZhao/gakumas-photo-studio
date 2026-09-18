@@ -33,10 +33,17 @@ Photo Studio.
 - CI builds the same debug APK and runs Android lint on the app and library on
   Linux. Successful push runs also provide a short-lived
   `ar-photo-debug-apk` download in that run's GitHub Actions artifacts. Unzip
-  it and install `app-debug.apk` to try the app without building it locally.
+  it and run `adb install -r app-debug.apk` to try the app without building it
+  locally. The artifact is retained for two days.
   This is a debug-signed test build, not a production release; it contains no
   imported models or ARCore recordings. Emulator and device checks remain
   separate from this compile-time gate.
+
+The CI runner and your computer use different Android debug signing keys.
+If Android reports `INSTALL_FAILED_UPDATE_INCOMPATIBLE` when switching between
+their APKs, uninstall `org.digital_kotone.arphoto` before installing the other
+build. Uninstalling deletes the app-private imported GLB and replay dataset;
+keep your source copies outside the app before doing that.
 
 Android 10 (API 29) is the minimum. The manifest marks ARCore as optional so
 the synthetic preview also runs on a device without ARCore. For real AR, use an
