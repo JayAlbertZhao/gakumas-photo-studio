@@ -304,6 +304,47 @@ namespace GakumasPhotoMode
             Check("reset-full-trajectory-exact", errorReset == 0f, errorReset);
         }
 
+        private void VerifyDisabledDynamicColliders(Report report)
+        {
+            var resolve = typeof(HairDynamicsSystem).GetMethod("ResolveCollision", BindingFlags.Instance | BindingFlags.NonPublic);
+            var option = typeof(HairDynamicsSystem).GetField("respectDisabledDynamicColliders");
+            foreach (bool authored in new[] { false, true })
+            foreach (int mask in new[] { 0, -1, 256 })
+            {
+                string suffix = "-authored-" + authored + "-mask-" + mask;
+                var fixture = CreateSecondaryFixture("swing"); fixture.automatic(false);
+                var solver = (HairDynamicsSystem)fixture.solver;
+                if (authored)
+                {
+                    var shape = fixture.root.gameObject.AddComponent<ActorSwingStaticBone>();
+                    shape.staticCollider = new SwingCollider { type = 0, float_A = .1f, collisionMask = -1 };
+                    solver.Initialize(fixture.root, fixture.root);
+                }
+                object node = null;
+                foreach (object item in (System.Collections.IEnumerable)DynamicField(solver, "_nodes"))
+                    if (DynamicField(item, "parent") != null) { node = item; break; }
+                var setting = (ActorSwingDynamicBone)DynamicField(node, "setting");
+                setting.dynamicCollider = new SwingCollider { type = 4, float_A = .02f, float_B = .05f, collisionMask = mask };
+                Vector3 candidate = new Vector3(.025f, 0, 0);
+                Vector3 Resolve() => (Vector3)resolve.Invoke(solver, new object[] { node, Vector3.zero, candidate, .08f });
+                if (option != null) option.SetValue(solver, false);
+                Vector3 legacy = Resolve();
+                FrameworkCheck(report, "disabled-collider-legacy-counterexample" + suffix, (legacy - candidate).magnitude > .01f, (legacy - candidate).magnitude);
+                if (option != null) option.SetValue(solver, true);
+                float error = (Resolve() - candidate).magnitude;
+                FrameworkCheck(report, "disabled-collider-no-phantom-contact" + suffix, error < 1e-6f, error);
+                setting.dynamicCollider.type = 0;
+                float positive = (Resolve() - candidate).magnitude;
+                FrameworkCheck(report, "disabled-collider-active-sphere-positive" + suffix, positive > .01f, positive);
+                setting.dynamicCollider.type = 4;
+                if (option != null) option.SetValue(solver, false);
+                error = (Resolve() - legacy).magnitude;
+                FrameworkCheck(report, "disabled-collider-legacy-restoration" + suffix, error == 0f, error);
+            }
+            var fresh = Own(new GameObject("Generated collider default")).AddComponent<HairDynamicsSystem>();
+            FrameworkCheck(report, "disabled-collider-default-off", option != null && !(bool)option.GetValue(fresh));
+        }
+
         private void VerifyAuthoredSkirtHelpers(Report report)
         {
             var type = typeof(HairDynamicsSystem);

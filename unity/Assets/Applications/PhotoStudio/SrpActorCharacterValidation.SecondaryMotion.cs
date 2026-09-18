@@ -125,6 +125,11 @@ namespace GakumasPhotoMode
             var oldSkirt = swings.Select(s => s.useAuthoredSkirtHelpers).ToArray();
             bool authoredSkirt = Environment.GetCommandLineArgs().Contains("--validate-authored-skirt-helpers");
             bool authoredSlide = Environment.GetCommandLineArgs().Contains("--validate-authored-garment-slides");
+            bool colliderEligibility = Environment.GetCommandLineArgs().Contains("--validate-disabled-dynamic-colliders");
+            var colliderOption = typeof(HairDynamicsSystem).GetField("respectDisabledDynamicColliders");
+            var oldColliderEligibility = swings.Select(s => colliderOption != null && (bool)colliderOption.GetValue(s)).ToArray();
+            var resolveCollision = typeof(HairDynamicsSystem).GetMethod("ResolveCollision",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             var oldGarmentSlides = swings.Select(s => s.useAuthoredSlideDynamics).ToArray();
             var nodeField = typeof(HairDynamicsSystem).GetField("_nodes",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
@@ -132,6 +137,11 @@ namespace GakumasPhotoMode
             var garmentSlideNodes = swings.Where(s => (string)label.GetValue(s) == "Garment")
                 .SelectMany(s => ((System.Collections.IEnumerable)nodeField.GetValue(s)).Cast<object>())
                 .Where(n => Field(n, "parent") != null && ((ActorAnimation.ActorSwingDynamicBone)Field(n, "setting")).dynamicType == 1).ToArray();
+            var disabledColliderNodes = swings.Where(s => (string)label.GetValue(s) == "Garment")
+                .SelectMany(s => ((System.Collections.IEnumerable)nodeField.GetValue(s)).Cast<object>()
+                    .Select(n => new { solver = s, node = n, setting = (ActorAnimation.ActorSwingDynamicBone)Field(n, "setting") }))
+                .Where(item => Field(item.node, "parent") != null && item.setting.dynamicType == 0 &&
+                    item.setting.dynamicCollider != null && item.setting.dynamicCollider.type == 4).ToArray();
             var oldWind = swings.Select(s => s.naturalWind).ToArray();
             var oldTime = swings.Select(s => s.naturalWindTimeOverride).ToArray();
             var oldDiagnosticWind = swings.Select(s => s.windStrength).ToArray();
@@ -142,7 +152,7 @@ namespace GakumasPhotoMode
             helpers.AddRange(root.GetComponentsInChildren<QuartzLegAndRotationDeformationSystem>(true));
             helpers.AddRange(root.GetComponentsInChildren<QuartzGarmentDeformationSystem>(true));
             void Check(string name, bool accepted, float value = 0) => report.checks.Add(new Check {
-                name = (authoredSlide ? "garment-slide-character-" : authoredSkirt ? "authored-skirt-character-" : "external-reference-character-") + name, accepted = accepted, value = value });
+                name = (colliderEligibility ? "disabled-collider-character-" : authoredSlide ? "garment-slide-character-" : authoredSkirt ? "authored-skirt-character-" : "external-reference-character-") + name, accepted = accepted, value = value });
             void Restore()
             {
                 for (int i = 0; i < bones.Length; i++)
@@ -169,6 +179,7 @@ namespace GakumasPhotoMode
                 Check("separate-producer-and-consumer", swings.Any(s => (string)label.GetValue(s) == "Skirt") &&
                     swings.Any(s => (string)label.GetValue(s) == "Garment"));
                 if (authoredSlide) Check("actual-positional-entries-owned", garmentSlideNodes.Length >= 2, garmentSlideNodes.Length);
+                if (colliderEligibility) Check("actual-disabled-swing-entries-owned", disabledColliderNodes.Length > 0, disabledColliderNodes.Length);
                 foreach (string mode in new[] { "legacy", "enabled", "replay", "disabled" })
                 {
                     bool external = mode == "enabled" || mode == "replay";
@@ -177,22 +188,36 @@ namespace GakumasPhotoMode
                     {
                         // Isolate the new helper while retaining the previously
                         // accepted external constraints in every comparison arm.
-                        s.useExternalReferenceLimits = authoredSlide || authoredSkirt || external;
-                        s.useAuthoredSkirtHelpers = authoredSlide || (authoredSkirt && external);
-                        s.useAuthoredSlideDynamics = authoredSlide && external && (string)label.GetValue(s) == "Garment";
+                        s.useExternalReferenceLimits = colliderEligibility || authoredSlide || authoredSkirt || external;
+                        s.useAuthoredSkirtHelpers = colliderEligibility || authoredSlide || (authoredSkirt && external);
+                        s.useAuthoredSlideDynamics = (colliderEligibility || authoredSlide && external) && (string)label.GetValue(s) == "Garment";
+                        if (colliderOption != null) colliderOption.SetValue(s, colliderEligibility && external && (string)label.GetValue(s) == "Garment");
                         s.ResetSimulation();
                     }
                     foreach (var s in breasts) s.ResetSimulation();
                     foreach (var s in slides) s.ResetSimulation();
                     float error = 0; int corrections = 0; bool finite = true;
                     float slideResponse = 0, slideLimitError = 0;
+                    float phantomCorrection = 0; string phantomBone = "-";
+                    int chainCorrections = 0;
                     for (int frame = 0; frame < 180; frame++)
                     {
                         float seconds = frame * .01667f; Pose(seconds);
                         foreach (var s in swings)
-                        { s.AdvanceSimulation(.01667f, seconds); corrections += s.ExternalReferenceLimitCorrections; }
+                        { s.AdvanceSimulation(.01667f, seconds); corrections += s.ExternalReferenceLimitCorrections;
+                            if ((string)label.GetValue(s) == "Garment") chainCorrections += s.ChainCollisionCorrections; }
                         foreach (var s in breasts) s.AdvanceSimulation(.01667f);
                         foreach (var s in slides) s.AdvanceSimulation(.01667f);
+                        if (colliderEligibility)
+                            foreach (var item in disabledColliderNodes)
+                            {
+                                var parent = Field(item.node, "parent");
+                                var candidate = (Vector3)Field(item.node, "position");
+                                var actual = (Vector3)resolveCollision.Invoke(item.solver, new object[] { item.node,
+                                    (Vector3)Field(parent, "position"), candidate, ((Vector3)Field(item.node, "restLocalPosition")).magnitude });
+                                float correction = (actual - candidate).magnitude;
+                                if (correction > phantomCorrection) { phantomCorrection = correction; phantomBone = item.setting.name; }
+                            }
                         float[] state = State(); finite &= state.All(Finite);
                         if (authoredSlide && external)
                             foreach (var node in garmentSlideNodes)
@@ -215,7 +240,13 @@ namespace GakumasPhotoMode
                         }
                     }
                     Check(mode + "-180-frames-finite", finite);
-                    Check(mode + "-corrections", authoredSlide ? corrections >= 0 : authoredSkirt || external ? corrections > 0 : corrections == 0, corrections);
+                    Check(mode + "-corrections", colliderEligibility || authoredSlide ? corrections >= 0 : authoredSkirt || external ? corrections > 0 : corrections == 0, corrections);
+                    if (colliderEligibility)
+                    {
+                        Check(mode + "-disabled-collider-contact", external ? phantomCorrection < 1e-6f : phantomCorrection > 1e-5f, phantomCorrection);
+                        Check(mode + "-chain-collision-remains-active", chainCorrections > 0, chainCorrections);
+                        Debug.Log("[DisabledColliderProbe] mode=" + mode + " bone=" + phantomBone + " maximumCorrection=" + phantomCorrection.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+                    }
                     if (authoredSlide && external)
                     {
                         Check(mode + "-nonzero-local-translation", slideResponse > 1e-5f && Finite(slideResponse), slideResponse);
@@ -235,7 +266,7 @@ namespace GakumasPhotoMode
                     }
                 }
                 int changed = legacyImages.Sum(pair => Changed(pair.Value, enabledImages[pair.Key], .001f));
-                Check(authoredSlide ? "slide-visible-skinned-response" : authoredSkirt ? "helper-visible-skinned-response" : "external-limit-visible-skinned-response", changed > 10, changed);
+                Check(colliderEligibility ? "eligibility-visible-skinned-response" : authoredSlide ? "slide-visible-skinned-response" : authoredSkirt ? "helper-visible-skinned-response" : "external-limit-visible-skinned-response", changed > 10, changed);
             }
             finally
             {
@@ -246,6 +277,7 @@ namespace GakumasPhotoMode
                     swings[i].automaticSimulation = oldAutomatic[i]; swings[i].useExternalReferenceLimits = oldExternal[i];
                     swings[i].useAuthoredSkirtHelpers = oldSkirt[i];
                     swings[i].useAuthoredSlideDynamics = oldGarmentSlides[i];
+                    if (colliderOption != null) colliderOption.SetValue(swings[i], oldColliderEligibility[i]);
                     swings[i].naturalWind = oldWind[i]; swings[i].naturalWindTimeOverride = oldTime[i]; swings[i].windStrength = oldDiagnosticWind[i];
                 }
                 for (int i = 0; i < breasts.Length; i++) breasts[i].automaticSimulation = oldBreasts[i];

@@ -16,6 +16,7 @@ namespace GakumasPhotoMode
     {
         [Serializable] private sealed class Check { public string name;public bool accepted;public float value; }
         [Serializable] private sealed class Geometry { public string renderer;public int vertices,submeshes;public bool skinned; }
+        [Serializable] private sealed class Framing { public Vector3 framingCenter;public float framingDistance; }
         [Serializable] private sealed class PrecisionSample
         {
             public int sample,differentChannels,firstX=-1,firstY=-1,firstChannel=-1;
@@ -31,6 +32,7 @@ namespace GakumasPhotoMode
             public bool accepted;public int renderers,draws,materials;public int[] materialTypes;
             public int readbackScratchTextures,previewScratchTextures,readbackCalls,previewExports;
             public long scratchTextureBytes;
+            public Vector3 framingCenter;public float framingDistance;public bool suppliedFraming;
             public List<Geometry> geometry=new List<Geometry>();public List<Check> checks=new List<Check>();
             public List<PrecisionSample> precisionSweep=new List<PrecisionSample>();
         }
@@ -80,6 +82,18 @@ namespace GakumasPhotoMode
                 }
                 report.renderers=renderers.Length;report.materialTypes=sources.Values.SelectMany(a=>a).Select(m=>(int)m.GetFloat("_ShaderType")).Distinct().OrderBy(x=>x).ToArray();
                 var bounds=renderers[0].bounds;foreach(var r in renderers)bounds.Encapsulate(r.bounds);var center=bounds.center;float distance=Mathf.Max(1,bounds.size.y)*2;
+                var framingArgs=Environment.GetCommandLineArgs();int framingIndex=Array.IndexOf(framingArgs,"--validate-character-framing");
+                if(framingIndex>=0)
+                {
+                    if(framingIndex+1>=framingArgs.Length||framingArgs[framingIndex+1].StartsWith("--",StringComparison.Ordinal))
+                        throw new ArgumentException("Character framing requires a previous character report JSON path.");
+                    var framing=JsonUtility.FromJson<Framing>(File.ReadAllText(framingArgs[framingIndex+1]));
+                    if(framing==null||!Finite(framing.framingCenter.x)||!Finite(framing.framingCenter.y)||!Finite(framing.framingCenter.z)||
+                        !Finite(framing.framingDistance)||framing.framingDistance<1f||framing.framingDistance>100f)
+                        throw new ArgumentException("Character framing requires finite center and distance in [1,100].");
+                    center=framing.framingCenter;distance=framing.framingDistance;report.suppliedFraming=true;
+                }
+                report.framingCenter=center;report.framingDistance=distance;
                 var headDriver=app.CharacterRoot.GetComponent<ActorHeadLightingDriver>();
                 var head=headDriver!=null?(Transform)typeof(ActorHeadLightingDriver).GetField("_head",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(headDriver):null;
                 if(head==null)throw new InvalidOperationException("Missing current character head basis");

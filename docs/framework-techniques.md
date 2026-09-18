@@ -307,6 +307,29 @@ PPT 78 区分袖部的位置式运动与头发／外衣的旋转式运动。
 当前两套自备服装的 D3D11 对照及其中一套的 Vulkan 对照已通过；这些是有限输入的几何与实际蒙皮证据，
 不代表已完成原版输出一致性、全部衣物接触质量或移动端验收。
 
+## 动态点碰撞的启用条件
+
+在初始化前设置 `HairDynamicsSystem.respectDisabledDynamicColliders = true`，
+可以让 `dynamicCollider.type == 4`（None）的节点跳过点碰撞，也不进入身体球体的后备碰撞。
+默认 `false` 保留原行为。切换模式后重置模拟，避免继续使用旧模式积累的姿态和速度。
+此开关不关闭独立的 Chain 边碰撞；没有点碰撞器的衣物节点仍可参与简化布料链。
+普通 Sphere 等有效点碰撞器不受影响，空碰撞器仍保留原后备策略。
+
+生成式诊断使用 `--self-test-disabled-colliders-only`。
+自备角色诊断使用 `--validate-secondary-reference-limits --validate-disabled-dynamic-colliders`，
+固定既有参考角度、裙摆和位置式模式，只切换衣物点碰撞资格，验证实际节点、
+180 帧重播、Chain 碰撞持续生效及三视角蒙皮响应。
+一套自备训练服中，禁用的点碰撞器曾对候选位置产生最大约 9 cm 的错误修正；
+开启后该修正为零，独立 Chain 碰撞仍执行。该结果不代表网格自碰撞或全部接触质量已经完成。
+
+角色诊断默认根据启动时的 renderer bounds 取景，独立进程的镜头可能略有不同。
+需要跨进程逐像素比较时，追加 `--validate-character-framing <previous-report.json>`，
+复用此前 `srp-actor-character.json` 记录的 `framingCenter`／`framingDistance`。
+该选项只固定诊断镜头的中心和距离，不改变默认摄影相机；动作、材质、光照和其他输入仍须一致。
+距离必须在 1–100 内，中心与距离须为有限值。
+当前训练服的同一取景参数下，四组／三视角的 120 份 PNG／浮点 RAW 已验证跨进程逐字节一致；
+不把独立自动取景产生的差异误当成求解器回归，也不放宽同进程重播或旧渲染回归的门限。
+
 ## TAA 分类接口
 
 ```csharp

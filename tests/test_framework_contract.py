@@ -754,8 +754,8 @@ class FrameworkContractTests(unittest.TestCase):
         actual = (folder / 'SrpActorCharacterValidation.SecondaryMotion.cs').read_text(encoding='utf-8')
         for token in ('input-is-nonzero-four-hundredths-degree', 'small-input-continuous-helper-output',
                       'large-bend-nonzero-positive-control', 'Mathf.Atan2', 'helper-visible-skinned-response',
-                      's.useExternalReferenceLimits = authoredSlide || authoredSkirt || external',
-                      's.useAuthoredSkirtHelpers = authoredSlide || (authoredSkirt && external)',
+                      's.useExternalReferenceLimits = colliderEligibility || authoredSlide || authoredSkirt || external',
+                      's.useAuthoredSkirtHelpers = colliderEligibility || authoredSlide || (authoredSkirt && external)',
                       'useAuthoredSkirtHelpers = oldSkirt[i]', 'useAuthoredSkirtHelpers = oldAuthored[i]'):
             self.assertIn(token, actual)
 
@@ -786,6 +786,36 @@ class FrameworkContractTests(unittest.TestCase):
                       'nonzero-local-translation', 'parent-frame-mm-bounds',
                       'slide-visible-skinned-response', 'useAuthoredSlideDynamics = oldGarmentSlides[i]'):
             self.assertIn(token, actual)
+
+    def test_disabled_point_colliders_keep_separate_chain_collision_and_legacy_default(self):
+        source = (RUNTIME / 'HairDynamicsSystem.cs').read_text(encoding='utf-8')
+        self.assertIn('public bool respectDisabledDynamicColliders;', source)
+        self.assertNotIn('respectDisabledDynamicColliders = true', source)
+        body = source.split('private Vector3 ResolveCollision(', 1)[1].split('private void ApplyQuartzDrivers', 1)[0]
+        self.assertIn('respectDisabledDynamicColliders && dynamicCollider != null && dynamicCollider.type == 4', body)
+        self.assertIn('node.lastCollisionCorrection = 0f;', body)
+        chain = source.split('private sealed class ColliderState', 1)[1]
+        self.assertNotIn('respectDisabledDynamicColliders', chain)
+        folder = ROOT / 'unity/Assets/Applications/PhotoStudio'
+        generated = (folder / 'ActorRenderingSelfTest.SecondaryMotion.cs').read_text(encoding='utf-8')
+        for token in ('disabled-collider-no-phantom-contact', 'disabled-collider-active-sphere-positive',
+                      'disabled-collider-legacy-restoration', 'disabled-collider-default-off'):
+            self.assertIn(token, generated)
+        actual = (folder / 'SrpActorCharacterValidation.SecondaryMotion.cs').read_text(encoding='utf-8')
+        for token in ('--validate-disabled-dynamic-colliders', 'actual-disabled-swing-entries-owned',
+                      'chain-collision-remains-active', 'eligibility-visible-skinned-response',
+                      'oldColliderEligibility[i]'):
+            self.assertIn(token, actual)
+
+    def test_character_cross_process_framing_is_explicit_validated_and_recorded(self):
+        source = (ROOT / 'unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs').read_text(encoding='utf-8')
+        for token in ('--validate-character-framing', 'public Vector3 framingCenter',
+                      'public float framingDistance', 'public bool suppliedFraming',
+                      'JsonUtility.FromJson<Framing>', 'framing.framingDistance<1f',
+                      'framing.framingDistance>100f', '!Finite(framing.framingCenter.x)',
+                      'center=framing.framingCenter;distance=framing.framingDistance;',
+                      'report.framingCenter=center;report.framingDistance=distance;'):
+            self.assertIn(token, source)
 
     def test_secondary_motion_metadata_has_importable_guid(self):
         folder = ROOT / 'unity/Assets/Applications/PhotoStudio'

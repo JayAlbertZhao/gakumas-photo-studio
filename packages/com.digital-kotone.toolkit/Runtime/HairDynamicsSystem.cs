@@ -46,6 +46,9 @@ namespace GakumasPhotoMode
         /// <summary>Opt in before initialization to positional dynamicType=1 garment/hair links.
         /// Slide limits are parent-frame millimetres; default preserves the legacy swing path.</summary>
         public bool useAuthoredSlideDynamics;
+        /// <summary>Opt in to disabling point contact for dynamic collider type None (4).
+        /// Separately authored chain-edge collisions remain active. Default preserves legacy.</summary>
+        public bool respectDisabledDynamicColliders;
         /// <summary>Changed external clamps during the most recent integration step.</summary>
         public int ExternalReferenceLimitCorrections { get; private set; }
         private double? _explicitSimulationTime;
@@ -1270,6 +1273,13 @@ namespace GakumasPhotoMode
         {
             if (_disableCollisionsForDiagnostics || collisionStrength <= 0.001f) return point;
             SwingCollider dynamicCollider = node.setting.dynamicCollider;
+            if (respectDisabledDynamicColliders && dynamicCollider != null && dynamicCollider.type == 4)
+            {
+                node.lastCollisionBone = "-";
+                node.lastCollisionType = -1;
+                node.lastCollisionCorrection = 0f;
+                return point;
+            }
             float dynamicRadius;
             if (dynamicCollider == null)
             {
