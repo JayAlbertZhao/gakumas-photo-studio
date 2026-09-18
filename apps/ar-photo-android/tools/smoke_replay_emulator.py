@@ -56,8 +56,8 @@ def saved_photo_rows(smoke, adb: str, serial: str) -> dict[int, int]:
         r"_display_name=AR-Photo-[^,\s]+, is_pending=0", rows)}
 
 
-def preview_model_pixels(png: bytes) -> int:
-    """Count the fixture's cyan pixels in the preview center, without Pillow."""
+def png_scene_metrics(png: bytes) -> tuple[int, tuple[int, int, int], tuple[int, int, int]]:
+    """Sample the known replay fixture and camera floor, without Pillow."""
     if not png.startswith(b"\x89PNG\r\n\x1a\n"):
         raise RuntimeError("emulator screenshot is not PNG")
     position = 8
@@ -83,6 +83,7 @@ def preview_model_pixels(png: bytes) -> int:
     previous = bytearray(stride)
     cursor = 0
     count = 0
+    top_pixel = floor_pixel = (0, 0, 0)
     for y in range(height):
         filter_type = raw[cursor]
         row = bytearray(raw[cursor + 1:cursor + 1 + stride])
@@ -107,6 +108,12 @@ def preview_model_pixels(png: bytes) -> int:
             else:
                 raise RuntimeError(f"unsupported PNG filter {filter_type}")
             row[i] = (row[i] + predictor) & 255
+        if y == height // 10:
+            x = width // 10
+            top_pixel = tuple(row[x * 4:x * 4 + 3])
+        if y == height * 85 // 100:
+            x = width // 2
+            floor_pixel = tuple(row[x * 4:x * 4 + 3])
         if height * 3 // 10 <= y < height * 6 // 10 and y % 4 == 0:
             for x in range(width * 4 // 10, width * 9 // 10, 4):
                 red, green, blue = row[x * 4:x * 4 + 3]
@@ -114,7 +121,11 @@ def preview_model_pixels(png: bytes) -> int:
                         and green > red + 20 and blue > red + 20:
                     count += 1
         previous = row
-    return count
+    return count, top_pixel, floor_pixel
+
+
+def preview_model_pixels(png: bytes) -> int:
+    return png_scene_metrics(png)[0]
 
 
 def wait_for_playback_end(smoke, adb: str, serial: str, timeout: float = 150.0) -> None:
@@ -148,11 +159,17 @@ def main() -> None:
                         help="local copy of SceneView's public bundled-pixel9-sample.mp4")
     parser.add_argument("--apk", type=Path,
                         default=ROOT / "app/build/outputs/apk/debug/app-debug.apk")
+    parser.add_argument("--photo-output", type=Path,
+                        help="optional local PNG for visual review; must be outside the checkout")
     args = parser.parse_args()
     if not args.serial.startswith("emulator-"):
         parser.error("only emulator-* serials are accepted")
     if not args.apk.is_file() or not args.dataset.is_file():
         parser.error("build the debug APK and provide the public ARCore dataset file")
+    if args.photo_output is not None:
+        output = args.photo_output.resolve()
+        if output.is_relative_to(ROOT.parents[1]) or output.exists() or not output.parent.is_dir():
+            parser.error("photo output must be a new file in an existing directory outside the checkout")
     digest = hashlib.sha256(args.dataset.read_bytes()).hexdigest().upper()
     if digest != DATASET_SHA256:
         parser.error("dataset SHA-256 differs from the reviewed public Pixel 9 recording")
@@ -236,6 +253,21 @@ def main() -> None:
                          "--projection", "_size:mime_type:_display_name:is_pending")
     if "mime_type=image/png" not in metadata or "is_pending=0" not in metadata:
         raise RuntimeError(f"saved photo missing or incomplete: {metadata}")
+    photo_bytes = subprocess.run([adb, "-s", args.serial, "exec-out", "content",
+                                  "read", "--uri", photo_uri], check=True,
+                                 capture_output=True).stdout
+    if not photo_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise RuntimeError("MediaStore returned a non-PNG photo")
+    if args.photo_output is not None:
+        output.write_bytes(photo_bytes)
+        print(f"Review photo copied to {output}", flush=True)
+    model_pixels, top_pixel, floor_pixel = png_scene_metrics(photo_bytes)
+    if (model_pixels < 2_000 or top_pixel[0] >= 225
+            or not (75 <= floor_pixel[0] < 220 and
+                    floor_pixel[0] > floor_pixel[1] + 15 and
+                    floor_pixel[1] > floor_pixel[2] + 5)):
+        raise RuntimeError("saved PNG lacks fixture/camera or still contains controls: "
+                           f"model={model_pixels}, top={top_pixel}, floor={floor_pixel}")
     root = smoke.wait_for_text(adb, args.serial, "显示控件")
     if smoke.find_text(root, "收起控件") is not None:
         raise RuntimeError("full controls reopened after collapsed-view capture")

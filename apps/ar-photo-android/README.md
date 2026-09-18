@@ -165,7 +165,14 @@ crash. The screenshot check samples the generated fixture's color in the
 preview center; it is not a general image-quality metric. The
 test deletes only its own saved PNG after checking it. It grants camera
 permission on that emulator. It does not record a new dataset or prove
-live-phone tracking; the PNG metadata check does not replace visual review.
+live-phone tracking. For the known public recording and generated cyan fixture,
+it also samples the saved PNG to check that the subject and camera floor are
+present and that the top/bottom control cards are absent. These fixture-specific
+pixel checks do not replace visual review or phone acceptance.
+For visual review, pass `--photo-output` with a new PNG path outside this
+checkout. The smoke check copies its saved photo there before deleting the
+emulator test copy. Inspect it privately; even the public sample dataset
+contains a real-world camera recording.
 
 The debug APK has been built. On the API 36.1 emulator, the synthetic
 preview/import/photo flow worked; the public ARCore recording also replayed,

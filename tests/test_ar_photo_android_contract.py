@@ -96,6 +96,8 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
             png = (b"\x89PNG\r\n\x1a\n" + header + chunk(b"IDAT", zlib.compress(rows))
                    + chunk(b"IEND", b""))
             self.assertEqual(module.preview_model_pixels(png) > 0, expected)
+            self.assertEqual(module.png_scene_metrics(png)[1:],
+                             (tuple(pixel[:3]), tuple(pixel[:3])))
 
     def test_optional_ar_and_private_import_boundary(self):
         manifest = (APP / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
