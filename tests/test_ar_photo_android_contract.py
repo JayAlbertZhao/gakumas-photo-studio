@@ -6,6 +6,7 @@ from pathlib import Path
 import struct
 import unittest
 import xml.etree.ElementTree as ET
+import zlib
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,6 +84,18 @@ class ArPhotoAndroidContractTest(unittest.TestCase):
         spec.loader.exec_module(module)
         self.assertEqual(len(module.DATASET_SHA256), 64)
         self.assertEqual(module.load_smoke().PACKAGE, "org.digital_kotone.arphoto")
+
+        def chunk(kind, payload):
+            body = kind + payload
+            return struct.pack(">I", len(payload)) + body + struct.pack(">I", zlib.crc32(body))
+
+        header = chunk(b"IHDR", struct.pack(">IIBBBBB", 40, 40, 8, 6, 0, 0, 0))
+        for pixel, expected in ((bytes((170, 225, 230, 255)), True),
+                                (bytes((255, 255, 255, 255)), False)):
+            rows = (b"\x00" + pixel * 40) * 40
+            png = (b"\x89PNG\r\n\x1a\n" + header + chunk(b"IDAT", zlib.compress(rows))
+                   + chunk(b"IEND", b""))
+            self.assertEqual(module.preview_model_pixels(png) > 0, expected)
 
     def test_optional_ar_and_private_import_boundary(self):
         manifest = (APP / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")

@@ -11,9 +11,13 @@ import hashlib
 import importlib.util
 from pathlib import Path
 import re
+import struct
+import subprocess
 import tempfile
 import time
 import uuid
+import zlib
+import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +45,100 @@ def tap_text(smoke, adb: str, serial: str, value: str) -> None:
     root = smoke.wait_for_text(adb, serial, value)
     node = smoke.find_text(root, value)
     smoke.tap(adb, serial, smoke.bounds_center(node.get("bounds")))
+
+
+def saved_photo_rows(smoke, adb: str, serial: str) -> dict[int, int]:
+    rows = smoke.run(adb, serial, "shell", "content", "query", "--uri",
+                     "content://media/external/images/media", "--projection",
+                     "_id:_size:mime_type:_display_name:is_pending")
+    return {int(match.group(1)): int(match.group(2)) for match in re.finditer(
+        r"_id=(\d+), _size=(\d+), mime_type=image/png, "
+        r"_display_name=AR-Photo-[^,\s]+, is_pending=0", rows)}
+
+
+def preview_model_pixels(png: bytes) -> int:
+    """Count the fixture's cyan pixels in the preview center, without Pillow."""
+    if not png.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise RuntimeError("emulator screenshot is not PNG")
+    position = 8
+    compressed = bytearray()
+    width = height = 0
+    while position + 12 <= len(png):
+        length = struct.unpack_from(">I", png, position)[0]
+        kind = png[position + 4:position + 8]
+        chunk = png[position + 8:position + 8 + length]
+        position += length + 12
+        if kind == b"IHDR":
+            width, height, depth, color, _, _, _ = struct.unpack(">IIBBBBB", chunk)
+            if depth != 8 or color != 6:
+                raise RuntimeError("expected an 8-bit RGBA emulator screenshot")
+        elif kind == b"IDAT":
+            compressed.extend(chunk)
+        elif kind == b"IEND":
+            break
+    if not width or not height:
+        raise RuntimeError("emulator screenshot has no dimensions")
+    raw = zlib.decompress(compressed)
+    stride = width * 4
+    previous = bytearray(stride)
+    cursor = 0
+    count = 0
+    for y in range(height):
+        filter_type = raw[cursor]
+        row = bytearray(raw[cursor + 1:cursor + 1 + stride])
+        cursor += stride + 1
+        for i in range(stride):
+            left = row[i - 4] if i >= 4 else 0
+            above = previous[i]
+            upper_left = previous[i - 4] if i >= 4 else 0
+            if filter_type == 1:
+                predictor = left
+            elif filter_type == 2:
+                predictor = above
+            elif filter_type == 3:
+                predictor = (left + above) // 2
+            elif filter_type == 4:
+                estimate = left + above - upper_left
+                distances = (abs(estimate - left), abs(estimate - above),
+                             abs(estimate - upper_left))
+                predictor = (left, above, upper_left)[distances.index(min(distances))]
+            elif filter_type == 0:
+                predictor = 0
+            else:
+                raise RuntimeError(f"unsupported PNG filter {filter_type}")
+            row[i] = (row[i] + predictor) & 255
+        if height * 3 // 10 <= y < height * 6 // 10 and y % 4 == 0:
+            for x in range(width * 4 // 10, width * 9 // 10, 4):
+                red, green, blue = row[x * 4:x * 4 + 3]
+                if 140 <= red <= 210 and 200 <= green <= 245 and 200 <= blue <= 250 \
+                        and green > red + 20 and blue > red + 20:
+                    count += 1
+        previous = row
+    return count
+
+
+def wait_for_playback_end(smoke, adb: str, serial: str, timeout: float = 150.0) -> None:
+    deadline = time.monotonic() + timeout
+    exited = 0
+    last_texts = []
+    while time.monotonic() < deadline:
+        try:
+            root = smoke.hierarchy(adb, serial)
+            last_texts = [node.get("text", "") for node in root.iter("node")
+                          if node.get("text")]
+        except (subprocess.CalledProcessError, ET.ParseError):
+            time.sleep(3)
+            continue
+        if any(value.startswith("会话回放已结束") for value in last_texts):
+            return
+        if any(value.startswith("回放录制的相机") for value in last_texts):
+            exited = 0
+        else:
+            exited += 1
+            if exited >= 3:
+                raise RuntimeError(f"replay mode exited before dataset end: {last_texts[:8]}")
+        time.sleep(3)
+    raise RuntimeError(f"dataset did not finish within {timeout:g}s: {last_texts[:8]}")
 
 
 def main() -> None:
@@ -82,10 +180,20 @@ def main() -> None:
     smoke.run(adb, args.serial, "shell", "am", "start", "-n", f"{smoke.PACKAGE}/.MainActivity")
     smoke.wait_for_text(adb, args.serial, "Bounce")
     initial_pid = smoke.run(adb, args.serial, "shell", "pidof", smoke.PACKAGE)
-    tap_text(smoke, adb, args.serial, "数据回放")
-    smoke.wait_for_prefix(adb, args.serial, "回放录制的相机", timeout=30.0)
+    # Filament's initial frame may still be blocking touches even though the
+    # accessibility tree already contains the mode chip.
+    for _ in range(3):
+        time.sleep(1.5)
+        tap_text(smoke, adb, args.serial, "数据回放")
+        try:
+            smoke.wait_for_prefix(adb, args.serial, "回放录制的相机", timeout=10.0)
+            break
+        except RuntimeError:
+            continue
+    else:
+        raise RuntimeError("Data Replay chip never opened the AR scene")
     print("ARCore replay started; waiting for recorded session to finish", flush=True)
-    smoke.wait_for_prefix(adb, args.serial, "会话回放已结束", timeout=65.0)
+    wait_for_playback_end(smoke, adb, args.serial)
 
     size = smoke.run(adb, args.serial, "shell", "wm", "size")
     match = re.search(r"(\d+)x(\d+)", size)
@@ -105,30 +213,58 @@ def main() -> None:
 
     tap_text(smoke, adb, args.serial, "下一段")
     smoke.wait_for_text(adb, args.serial, "Slide")
+    before_photos = saved_photo_rows(smoke, adb, args.serial)
+    tap_text(smoke, adb, args.serial, "收起控件")
+    smoke.wait_for_text(adb, args.serial, "显示控件")
     tap_text(smoke, adb, args.serial, "拍照")
-    root = smoke.wait_for_prefix(adb, args.serial, "照片已保存：", timeout=25.0)
-    message = next(node.get("text", "") for node in root.iter("node")
-                   if node.get("text", "").startswith("照片已保存："))
-    photo_uri = message.removeprefix("照片已保存：")
-    if not re.fullmatch(r"content://media/external/images/media/\d+", photo_uri):
-        raise RuntimeError(f"unexpected saved photo URI: {photo_uri}")
+    deadline = time.monotonic() + 25.0
+    new_photos = {}
+    while time.monotonic() < deadline:
+        new_photos = {photo_id: size for photo_id, size in
+                      saved_photo_rows(smoke, adb, args.serial).items()
+                      if photo_id not in before_photos}
+        if new_photos:
+            break
+        time.sleep(0.5)
+    if len(new_photos) != 1:
+        raise RuntimeError(f"expected one newly saved PNG, got {new_photos}")
+    photo_id, photo_size = next(iter(new_photos.items()))
+    if photo_size < 100_000:
+        raise RuntimeError(f"saved photo is unexpectedly small: {photo_size} bytes")
+    photo_uri = f"content://media/external/images/media/{photo_id}"
     metadata = smoke.run(adb, args.serial, "shell", "content", "query", "--uri", photo_uri,
                          "--projection", "_size:mime_type:_display_name:is_pending")
-    size_match = re.search(r"_size=(\d+)", metadata)
-    if (not size_match or int(size_match.group(1)) < 100_000
-            or "mime_type=image/png" not in metadata or "is_pending=0" not in metadata):
+    if "mime_type=image/png" not in metadata or "is_pending=0" not in metadata:
         raise RuntimeError(f"saved photo missing or incomplete: {metadata}")
+    root = smoke.wait_for_text(adb, args.serial, "显示控件")
+    if smoke.find_text(root, "收起控件") is not None:
+        raise RuntimeError("full controls reopened after collapsed-view capture")
     # This is a disposable emulator test artifact, not a user photograph.
     smoke.run(adb, args.serial, "shell", "content", "delete", "--uri", photo_uri)
-    print("Composited PNG was published to MediaStore and test copy removed", flush=True)
+    print("Collapsed-view PNG saved; controls remained collapsed; test copy removed", flush=True)
+    tap_text(smoke, adb, args.serial, "显示控件")
     tap_text(smoke, adb, args.serial, "重新播放会话")
     smoke.wait_for_prefix(adb, args.serial, "正在从头播放会话")
     tap_text(smoke, adb, args.serial, "合成预览")
     smoke.wait_for_text(adb, args.serial, "Slide")
+    # The Compose label can update before the new Filament scene draws its
+    # first imported frame. Wait for pixels, not just accessibility text.
+    preview_deadline = time.monotonic() + 25.0
+    visible_pixels = 0
+    while time.monotonic() < preview_deadline:
+        screenshot = subprocess.run([adb, "-s", args.serial, "exec-out", "screencap", "-p"],
+                                    check=True, capture_output=True).stdout
+        visible_pixels = preview_model_pixels(screenshot)
+        if visible_pixels >= 2_000:
+            break
+        time.sleep(1.0)
+    else:
+        raise RuntimeError(f"imported model absent after returning to preview: "
+                           f"{visible_pixels} fixture-color samples")
     final_pid = smoke.run(adb, args.serial, "shell", "pidof", smoke.PACKAGE)
     if not initial_pid or final_pid != initial_pid:
         raise RuntimeError(f"app process changed during replay/mode switch: {initial_pid} -> {final_pid}")
-    print("PASS: dataset replay, floor anchor, clip switch, PNG save, restart, synthetic return",
+    print("PASS: replay, floor anchor, clip switch, PNG save, restart, visible preview return",
           flush=True)
 
 

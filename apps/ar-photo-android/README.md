@@ -100,6 +100,8 @@ when no model is loaded.
 
 Tap the preview to move the subject; use the size and rotation sliders, then
 tap **拍照**. A PNG without the control cards is saved to `Pictures/AR Photo/`.
+When the controls are collapsed, a small shutter button remains at the bottom;
+capturing from it leaves the controls collapsed so the full scene stays visible.
 The AR plane grid and its shadow-receiver overlay disappear once a subject is
 placed; a further tap can still re-place it using ARCore's plane hit test.
 They are also hidden during capture and are not part of the photo. The view
@@ -156,8 +158,11 @@ python -I tools/smoke_replay_emulator.py --serial emulator-5554 --dataset "$env:
 
 It verifies the recording's SHA-256, copies it and an original animated GLB
 into the disposable emulator's private app storage, then checks replay to the
-end, floor placement, clip switching, PNG publication in MediaStore, replay
-restart, and return to synthetic preview without an app-process crash. The
+end, floor placement, clip switching, taking a PNG with the controls collapsed
+and publishing it in MediaStore, replay restart, and return to synthetic
+preview with the imported fixture visibly rendered, without an app-process
+crash. The screenshot check samples the generated fixture's color in the
+preview center; it is not a general image-quality metric. The
 test deletes only its own saved PNG after checking it. It grants camera
 permission on that emulator. It does not record a new dataset or prove
 live-phone tracking; the PNG metadata check does not replace visual review.

@@ -109,6 +109,7 @@ internal fun PhotoScreen(
         position = Position(0f, 1.0f, 4.6f)
     }
     var arMode by rememberSaveable { mutableStateOf(false) }
+    var previousArMode by remember { mutableStateOf(arMode) }
     var replayMode by rememberSaveable { mutableStateOf(false) }
     var replayRun by rememberSaveable { mutableIntStateOf(0) }
     var permissionTargetReplay by rememberSaveable { mutableStateOf(false) }
@@ -205,7 +206,37 @@ internal fun PhotoScreen(
         enterArWhenReady(replay)
     }
 
+    fun capturePhoto() {
+        if (captureInProgress) return
+        val restoreChrome = chromeVisible
+        captureInProgress = true
+        chromeVisible = false
+        scope.launch {
+            try {
+                withFrameNanos { }
+                withFrameNanos { }
+                // Plane visualizers are removed asynchronously from Filament;
+                // two Compose frames alone still captured the old grid and
+                // opaque shadow on the emulator.
+                delay(300)
+                onCapture()
+            } finally {
+                chromeVisible = restoreChrome
+                captureInProgress = false
+            }
+        }
+    }
+
     LaunchedEffect(modelLocation, modelRevision) { animationIndex = 0 }
+    LaunchedEffect(arMode) {
+        // SceneView can retain the imported renderable in the disposed AR scene
+        // after switching back. A fresh instance restores the preview without
+        // requiring the user to tap or drag the model first.
+        if (previousArMode && !arMode && modelLocation != null) {
+            pendingModelTransformRevision++
+        }
+        previousArMode = arMode
+    }
     LaunchedEffect(playbackDataset) { if (playbackDataset == null) replayMode = false }
     DisposableEffect(arMode, replayMode, playbackRevision, replayRun) {
         onDispose {
@@ -411,24 +442,7 @@ internal fun PhotoScreen(
                             if (imported != null) pendingModelTransformRevision++
                             previewX = 0f; previewY = 0f
                         }) { Text("重置") }
-                        Button(onClick = {
-                            scope.launch {
-                                captureInProgress = true
-                                chromeVisible = false
-                                try {
-                                    withFrameNanos { }
-                                    withFrameNanos { }
-                                    // Plane visualizers are removed asynchronously from
-                                    // Filament; two Compose frames alone still captured
-                                    // the old grid and opaque shadow on the emulator.
-                                    delay(300)
-                                    onCapture()
-                                } finally {
-                                    chromeVisible = true
-                                    captureInProgress = false
-                                }
-                            }
-                        }) { Text("拍照") }
+                        Button(onClick = ::capturePhoto) { Text("拍照") }
                     }
                     if (arMode) {
                         OutlinedButton(onClick = onPickDataset) { Text("导入会话 MP4") }
@@ -492,6 +506,9 @@ internal fun PhotoScreen(
                 OutlinedButton(onClick = { chromeVisible = true },
                     modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding()
                         .padding(16.dp)) { Text("显示控件") }
+                Button(onClick = ::capturePhoto,
+                    modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
+                        .padding(16.dp)) { Text("拍照") }
             }
         }
     }
