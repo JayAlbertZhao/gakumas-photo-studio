@@ -147,6 +147,9 @@ Shader "GakumasPhotoMode/AdvEnvironmentFallback"
                 #else
                     output.lightmapUV = 0;
                 #endif
+                // AutoLight's GLES depth-shadow macro still refers to the
+                // conventional vertex parameter name `v`.
+                appdata v = value;
                 TRANSFER_SHADOW(output);
                 return output;
             }

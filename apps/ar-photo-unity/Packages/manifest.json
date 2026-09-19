@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "com.digital-kotone.toolkit": "file:../LocalPackages/com.digital-kotone.toolkit",
+    "com.unity.inputsystem": "1.7.0",
+    "com.unity.render-pipelines.core": "14.0.11",
+    "com.unity.render-pipelines.universal": "14.0.11",
+    "com.unity.modules.screencapture": "1.0.0",
+    "com.unity.xr.arfoundation": "5.1.6",
+    "com.unity.xr.arcore": "5.1.6",
+    "com.unity.xr.core-utils": "2.2.3",
+    "com.unity.xr.management": "4.4.0"
+  }
+}

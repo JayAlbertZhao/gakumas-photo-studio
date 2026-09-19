@@ -7,7 +7,7 @@
 只需要稀疏形变／蒙皮时，可直接使用 [GpuFaceDeformer](gpu-face-deformation.md)，不必初始化 CharacterSceneRuntime 或加载兼容角色数据。已有角色可显式切换 FaceExpressionRenderer 的 GPU 后端，默认 CPU 不变。
 
 1. 克隆仓库，用 Tuanjie 2022.3.62t15 创建自己的 Built-in 3D 项目，设置 Linear 色彩空间。
-2. Package Manager → **Add package from disk** → 选择本仓库 `packages/com.digital-kotone.toolkit/package.json`。包声明所需依赖；当前 URP 14.2.0-t1 是已验证团结环境的版本，不宣称标准 Unity 2022.3 直接兼容。
+2. Package Manager → **Add package from disk** → 选择本仓库 `packages/com.digital-kotone.toolkit/package.json`。包声明标准 Unity 2022.3 LTS 的 URP 14.0.11 最低依赖；仓库内团结工程仍以顶层 manifest 固定并验证 14.2.0-t1。
 3. 在该包的 Samples 中导入 **Minimal Character Host**。将示例组件挂到空场景的空物体；删除模板自带的 Camera / Light，避免与核心创建的相机/光源重复。
 4. 填写自己准备的 runtime 数据目录和角色 ID，进入 Play Mode。使用 [资产接口](assets.md) 准备数据；可先在本仓库执行 `python -I studio.py doctor --data "<数据目录>"` 和 `catalog`。这些 Python 命令用于预检，不是工具包的运行依赖。
 

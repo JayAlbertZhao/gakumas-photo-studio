@@ -14,6 +14,7 @@
 !/unity/
 !/.github/workflows/
 !/apps/ar-photo-android/
+!/apps/ar-photo-unity/
 !/packages/com.digital-kotone.toolkit/
 !/tools/dcc/
 !/unity/Assets/
@@ -23,6 +24,9 @@
 !/apps/ar-photo-android/ar-toolkit/
 !/apps/ar-photo-android/gradle/
 !/apps/ar-photo-android/tools/
+!/apps/ar-photo-unity/Assets/
+!/apps/ar-photo-unity/Packages/
+!/apps/ar-photo-unity/ProjectSettings/
 !/packages/com.digital-kotone.toolkit/Editor/
 !/packages/com.digital-kotone.toolkit/Examples/
 !/packages/com.digital-kotone.toolkit/Runtime/
@@ -34,6 +38,7 @@
 !/apps/ar-photo-android/app/src/
 !/apps/ar-photo-android/ar-toolkit/src/
 !/apps/ar-photo-android/gradle/wrapper/
+!/apps/ar-photo-unity/Assets/Editor/
 !/packages/com.digital-kotone.toolkit/Examples/DesktopHost/
 !/packages/com.digital-kotone.toolkit/Runtime/Compatibility/
 !/packages/com.digital-kotone.toolkit/Runtime/Resources/
@@ -87,6 +92,11 @@
 !/apps/ar-photo-android/tools/generate_sample_glb.py
 !/apps/ar-photo-android/tools/smoke_emulator.py
 !/apps/ar-photo-android/tools/smoke_replay_emulator.py
+!/apps/ar-photo-unity/Assets/ARPhotoApp.cs
+!/apps/ar-photo-unity/Assets/Editor/ARPhotoBuild.cs
+!/apps/ar-photo-unity/Packages/manifest.json
+!/apps/ar-photo-unity/ProjectSettings/ProjectVersion.txt
+!/apps/ar-photo-unity/README.md
 !/config/runtime-revisions.json
 !/config/source-baseline.json
 !/config/staging-manifest.example.json
@@ -750,6 +760,7 @@
 !/tests/test_actor_shadow_contract.py
 !/tests/test_ar_photo_android_contract.py
 !/tests/test_ar_photo_contract.py
+!/tests/test_ar_photo_unity_contract.py
 !/tests/test_baked_shadow_contract.py
 !/tests/test_baseline.py
 !/tests/test_bokeh_contract.py
@@ -799,6 +810,8 @@
 !/tools/dcc/maya_performance.py
 !/tools/dcc/performance_authoring.py
 !/tools/import_private_resources.py
+!/tools/prepare_ar_character_data.py
+!/tools/prepare_unity_ar_package.py
 !/tools/release.py
 !/tools/verify_baseline.py
 !/tools/verify_local_assets.py

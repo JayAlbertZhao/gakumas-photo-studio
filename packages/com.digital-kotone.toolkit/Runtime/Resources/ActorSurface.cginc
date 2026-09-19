@@ -280,6 +280,9 @@ v2f vert(appdata input)
     output.packedRampAdd = lowNibble.g / 15.0;
     output.packedRimMask = highNibble.a / 15.0;
     output.objectNormal = normalize(input.normal);
+    // AutoLight's GLES depth-shadow macro still refers to the conventional
+    // vertex parameter name `v`; preserve that alias without changing data.
+    appdata v = input;
     TRANSFER_SHADOW(output);
     return output;
 }

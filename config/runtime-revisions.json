@@ -88,7 +88,7 @@
       "baseline_sha256": "f2de05f13f12c4c930f22d955077418662d6c521bc96a9880a102f7051689b0c"
     },
     "unity/Packages/packages-lock.json": {
-      "sha256": "d5d50b39c464aa8ff6674b62e3afeb7de14162b0469d1d8a8ba9937c8c0cbe28",
+      "sha256": "4116512026ba1190ca99c9e4f5214d7650e95e3aaf5382679b9cd1f5fac95a6a",
       "baseline_sha256": "a3dab720a75a3176c0c6e7068ea6fc55a4d9dcdba0b1ca4ab6b44986fe7033b1"
     },
     "unity/Assets/Scripts/FaceDecalRuntime.cs": {
@@ -106,6 +106,10 @@
     "unity/Assets/ActorAnimationStub/ActorSwingDynamicBone.cs": {
       "sha256": "1f2f8898871244b4efa57e83e9b545d9d6f353cdec6507b2d1b3a11483bad7df",
       "baseline_sha256": "c3eabc57bd138926e413dd7a7fdd62e3459a52a955f8f50209082c5fe7f9ebce"
+    },
+    "unity/Assets/Resources/AdvEnvironmentFallback.shader": {
+      "sha256": "9ee6af80765f6a3920add38b63d56d3f37388ef1b0540e4c03a277db43c7b9ae",
+      "baseline_sha256": "ea4499a7f410174c3833552cc14977cb5810697b12f15a510a9af8fe631b5f28"
     }
   },
   "additions": {
@@ -117,7 +121,7 @@
     "unity/Assets/Resources/ActorOutline.cginc.meta": "342f8d7e34d7b5d69a2b75b31fb811b72d0b1b0562a7b0d2280333282b01421d",
     "unity/Assets/Resources/ActorSupplemental.shader": "3c30f64a667a21a7df284596acdd34869742dfcdd25b0468b4fd9645542c0c78",
     "unity/Assets/Resources/ActorSupplemental.shader.meta": "926b3c8cef54713a6494cf225ab90fb8c878c37cf9bdb2c3a74fe2e91bed01de",
-    "unity/Assets/Resources/ActorSurface.cginc": "8c1f44774536867643095ae5ff0d045e09c78678dd86513f3b2f3a235a1f485d",
+    "unity/Assets/Resources/ActorSurface.cginc": "13143f1d4c6d5023b3649416ee97d77da3f3282f711fcbf45e4426f7cdc303d2",
     "unity/Assets/Resources/ActorSurface.cginc.meta": "823711299cc21f29275adda70bb27486a1ceba219908ffe70f37b99d934c961d",
     "unity/Assets/Scripts/ActorRenderControls.cs": "7e3feeb1dc39ad3d9dd0ce9ee376e8573208943f2ecfc691a709d082a116df85",
     "unity/Assets/Scripts/ActorRenderControls.cs.meta": "3a5e35e1dbee426e9e1e28d04a6f3f88cd9b6de1d650ecb289d3737d2dd7d358",
@@ -149,7 +153,7 @@
     "packages/com.digital-kotone.toolkit/Runtime/Gakumas.Toolkit.asmdef.meta": "aa6bd18678567d1a6fb7c0670372e0972d692621c4d0bd9edf87520370d0e091",
     "packages/com.digital-kotone.toolkit/Samples~/MinimalHost/MinimalCharacterHost.cs": "32e8833f7511cf3e1e5a05580aa3539b316acea1a9d53cc10f035a2bcf21a34b",
     "packages/com.digital-kotone.toolkit/Samples~/MinimalHost/MinimalCharacterHost.cs.meta": "d617f71d770373c11c17e45a38a8663085850023a10cfb22fd123b56b002c152",
-    "packages/com.digital-kotone.toolkit/package.json": "ab4705e6252c1ee8e024add942916a2114c282d6baefd1c48ac02ba3b9a214ff",
+    "packages/com.digital-kotone.toolkit/package.json": "a71b715f839dbf51eed372f27b18793ede7106084bd2aa820d9d43155188cf8f",
     "unity/Assets/Applications/PhotoStudio/Gakumas.PhotoStudio.asmdef": "3b4c4fe6bcb41f5de1a8e0dd0c89006d23ced872631c9f5b056be24bdf909cb4",
     "unity/Assets/Applications/PhotoStudio/Gakumas.PhotoStudio.asmdef.meta": "bcd2ec03372f7b88a72ebce36516a118f05a21d8f1e8ecf8056811bb50bdbf2a",
     "unity/Assets/Applications/PhotoStudio/PhotoActorRenderControls.cs": "93267c4f15f0a7b3dcf3e1d3b1e07ced8258c9854d6ed1de91231a88aedce443",
