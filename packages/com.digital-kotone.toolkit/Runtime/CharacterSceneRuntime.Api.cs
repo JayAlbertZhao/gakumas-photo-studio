@@ -39,6 +39,8 @@ namespace GakumasPhotoMode
             // Reuse the existing selection path. This is an internal adapter,
             // not a public requirement to synthesize process command lines.
             RuntimeArguments = arguments.ToArray();
+            _hostCamera = options.HostCamera;
+            _disableDefaultEnvironment = options.DisableDefaultEnvironment;
             ResetCapturedActorRenderGlobals();
             Shader.SetGlobalFloat("_UseCapturedAmbientSH", 0f);
             ConfigureRendererFromArguments(RuntimeArguments);

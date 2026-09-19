@@ -12,5 +12,18 @@ namespace GakumasPhotoMode
         public string FaceMotionName { get; set; }
         public bool StartStory { get; set; }
         public bool EnableOrbitInput { get; set; }
+
+        /// <summary>
+        /// Optional camera owned by the host application. When supplied, the toolkit
+        /// keeps its transform, projection and clear settings intact. This is intended
+        /// for camera providers such as AR Foundation.
+        /// </summary>
+        public UnityEngine.Camera HostCamera { get; set; }
+
+        /// <summary>
+        /// Do not create the studio backdrop and floor. Lighting and the character
+        /// renderer are still initialized.
+        /// </summary>
+        public bool DisableDefaultEnvironment { get; set; }
     }
 }

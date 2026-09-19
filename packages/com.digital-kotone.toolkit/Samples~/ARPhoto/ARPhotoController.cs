@@ -28,10 +28,22 @@ namespace GakumasPhotoMode.Samples.ARPhoto
         private readonly List<ARRaycastHit> hits = new List<ARRaycastHit>();
         private ARAnchor currentAnchor;
         private GameObject subject;
+        private GameObject externalSubject;
         private bool capturing;
 
         public bool HasSubject { get { return subject != null; } }
         public string LastCapturePath { get; private set; }
+
+        /// <summary>
+        /// Supply a live subject owned by another component, for example
+        /// CharacterSceneRuntime. The controller only places it; Clear never destroys it.
+        /// </summary>
+        public void SetExternalSubject(GameObject value)
+        {
+            Clear();
+            externalSubject = value;
+            if (externalSubject != null) externalSubject.SetActive(false);
+        }
 
         private void Update()
         {
@@ -82,20 +94,33 @@ namespace GakumasPhotoMode.Samples.ARPhoto
             // Do not discard the old placement until the new anchor succeeds.
             Clear();
             currentAnchor = next;
-            subject = subjectPrefab == null
-                ? GameObject.CreatePrimitive(PrimitiveType.Capsule)
-                : Instantiate(subjectPrefab);
-            subject.name = subjectPrefab == null ? "AR Photo Placeholder" : subjectPrefab.name;
+            subject = externalSubject != null
+                ? externalSubject
+                : subjectPrefab == null
+                    ? GameObject.CreatePrimitive(PrimitiveType.Capsule)
+                    : Instantiate(subjectPrefab);
+            subject.name = externalSubject != null
+                ? externalSubject.name
+                : subjectPrefab == null ? "AR Photo Placeholder" : subjectPrefab.name;
             subject.transform.SetParent(next.transform, false);
             subject.transform.localPosition = Vector3.zero;
             subject.transform.localRotation = Quaternion.identity;
             subject.transform.localScale = Vector3.one * initialScale;
+            subject.SetActive(true);
             return true;
         }
 
         public void Clear()
         {
-            if (subject != null) Destroy(subject);
+            if (subject != null)
+            {
+                if (subject == externalSubject)
+                {
+                    subject.transform.SetParent(null, true);
+                    subject.SetActive(false);
+                }
+                else Destroy(subject);
+            }
             if (currentAnchor != null) Destroy(currentAnchor.gameObject);
             subject = null;
             currentAnchor = null;

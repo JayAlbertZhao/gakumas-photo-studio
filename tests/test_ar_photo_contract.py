@@ -24,8 +24,19 @@ class ArPhotoSampleTests(unittest.TestCase):
                          'ScreenCapture.CaptureScreenshot(LastCapturePath)',
                          'Application.persistentDataPath', 'public void Clear()'):
             self.assertIn(contract, code)
-        self.assertNotIn('CharacterSceneRuntime', code)
         self.assertNotIn('AssetBundle.Load', code)
+
+    def test_sample_can_place_the_existing_character_renderer_without_owning_it(self):
+        controller = (SAMPLE / 'ARPhotoController.cs').read_text(encoding='utf-8')
+        host = (SAMPLE / 'ARCharacterSceneHost.cs').read_text(encoding='utf-8')
+        for contract in ('SetExternalSubject(GameObject value)',
+                         'subject == externalSubject', 'subject.SetActive(false)'):
+            self.assertIn(contract, controller)
+        for contract in ('CharacterSceneRuntime', 'HostCamera = arCamera',
+                         'DisableDefaultEnvironment = true',
+                         'Path.Combine(Application.persistentDataPath, dataDirectoryName)',
+                         'placement.SetExternalSubject(Runtime.CharacterRoot)'):
+            self.assertIn(contract, host)
 
 
 if __name__ == '__main__':

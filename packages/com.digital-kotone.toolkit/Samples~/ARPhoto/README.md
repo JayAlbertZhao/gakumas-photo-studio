@@ -1,16 +1,14 @@
 # AR Photo prototype (Android-first)
 
-This is an isolated AR Foundation **application sample**, not a change to the
-desktop renderer. It places an animated prefab on a tracked plane, lets the user
-pinch to scale / twist to rotate, and saves a composite screenshot to the app's
-private `Application.persistentDataPath`. It ships no original game assets.
+This AR Foundation **application sample** can either place an ordinary prefab or
+reuse the toolkit's reconstructed character renderer. It lets the user pinch to
+scale / twist to rotate and saves a composite screenshot to the app's private
+`Application.persistentDataPath`. It ships no original game assets.
 
 ## Host project setup
 
 1. In a compatible Tuanjie host, import this sample through Package Manager.
-   The toolkit package currently pins Tuanjie URP `14.2.0-t1`, so a standard
-   Unity project should instead copy `ARPhotoController.cs` alone into `Assets`;
-   this script does not reference the toolkit assembly. Install AR Foundation
+   Install AR Foundation
    5.x and the device provider (ARCore XR Plugin on Android, ARKit XR Plugin on
    iOS), enable the provider in XR Plug-in Management, and install the target
    build module.
@@ -29,6 +27,11 @@ private `Application.persistentDataPath`. It ships no original game assets.
    Two fingers scale and rotate. Wire UI buttons to `Capture`, `Clear`, or
    `SetAnimationTrigger`. If you assign the UI canvas to `Capture UI`, it is
    hidden for the captured frame.
+5. To use the reconstructed renderer, add `ARCharacterSceneHost`, assign the AR
+   camera and `ARPhotoController`, and stage compatible data at
+   `Application.persistentDataPath/character-data`. The host keeps AR camera
+   projection/clear settings intact, disables the studio backdrop, and passes
+   the runtime-owned character to the placement controller.
 
 `Capture` writes a PNG to app-private storage. It does **not** add the photo to
 the system gallery or request gallery permissions. Export/share and real-world
@@ -36,13 +39,13 @@ depth occlusion are separate follow-up work.
 
 ## Toolkit integration boundary
 
-The subject-prefab boundary accepts independently authored models and animation
-without changing the photo-studio render pipeline. It does not yet instantiate
-`CharacterSceneRuntime`: that runtime creates its own desktop camera and
-captured 4096 shadow map, which must be adapted and tested against the live AR
-camera before claiming parity. Do not import original game assets into a public
-project. The capsule path only verifies placement, gestures and camera capture;
-it is not a character-rendering acceptance test.
+`ARCharacterSceneHost` instantiates `CharacterSceneRuntime` against the live AR
+camera and keeps ownership of its character. Compatible data stays outside the
+package and app build. The adapter currently targets the existing Built-in
+camera image-effect path; mobile performance, XR composition and the captured
+shadow path still require on-device validation before parity can be claimed.
+Do not import original game assets into a public project. The capsule path only
+verifies placement, gestures and camera capture; it is not a renderer test.
 
 The repository also includes a [separate native Android AR test app](../../../../apps/ar-photo-android/README.md)
 with a build module and emulator-tested dataset playback. That app does not

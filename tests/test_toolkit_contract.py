@@ -53,9 +53,16 @@ class ToolkitBoundaryTests(unittest.TestCase):
                         app.index('Initialize(BundleCatalog.DefaultStagingRoot)'))
         for contract in ('Initialize(CharacterSceneOptions options)', 'Directory.Exists(options.DataRoot)',
                          'InitializeRuntime(Path.GetFullPath(options.DataRoot))',
-                         '_orbit.enabled = options.EnableOrbitInput', 'StoryTimelinePlayer Timeline'):
+                         '_orbit.enabled = options.EnableOrbitInput', '_hostCamera = options.HostCamera',
+                         'StoryTimelinePlayer Timeline'):
             self.assertIn(contract, api)
         self.assertNotIn('Environment.GetCommandLineArgs()', api)
+
+        options = (PACKAGE / 'Runtime/CharacterSceneOptions.cs').read_text(encoding='utf-8')
+        self.assertIn('Camera HostCamera', options)
+        self.assertIn('bool DisableDefaultEnvironment', options)
+        self.assertIn('if (!hostOwnsCamera)', core)
+        self.assertIn('if (_disableDefaultEnvironment) _photoStudioRoot.SetActive(false);', core)
 
     def test_f8_panel_is_only_in_application(self):
         core = (PACKAGE / 'Runtime/ActorRenderControls.cs').read_text(encoding='utf-8')

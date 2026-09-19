@@ -736,6 +736,7 @@
 !/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingRenderer.cs.meta
 !/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingSettings.cs
 !/packages/com.digital-kotone.toolkit/Runtime/VolumetricLightingSettings.cs.meta
+!/packages/com.digital-kotone.toolkit/Samples~/ARPhoto/ARCharacterSceneHost.cs
 !/packages/com.digital-kotone.toolkit/Samples~/ARPhoto/ARPhotoController.cs
 !/packages/com.digital-kotone.toolkit/Samples~/ARPhoto/README.md
 !/packages/com.digital-kotone.toolkit/Samples~/DesktopHost/README.md

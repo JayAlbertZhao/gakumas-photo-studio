@@ -121,6 +121,8 @@ namespace GakumasPhotoMode
         protected bool _paused;
         protected bool _ambientWallpaperDemo;
         protected bool _initialized;
+        protected Camera _hostCamera;
+        protected bool _disableDefaultEnvironment;
         protected string _stagingRoot;
         protected string _status = "Starting";
         protected Color _storyActorColor = Color.white;
@@ -283,19 +285,26 @@ namespace GakumasPhotoMode
         protected void BuildEnvironment()
         {
             _photoStudioRoot = new GameObject("PhotoStudioEnvironment");
-            Camera camera = new GameObject("PhotoCamera").AddComponent<Camera>();
+            bool hostOwnsCamera = _hostCamera != null;
+            Camera camera = hostOwnsCamera
+                ? _hostCamera
+                : new GameObject("PhotoCamera").AddComponent<Camera>();
             PreviewCamera = camera;
-            camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.48f, 0.58f, 0.80f, 1f);
-            camera.allowHDR = true;
-            camera.allowMSAA = true;
-            camera.nearClipPlane = 0.02f;
-            camera.farClipPlane = 50f;
-            camera.depthTextureMode = DepthTextureMode.Depth | DepthTextureMode.DepthNormals | DepthTextureMode.MotionVectors;
-            _orbit = camera.gameObject.AddComponent<OrbitPhotoCamera>();
+            if (!hostOwnsCamera)
+            {
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = new Color(0.48f, 0.58f, 0.80f, 1f);
+                camera.allowHDR = true;
+                camera.allowMSAA = true;
+                camera.nearClipPlane = 0.02f;
+                camera.farClipPlane = 50f;
+                camera.depthTextureMode = DepthTextureMode.Depth | DepthTextureMode.DepthNormals | DepthTextureMode.MotionVectors;
+                _orbit = camera.gameObject.AddComponent<OrbitPhotoCamera>();
+            }
             if (!OriginalShaderUrpBootstrap.IsRequested)
             {
-                camera.gameObject.AddComponent<OriginalStyleRenderPipeline>();
+                if (camera.GetComponent<OriginalStyleRenderPipeline>() == null)
+                    camera.gameObject.AddComponent<OriginalStyleRenderPipeline>();
                 _actorRenderControls = CreateRenderControls(camera);
                 AttachApplicationCameraComponents(camera);
             }
@@ -306,7 +315,7 @@ namespace GakumasPhotoMode
                 cameraData.requiresDepthTexture = true;
                 cameraData.requiresColorTexture = true;
             }
-            _orbit.ApplyPose();
+            if (_orbit != null) _orbit.ApplyPose();
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
             RenderSettings.ambientSkyColor = new Color(0.62f, 0.70f, 0.92f);
@@ -406,6 +415,8 @@ namespace GakumasPhotoMode
             BuildStudioRibbon(new Vector3(1.46f, 1.56f, -0.92f), new Vector3(0.045f, 2.85f, 0.04f), -14f, new Color(0.48f, 0.91f, 0.94f));
             BuildStudioRibbon(new Vector3(1.02f, 2.38f, -0.88f), new Vector3(1.20f, 0.045f, 0.04f), -8f, new Color(0.96f, 0.57f, 0.72f));
 
+            if (_disableDefaultEnvironment) _photoStudioRoot.SetActive(false);
+
             // The current DMM riverbed bundles carry Tuanjie ArchiveStorage
             // protection in addition to the old Gakumas header XOR.  Keep the
             // production viewer on its known-good studio path unless the exact
@@ -443,7 +454,7 @@ namespace GakumasPhotoMode
             // downsample without stealing orbit-camera ownership.  Fidelity is
             // the production default; the opt-out is retained for performance
             // diagnosis on weaker hardware.
-            if (!OriginalShaderUrpBootstrap.IsRequested &&
+            if (!hostOwnsCamera && !OriginalShaderUrpBootstrap.IsRequested &&
                 !RuntimeArguments.Contains("--native-render-resolution"))
             {
                 Camera presenterCamera = new GameObject("SupersamplePresenterCamera").AddComponent<Camera>();
@@ -1254,7 +1265,8 @@ namespace GakumasPhotoMode
                 bool riverbed = _useRiverbedBackground &&
                     _riverbedEnvironment != null && _riverbedEnvironment.IsLoaded;
                 if (_riverbedEnvironment != null) _riverbedEnvironment.SetActive(riverbed);
-                if (_photoStudioRoot != null) _photoStudioRoot.SetActive(!riverbed);
+                if (_photoStudioRoot != null)
+                    _photoStudioRoot.SetActive(!riverbed && !_disableDefaultEnvironment);
             }
             ApplyRenderContextProfile();
         }
