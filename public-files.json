@@ -714,6 +714,7 @@
     "references/forks/open-swing/UPSTREAM.json",
     "references/forks/open-swing/package.json",
     "references/forks/open-swing/tools/check_release.py",
+    "references/hooks/OpenSwingReferenceHook.cs",
     "references/hooks/open-swing-hook.json",
     "studio.py",
     "tests/test_actor_map_contract.py",

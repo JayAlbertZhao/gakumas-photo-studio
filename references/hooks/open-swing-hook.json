@@ -2,6 +2,7 @@
   "schema": "photo-studio.reference-hook.v1",
   "reference": "references/forks/open-swing",
   "hook_kind": "optional-adapter",
+  "source": "references/hooks/OpenSwingReferenceHook.cs",
   "default_behavior": "disabled",
   "input_boundary": "synthetic transform hierarchy + caller-owned animation pose",
   "reference_entrypoints": [

@@ -6,6 +6,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 FORK = ROOT / "references" / "forks" / "open-swing"
 HOOK = ROOT / "references" / "hooks" / "open-swing-hook.json"
+HOOK_SOURCE = ROOT / "references" / "hooks" / "OpenSwingReferenceHook.cs"
 
 
 class ReferenceForkContractTests(unittest.TestCase):
@@ -29,6 +30,15 @@ class ReferenceForkContractTests(unittest.TestCase):
         readme = (FORK / "README.md").read_text(encoding="utf-8")
         for entrypoint in ("ActorAnimationSwingSolver", "FixedStepSwingClock", "HairSwingAdapter"):
             self.assertIn(entrypoint, readme + "\n" + "\n".join(p.read_text(encoding="utf-8") for p in (FORK / "Runtime").rglob("*.cs")))
+
+    def test_hook_is_caller_owned_and_compile_time_optional(self):
+        source = HOOK_SOURCE.read_text(encoding="utf-8")
+        self.assertIn("#if GAKUMAS_OPEN_SWING_REFERENCE", source)
+        self.assertIn("public void RestoreBeforeAnimation()", source)
+        self.assertIn("public void SimulateAfterAnimation(float deltaTime)", source)
+        self.assertIn("solver.CapturePose();", source)
+        self.assertNotIn("void Update()", source)
+        self.assertNotIn("void LateUpdate()", source)
 
 
 if __name__ == "__main__":
