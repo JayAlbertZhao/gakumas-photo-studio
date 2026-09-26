@@ -1,8 +1,8 @@
-# Gakumas Photo Studio
+# Gakumas reproduction playground
 
-使用 Unity / Tuanjie 渲染类似《学园偶像大师》的角色动画。目前是 **研究预览版**：面向能够自行准备兼容资产的开发者，不是下载后直接使用的完整动画制作软件。
+使用 Unity / Tuanjie 复现类似《学园偶像大师》的角色动画、渲染和物理技术。目前是 **研究 playground**：目标是独立复现可验证的技术行为，不是交付 Photo Studio、AR 或其他终端应用。
 
-项目提供可复用的**角色与场景工具库**，Photo Studio 是使用该工具库的首个应用。核心以独立 UPM 包提供；其他应用可以引用它，不必引入摄影 UI、快捷键或应用构建入口。开放沙盒、番茄钟是后续应用方向，本仓库尚未交付这些应用。领域用语见 [项目术语](CONTEXT.md)。
+项目保留角色、场景和渲染工具作为复现宿主。Photo Studio、AR 和其他应用目录只是实验入口，不构成当前主线。公开实现与参考 fork、hook 的边界见 [复现 playground](docs/reproduction-playground.md)。
 
 [使用指南](docs/user-guide.md) · [工具库接入](docs/toolkit.md) · [示范脚本](examples/README.md) · [时间线格式](docs/scene-format.md) · [资产接口](docs/assets.md)
 

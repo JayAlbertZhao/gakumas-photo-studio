@@ -19,7 +19,7 @@ _baseline_module = importlib.util.module_from_spec(_baseline_spec)
 _baseline_spec.loader.exec_module(_baseline_module)
 ALLOWED_SUFFIXES = {'.cs', '.shader', '.compute', '.cginc', '.hlsl', '.asmdef', '.meta', '.json', '.md', '.txt',
                     '.py', '.yml', '.asset', '.unity', '.kt', '.kts', '.xml', '.properties'}
-ALLOWED_DOTFILES = {'.gitignore', '.gitattributes', '.editorconfig', '.githooks/pre-commit'}
+ALLOWED_DOTFILES = {'.gitignore', '.gitattributes', '.editorconfig', '.githooks/pre-commit', 'LICENSE'}
 GRADLE_WRAPPER_JAR = 'apps/ar-photo-android/gradle/wrapper/gradle-wrapper.jar'
 GRADLE_WRAPPER_JAR_SHA256 = '423cb469ccc0ecc31f0e4e1c309976198ccb734cdcbb7029d4bda0f18f57e8d9'
 BUILD_BOOTSTRAP_FILES = {GRADLE_WRAPPER_JAR, 'apps/ar-photo-android/gradlew',
@@ -60,6 +60,7 @@ def validate_name(name: str) -> None:
             name != 'LocalAssets/README.md') or '.local.' in lower:
         raise ValueError('Private path')
     if (path.suffix.lower() not in ALLOWED_SUFFIXES and name not in ALLOWED_DOTFILES
+            and path.name not in ALLOWED_DOTFILES
             and name not in BUILD_BOOTSTRAP_FILES):
         raise ValueError('Non-source extension')
     if (path.suffix.lower() == '.asset' and not name.startswith('unity/ProjectSettings/')

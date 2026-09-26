@@ -1,0 +1,24 @@
+{
+  "schema": "photo-studio.reference-hook.v1",
+  "reference": "references/forks/open-swing",
+  "hook_kind": "optional-adapter",
+  "default_behavior": "disabled",
+  "input_boundary": "synthetic transform hierarchy + caller-owned animation pose",
+  "reference_entrypoints": [
+    "OpenSwing.ActorAnimationSwingSolver",
+    "OpenSwing.FixedStepSwingClock",
+    "OpenSwing.HairSwingAdapter"
+  ],
+  "reproduction_checks": [
+    "fixed native step",
+    "explicit transform bindings",
+    "reset after teleport or rig replacement",
+    "capsule endpoint semantics",
+    "caller-owned animation sampling order"
+  ],
+  "forbidden_inputs": [
+    "original game assets",
+    "original game source",
+    "extracted character configuration"
+  ]
+}

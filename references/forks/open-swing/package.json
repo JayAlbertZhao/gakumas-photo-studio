@@ -1,0 +1,26 @@
+{
+  "name": "com.arin3000.open-swing",
+  "version": "0.1.0",
+  "displayName": "Open Swing Dynamics",
+  "description": "Code-only transform-chain dynamics for hair and skirt rigs.",
+  "unity": "2022.3",
+  "dependencies": {
+    "com.unity.mathematics": "1.2.6"
+  },
+  "samples": [
+    {
+      "displayName": "Synthetic Hair Chain",
+      "description": "Invented transform names and illustrative dynamics values.",
+      "path": "Samples~/Hair"
+    },
+    {
+      "displayName": "Synthetic Skirt Branch",
+      "description": "Invented transform names, root driver, and chain values.",
+      "path": "Samples~/Skirt"
+    }
+  ],
+  "author": {
+    "name": "Arin3000"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,58 @@
+{
+  "source": "synthetic-skirt-example",
+  "drivers": [
+    {
+      "bone": "SkirtPanelRoot",
+      "reference": "LeftUpperLeg",
+      "initialReferenceRotation": { "x": 0, "y": 0, "z": 0, "w": 1 },
+      "rotationOrder": 0,
+      "innerCoefficient": { "x": 0, "y": 0.25, "z": 0.25 },
+      "outerCoefficient": { "x": 0, "y": 0, "z": 0 },
+      "limitMin": { "x": -45, "y": -45, "z": -45 },
+      "limitMax": { "x": 45, "y": 45, "z": 45 }
+    }
+  ],
+  "nodes": [
+    {
+      "name": "SkirtPanelRoot",
+      "dynamicType": 0,
+      "damping": 0.3,
+      "stiffness": 0.2,
+      "rootWeight": 0.5,
+      "spring": 0.1,
+      "pendulum": 0.1,
+      "pendulumRange": 0.5,
+      "mass": 1,
+      "collisionMask": 1,
+      "collisionRadius": 0.025,
+      "collisionOffset": { "x": 0, "y": 0, "z": 0 }
+    },
+    {
+      "name": "SkirtPanelMid",
+      "dynamicType": 0,
+      "damping": 0.3,
+      "stiffness": 0.2,
+      "rootWeight": 0.5,
+      "spring": 0.1,
+      "pendulum": 0.1,
+      "pendulumRange": 0.5,
+      "mass": 1,
+      "collisionMask": 1,
+      "collisionRadius": 0.025,
+      "collisionOffset": { "x": 0, "y": 0, "z": 0 }
+    }
+  ],
+  "chains": [],
+  "staticColliders": [
+    {
+      "source": "synthetic-pelvis-collider",
+      "anchor": "Pelvis",
+      "type": 0,
+      "collisionMask": 1,
+      "vector3_A": { "x": 0, "y": 0, "z": 0 },
+      "vector3_B": { "x": 0, "y": 0, "z": 0 },
+      "float_A": 0.12,
+      "float_B": -1
+    }
+  ]
+}

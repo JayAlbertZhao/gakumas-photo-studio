@@ -1,0 +1,45 @@
+{
+  "source": "synthetic-chain-example",
+  "nodes": [
+    {
+      "name": "JointA",
+      "dynamicType": 0,
+      "damping": 0.18,
+      "stiffness": 0.12,
+      "rootWeight": 0.75,
+      "spring": 0.08,
+      "mass": 0.05,
+      "collisionRadius": 0.02
+    },
+    {
+      "name": "JointB",
+      "dynamicType": 0,
+      "damping": 0.2,
+      "stiffness": 0.1,
+      "rootWeight": 0.75,
+      "spring": 0.08,
+      "mass": 0.04,
+      "collisionRadius": 0.02
+    },
+    {
+      "name": "Tip",
+      "dynamicType": 0,
+      "damping": 0.22,
+      "stiffness": 0.08,
+      "rootWeight": 0.75,
+      "spring": 0.06,
+      "mass": 0.03,
+      "collisionRadius": 0.02
+    }
+  ],
+  "chains": [],
+  "staticColliders": [],
+  "manage": {
+    "weight": 1.0,
+    "swingPowerWeight": 1.0,
+    "rootWeight": 1.0,
+    "rootHorizontalWeight": 1.0,
+    "rootVerticalWeight": 1.0
+  },
+  "quartzHair": []
+}
