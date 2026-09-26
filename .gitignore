@@ -784,6 +784,7 @@
 !/references/forks/open-swing/tools/check_release.py
 !/references/hooks/OpenSwingReferenceHook.cs
 !/references/hooks/open-swing-hook.json
+!/references/hooks/open-swing-replay-receipt.json
 !/studio.py
 !/tests/test_actor_map_contract.py
 !/tests/test_actor_shadow_contract.py
@@ -820,6 +821,7 @@
 !/tests/test_performance_authoring.py
 !/tests/test_reference_compare_contract.py
 !/tests/test_reference_fork_contract.py
+!/tests/test_reference_replay_receipt.py
 !/tests/test_release.py
 !/tests/test_rendering_contract.py
 !/tests/test_scene_sky_contract.py
