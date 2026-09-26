@@ -41,7 +41,8 @@ namespace GakumasPhotoMode
         /// <param name="expectedPreviousEyeDepth">Previous view depth of the current
         /// surface, NOT a previous-frame screen-space depth texture.</param>
         public bool TryRender(MotionBlurInput input,RenderTexture currentEyeDepth,RenderTexture expectedPreviousEyeDepth,
-            float phase,float depthTolerance,bool orthographic,int maximumMiB,out Frame frame,bool forwardOwnership=false)
+            float phase,float depthTolerance,bool orthographic,int maximumMiB,out Frame frame,bool forwardOwnership=false,
+            bool cubicReconstruction=false)
         {
             frame=default;ready=false;generation++;DrawCalls=DispatchCalls=0;UnavailableReason=null;
             var source=input.color;var guide=input.motionDepth;
@@ -100,6 +101,7 @@ namespace GakumasPhotoMode
                 material.SetVector("_OpaqueSample",new Vector4(source.width,source.height,input.sampleInterval>=.000001f?phase:0,depthTolerance));
                 material.SetFloat("_OpaqueHasFlags",flags!=null?1:0);
                 material.SetFloat("_OpaqueOrthographic",orthographic?1:0);
+                material.SetFloat("_OpaqueCubicReconstruction",cubicReconstruction?1:0);
                 bool selectOwner=forwardOwnership&&input.sampleInterval>=.000001f&&phase!=0;
                 material.SetFloat("_OpaqueForwardOwnership",selectOwner?1:0);
                 material.SetTexture("_OpaqueOwner",ownerIndex);

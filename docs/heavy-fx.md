@@ -95,6 +95,15 @@ A 为 1 表示有效对应；其他值保留当前像素。两个深度附件均
 基础配置的 DOF 使用当前深度且只执行一次；其相机轮廓和少量动画区域仍有严格质量失败。
 默认应用保持旧路径，不把此选项标作全场景、物理镜头或移动性能验收完成。
 
+## 可选三次颜色重建
+
+不透明颜色还可单独设置 `settings.exposure.cubicOpaqueReconstruction = true`，
+使用 4×4 Catmull–Rom 代替默认双线性邻域；独立生产者对应 `cubicReconstruction`
+参数。深度仍取选定表面，alpha 不变，无新增工作附件。每相位由 4 点增至 16 点，
+有符号核可能产生振铃，RGB 只限制非负、不截断 HDR 上限。该选项默认关闭，不要求
+正向归属同时开启，也不恢复隐藏颜色；适用范围与配对诊断见
+[不透明颜色三次重建](motion-blur.md#可选不透明颜色三次重建)。
+
 ## 可选正向可见面归属
 
 可另选 `settings.exposure.forwardOpaqueOwnership = true`，在当前可见像素正向投影

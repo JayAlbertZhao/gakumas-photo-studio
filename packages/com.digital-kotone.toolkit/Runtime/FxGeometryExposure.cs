@@ -16,6 +16,8 @@ namespace GakumasPhotoMode
         public bool reprojectOpaque;
         // Optional current-visible forward ownership; requires uint compute targets.
         public bool forwardOpaqueOwnership;
+        // Optional signed cubic color reconstruction; depth remains a selected surface.
+        public bool cubicOpaqueReconstruction;
         public float opaqueDepthTolerance=.02f;
         public int samples=8;
         public float shutterAngle=180;

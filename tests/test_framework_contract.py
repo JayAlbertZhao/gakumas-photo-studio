@@ -817,6 +817,56 @@ class FrameworkContractTests(unittest.TestCase):
                       'report.framingCenter=center;report.framingDistance=distance;'):
             self.assertIn(token, source)
 
+    def test_exposure_diagnostic_selection_and_paired_ablation_preserve_defaults(self):
+        source = (ROOT / 'unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.Exposure.cs').read_text(encoding='utf-8')
+        for token in ('observations.views=new[]{0,90,180}', 'GAKUMAS_CHARACTER_EXPOSURE_VIEW',
+                      'GAKUMAS_CHARACTER_EXPOSURE_TRAJECTORY', 'GAKUMAS_CHARACTER_EXPOSURE_ABLATIONS',
+                      'Array.IndexOf(observations.trajectories,selectedTrajectory)<0',
+                      'observations.forwardOpaqueOwnership||!observations.depthOfFieldDuringExposure',
+                      'foreach(int angle in observations.views)', 'foreach(string profile in observations.trajectories)',
+                      'inverseOwner=Sequence("inverse-owner",true)', 'finalDof=Sequence("final-dof",true)',
+                      'inverseFinalDof=Sequence("inverse-final-dof",true)',
+                      's.effects.exposure.forwardOpaqueOwnership=observations.forwardOpaqueOwnership',
+                      's.depthOfFieldDuringExposure=observations.depthOfFieldDuringExposure',
+                      'ablation-baseline-replay-exact', 'blurError.mappedMse<rawError.mappedMse',
+                      'blurError.mappedMse<=legacyError.mappedMse*1.00001f'):
+            self.assertIn(token, source)
+
+    def test_opaque_cubic_reconstruction_is_explicit_and_depth_stays_point_selected(self):
+        runtime = ROOT / 'packages/com.digital-kotone.toolkit/Runtime'
+        settings = (runtime / 'FxGeometryExposure.cs').read_text(encoding='utf-8')
+        self.assertIn('public bool cubicOpaqueReconstruction;', settings)
+        renderer = (runtime / 'OpaqueExposureRenderer.cs').read_text(encoding='utf-8')
+        self.assertIn('bool cubicReconstruction=false', renderer)
+        self.assertIn('material.SetFloat("_OpaqueCubicReconstruction",cubicReconstruction?1:0)', renderer)
+        caller = (runtime / 'HeavyFxRenderer.cs').read_text(encoding='utf-8')
+        self.assertIn('settings.exposure.forwardOpaqueOwnership,settings.exposure.cubicOpaqueReconstruction', caller)
+        shader = (runtime / 'Resources/OpaqueExposure.shader').read_text(encoding='utf-8')
+        branch = shader[shader.index('if(_OpaqueCubicReconstruction>.5)'):shader.index('[unroll]for(int y=0;y<2;y++)')]
+        self.assertIn('wx[cx]*wy[cy]', branch)
+        self.assertIn('result.color.rgb=max(result.color.rgb,0)', branch)
+        self.assertIn('result.color.a=original.color.a', branch)
+        self.assertNotIn('result.depth=', branch)
+        self.assertNotIn('saturate(', branch)
+        self.assertIn('result.depth=anchorDepth', shader)
+        diagnostic = (ROOT / 'unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.Exposure.cs').read_text(encoding='utf-8')
+        for token in ('GAKUMAS_CHARACTER_EXPOSURE_CUBIC', 'bilinear=Sequence("bilinear",true)',
+                      'cubic-baseline-replay-exact', 's.effects.exposure.cubicOpaqueReconstruction=priorCubic'):
+            self.assertIn(token, diagnostic)
+        fixture = (ROOT / 'unity/Assets/Applications/PhotoStudio/ActorRenderingSelfTest.HeavyFx.cs').read_text(encoding='utf-8')
+        for token in ('double Cubic(double d)', 'cubic-zero-phase-exact', 'cubic-cold-clock-exact',
+                      'cubic-default-off', 'signed-highlight-nonnegative', 'cubic-excluded-and-invalid-centers-exact'):
+            self.assertIn(token, fixture)
+
+    def test_exposure_compact_exports_keep_checks_and_previews(self):
+        source = (ROOT / 'unity/Assets/Applications/PhotoStudio/SrpActorCharacterValidation.cs').read_text(encoding='utf-8')
+        self.assertIn('GAKUMAS_CHARACTER_EXPOSURE_COMPACT', source)
+        self.assertIn('report.exposureRawOnly=exposureRawOnly', source)
+        save = source[source.index('private void Save('):source.index('private static float MaximumDifference(')]
+        self.assertLess(save.index('EncodeToPNG()'), save.index('if(exposureRawOnly'))
+        self.assertLess(save.index('if(exposureRawOnly'), save.index('new BinaryWriter'))
+        self.assertIn('!name.StartsWith("desktop-character-exposure-",StringComparison.Ordinal)', save)
+
     def test_secondary_motion_metadata_has_importable_guid(self):
         folder = ROOT / 'unity/Assets/Applications/PhotoStudio'
         seen = set()

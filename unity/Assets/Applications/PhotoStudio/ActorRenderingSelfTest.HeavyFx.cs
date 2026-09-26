@@ -160,10 +160,18 @@ namespace GakumasPhotoMode
             var current=ReadSceneTarget(source);Upload(guide,(x,y)=>new Color(dx/w,dy/h,z,1));Upload(depth,(x,y)=>new Color(z,0,0,0));
             using var renderer=new OpaqueExposureRenderer();
             var input=new MotionBlurInput(source,guide,.02f);
+            // Independent cardinal basis by distance, rather than the shader's
+            // four explicit polynomials in fractional coordinates.
+            double Cubic(double d)
+            {
+                d=Math.Abs(d);
+                return d<1?1-2.5*d*d+1.5*d*d*d:d<2?2-4*d+2.5*d*d-.5*d*d*d:0;
+            }
+            foreach(bool cubic in new[]{false,true})
             foreach(bool ortho in new[]{false,true})foreach(float oldZ in new[]{5f,8f})foreach(float phase in new[]{-.25f,-.0625f,.0625f,.25f})
             {
                 Upload(previous,(x,y)=>new Color(oldZ,0,0,0));
-                bool ok=renderer.TryRender(input,depth,previous,phase,.02f,ortho,32,out var frame);
+                bool ok=renderer.TryRender(input,depth,previous,phase,.02f,ortho,32,out var frame,cubicReconstruction:cubic);
                 if(!ok)throw new InvalidOperationException(renderer.UnavailableReason);
                 var actual=ReadSceneTarget(frame.color);var actualDepth=ReadSceneTarget(frame.eyeDepth);
                 // Independently project one current and previous clip-space point.
@@ -183,22 +191,28 @@ namespace GakumasPhotoMode
                     if(x+ax>=0&&x+ax<w&&y+ay>=0&&y+ay<h)
                     {
                         var sum=new double[4];expectedDepth=z+(z-oldZ)*phase;
-                        for(int sy=0;sy<2;sy++)for(int sx=0;sx<2;sx++)
+                        for(int sy=cubic?-1:0;sy<(cubic?3:2);sy++)for(int sx=cubic?-1:0;sx<(cubic?3:2);sx++)
                         {
                             int xx=x+ox+sx,yy=y+oy+sy;bool valid=xx>=0&&xx<w&&yy>=0&&yy<h;
-                            double weight=(sx==0?1-fx:fx)*(sy==0?1-fy:fy);var color=valid?current[yy*w+xx]:current[p];
+                            double weight=cubic?Cubic(fx-sx)*Cubic(fy-sy):(sx==0?1-fx:fx)*(sy==0?1-fy:fy);var color=valid?current[yy*w+xx]:current[p];
                             for(int c=0;c<4;c++)sum[c]+=color[c]*weight;
                         }
                         expected=new Color((float)sum[0],(float)sum[1],(float)sum[2],current[p].a);
+                        if(cubic)for(int c=0;c<3;c++)expected[c]=Mathf.Max(expected[c],0);
                     }
                     for(int c=0;c<4;c++){maximum=Mathf.Max(maximum,Mathf.Abs(actual[p][c]-expected[c]));positive=Mathf.Max(positive,Mathf.Abs(actual[p][c]-current[p][c]));}
                     maximum=Mathf.Max(maximum,Mathf.Abs(actualDepth[p].r-(float)expectedDepth));alpha=Mathf.Max(alpha,Mathf.Abs(actual[p].a-current[p].a));
                 }
-                string label=ortho+"-"+oldZ+"-"+phase;
+                string label=(cubic?"cubic-":"")+ortho+"-"+oldZ+"-"+phase;
                 Check(label+"-analytic-color-and-depth",maximum<.0002f,maximum);
                 Check(label+"-nonzero-current-alpha-exact",positive>.001f&&alpha==0,positive);
             }
             renderer.TryRender(input,depth,previous,0,.02f,false,32,out var zero);Check("zero-phase-exact",ScenePixelsEqual(current,ReadSceneTarget(zero.color)));
+            renderer.TryRender(input,depth,previous,0,.02f,false,32,out var cubicZero,cubicReconstruction:true);
+            Check("cubic-zero-phase-exact",ScenePixelsEqual(current,ReadSceneTarget(cubicZero.color)));
+            renderer.TryRender(new MotionBlurInput(source,guide,0),depth,previous,.25f,.02f,false,32,out var cubicCold,cubicReconstruction:true);
+            Check("cubic-cold-clock-exact",ScenePixelsEqual(current,ReadSceneTarget(cubicCold.color)));
+            Check("cubic-default-off",!new FxGeometryExposureSettings().cubicOpaqueReconstruction);
             renderer.TryRender(new MotionBlurInput(source,guide,0),depth,previous,.25f,.02f,false,32,out var cold);Check("cold-clock-exact",ScenePixelsEqual(current,ReadSceneTarget(cold.color)));
             Check("owned-target-budget",renderer.TargetCount==2&&renderer.TargetBytes==(long)w*h*20);
             Check("owned-source-rejected",!renderer.TryRender(new MotionBlurInput(cold.color,guide,.02f),depth,previous,.25f,.02f,false,32,out _)&&renderer.TargetCount==0);
@@ -272,6 +286,40 @@ namespace GakumasPhotoMode
             Upload(guide,(x,y)=>new Color(1e10f,0,2,1));
             renderer.TryRender(input,depth,previous,.25f,.02f,true,32,out var huge,forwardOwnership:true);
             Check("forward-owner-huge-finite-flow-bounded-fallback",huge.IsCurrent&&ScenePixelsEqual(current,ReadSceneTarget(huge.color)));
+            Upload(source,(x,y)=>new Color(x<w/2?0:8,1.5f,.2f+x*.01f,.2f+y*.01f));
+            var hdr=ReadSceneTarget(source);
+            Upload(depth,(x,y)=>new Color(5,0,0,0));Upload(previous,(x,y)=>new Color(5,0,0,0));
+            Upload(guide,(x,y)=>new Color(1.2f/w,0,5,1));
+            var cubicInput=new MotionBlurInput(source,guide,.02f);
+            foreach(bool forward in new[]{false,true})
+            {
+                if(!renderer.TryRender(cubicInput,depth,previous,.25f,.02f,true,32,out var f,forwardOwnership:forward,cubicReconstruction:true))
+                    throw new InvalidOperationException(renderer.UnavailableReason);
+                var actual=ReadSceneTarget(f.color);float maximum=0,peak=0,minimum=float.MaxValue,alpha=0;
+                // Constant .3 pixel forward displacement gives an exact -.3
+                // inverse position; a step has a signed cubic overshoot.
+                for(int y=0;y<h;y++)for(int x=0;x<w;x++)
+                {
+                    int p=y*w+x;double sum=0;
+                    for(int j=-1;j<=2;j++)
+                    {
+                        int xx=x-1+j;sum+=(xx>=0&&xx<w?hdr[y*w+xx].r:hdr[p].r)*Cubic(.7-j);
+                    }
+                    maximum=Mathf.Max(maximum,Mathf.Abs(actual[p].r-(float)Math.Max(0,sum)));
+                    peak=Mathf.Max(peak,actual[p].r);minimum=Mathf.Min(minimum,actual[p].r);
+                    alpha=Mathf.Max(alpha,Mathf.Abs(actual[p].a-hdr[p].a));
+                }
+                Check("cubic-hdr-"+forward+"-independent-step",maximum<.0002f,maximum);
+                Check("cubic-hdr-"+forward+"-signed-highlight-nonnegative",peak>8&&minimum==0&&alpha==0,peak);
+            }
+            Upload(guide,(x,y)=>new Color(1.2f/w,0,5,x==w/2+1?0:1));
+            cubicInput=new MotionBlurInput(source,guide,.02f,noJitterFlags:flags);
+            if(!renderer.TryRender(cubicInput,depth,previous,.25f,.02f,true,32,out var protectedFrame,forwardOwnership:true,cubicReconstruction:true))
+                throw new InvalidOperationException(renderer.UnavailableReason);
+            var protectedPixels=ReadSceneTarget(protectedFrame.color);bool unchanged=true;
+            for(int y=0;y<h;y++)foreach(int x in new[]{w/2,w/2+1})for(int c=0;c<4;c++)
+                unchanged&=protectedPixels[y*w+x][c]==hdr[y*w+x][c];
+            Check("cubic-excluded-and-invalid-centers-exact",unchanged);
         }
 
         private void VerifyCoherentOpaqueFxExposure(Report report)

@@ -317,7 +317,7 @@ namespace GakumasPhotoMode
                     {
                         if(!opaqueExposure.TryRender(opaqueMotion.Value,depth.texture,expectedPreviousDepth,exposurePhase,
                             settings.exposure.opaqueDepthTolerance,camera.orthographic,settings.maximumTargetMiB,out var subframe,
-                            settings.exposure.forwardOpaqueOwnership))return Fail(opaqueExposure.UnavailableReason);
+                            settings.exposure.forwardOpaqueOwnership,settings.exposure.cubicOpaqueReconstruction))return Fail(opaqueExposure.UnavailableReason);
                         opaqueSubframe=subframe;phaseDepth=subframe.eyeDepth;DrawCalls+=opaqueExposure.DrawCalls;
                         OpaqueDispatchCalls+=opaqueExposure.DispatchCalls;
                         Common(resolve,FxResolution.Full,0,null,false);Graphics.Blit(subframe.color,a,resolve,7);DrawCalls++;current=a;DepthRanges();

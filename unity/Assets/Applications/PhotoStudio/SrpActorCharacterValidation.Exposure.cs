@@ -27,6 +27,10 @@ namespace GakumasPhotoMode
             public bool opaqueExposure;
             public bool depthOfFieldDuringExposure;
             public bool forwardOpaqueOwnership;
+            public bool cubicOpaqueReconstruction;
+            public int[] views;
+            public string[] trajectories;
+            public bool pairedAblations;
             public float transparentStepInCharacterHeights=.04f;
             public List<ExposureMetric> measurements=new List<ExposureMetric>();
         }
@@ -40,6 +44,7 @@ namespace GakumasPhotoMode
             bool priorOpaqueExposure=s.effects.exposure.reprojectOpaque;
             bool priorExposureDof=s.depthOfFieldDuringExposure;
             bool priorForwardOwnership=s.effects.exposure.forwardOpaqueOwnership;
+            bool priorCubic=s.effects.exposure.cubicOpaqueReconstruction;
             void Check(string name,bool ok,float value=0)=>report.checks.Add(new Check {name="desktop-character-exposure-"+name,accepted=ok,value=value});
             Color[] Average(List<Color[]> frames)
             {
@@ -80,6 +85,25 @@ namespace GakumasPhotoMode
                 s.depthOfFieldDuringExposure=observations.depthOfFieldDuringExposure;
                 observations.forwardOpaqueOwnership=observations.opaqueExposure&&Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_FORWARD_OWNER")=="1";
                 s.effects.exposure.forwardOpaqueOwnership=observations.forwardOpaqueOwnership;
+                observations.cubicOpaqueReconstruction=observations.opaqueExposure&&Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_CUBIC")=="1";
+                s.effects.exposure.cubicOpaqueReconstruction=observations.cubicOpaqueReconstruction;
+                observations.views=new[]{0,90,180};
+                observations.trajectories=observations.coupledPost?new[]{"camera","animation","transparent"}:new[]{"camera","animation"};
+                string selectedView=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_VIEW");
+                if(!string.IsNullOrEmpty(selectedView))
+                {
+                    if(selectedView!="0"&&selectedView!="90"&&selectedView!="180")throw new ArgumentException("Exposure view must be 0, 90 or 180.");
+                    observations.views=new[]{int.Parse(selectedView,System.Globalization.CultureInfo.InvariantCulture)};
+                }
+                string selectedTrajectory=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_TRAJECTORY");
+                if(!string.IsNullOrEmpty(selectedTrajectory))
+                {
+                    if(Array.IndexOf(observations.trajectories,selectedTrajectory)<0)throw new ArgumentException("Exposure trajectory must be available in the selected diagnostic mode.");
+                    observations.trajectories=new[]{selectedTrajectory};
+                }
+                observations.pairedAblations=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_ABLATIONS")=="1";
+                if(observations.pairedAblations&&(!observations.forwardOpaqueOwnership||!observations.depthOfFieldDuringExposure))
+                    throw new ArgumentException("Paired exposure ablations require forward ownership and per-phase DOF enabled.");
                 s.effects.exposure.samples=16;s.effects.exposure.shutterAngle=observations.shutterAngle;
                 LowResolutionFxSurface transparent=null;
                 if(observations.coupledPost)
@@ -94,7 +118,7 @@ namespace GakumasPhotoMode
                     s.depthOfField.focusMode=BokehFocusMode.FocusRange;s.depthOfField.maximumRadius=.012f;
                     s.depthOfField.nearBlur=s.depthOfField.farBlur=1;
                 }
-                foreach(int angle in new[]{0,90,180})foreach(string profile in observations.coupledPost?new[]{"camera","animation","transparent"}:new[]{"camera","animation"})
+                foreach(int angle in observations.views)foreach(string profile in observations.trajectories)
                 {
                     app.EvaluateMotion(.7f);view(angle);var target=head.position+head.up*(bounds.size.y*.025f);
                     var direction=(camera.transform.position-bounds.center).normalized;
@@ -134,6 +158,34 @@ namespace GakumasPhotoMode
                     {s.motionBlur.subpixelReconstruction=false;legacy=Sequence("legacy",true,false);s.motionBlur.subpixelReconstruction=true;}
                     var repeated=Sequence("replay",true);
                     Check(label+"-seek-replay-exact",MaximumDifference(blurred,repeated)==0,MaximumDifference(blurred,repeated));
+                    Color[] inverseOwner=null,finalDof=null,inverseFinalDof=null;
+                    Color[] bilinear=null;
+                    if(observations.cubicOpaqueReconstruction)
+                    {
+                        try {s.effects.exposure.cubicOpaqueReconstruction=false;bilinear=Sequence("bilinear",true);}
+                        finally {s.effects.exposure.cubicOpaqueReconstruction=observations.cubicOpaqueReconstruction;}
+                        var cubicReplay=Sequence("cubic-baseline",true);
+                        Check(label+"-cubic-baseline-replay-exact",MaximumDifference(blurred,cubicReplay)==0,MaximumDifference(blurred,cubicReplay));
+                    }
+                    if(observations.pairedAblations)
+                    {
+                        try
+                        {
+                            s.effects.exposure.forwardOpaqueOwnership=false;
+                            inverseOwner=Sequence("inverse-owner",true);
+                            s.depthOfFieldDuringExposure=false;
+                            inverseFinalDof=Sequence("inverse-final-dof",true);
+                            s.effects.exposure.forwardOpaqueOwnership=true;
+                            finalDof=Sequence("final-dof",true);
+                        }
+                        finally
+                        {
+                            s.effects.exposure.forwardOpaqueOwnership=observations.forwardOpaqueOwnership;
+                            s.depthOfFieldDuringExposure=observations.depthOfFieldDuringExposure;
+                        }
+                        var baselineReplay=Sequence("ablation-baseline",true);
+                        Check(label+"-ablation-baseline-replay-exact",MaximumDifference(blurred,baselineReplay)==0,MaximumDifference(blurred,baselineReplay));
+                    }
                     s.motionBlur.enabled=true;example.ResetHistory();var cold=Render("cold",observations.centerTime);
                     Check(label+"-cold-no-exposure-exact",MaximumDifference(current,cold)==0,MaximumDifference(current,cold));
                     var paused=Render("paused",observations.centerTime);
@@ -174,6 +226,13 @@ namespace GakumasPhotoMode
                         var mask=region=="actor"?actor:region=="silhouette"?silhouette:region=="fx"?fx:whole;
                         var rawError=Measure(label,"unblurred",region,current,reference,mask);var blurError=Measure(label,"blurred",region,blurred,reference,mask);
                         Measure(label,"reference16",region,convergence,reference,mask);
+                        if(bilinear!=null)Measure(label,"bilinear",region,bilinear,reference,mask);
+                        if(observations.pairedAblations)
+                        {
+                            Measure(label,"inverseOwner",region,inverseOwner,reference,mask);
+                            Measure(label,"finalDof",region,finalDof,reference,mask);
+                            Measure(label,"inverseFinalDof",region,inverseFinalDof,reference,mask);
+                        }
                         if(legacy!=null)
                         {
                             var legacyError=Measure(label,"legacy",region,legacy,reference,mask);
@@ -195,6 +254,7 @@ namespace GakumasPhotoMode
                 s.effects.exposure.reprojectOpaque=priorOpaqueExposure;
                 s.depthOfFieldDuringExposure=priorExposureDof;
                 s.effects.exposure.forwardOpaqueOwnership=priorForwardOwnership;
+                s.effects.exposure.cubicOpaqueReconstruction=priorCubic;
                 camera.transform.SetPositionAndRotation(position,rotation);camera.projectionMatrix=projection;
                 File.WriteAllText(Path.Combine(directory,"character-exposure-diagnostics.json"),JsonUtility.ToJson(observations,true));
             }

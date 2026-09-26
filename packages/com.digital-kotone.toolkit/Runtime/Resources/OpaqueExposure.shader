@@ -18,6 +18,7 @@ Shader "Hidden/GakumasPhotoMode/OpaqueExposure"
             Texture2D<float> _OpaqueFlags;
             Texture2D<uint> _OpaqueOwner;
             float _OpaqueForwardOwnership;
+            float _OpaqueCubicReconstruction;
             float4 _OpaqueSample; // width,height,phase,absolute depth tolerance
             float _OpaqueHasFlags,_OpaqueOrthographic;
             float4 Vertex(float4 p:POSITION):SV_POSITION{return float4(p.xy,0,1);}
@@ -40,6 +41,12 @@ Shader "Hidden/GakumasPhotoMode/OpaqueExposure"
                 // post-divide UVs: previous clip W is the previous view depth.
                 float2 shift=d.xy*_OpaqueSample.z*(_OpaqueOrthographic>.5?1:oldZ/phaseDepth);
                 if(!all(isfinite(shift)))return 0;return float3(shift,phaseDepth);
+            }
+            float4 CubicWeights(float t)
+            {
+                float t2=t*t,t3=t2*t;
+                return float4(-.5*t+t2-.5*t3,1-2.5*t2+1.5*t3,
+                    .5*t+2*t2-1.5*t3,-.5*t2+.5*t3);
             }
             Result Fragment(float4 pixel:SV_POSITION)
             {
@@ -82,6 +89,24 @@ Shader "Hidden/GakumasPhotoMode/OpaqueExposure"
                 // bilinear COLOR mixture. Blending rejected foreground/background
                 // depths invents a third plane and therefore an unrelated CoC.
                 Result result;result.color=0;result.depth=anchorDepth;
+                if(_OpaqueCubicReconstruction>.5)
+                {
+                    // Signed interpolation avoids adding the tent kernel's blur
+                    // at every shutter phase. It does not recover hidden surfaces.
+                    float4 wx=CubicWeights(fraction.x),wy=CubicWeights(fraction.y);
+                    [unroll]for(int cy=0;cy<4;cy++)[unroll]for(int cx=0;cx<4;cx++)
+                    {
+                        int2 p=origin+int2(cx-1,cy-1);
+                        float4 data=Data(p);float sampleZ=data.z+(data.z-data.w)*_OpaqueSample.z;
+                        bool valid=data.z>0&&isfinite(sampleZ)&&sampleZ>0&&abs(data.z-anchorData.z)<=_OpaqueSample.w&&length(data.xy-anchorData.xy)<=.5;
+                        result.color+=(valid?_OpaqueColor.Load(int3(clamp(p,int2(0,0),(int2)_OpaqueSample.xy-1),0)):original.color)*(wx[cx]*wy[cy]);
+                    }
+                    // Linear radiance is nonnegative, but deliberately not clipped
+                    // to one or a local maximum: HDR highlights must remain HDR.
+                    result.color.rgb=max(result.color.rgb,0);
+                    result.color.a=original.color.a;
+                    return result;
+                }
                 [unroll]for(int y=0;y<2;y++)[unroll]for(int x=0;x<2;x++)
                 {
                     int2 p=origin+int2(x,y);float weight=(x==0?1-fraction.x:fraction.x)*(y==0?1-fraction.y:fraction.y);

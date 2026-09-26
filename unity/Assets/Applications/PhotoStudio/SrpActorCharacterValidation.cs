@@ -33,6 +33,7 @@ namespace GakumasPhotoMode
             public int readbackScratchTextures,previewScratchTextures,readbackCalls,previewExports;
             public long scratchTextureBytes;
             public Vector3 framingCenter;public float framingDistance;public bool suppliedFraming;
+            public bool exposureRawOnly;
             public List<Geometry> geometry=new List<Geometry>();public List<Check> checks=new List<Check>();
             public List<PrecisionSample> precisionSweep=new List<PrecisionSample>();
         }
@@ -42,6 +43,7 @@ namespace GakumasPhotoMode
         private readonly Dictionary<Vector2Int,Texture2D> readbackScratch=new Dictionary<Vector2Int,Texture2D>();
         private Texture2D previewScratch;
         private int readbackCalls,previewExports;
+        private bool exposureRawOnly;
         private T Own<T>(T value) where T:UnityEngine.Object { owned.Add(value);return value; }
         public static bool TryStart(PhotoModeApp app)
         {
@@ -58,6 +60,9 @@ namespace GakumasPhotoMode
         {
             yield return new WaitForSecondsRealtime(2);
             var report=new Report { graphicsDevice=SystemInfo.graphicsDeviceVersion,costume=app.CurrentCostume };
+            exposureRawOnly=Environment.GetEnvironmentVariable("GAKUMAS_CHARACTER_EXPOSURE_COMPACT")=="1"&&
+                Environment.GetCommandLineArgs().Contains("--validate-desktop-exposure");
+            report.exposureRawOnly=exposureRawOnly;
             var oldGraphics=GraphicsSettings.renderPipelineAsset;var oldQuality=QualitySettings.renderPipeline;var oldActive=RenderTexture.active;
             bool oldPaused=app.IsPlaybackPaused;var previousOffscreen=new Dictionary<SkinnedMeshRenderer,bool>();
             var scenes=new List<TileSceneRenderer.PreparedFrame>();var preparations=new List<ActorForwardDrawSet.PreparedFrame>();SrpActorForward actor=null;
@@ -495,6 +500,7 @@ namespace GakumasPhotoMode
             // preceding ordinary-Forward controls. PNG/JSON assertions remain.
             if(Environment.GetCommandLineArgs().Contains("--validate-desktop-focus")&&!name.StartsWith("desktop-character-focus-",StringComparison.Ordinal))return;
             if(Environment.GetCommandLineArgs().Contains("--validate-desktop-additional-lights")&&!name.StartsWith("desktop-character-additional-",StringComparison.Ordinal))return;
+            if(exposureRawOnly&&!name.StartsWith("desktop-character-exposure-",StringComparison.Ordinal))return;
             using var writer=new BinaryWriter(File.Create(Path.Combine(directory,name+".raw")));foreach(var p in values)for(int c=0;c<4;c++)writer.Write(p[c]);
         }
         private static float MaximumDifference(Color[] a,Color[] b)
