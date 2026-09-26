@@ -44,6 +44,8 @@ public static class RuntimeDynamicsReplayProbe
                 (i + 1) * ActorAnimationSwingSolver.NativeStep);
         }
 
+        var capsuleResult = RunInvalidCapsuleProbe();
+
         var referenceTips = referenceSolver.TipPositions();
         var oursTips = new[] { ours.jointB.position, ours.tip.position, ours.end.position };
         var maxTipDelta = 0f;
@@ -51,18 +53,68 @@ public static class RuntimeDynamicsReplayProbe
             maxTipDelta = Mathf.Max(maxTipDelta, Vector3.Distance(referenceTips[i], oursTips[i]));
 
         if (!referenceSolver.IsFinite || !IsFinite(oursTips) || referenceSolver.SimulatedNodes != 3 ||
-            independentSolver.DynamicEntryCount != 3)
+            independentSolver.DynamicEntryCount != 3 || !capsuleResult.referenceThrows ||
+            !capsuleResult.independentClamps)
             throw new InvalidOperationException(
                 $"Runtime dynamics replay failed: referenceNodes={referenceSolver.SimulatedNodes} " +
-                $"oursEntries={independentSolver.DynamicEntryCount} referenceFinite={referenceSolver.IsFinite}");
+                $"oursEntries={independentSolver.DynamicEntryCount} referenceFinite={referenceSolver.IsFinite} " +
+                $"capsuleReferenceThrows={capsuleResult.referenceThrows} " +
+                $"capsuleIndependentClamps={capsuleResult.independentClamps}");
 
         Debug.Log($"RUNTIME_DYNAMICS_REPLAY_OK referenceNodes={referenceSolver.SimulatedNodes} " +
             $"oursEntries={independentSolver.DynamicEntryCount} oursSegments={independentSolver.SimulatedBoneCount} " +
-            $"steps=8 maxTipDelta={maxTipDelta:R} step={ActorAnimationSwingSolver.NativeStep:R}");
+            $"steps=8 maxTipDelta={maxTipDelta:R} step={ActorAnimationSwingSolver.NativeStep:R} " +
+            $"capsuleInvalidAxis=reference-throws,independent-clamps");
         UnityEngine.Object.DestroyImmediate(referenceSolverObject);
         UnityEngine.Object.DestroyImmediate(reference.root);
         UnityEngine.Object.DestroyImmediate(ours.root);
         EditorApplication.Exit(0);
+    }
+
+    private sealed class CapsuleProbeResult
+    {
+        public bool referenceThrows;
+        public bool independentClamps;
+    }
+
+    private static CapsuleProbeResult RunInvalidCapsuleProbe()
+    {
+        var result = new CapsuleProbeResult();
+        try
+        {
+            Vector3 ignoredA;
+            Vector3 ignoredB;
+            ActorAnimationSwingSolver.NativeCapsuleEndpoints(
+                Vector3.zero, new Vector3(7f, 1f, 0f), 0.02f, out ignoredA, out ignoredB);
+        }
+        catch (InvalidOperationException)
+        {
+            result.referenceThrows = true;
+        }
+
+        var root = new GameObject("IndependentInvalidCapsuleRig");
+        var collider = root.AddComponent<ActorSwingStaticBone>();
+        collider.staticCollider = new SwingCollider
+        {
+            type = 1,
+            vector3_A = Vector3.zero,
+            vector3_B = new Vector3(7f, 1f, 0f),
+            float_A = 0.02f,
+            float_B = 0.02f,
+            collisionMask = -1,
+        };
+        var solver = root.AddComponent<HairDynamicsSystem>();
+        solver.automaticSimulation = false;
+        try
+        {
+            solver.Initialize(root.transform, root.transform, root.transform);
+            result.independentClamps = solver.StaticColliderCount == 1;
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(root);
+        }
+        return result;
     }
 
     private static Rig CreateRig(string name, bool attachIndependentSettings)

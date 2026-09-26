@@ -30,4 +30,6 @@ records the latest run. Both solvers produced finite output. The reference
 reported three simulated nodes; the independent solver reported three dynamic
 entries and two simulated segments. The measured maximum tip-position delta was
 `0.4555227`, so `equivalent` remains `false` and the gap is intentionally
-visible to later work.
+visible to later work. The same receipt records another concrete semantic gap:
+an invalid capsule axis throws in the reference helper while the independent
+solver clamps it into the valid axis range.

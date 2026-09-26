@@ -26,6 +26,10 @@ class RuntimeDynamicsComparisonContractTests(unittest.TestCase):
         self.assertEqual(receipt["steps"], 8)
         self.assertAlmostEqual(receipt["fixed_step"], 0.01667, places=5)
         self.assertGreater(receipt["max_tip_delta"], 0.0)
+        self.assertEqual(receipt["capsule_invalid_axis"], {
+            "reference": "throws",
+            "independent": "clamps",
+        })
         self.assertTrue(PROBE.is_file())
         self.assertTrue(RUNNER.is_file())
 

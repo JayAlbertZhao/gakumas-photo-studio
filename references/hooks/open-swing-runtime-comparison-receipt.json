@@ -19,9 +19,14 @@
   "fixed_step": 0.01667,
   "wind": "disabled",
   "max_tip_delta": 0.4555227,
+  "capsule_invalid_axis": {
+    "reference": "throws",
+    "independent": "clamps"
+  },
   "divergences": [
     "The independent solver reports dynamic entries separately from simulated segments.",
-    "The final synthetic tip positions differ; the reference and independent solver are not equivalent."
+    "The final synthetic tip positions differ; the reference and independent solver are not equivalent.",
+    "An invalid native capsule axis throws in the reference and is clamped by the independent solver."
   ],
   "asset_policy": "synthetic transform hierarchy and invented JSON only; no original assets, source, or extracted configuration",
   "license_note": "Editor batch replay completed; no player build or license token is included."
