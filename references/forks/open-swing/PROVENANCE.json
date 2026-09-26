@@ -1,5 +1,5 @@
 {
-  "schema": "photo-studio.reference-fork.v1",
+  "schema": "photo-studio.reference-fork",
   "upstream": "https://github.com/Arin3000/unity-hair-skirt-dynamics.git",
   "commit": "4d1fa5492961eb09d8f7c5620d9a060f6074caca",
   "license": "MIT",

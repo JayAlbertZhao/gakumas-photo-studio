@@ -11,7 +11,7 @@ HOOK_SOURCE = ROOT / "references" / "hooks" / "OpenSwingReferenceHook.cs"
 
 class ReferenceForkContractTests(unittest.TestCase):
     def test_open_swing_snapshot_has_provenance_and_mit_license(self):
-        provenance = json.loads((FORK / "UPSTREAM.json").read_text(encoding="utf-8"))
+        provenance = json.loads((FORK / "PROVENANCE.json").read_text(encoding="utf-8"))
         self.assertEqual(provenance["license"], "MIT")
         self.assertRegex(provenance["commit"], r"^[0-9a-f]{40}$")
         self.assertTrue((FORK / "LICENSE").is_file())
