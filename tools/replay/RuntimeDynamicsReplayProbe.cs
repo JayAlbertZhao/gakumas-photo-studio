@@ -1,0 +1,126 @@
+using System;
+using System.Collections.Generic;
+using ActorAnimation;
+using GakumasPhotoMode;
+using OpenSwing;
+using UnityEditor;
+using UnityEngine;
+
+public static class RuntimeDynamicsReplayProbe
+{
+    private sealed class Rig
+    {
+        public GameObject root;
+        public Transform jointB;
+        public Transform tip;
+        public Transform end;
+    }
+
+    public static void Run()
+    {
+        var reference = CreateRig("ReferenceRig", false);
+        var ours = CreateRig("IndependentRig", true);
+
+        var referenceSolverObject = new GameObject("ReferenceSolver");
+        referenceSolverObject.transform.SetParent(reference.root.transform, false);
+        var referenceSolver = referenceSolverObject.AddComponent<ActorAnimationSwingSolver>();
+        referenceSolver.configuration = new TextAsset(
+            System.IO.File.ReadAllText("Assets/ExampleChain.json"));
+        referenceSolver.bindings = Bind(reference);
+        referenceSolver.manualSimulation = true;
+        referenceSolver.Initialize();
+        referenceSolver.CapturePose();
+
+        var independentSolver = ours.root.AddComponent<HairDynamicsSystem>();
+        independentSolver.automaticSimulation = false;
+        independentSolver.windStrength = 0f;
+        independentSolver.naturalWind = null;
+        independentSolver.Initialize(ours.root.transform, ours.root.transform, ours.root.transform);
+
+        for (var i = 0; i < 8; i++)
+        {
+            referenceSolver.Step(ActorAnimationSwingSolver.NativeStep);
+            independentSolver.AdvanceSimulation(ActorAnimationSwingSolver.NativeStep,
+                (i + 1) * ActorAnimationSwingSolver.NativeStep);
+        }
+
+        var referenceTips = referenceSolver.TipPositions();
+        var oursTips = new[] { ours.jointB.position, ours.tip.position, ours.end.position };
+        var maxTipDelta = 0f;
+        for (var i = 0; i < Math.Min(referenceTips.Length, oursTips.Length); i++)
+            maxTipDelta = Mathf.Max(maxTipDelta, Vector3.Distance(referenceTips[i], oursTips[i]));
+
+        if (!referenceSolver.IsFinite || !IsFinite(oursTips) || referenceSolver.SimulatedNodes != 3 ||
+            independentSolver.DynamicEntryCount != 3)
+            throw new InvalidOperationException(
+                $"Runtime dynamics replay failed: referenceNodes={referenceSolver.SimulatedNodes} " +
+                $"oursEntries={independentSolver.DynamicEntryCount} referenceFinite={referenceSolver.IsFinite}");
+
+        Debug.Log($"RUNTIME_DYNAMICS_REPLAY_OK referenceNodes={referenceSolver.SimulatedNodes} " +
+            $"oursEntries={independentSolver.DynamicEntryCount} oursSegments={independentSolver.SimulatedBoneCount} " +
+            $"steps=8 maxTipDelta={maxTipDelta:R} step={ActorAnimationSwingSolver.NativeStep:R}");
+        UnityEngine.Object.DestroyImmediate(referenceSolverObject);
+        UnityEngine.Object.DestroyImmediate(reference.root);
+        UnityEngine.Object.DestroyImmediate(ours.root);
+        EditorApplication.Exit(0);
+    }
+
+    private static Rig CreateRig(string name, bool attachIndependentSettings)
+    {
+        var root = new GameObject(name);
+        var jointA = new GameObject("JointA").transform;
+        jointA.SetParent(root.transform, false);
+        jointA.localPosition = Vector3.zero;
+        var jointB = new GameObject("JointB").transform;
+        jointB.SetParent(jointA, false);
+        jointB.localPosition = new Vector3(0f, 0.1f, 0f);
+        var tip = new GameObject("Tip").transform;
+        tip.SetParent(jointB, false);
+        tip.localPosition = new Vector3(0f, 0.1f, 0f);
+        var end = new GameObject("End").transform;
+        end.SetParent(tip, false);
+        end.localPosition = new Vector3(0f, 0.1f, 0f);
+
+        if (attachIndependentSettings)
+        {
+            AddSetting(jointA, 0.18f, 0.12f, 0.08f, 0.05f);
+            AddSetting(jointB, 0.20f, 0.10f, 0.08f, 0.04f);
+            AddSetting(tip, 0.22f, 0.08f, 0.06f, 0.03f);
+        }
+
+        return new Rig { root = root, jointB = jointB, tip = tip, end = end };
+    }
+
+    private static void AddSetting(Transform bone, float damping, float stiffness, float spring, float mass)
+    {
+        var setting = bone.gameObject.AddComponent<ActorSwingDynamicBone>();
+        setting.damping = damping;
+        setting.stiffness = stiffness;
+        setting.spring = spring;
+        setting.mass = mass;
+        setting.rootWeight = 0.75f;
+        setting.pendulum = 0f;
+        setting.wind = 0f;
+        setting.useWindGlobalForce = false;
+    }
+
+    private static Dictionary<string, Transform> Bind(Rig rig)
+    {
+        return new Dictionary<string, Transform>
+        {
+            ["JointA"] = rig.root.transform.Find("JointA"),
+            ["JointB"] = rig.jointB,
+            ["Tip"] = rig.tip,
+            ["End"] = rig.end,
+        };
+    }
+
+    private static bool IsFinite(Vector3[] values)
+    {
+        foreach (var value in values)
+            if (float.IsNaN(value.x) || float.IsInfinity(value.x) ||
+                float.IsNaN(value.y) || float.IsInfinity(value.y) ||
+                float.IsNaN(value.z) || float.IsInfinity(value.z)) return false;
+        return true;
+    }
+}

@@ -1,0 +1,28 @@
+{
+  "schema": "photo-studio.runtime-comparison.v1",
+  "reference": "references/forks/open-swing/Runtime/Hair/ActorAnimationSwingSolver.cs",
+  "independent": "packages/com.digital-kotone.toolkit/Runtime/HairDynamicsSystem.cs",
+  "probe": "tools/replay/RuntimeDynamicsReplayProbe.cs",
+  "runner": "tools/run_open_swing_runtime_replay.py",
+  "editor": "Unity 2022.3.57f1",
+  "fixture": "synthetic-chain-example",
+  "status": "passed",
+  "equivalent": false,
+  "finite": {
+    "reference": true,
+    "independent": true
+  },
+  "reference_nodes": 3,
+  "independent_entries": 3,
+  "independent_segments": 2,
+  "steps": 8,
+  "fixed_step": 0.01667,
+  "wind": "disabled",
+  "max_tip_delta": 0.4555227,
+  "divergences": [
+    "The independent solver reports dynamic entries separately from simulated segments.",
+    "The final synthetic tip positions differ; the reference and independent solver are not equivalent."
+  ],
+  "asset_policy": "synthetic transform hierarchy and invented JSON only; no original assets, source, or extracted configuration",
+  "license_note": "Editor batch replay completed; no player build or license token is included."
+}
