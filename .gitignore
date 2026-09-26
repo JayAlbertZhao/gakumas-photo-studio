@@ -818,6 +818,7 @@
 !/tests/test_motion_effect_contract.py
 !/tests/test_outline_authoring_contract.py
 !/tests/test_performance_authoring.py
+!/tests/test_reference_compare_contract.py
 !/tests/test_reference_fork_contract.py
 !/tests/test_release.py
 !/tests/test_rendering_contract.py
@@ -837,6 +838,7 @@
 !/tests/test_volumetric_lighting_contract.py
 !/tests/test_volumetric_reconstruction_contract.py
 !/tests/test_water_contract.py
+!/tools/compare_open_swing_reference.py
 !/tools/dcc/maya_performance.py
 !/tools/dcc/performance_authoring.py
 !/tools/import_private_resources.py
