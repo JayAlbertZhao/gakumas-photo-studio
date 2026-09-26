@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -64,6 +65,32 @@ def stage_project(workspace: Path) -> None:
     shutil.copy2(PROBE, editor / PROBE.name)
 
 
+def parse_runtime_receipt(log_text: str) -> dict:
+    match = re.search(
+        r"RUNTIME_DYNAMICS_REPLAY_OK\s+"
+        r"referenceNodes=(?P<reference_nodes>\d+)\s+"
+        r"oursEntries=(?P<independent_entries>\d+)\s+"
+        r"oursSegments=(?P<independent_segments>\d+)\s+"
+        r"steps=(?P<steps>\d+)\s+"
+        r"maxTipDelta=(?P<max_tip_delta>[0-9.eE+-]+)\s+"
+        r"step=(?P<fixed_step>[0-9.eE+-]+)",
+        log_text,
+    )
+    if match is None:
+        raise ValueError("Unity log has no runtime dynamics replay receipt")
+    values = match.groupdict()
+    return {
+        "schema": "photo-studio.runtime-comparison.v1",
+        "status": "passed",
+        "reference_nodes": int(values["reference_nodes"]),
+        "independent_entries": int(values["independent_entries"]),
+        "independent_segments": int(values["independent_segments"]),
+        "steps": int(values["steps"]),
+        "max_tip_delta": float(values["max_tip_delta"]),
+        "fixed_step": float(values["fixed_step"]),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--unity-editor", type=Path, required=True)
@@ -89,10 +116,15 @@ def main() -> int:
     completed = subprocess.run(command, cwd=ROOT, check=False)
     if completed.returncode != 0:
         return completed.returncode
-    if not log_file.is_file() or "RUNTIME_DYNAMICS_REPLAY_OK" not in log_file.read_text(encoding="utf-8", errors="replace"):
-        print("Unity exited without the runtime replay receipt", file=sys.stderr)
+    if not log_file.is_file():
+        print("Unity exited without creating a runtime replay log", file=sys.stderr)
         return 1
-    print(log_file)
+    try:
+        receipt = parse_runtime_receipt(log_file.read_text(encoding="utf-8", errors="replace"))
+    except ValueError as error:
+        print(str(error), file=sys.stderr)
+        return 1
+    print(json.dumps(receipt, indent=2, sort_keys=True))
     return 0
 
 
