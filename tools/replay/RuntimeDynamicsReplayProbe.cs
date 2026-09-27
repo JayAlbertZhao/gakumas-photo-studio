@@ -47,6 +47,15 @@ public static class RuntimeDynamicsReplayProbe
 
         var capsuleResult = RunInvalidCapsuleProbe();
         var skirtAngleDelta = RunSkirtRootMathProbe();
+        referenceSolver.RequestReset();
+        referenceSolver.Step(ActorAnimationSwingSolver.NativeStep);
+        independentSolver.ResetSimulation();
+        independentSolver.AdvanceSimulation(ActorAnimationSwingSolver.NativeStep,
+            9 * ActorAnimationSwingSolver.NativeStep);
+        var resetReferenceTips = referenceSolver.TipPositions();
+        var resetIndependentTips = new[] { ours.jointB.position, ours.tip.position, ours.end.position };
+        var resetTipDelta = MaxTipDelta(resetReferenceTips, resetIndependentTips);
+        var resetFinite = referenceSolver.IsFinite && IsFinite(resetIndependentTips);
 
         var referenceTips = referenceSolver.TipPositions();
         var oursTips = new[] { ours.jointB.position, ours.tip.position, ours.end.position };
@@ -56,19 +65,20 @@ public static class RuntimeDynamicsReplayProbe
 
         if (!referenceSolver.IsFinite || !IsFinite(oursTips) || referenceSolver.SimulatedNodes != 3 ||
             independentSolver.DynamicEntryCount != 3 || !capsuleResult.referenceThrows ||
-            !capsuleResult.independentClamps || skirtAngleDelta > 0.1f)
+            !capsuleResult.independentClamps || skirtAngleDelta > 0.1f || !resetFinite)
             throw new InvalidOperationException(
                 $"Runtime dynamics replay failed: referenceNodes={referenceSolver.SimulatedNodes} " +
                 $"oursEntries={independentSolver.DynamicEntryCount} referenceFinite={referenceSolver.IsFinite} " +
                 $"capsuleReferenceThrows={capsuleResult.referenceThrows} " +
                 $"capsuleIndependentClamps={capsuleResult.independentClamps} " +
-                $"skirtAngleDelta={skirtAngleDelta:R}");
+                $"skirtAngleDelta={skirtAngleDelta:R} resetFinite={resetFinite}");
 
         Debug.Log($"RUNTIME_DYNAMICS_REPLAY_OK referenceNodes={referenceSolver.SimulatedNodes} " +
             $"oursEntries={independentSolver.DynamicEntryCount} oursSegments={independentSolver.SimulatedBoneCount} " +
             $"steps=8 maxTipDelta={maxTipDelta:R} step={ActorAnimationSwingSolver.NativeStep:R} " +
             $"capsuleInvalidAxis=reference-throws,independent-clamps " +
-            $"skirtRootMathAngleDelta={skirtAngleDelta:R}");
+            $"skirtRootMathAngleDelta={skirtAngleDelta:R} resetFinite={resetFinite} " +
+            $"resetMaxTipDelta={resetTipDelta:R}");
         UnityEngine.Object.DestroyImmediate(referenceSolverObject);
         UnityEngine.Object.DestroyImmediate(reference.root);
         UnityEngine.Object.DestroyImmediate(ours.root);
@@ -149,6 +159,14 @@ public static class RuntimeDynamicsReplayProbe
         var independent = (Quaternion)method.Invoke(null,
             new object[] { initial, current, independentSetting });
         return Quaternion.Angle(reference, independent);
+    }
+
+    private static float MaxTipDelta(Vector3[] reference, Vector3[] independent)
+    {
+        var result = 0f;
+        for (var i = 0; i < Math.Min(reference.Length, independent.Length); i++)
+            result = Mathf.Max(result, Vector3.Distance(reference[i], independent[i]));
+        return result;
     }
 
     private static Rig CreateRig(string name, bool attachIndependentSettings)

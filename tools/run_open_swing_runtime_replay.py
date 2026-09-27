@@ -75,7 +75,9 @@ def parse_runtime_receipt(log_text: str) -> dict:
         r"maxTipDelta=(?P<max_tip_delta>[0-9.eE+-]+)\s+"
         r"step=(?P<fixed_step>[0-9.eE+-]+)\s+"
         r"capsuleInvalidAxis=(?P<capsule_invalid_axis>[^\s]+)\s+"
-        r"skirtRootMathAngleDelta=(?P<skirt_root_math_angle_delta>[0-9.eE+-]+)",
+        r"skirtRootMathAngleDelta=(?P<skirt_root_math_angle_delta>[0-9.eE+-]+)\s+"
+        r"resetFinite=(?P<reset_finite>True|False)\s+"
+        r"resetMaxTipDelta=(?P<reset_max_tip_delta>[0-9.eE+-]+)",
         log_text,
     )
     if match is None:
@@ -92,6 +94,8 @@ def parse_runtime_receipt(log_text: str) -> dict:
         "fixed_step": float(values["fixed_step"]),
         "capsule_invalid_axis": values["capsule_invalid_axis"],
         "skirt_root_math_angle_delta": float(values["skirt_root_math_angle_delta"]),
+        "reset_finite": values["reset_finite"] == "True",
+        "reset_max_tip_delta": float(values["reset_max_tip_delta"]),
     }
 
 
