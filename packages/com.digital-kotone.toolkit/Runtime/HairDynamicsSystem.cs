@@ -43,6 +43,13 @@ namespace GakumasPhotoMode
         public bool useExternalReferenceLimits;
         /// <summary>Use authored skirt reference frames and continuous per-axis gains. Default remains legacy.</summary>
         public bool useAuthoredSkirtHelpers;
+        /// <summary>
+        /// Opt in to simulating a terminal transform segment when a dynamic
+        /// component has a non-zero child transform without another dynamic
+        /// component below it. Default remains the historical component-only
+        /// graph until the terminal rule is fully parity-validated.
+        /// </summary>
+        public bool includeTerminalTransformSegments;
         /// <summary>Opt in before initialization to positional dynamicType=1 garment/hair links.
         /// Slide limits are parent-frame millimetres; default preserves the legacy swing path.</summary>
         public bool useAuthoredSlideDynamics;
@@ -56,6 +63,7 @@ namespace GakumasPhotoMode
         [Range(0f, 1f)] public float collisionStrength = 1f;
 
         private readonly List<Node> _nodes = new List<Node>();
+        private readonly List<Node> _terminalProxies = new List<Node>();
         private readonly List<QuartzDriverState> _quartzDrivers = new List<QuartzDriverState>();
         private readonly List<QuartzSkirtDriverState> _quartzSkirtDrivers =
             new List<QuartzSkirtDriverState>();
@@ -80,9 +88,19 @@ namespace GakumasPhotoMode
         private float _manageRootVerticalWeight = 1f;
         private int _terminalTransformSegmentCandidateCount;
 
-        public int SimulatedBoneCount { get { return _nodes.Count(node => node.child != null); } }
-        public int DynamicEntryCount { get { return _nodes.Count; } }
-        public int TerminalEntryCount { get { return _nodes.Count(node => node.child == null); } }
+        public int SimulatedBoneCount
+        {
+            get { return _nodes.Count(node => !node.isTerminalProxy && node.child != null); }
+        }
+        public int DynamicEntryCount
+        {
+            get { return _nodes.Count(node => !node.isTerminalProxy); }
+        }
+        public int TerminalEntryCount
+        {
+            get { return _nodes.Count(node => !node.isTerminalProxy && node.child == null); }
+        }
+        public int TerminalProxyCount { get { return _terminalProxies.Count; } }
         /// <summary>
         /// Counts terminal dynamic entries whose transform has a non-zero child
         /// offset but no dynamic component descendant. The reference solver
@@ -171,6 +189,7 @@ namespace GakumasPhotoMode
             _chest = chest;
             _systemLabel = systemLabel;
             _nodes.Clear();
+            _terminalProxies.Clear();
             _quartzDrivers.Clear();
             _quartzSkirtDrivers.Clear();
             _staticColliders.Clear();
@@ -280,6 +299,8 @@ namespace GakumasPhotoMode
                         nodesByTransform.TryGetValue(authoredTransform, out node.authoredReferenceNode);
                 }
             }
+            if (includeTerminalTransformSegments)
+                AddTerminalTransformProxies();
 
             // The production CampusActorAnimationRigData aggregates swing components
             // from every assembled model part. Hair dynamic colliders therefore hit
@@ -323,12 +344,13 @@ namespace GakumasPhotoMode
                 LogNodeSettings();
             int braidCount = _nodes.Count(node => node.isBraid);
             Debug.Log(string.Format(
-                "[PhotoMode] Recovered ActorSwing {0} data flow ready: entries={1}, edges={2}, terminals={3}, terminalCandidates={4}, braidEntries={5}, QuartzDrivers={6}, staticColliders={7}, chainLayers={8}, chainSchedule={9}, chainDepths={10}, chainProfiles={11}",
+                "[PhotoMode] Recovered ActorSwing {0} data flow ready: entries={1}, edges={2}, terminals={3}, terminalCandidates={4}, terminalProxies={5}, braidEntries={6}, QuartzDrivers={7}, staticColliders={8}, chainLayers={9}, chainSchedule={10}, chainDepths={11}, chainProfiles={12}",
                 _systemLabel,
                 DynamicEntryCount,
                 SimulatedBoneCount,
                 TerminalEntryCount,
                 TerminalTransformSegmentCandidateCount,
+                TerminalProxyCount,
                 braidCount,
                 QuartzDriverCount,
                 _staticColliders.Count,
@@ -357,6 +379,37 @@ namespace GakumasPhotoMode
                     return true;
             }
             return false;
+        }
+
+        private void AddTerminalTransformProxies()
+        {
+            Node[] terminalParents = _nodes
+                .Where(node => !node.isTerminalProxy &&
+                    node.child == null &&
+                    HasNonZeroChildTransform(node.bone))
+                .ToArray();
+            foreach (Node parent in terminalParents)
+            {
+                Transform child = FirstNonZeroChildTransform(parent.bone);
+                if (child == null) continue;
+                Node proxy = new Node(parent.setting, child,
+                    HierarchyDepth(child), true);
+                proxy.parent = parent;
+                parent.child = proxy;
+                _terminalProxies.Add(proxy);
+                _nodes.Add(proxy);
+            }
+        }
+
+        private static Transform FirstNonZeroChildTransform(Transform bone)
+        {
+            for (int index = 0; index < bone.childCount; index++)
+            {
+                Transform child = bone.GetChild(index);
+                if (child.localPosition.sqrMagnitude > 1e-10f)
+                    return child;
+            }
+            return null;
         }
 
         private static bool MatchesSubset(string boneName, DynamicSubset subset)
@@ -1745,6 +1798,7 @@ namespace GakumasPhotoMode
             public readonly int depth;
             public readonly float phase;
             public readonly bool isBraid;
+            public readonly bool isTerminalProxy;
             public Node parent;
             public Node child;
             public Node referenceNode;
@@ -1782,6 +1836,24 @@ namespace GakumasPhotoMode
                 phase = Mathf.Abs(bone.name.GetHashCode() % 1000) * 0.017f;
                 isBraid = bone.name.StartsWith("LeftHair", StringComparison.Ordinal) ||
                     bone.name.StartsWith("RightHair", StringComparison.Ordinal);
+                isTerminalProxy = false;
+            }
+
+            public Node(
+                ActorSwingDynamicBone value,
+                Transform boneOverride,
+                int hierarchyDepth,
+                bool terminalProxy)
+            {
+                setting = value;
+                bone = boneOverride;
+                restLocalPosition = bone.localPosition;
+                restLocalRotation = bone.localRotation;
+                boneAxis = SafeDirection(restLocalPosition, Vector3.down);
+                depth = hierarchyDepth;
+                phase = Mathf.Abs(bone.name.GetHashCode() % 1000) * 0.017f;
+                isBraid = false;
+                isTerminalProxy = terminalProxy;
             }
         }
 

@@ -36,6 +36,7 @@ public static class RuntimeDynamicsReplayProbe
         independentSolver.automaticSimulation = false;
         independentSolver.windStrength = 0f;
         independentSolver.naturalWind = null;
+        independentSolver.includeTerminalTransformSegments = true;
         independentSolver.Initialize(ours.root.transform, ours.root.transform, ours.root.transform);
 
         for (var i = 0; i < 8; i++)
@@ -64,7 +65,10 @@ public static class RuntimeDynamicsReplayProbe
             maxTipDelta = Mathf.Max(maxTipDelta, Vector3.Distance(referenceTips[i], oursTips[i]));
 
         if (!referenceSolver.IsFinite || !IsFinite(oursTips) || referenceSolver.SimulatedNodes != 3 ||
-            independentSolver.DynamicEntryCount != 3 || !capsuleResult.referenceThrows ||
+            independentSolver.DynamicEntryCount != 3 ||
+            independentSolver.SimulatedBoneCount != 3 ||
+            independentSolver.TerminalProxyCount != 1 ||
+            !capsuleResult.referenceThrows ||
             !capsuleResult.independentClamps || skirtAngleDelta > 0.1f || !resetFinite)
             throw new InvalidOperationException(
                 $"Runtime dynamics replay failed: referenceNodes={referenceSolver.SimulatedNodes} " +
@@ -76,6 +80,7 @@ public static class RuntimeDynamicsReplayProbe
         Debug.Log($"RUNTIME_DYNAMICS_REPLAY_OK referenceNodes={referenceSolver.SimulatedNodes} " +
             $"oursEntries={independentSolver.DynamicEntryCount} oursSegments={independentSolver.SimulatedBoneCount} " +
             $"terminalCandidates={independentSolver.TerminalTransformSegmentCandidateCount} " +
+            $"terminalProxies={independentSolver.TerminalProxyCount} " +
             $"steps=8 maxTipDelta={maxTipDelta:R} step={ActorAnimationSwingSolver.NativeStep:R} " +
             $"capsuleInvalidAxis=reference-throws,independent-clamps " +
             $"skirtRootMathAngleDelta={skirtAngleDelta:R} resetFinite={resetFinite} " +

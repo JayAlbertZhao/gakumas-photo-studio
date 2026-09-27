@@ -27,11 +27,12 @@ builds or includes a player license.
 
 The checked-in [runtime comparison receipt](../references/hooks/open-swing-runtime-comparison-receipt.json)
 records the latest run. Both solvers produced finite output. The reference
-reported three simulated nodes; the independent solver reported three dynamic
-entries and two simulated segments, with one terminal transform-segment candidate
-visible in the independent node graph. The measured maximum tip-position delta was
-`0.455497533` in the latest run, so `equivalent` remains `false` and the gap is intentionally
-visible to later work. The same receipt records another concrete semantic gap:
+reported three simulated nodes; the independent solver reports three dynamic
+entries and three simulated segments after enabling the new opt-in terminal
+transform proxy, while retaining one diagnostic terminal candidate. The measured
+maximum tip-position delta was `0.455500752` in the latest run, so `equivalent`
+remains `false` and the gap is intentionally visible to later work. The same
+receipt records another concrete semantic gap:
 an invalid capsule axis throws in the reference helper while the independent
 solver clamps it into the valid axis range.
 The same fixture also evaluates the reference `SkirtRootMath` and the
