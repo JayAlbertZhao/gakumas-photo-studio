@@ -23,6 +23,7 @@
     "reference": "throws",
     "independent": "clamps"
   },
+  "skirt_root_math_angle_delta": 0.0,
   "divergences": [
     "The independent solver reports dynamic entries separately from simulated segments.",
     "The final synthetic tip positions differ; the reference and independent solver are not equivalent.",

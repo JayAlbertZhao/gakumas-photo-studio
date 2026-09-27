@@ -30,6 +30,7 @@ class RuntimeDynamicsComparisonContractTests(unittest.TestCase):
             "reference": "throws",
             "independent": "clamps",
         })
+        self.assertLess(receipt["skirt_root_math_angle_delta"], 0.1)
         self.assertTrue(PROBE.is_file())
         self.assertTrue(RUNNER.is_file())
 
@@ -37,11 +38,15 @@ class RuntimeDynamicsComparisonContractTests(unittest.TestCase):
         receipt = parse_runtime_receipt(
             "RUNTIME_DYNAMICS_REPLAY_OK referenceNodes=3 oursEntries=3 "
             "oursSegments=2 steps=8 maxTipDelta=0.4555227 step=0.01667"
+            " capsuleInvalidAxis=reference-throws,independent-clamps"
+            " skirtRootMathAngleDelta=0"
         )
         self.assertEqual(receipt["reference_nodes"], 3)
         self.assertEqual(receipt["independent_segments"], 2)
         self.assertAlmostEqual(receipt["max_tip_delta"], 0.4555227)
         self.assertAlmostEqual(receipt["fixed_step"], 0.01667)
+        self.assertEqual(receipt["capsule_invalid_axis"], "reference-throws,independent-clamps")
+        self.assertEqual(receipt["skirt_root_math_angle_delta"], 0.0)
 
 
 if __name__ == "__main__":

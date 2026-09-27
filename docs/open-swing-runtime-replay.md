@@ -33,3 +33,5 @@ entries and two simulated segments. The measured maximum tip-position delta was
 visible to later work. The same receipt records another concrete semantic gap:
 an invalid capsule axis throws in the reference helper while the independent
 solver clamps it into the valid axis range.
+The same fixture also evaluates the reference `SkirtRootMath` and the
+independent skirt helper; the current synthetic case has zero angular delta.

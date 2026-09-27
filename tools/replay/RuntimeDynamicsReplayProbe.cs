@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using ActorAnimation;
 using GakumasPhotoMode;
 using OpenSwing;
@@ -45,6 +46,7 @@ public static class RuntimeDynamicsReplayProbe
         }
 
         var capsuleResult = RunInvalidCapsuleProbe();
+        var skirtAngleDelta = RunSkirtRootMathProbe();
 
         var referenceTips = referenceSolver.TipPositions();
         var oursTips = new[] { ours.jointB.position, ours.tip.position, ours.end.position };
@@ -54,17 +56,19 @@ public static class RuntimeDynamicsReplayProbe
 
         if (!referenceSolver.IsFinite || !IsFinite(oursTips) || referenceSolver.SimulatedNodes != 3 ||
             independentSolver.DynamicEntryCount != 3 || !capsuleResult.referenceThrows ||
-            !capsuleResult.independentClamps)
+            !capsuleResult.independentClamps || skirtAngleDelta > 0.1f)
             throw new InvalidOperationException(
                 $"Runtime dynamics replay failed: referenceNodes={referenceSolver.SimulatedNodes} " +
                 $"oursEntries={independentSolver.DynamicEntryCount} referenceFinite={referenceSolver.IsFinite} " +
                 $"capsuleReferenceThrows={capsuleResult.referenceThrows} " +
-                $"capsuleIndependentClamps={capsuleResult.independentClamps}");
+                $"capsuleIndependentClamps={capsuleResult.independentClamps} " +
+                $"skirtAngleDelta={skirtAngleDelta:R}");
 
         Debug.Log($"RUNTIME_DYNAMICS_REPLAY_OK referenceNodes={referenceSolver.SimulatedNodes} " +
             $"oursEntries={independentSolver.DynamicEntryCount} oursSegments={independentSolver.SimulatedBoneCount} " +
             $"steps=8 maxTipDelta={maxTipDelta:R} step={ActorAnimationSwingSolver.NativeStep:R} " +
-            $"capsuleInvalidAxis=reference-throws,independent-clamps");
+            $"capsuleInvalidAxis=reference-throws,independent-clamps " +
+            $"skirtRootMathAngleDelta={skirtAngleDelta:R}");
         UnityEngine.Object.DestroyImmediate(referenceSolverObject);
         UnityEngine.Object.DestroyImmediate(reference.root);
         UnityEngine.Object.DestroyImmediate(ours.root);
@@ -115,6 +119,36 @@ public static class RuntimeDynamicsReplayProbe
             UnityEngine.Object.DestroyImmediate(root);
         }
         return result;
+    }
+
+    private static float RunSkirtRootMathProbe()
+    {
+        var initial = Quaternion.identity;
+        var current = Quaternion.Euler(17f, -11f, 23f);
+        var referenceSetting = new SkirtRootMath.Setting
+        {
+            rotationOrder = 0,
+            innerCoefficient = new Vector3(1.1f, 0.8f, 1.2f),
+            outerCoefficient = new Vector3(0.6f, 1.3f, 0.7f),
+            limitMin = new Vector3(-20f, -15f, -30f),
+            limitMax = new Vector3(20f, 15f, 30f),
+        };
+        var reference = SkirtRootMath.Calculate(initial, current, referenceSetting);
+
+        var independentSetting = new QuartzSkirtSetting
+        {
+            rotationOrder = 0,
+            innerCoefficient = referenceSetting.innerCoefficient,
+            outerCoefficient = referenceSetting.outerCoefficient,
+            limitMin = referenceSetting.limitMin,
+            limitMax = referenceSetting.limitMax,
+        };
+        var method = typeof(HairDynamicsSystem).GetMethod(
+            "EvaluateAuthoredSkirtHelper", BindingFlags.Static | BindingFlags.NonPublic);
+        if (method == null) throw new InvalidOperationException("Independent skirt helper is missing");
+        var independent = (Quaternion)method.Invoke(null,
+            new object[] { initial, current, independentSetting });
+        return Quaternion.Angle(reference, independent);
     }
 
     private static Rig CreateRig(string name, bool attachIndependentSettings)
