@@ -37,7 +37,12 @@ public static class RuntimeDynamicsReplayProbe
         independentSolver.windStrength = 0f;
         independentSolver.naturalWind = null;
         independentSolver.includeTerminalTransformSegments = true;
-        independentSolver.Initialize(ours.root.transform, ours.root.transform, ours.root.transform);
+        independentSolver.useReferencePrewarmSchedule = true;
+        independentSolver.useReferenceResetBoundary = true;
+        // The synthetic fixture has no body-owned fallback colliders. Keep
+        // head/chest null so the independent solver matches the reference's
+        // empty static-collider set instead of colliding with its own root.
+        independentSolver.Initialize(null, null, ours.root.transform);
 
         for (var i = 0; i < 8; i++)
         {

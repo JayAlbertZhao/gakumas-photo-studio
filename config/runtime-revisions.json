@@ -12,7 +12,7 @@
       "baseline_sha256": "d67db5da84725ba0551ea720f0045cf34c14a141491596e05e9eeea96ea5cf01"
     },
     "unity/Assets/Scripts/HairDynamicsSystem.cs": {
-      "sha256": "927bf0335f04febf891d008d16e4148f6042c8c3cfa50967a17e6b9744df4eda",
+      "sha256": "cbee0e863a3cdb6f82c3da02e4dffaab50290970b0ef5a57e8d350fc61a95077",
       "baseline_sha256": "b0f2ef43db3e0f68701174890ceb33fade864f1068da2e7b9c6b7557ef015760"
     },
     "unity/Assets/Scripts/CapturedLookAtProfile.cs": {

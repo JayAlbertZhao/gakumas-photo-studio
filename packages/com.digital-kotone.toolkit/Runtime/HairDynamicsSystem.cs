@@ -52,6 +52,17 @@ namespace GakumasPhotoMode
         public bool includeTerminalTransformSegments;
         /// <summary>Opt in to the reference capsule-axis validation rule.</summary>
         public bool useReferenceCapsuleAxisValidation;
+        /// <summary>
+        /// Opt in to the reference reset prewarm pass count. The legacy path
+        /// retains its historical full pass count until the schedule is
+        /// validated against a wider fixture set.
+        /// </summary>
+        public bool useReferencePrewarmSchedule;
+        /// <summary>
+        /// Opt in to deferring the first post-prewarm integration step to the
+        /// caller's next AdvanceSimulation, matching RequestReset + Step.
+        /// </summary>
+        public bool useReferenceResetBoundary;
         /// <summary>Opt in before initialization to positional dynamicType=1 garment/hair links.
         /// Slide limits are parent-frame millimetres; default preserves the legacy swing path.</summary>
         public bool useAuthoredSlideDynamics;
@@ -580,11 +591,15 @@ namespace GakumasPhotoMode
             // Applying the angular clamp inside every warm-up step feeds the
             // clamped pose back into the braid 24 times and creates the persistent
             // sideways "telekinetic" equilibrium seen in the old substitute.
-            for (int step = 0; step < PrewarmSteps; step++)
+            int prewarmPasses = useReferencePrewarmSchedule
+                ? PrewarmSteps / 2
+                : PrewarmSteps;
+            for (int step = 0; step < prewarmPasses; step++)
             {
                 SimulateStep(FixedDt, false, false, true);
             }
-            SimulateStep(FixedDt, false, true, false);
+            if (!useReferenceResetBoundary)
+                SimulateStep(FixedDt, false, true, false);
             ApplyRuntimePose();
             CollectMetrics();
             _accumulator = 0f;

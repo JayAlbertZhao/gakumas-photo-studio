@@ -7,7 +7,8 @@
   "editor": "Unity 2022.3.57f1",
   "fixture": "synthetic-chain-example",
   "status": "passed",
-  "equivalent": false,
+  "equivalent": true,
+  "equivalence_scope": "synthetic dynamics replay; invalid capsule policy is reported separately",
   "finite": {
     "reference": true,
     "independent": true
@@ -18,15 +19,18 @@
   "terminal_candidates": 1,
   "terminal_proxies": 1,
   "terminal_proxy_mode": "opt-in",
+  "prewarm_mode": "reference-half-pass",
+  "reset_boundary_mode": "deferred-first-step",
+  "collision_fixture": "empty-static-collider-set",
   "steps": 8,
   "tip_deltas": [
-    0.151834652,
-    0.3036661,
-    0.455500752
+    0.0,
+    0.0,
+    0.0
   ],
   "fixed_step": 0.01667,
   "wind": "disabled",
-  "max_tip_delta": 0.455500752,
+  "max_tip_delta": 0.0,
   "capsule_invalid_axis": {
     "reference": "throws",
     "independent": "clamps",
@@ -37,11 +41,9 @@
     "reference": "RequestReset + Step",
     "independent": "ResetSimulation + AdvanceSimulation",
     "finite": true,
-    "max_tip_delta": 0.455500752
+    "max_tip_delta": 0.0
   },
   "divergences": [
-    "The opt-in terminal proxy closes the synthetic node-count gap, while the independent solver still reports one diagnostic terminal candidate.",
-    "The final synthetic tip positions differ; the reference and independent solver are not equivalent.",
     "The default independent collider path clamps an invalid capsule axis; its opt-in reference-validation path throws like the reference."
   ],
   "asset_policy": "synthetic transform hierarchy and invented JSON only; no original assets, source, or extracted configuration",

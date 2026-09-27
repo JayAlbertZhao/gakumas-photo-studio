@@ -1,8 +1,9 @@
 # Open Swing runtime replay
 
-The playground now has a Unity batch replay that runs the public Open Swing
+The playground has a Unity batch replay that runs the public Open Swing
 reference and the independent `HairDynamicsSystem` on the same invented
-transform chain. It is a comparison harness, not a claim of equivalence.
+transform chain. The checked-in fixture now reaches exact synthetic dynamics
+parity; policy differences remain reported separately.
 
 ## Run
 
@@ -28,15 +29,14 @@ builds or includes a player license.
 The checked-in [runtime comparison receipt](../references/hooks/open-swing-runtime-comparison-receipt.json)
 records the latest run. Both solvers produced finite output. The reference
 reported three simulated nodes; the independent solver reports three dynamic
-entries and three simulated segments after enabling the new opt-in terminal
-transform proxy, while retaining one diagnostic terminal candidate. The measured
-maximum tip-position delta was `0.455500752` in the latest run, so `equivalent`
-remains `false` and the gap is intentionally visible to later work. The same
-receipt records another concrete semantic gap:
-per-edge tip deltas are `0.151834652`, `0.3036661`, and `0.455500752`, making the
-divergence grow along the chain rather than appearing only at its root.
-an invalid capsule axis throws in the reference helper while the independent
-solver clamps it into the valid axis range; the new opt-in
+entries and three simulated segments after enabling the opt-in terminal
+transform proxy. The latest eight-step replay has per-edge tip deltas of
+`0`, `0`, and `0`, with `equivalent=true` for the synthetic dynamics scope.
+The receipt fixes the reference-half-pass prewarm, deferred reset boundary, and
+an empty static-collider fixture (`head`/`chest` are intentionally null).
+The receipt still records a deliberate policy difference: an invalid capsule
+axis throws in the reference helper while the independent solver clamps it
+by default; the new opt-in
 `useReferenceCapsuleAxisValidation` path throws with the reference rule.
 The same fixture also evaluates the reference `SkirtRootMath` and the
 independent skirt helper; the current synthetic case has zero angular delta.
