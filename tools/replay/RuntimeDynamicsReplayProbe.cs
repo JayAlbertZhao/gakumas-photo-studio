@@ -75,6 +75,7 @@ public static class RuntimeDynamicsReplayProbe
 
         Debug.Log($"RUNTIME_DYNAMICS_REPLAY_OK referenceNodes={referenceSolver.SimulatedNodes} " +
             $"oursEntries={independentSolver.DynamicEntryCount} oursSegments={independentSolver.SimulatedBoneCount} " +
+            $"terminalCandidates={independentSolver.TerminalTransformSegmentCandidateCount} " +
             $"steps=8 maxTipDelta={maxTipDelta:R} step={ActorAnimationSwingSolver.NativeStep:R} " +
             $"capsuleInvalidAxis=reference-throws,independent-clamps " +
             $"skirtRootMathAngleDelta={skirtAngleDelta:R} resetFinite={resetFinite} " +

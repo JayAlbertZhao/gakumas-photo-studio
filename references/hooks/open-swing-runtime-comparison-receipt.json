@@ -15,6 +15,7 @@
   "reference_nodes": 3,
   "independent_entries": 3,
   "independent_segments": 2,
+  "terminal_candidates": 1,
   "steps": 8,
   "fixed_step": 0.01667,
   "wind": "disabled",
@@ -32,6 +33,7 @@
   },
   "divergences": [
     "The independent solver reports dynamic entries separately from simulated segments.",
+    "One independent terminal entry still has a non-zero child transform and is a candidate for the reference solver's terminal segment rule.",
     "The final synthetic tip positions differ; the reference and independent solver are not equivalent.",
     "An invalid native capsule axis throws in the reference and is clamped by the independent solver."
   ],

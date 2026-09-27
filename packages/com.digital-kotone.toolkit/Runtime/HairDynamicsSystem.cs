@@ -78,10 +78,21 @@ namespace GakumasPhotoMode
         private float _manageRootWeight = 1f;
         private float _manageRootHorizontalWeight = 1f;
         private float _manageRootVerticalWeight = 1f;
+        private int _terminalTransformSegmentCandidateCount;
 
         public int SimulatedBoneCount { get { return _nodes.Count(node => node.child != null); } }
         public int DynamicEntryCount { get { return _nodes.Count; } }
         public int TerminalEntryCount { get { return _nodes.Count(node => node.child == null); } }
+        /// <summary>
+        /// Counts terminal dynamic entries whose transform has a non-zero child
+        /// offset but no dynamic component descendant. The reference solver
+        /// still creates a simulated segment for this shape; the independent
+        /// solver currently reports it as a terminal entry. Diagnostic only.
+        /// </summary>
+        public int TerminalTransformSegmentCandidateCount
+        {
+            get { return _terminalTransformSegmentCandidateCount; }
+        }
         public int StaticColliderCount { get { return _staticColliders.Count; } }
         public int QuartzDriverCount
         {
@@ -165,6 +176,7 @@ namespace GakumasPhotoMode
             _staticColliders.Clear();
             _chainLayers.Clear();
             _quartzBaseRotations.Clear();
+            _terminalTransformSegmentCandidateCount = 0;
             string[] commandLine = Environment.GetCommandLineArgs();
             _disableHardLimitsForDiagnostics =
                 commandLine.Contains("--hair-disable-hard-limits");
@@ -253,6 +265,8 @@ namespace GakumasPhotoMode
             {
                 node.parent = FindDynamicAncestor(node.bone.parent, nodesByTransform);
                 node.child = FindDynamicChild(node.bone, nodesByTransform);
+                if (node.child == null && HasNonZeroChildTransform(node.bone))
+                    _terminalTransformSegmentCandidateCount++;
                 SwingReferenceLimitInfo reference = node.setting.referenceLimitInfo;
                 if (reference != null && reference.bone != null)
                 {
@@ -309,11 +323,12 @@ namespace GakumasPhotoMode
                 LogNodeSettings();
             int braidCount = _nodes.Count(node => node.isBraid);
             Debug.Log(string.Format(
-                "[PhotoMode] Recovered ActorSwing {0} data flow ready: entries={1}, edges={2}, terminals={3}, braidEntries={4}, QuartzDrivers={5}, staticColliders={6}, chainLayers={7}, chainSchedule={8}, chainDepths={9}, chainProfiles={10}",
+                "[PhotoMode] Recovered ActorSwing {0} data flow ready: entries={1}, edges={2}, terminals={3}, terminalCandidates={4}, braidEntries={5}, QuartzDrivers={6}, staticColliders={7}, chainLayers={8}, chainSchedule={9}, chainDepths={10}, chainProfiles={11}",
                 _systemLabel,
                 DynamicEntryCount,
                 SimulatedBoneCount,
                 TerminalEntryCount,
+                TerminalTransformSegmentCandidateCount,
                 braidCount,
                 QuartzDriverCount,
                 _staticColliders.Count,
@@ -332,6 +347,16 @@ namespace GakumasPhotoMode
                         "d{0}/n{1}/around{2}/smooth{3:R}/loop{4:R}",
                         value.depth, value.points.Count, value.around ? 1 : 0,
                         value.smoothing, value.initialLoopLength)).ToArray())));
+        }
+
+        private static bool HasNonZeroChildTransform(Transform bone)
+        {
+            for (int index = 0; index < bone.childCount; index++)
+            {
+                if (bone.GetChild(index).localPosition.sqrMagnitude > 1e-10f)
+                    return true;
+            }
+            return false;
         }
 
         private static bool MatchesSubset(string boneName, DynamicSubset subset)

@@ -23,6 +23,7 @@ class RuntimeDynamicsComparisonContractTests(unittest.TestCase):
         self.assertEqual(receipt["reference_nodes"], 3)
         self.assertEqual(receipt["independent_entries"], 3)
         self.assertEqual(receipt["independent_segments"], 2)
+        self.assertEqual(receipt["terminal_candidates"], 1)
         self.assertEqual(receipt["steps"], 8)
         self.assertAlmostEqual(receipt["fixed_step"], 0.01667, places=5)
         self.assertGreater(receipt["max_tip_delta"], 0.0)
@@ -40,12 +41,13 @@ class RuntimeDynamicsComparisonContractTests(unittest.TestCase):
     def test_runner_parses_the_unity_receipt_without_normalizing_the_gap(self):
         receipt = parse_runtime_receipt(
             "RUNTIME_DYNAMICS_REPLAY_OK referenceNodes=3 oursEntries=3 "
-            "oursSegments=2 steps=8 maxTipDelta=0.4555227 step=0.01667"
+            "oursSegments=2 terminalCandidates=1 steps=8 maxTipDelta=0.4555227 step=0.01667"
             " capsuleInvalidAxis=reference-throws,independent-clamps"
             " skirtRootMathAngleDelta=0 resetFinite=True resetMaxTipDelta=0.4555227"
         )
         self.assertEqual(receipt["reference_nodes"], 3)
         self.assertEqual(receipt["independent_segments"], 2)
+        self.assertEqual(receipt["terminal_candidates"], 1)
         self.assertAlmostEqual(receipt["max_tip_delta"], 0.4555227)
         self.assertAlmostEqual(receipt["fixed_step"], 0.01667)
         self.assertEqual(receipt["capsule_invalid_axis"], "reference-throws,independent-clamps")

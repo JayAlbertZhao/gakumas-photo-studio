@@ -71,6 +71,7 @@ def parse_runtime_receipt(log_text: str) -> dict:
         r"referenceNodes=(?P<reference_nodes>\d+)\s+"
         r"oursEntries=(?P<independent_entries>\d+)\s+"
         r"oursSegments=(?P<independent_segments>\d+)\s+"
+        r"terminalCandidates=(?P<terminal_candidates>\d+)\s+"
         r"steps=(?P<steps>\d+)\s+"
         r"maxTipDelta=(?P<max_tip_delta>[0-9.eE+-]+)\s+"
         r"step=(?P<fixed_step>[0-9.eE+-]+)\s+"
@@ -89,6 +90,7 @@ def parse_runtime_receipt(log_text: str) -> dict:
         "reference_nodes": int(values["reference_nodes"]),
         "independent_entries": int(values["independent_entries"]),
         "independent_segments": int(values["independent_segments"]),
+        "terminal_candidates": int(values["terminal_candidates"]),
         "steps": int(values["steps"]),
         "max_tip_delta": float(values["max_tip_delta"]),
         "fixed_step": float(values["fixed_step"]),
