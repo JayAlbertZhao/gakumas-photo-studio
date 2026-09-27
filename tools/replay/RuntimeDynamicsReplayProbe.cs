@@ -63,6 +63,9 @@ public static class RuntimeDynamicsReplayProbe
         var maxTipDelta = 0f;
         for (var i = 0; i < Math.Min(referenceTips.Length, oursTips.Length); i++)
             maxTipDelta = Mathf.Max(maxTipDelta, Vector3.Distance(referenceTips[i], oursTips[i]));
+        var tipDelta0 = TipDelta(referenceTips, oursTips, 0);
+        var tipDelta1 = TipDelta(referenceTips, oursTips, 1);
+        var tipDelta2 = TipDelta(referenceTips, oursTips, 2);
 
         if (!referenceSolver.IsFinite || !IsFinite(oursTips) || referenceSolver.SimulatedNodes != 3 ||
             independentSolver.DynamicEntryCount != 3 ||
@@ -83,7 +86,8 @@ public static class RuntimeDynamicsReplayProbe
             $"oursEntries={independentSolver.DynamicEntryCount} oursSegments={independentSolver.SimulatedBoneCount} " +
             $"terminalCandidates={independentSolver.TerminalTransformSegmentCandidateCount} " +
             $"terminalProxies={independentSolver.TerminalProxyCount} " +
-            $"steps=8 maxTipDelta={maxTipDelta:R} step={ActorAnimationSwingSolver.NativeStep:R} " +
+            $"steps=8 tipDelta0={tipDelta0:R} tipDelta1={tipDelta1:R} tipDelta2={tipDelta2:R} " +
+            $"maxTipDelta={maxTipDelta:R} step={ActorAnimationSwingSolver.NativeStep:R} " +
             $"capsuleInvalidAxis=reference-throws,independent-clamps,strict-throws " +
             $"skirtRootMathAngleDelta={skirtAngleDelta:R} resetFinite={resetFinite} " +
             $"resetMaxTipDelta={resetTipDelta:R}");
@@ -202,6 +206,12 @@ public static class RuntimeDynamicsReplayProbe
         for (var i = 0; i < Math.Min(reference.Length, independent.Length); i++)
             result = Mathf.Max(result, Vector3.Distance(reference[i], independent[i]));
         return result;
+    }
+
+    private static float TipDelta(Vector3[] reference, Vector3[] independent, int index)
+    {
+        if (index >= reference.Length || index >= independent.Length) return float.NaN;
+        return Vector3.Distance(reference[index], independent[index]);
     }
 
     private static Rig CreateRig(string name, bool attachIndependentSettings)

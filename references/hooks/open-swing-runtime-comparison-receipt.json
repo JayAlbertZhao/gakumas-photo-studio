@@ -19,6 +19,11 @@
   "terminal_proxies": 1,
   "terminal_proxy_mode": "opt-in",
   "steps": 8,
+  "tip_deltas": [
+    0.151834652,
+    0.3036661,
+    0.455500752
+  ],
   "fixed_step": 0.01667,
   "wind": "disabled",
   "max_tip_delta": 0.455500752,

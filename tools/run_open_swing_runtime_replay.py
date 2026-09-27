@@ -74,6 +74,9 @@ def parse_runtime_receipt(log_text: str) -> dict:
         r"terminalCandidates=(?P<terminal_candidates>\d+)\s+"
         r"terminalProxies=(?P<terminal_proxies>\d+)\s+"
         r"steps=(?P<steps>\d+)\s+"
+        r"tipDelta0=(?P<tip_delta_0>[0-9.eE+-]+)\s+"
+        r"tipDelta1=(?P<tip_delta_1>[0-9.eE+-]+)\s+"
+        r"tipDelta2=(?P<tip_delta_2>[0-9.eE+-]+)\s+"
         r"maxTipDelta=(?P<max_tip_delta>[0-9.eE+-]+)\s+"
         r"step=(?P<fixed_step>[0-9.eE+-]+)\s+"
         r"capsuleInvalidAxis=(?P<capsule_invalid_axis>[^\s]+)\s+"
@@ -94,6 +97,11 @@ def parse_runtime_receipt(log_text: str) -> dict:
         "terminal_candidates": int(values["terminal_candidates"]),
         "terminal_proxies": int(values["terminal_proxies"]),
         "steps": int(values["steps"]),
+        "tip_deltas": [
+            float(values["tip_delta_0"]),
+            float(values["tip_delta_1"]),
+            float(values["tip_delta_2"]),
+        ],
         "max_tip_delta": float(values["max_tip_delta"]),
         "fixed_step": float(values["fixed_step"]),
         "capsule_invalid_axis": values["capsule_invalid_axis"],
