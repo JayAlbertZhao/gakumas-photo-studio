@@ -32,6 +32,7 @@ class RuntimeDynamicsComparisonContractTests(unittest.TestCase):
         self.assertEqual(receipt["capsule_invalid_axis"], {
             "reference": "throws",
             "independent": "clamps",
+            "strict": "throws",
         })
         self.assertLess(receipt["skirt_root_math_angle_delta"], 0.1)
         self.assertTrue(receipt["reset"]["finite"])
@@ -44,7 +45,7 @@ class RuntimeDynamicsComparisonContractTests(unittest.TestCase):
         receipt = parse_runtime_receipt(
             "RUNTIME_DYNAMICS_REPLAY_OK referenceNodes=3 oursEntries=3 "
             "oursSegments=3 terminalCandidates=1 terminalProxies=1 steps=8 maxTipDelta=0.4555227 step=0.01667"
-            " capsuleInvalidAxis=reference-throws,independent-clamps"
+            " capsuleInvalidAxis=reference-throws,independent-clamps,strict-throws"
             " skirtRootMathAngleDelta=0 resetFinite=True resetMaxTipDelta=0.4555227"
         )
         self.assertEqual(receipt["reference_nodes"], 3)
@@ -53,7 +54,7 @@ class RuntimeDynamicsComparisonContractTests(unittest.TestCase):
         self.assertEqual(receipt["independent_segments"], 3)
         self.assertAlmostEqual(receipt["max_tip_delta"], 0.4555227)
         self.assertAlmostEqual(receipt["fixed_step"], 0.01667)
-        self.assertEqual(receipt["capsule_invalid_axis"], "reference-throws,independent-clamps")
+        self.assertEqual(receipt["capsule_invalid_axis"], "reference-throws,independent-clamps,strict-throws")
         self.assertEqual(receipt["skirt_root_math_angle_delta"], 0.0)
         self.assertTrue(receipt["reset_finite"])
         self.assertAlmostEqual(receipt["reset_max_tip_delta"], 0.4555227)

@@ -50,6 +50,8 @@ namespace GakumasPhotoMode
         /// graph until the terminal rule is fully parity-validated.
         /// </summary>
         public bool includeTerminalTransformSegments;
+        /// <summary>Opt in to the reference capsule-axis validation rule.</summary>
+        public bool useReferenceCapsuleAxisValidation;
         /// <summary>Opt in before initialization to positional dynamicType=1 garment/hair links.
         /// Slide limits are parent-frame millimetres; default preserves the legacy swing path.</summary>
         public bool useAuthoredSlideDynamics;
@@ -315,7 +317,9 @@ namespace GakumasPhotoMode
             {
                 staticBone.enabled = false;
                 if (staticBone.staticCollider == null || staticBone.staticCollider.type == 4) continue;
-                _staticColliders.Add(new ColliderState(staticBone.transform, staticBone.staticCollider));
+                _staticColliders.Add(new ColliderState(
+                    staticBone.transform, staticBone.staticCollider,
+                    useReferenceCapsuleAxisValidation));
             }
 
             // ActorSwingBreastBone implements IActorSwingBone and contributes
@@ -331,7 +335,8 @@ namespace GakumasPhotoMode
                 if (breastBone.breastCollider == null ||
                     breastBone.breastCollider.type == 4) continue;
                 _staticColliders.Add(new ColliderState(
-                    breastBone.transform, breastBone.breastCollider));
+                    breastBone.transform, breastBone.breastCollider,
+                    useReferenceCapsuleAxisValidation));
             }
 
             BuildChainLayers(subset);
@@ -1981,11 +1986,36 @@ namespace GakumasPhotoMode
         {
             public readonly Transform transform;
             public readonly SwingCollider collider;
+            private readonly bool _validateCapsuleAxis;
 
-            public ColliderState(Transform owner, SwingCollider value)
+            public ColliderState(
+                Transform owner,
+                SwingCollider value,
+                bool validateCapsuleAxis)
             {
                 transform = owner;
                 collider = value;
+                _validateCapsuleAxis = validateCapsuleAxis;
+                if (_validateCapsuleAxis && collider.type == 1)
+                    ValidateCapsuleAxis(collider.vector3_B);
+            }
+
+            private static void ValidateCapsuleAxis(Vector3 shape)
+            {
+                int axis = (int)shape.x;
+                if (axis < 0 || axis > 2)
+                    throw new InvalidOperationException("Invalid native capsule axis");
+            }
+
+            private int CapsuleAxisIndex()
+            {
+                int axis = (int)collider.vector3_B.x;
+                if (_validateCapsuleAxis)
+                {
+                    ValidateCapsuleAxis(collider.vector3_B);
+                    return axis;
+                }
+                return Mathf.Clamp(Mathf.RoundToInt(collider.vector3_B.x), 0, 2);
             }
 
             public bool TryResolveChainCollision(
@@ -2071,8 +2101,7 @@ namespace GakumasPhotoMode
                         return true;
                     case 1:
                         Vector3 localCenter = collider.vector3_A * scale;
-                        int axisIndex = Mathf.Clamp(
-                            Mathf.RoundToInt(collider.vector3_B.x), 0, 2);
+                        int axisIndex = CapsuleAxisIndex();
                         Vector3 localOffset = Vector3.zero;
                         localOffset[axisIndex] =
                             collider.vector3_B.y * 0.5f * scale - radiusStart;
@@ -2139,7 +2168,7 @@ namespace GakumasPhotoMode
                         return PushOutsideSphere(point, sphereCenter, radiusA, weight);
                     case 1: // Capsule with linearly interpolated endpoint radii.
                         Vector3 localCenter = collider.vector3_A * scale;
-                        int axisIndex = Mathf.Clamp(Mathf.RoundToInt(collider.vector3_B.x), 0, 2);
+                        int axisIndex = CapsuleAxisIndex();
                         Vector3 localOffset = Vector3.zero;
                         localOffset[axisIndex] = collider.vector3_B.y * 0.5f * scale -
                             Mathf.Max(0f, collider.float_A) * scale;

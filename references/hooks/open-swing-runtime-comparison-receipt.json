@@ -24,7 +24,8 @@
   "max_tip_delta": 0.455500752,
   "capsule_invalid_axis": {
     "reference": "throws",
-    "independent": "clamps"
+    "independent": "clamps",
+    "strict": "throws"
   },
   "skirt_root_math_angle_delta": 0.0,
   "reset": {
@@ -36,7 +37,7 @@
   "divergences": [
     "The opt-in terminal proxy closes the synthetic node-count gap, while the independent solver still reports one diagnostic terminal candidate.",
     "The final synthetic tip positions differ; the reference and independent solver are not equivalent.",
-    "An invalid native capsule axis throws in the reference and is clamped by the independent solver."
+    "The default independent collider path clamps an invalid capsule axis; its opt-in reference-validation path throws like the reference."
   ],
   "asset_policy": "synthetic transform hierarchy and invented JSON only; no original assets, source, or extracted configuration",
   "license_note": "Editor batch replay completed; no player build or license token is included."

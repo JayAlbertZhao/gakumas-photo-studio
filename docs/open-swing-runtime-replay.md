@@ -34,7 +34,8 @@ maximum tip-position delta was `0.455500752` in the latest run, so `equivalent`
 remains `false` and the gap is intentionally visible to later work. The same
 receipt records another concrete semantic gap:
 an invalid capsule axis throws in the reference helper while the independent
-solver clamps it into the valid axis range.
+solver clamps it into the valid axis range; the new opt-in
+`useReferenceCapsuleAxisValidation` path throws with the reference rule.
 The same fixture also evaluates the reference `SkirtRootMath` and the
 independent skirt helper; the current synthetic case has zero angular delta.
 The probe also resets both solvers through their public reset boundaries and

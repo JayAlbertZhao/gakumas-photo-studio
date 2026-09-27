@@ -69,7 +69,9 @@ public static class RuntimeDynamicsReplayProbe
             independentSolver.SimulatedBoneCount != 3 ||
             independentSolver.TerminalProxyCount != 1 ||
             !capsuleResult.referenceThrows ||
-            !capsuleResult.independentClamps || skirtAngleDelta > 0.1f || !resetFinite)
+            !capsuleResult.independentClamps ||
+            !capsuleResult.independentStrictThrows ||
+            skirtAngleDelta > 0.1f || !resetFinite)
             throw new InvalidOperationException(
                 $"Runtime dynamics replay failed: referenceNodes={referenceSolver.SimulatedNodes} " +
                 $"oursEntries={independentSolver.DynamicEntryCount} referenceFinite={referenceSolver.IsFinite} " +
@@ -82,7 +84,7 @@ public static class RuntimeDynamicsReplayProbe
             $"terminalCandidates={independentSolver.TerminalTransformSegmentCandidateCount} " +
             $"terminalProxies={independentSolver.TerminalProxyCount} " +
             $"steps=8 maxTipDelta={maxTipDelta:R} step={ActorAnimationSwingSolver.NativeStep:R} " +
-            $"capsuleInvalidAxis=reference-throws,independent-clamps " +
+            $"capsuleInvalidAxis=reference-throws,independent-clamps,strict-throws " +
             $"skirtRootMathAngleDelta={skirtAngleDelta:R} resetFinite={resetFinite} " +
             $"resetMaxTipDelta={resetTipDelta:R}");
         UnityEngine.Object.DestroyImmediate(referenceSolverObject);
@@ -95,6 +97,7 @@ public static class RuntimeDynamicsReplayProbe
     {
         public bool referenceThrows;
         public bool independentClamps;
+        public bool independentStrictThrows;
     }
 
     private static CapsuleProbeResult RunInvalidCapsuleProbe()
@@ -133,6 +136,32 @@ public static class RuntimeDynamicsReplayProbe
         finally
         {
             UnityEngine.Object.DestroyImmediate(root);
+        }
+        var strictRoot = new GameObject("IndependentStrictCapsuleRig");
+        var strictCollider = strictRoot.AddComponent<ActorSwingStaticBone>();
+        strictCollider.staticCollider = new SwingCollider
+        {
+            type = 1,
+            vector3_A = Vector3.zero,
+            vector3_B = new Vector3(7f, 1f, 0f),
+            float_A = 0.02f,
+            float_B = 0.02f,
+            collisionMask = -1,
+        };
+        var strictSolver = strictRoot.AddComponent<HairDynamicsSystem>();
+        strictSolver.automaticSimulation = false;
+        strictSolver.useReferenceCapsuleAxisValidation = true;
+        try
+        {
+            strictSolver.Initialize(strictRoot.transform, strictRoot.transform, strictRoot.transform);
+        }
+        catch (InvalidOperationException)
+        {
+            result.independentStrictThrows = true;
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(strictRoot);
         }
         return result;
     }
